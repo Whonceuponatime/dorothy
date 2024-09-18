@@ -6,6 +6,7 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <process.h>
+#include <cstdint>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -13,28 +14,28 @@
 
 // IP header structure
 struct iphdr {
-    unsigned char ihl:4, version:4;
-    unsigned char tos;
-    unsigned short tot_len;
-    unsigned short id;
-    unsigned short frag_off;
-    unsigned char ttl;
-    unsigned char protocol;
-    unsigned short check;
-    unsigned int saddr;
-    unsigned int daddr;
+    uint8_t ihl:4, version:4;
+    uint8_t tos;
+    uint16_t tot_len;
+    uint16_t id;
+    uint16_t frag_off;
+    uint8_t ttl;
+    uint8_t protocol;
+    uint16_t check;
+    uint32_t saddr;
+    uint32_t daddr;
 };
 
 // TCP header structure
 struct tcphdr {
-    unsigned short source;
-    unsigned short dest;
-    unsigned int seq;
-    unsigned int ack_seq;
-    unsigned short res1:4, doff:4, fin:1, syn:1, rst:1, psh:1, ack:1, urg:1, ece:1, cwr:1;
-    unsigned short window;
-    unsigned short check;
-    unsigned short urg_ptr;
+    uint16_t source;
+    uint16_t dest;
+    uint32_t seq;
+    uint32_t ack_seq;
+    uint16_t res1:4, doff:4, fin:1, syn:1, rst:1, psh:1, ack:1, urg:1, ece:1, cwr:1;
+    uint16_t window;
+    uint16_t check;
+    uint16_t urg_ptr;
 };
 
 struct thread_data {
