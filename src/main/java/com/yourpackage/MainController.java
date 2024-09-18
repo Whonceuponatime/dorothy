@@ -33,19 +33,12 @@ public class MainController {
     @FXML
     public void initialize() {
         jenkinsTool = new Jenkins();
+        jenkinsTool.setLogArea(logArea);
+        
         attackTypeComboBox.setItems(FXCollections.observableArrayList("UDP Flood", "TCP SYN Flood", "ICMP Flood"));
-        attackTypeComboBox.setValue("UDP Flood");
-
-        attackTypeComboBox.setOnAction(event -> {
-            String selectedAttack = attackTypeComboBox.getValue();
-            boolean isTcpAttack = "TCP SYN Flood".equals(selectedAttack);
-            ipAddressField.setDisable(!isTcpAttack);
-            portField.setDisable(!isTcpAttack);
-            findOpenPortButton.setDisable(!isTcpAttack);
-        });
-
-        startButton.setOnAction(event -> startAttack());
-        stopButton.setOnAction(event -> stopAttack());
+        
+        startButton.setOnAction(e -> startAttack());
+        stopButton.setOnAction(e -> stopAttack());
     }
 
     @FXML
@@ -66,7 +59,28 @@ public class MainController {
 
     @FXML
     public void getMacAddress() {
-        // Implementation
+        String ipAddress = ipAddressField.getText();
+        try {
+            InetAddress addr = InetAddress.getByName(ipAddress);
+            NetworkInterface ni = NetworkInterface.getByInetAddress(addr);
+            if (ni != null) {
+                byte[] mac = ni.getHardwareAddress();
+                if (mac != null) {
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < mac.length; i++) {
+                        sb.append(String.format("%02X%s", mac[i], (i < mac.length - 1) ? "-" : ""));
+                    }
+                    macAddressField.setText(sb.toString());
+                    log("MAC address for " + ipAddress + ": " + sb.toString());
+                } else {
+                    log("Unable to retrieve MAC address for " + ipAddress);
+                }
+            } else {
+                log("Network interface not found for " + ipAddress);
+            }
+        } catch (Exception e) {
+            log("Error getting MAC address: " + e.getMessage());
+        }
     }
 
     public void startAttack() {
@@ -76,11 +90,12 @@ public class MainController {
         int bytesPerSecond = mbps * 125000; // Convert Mbps to bytes per second
 
         statusLabel.setText("Status: Attack in Progress");
-        statusLabel.setStyle("-fx-text-fill: #ff0000; -fx-effect: dropshadow(gaussian, #ff0000, 5, 0, 0, 0);");
+        statusLabel.setStyle("-fx-text-fill: #2e7d32;");
 
         if ("UDP Flood".equals(attackType)) {
             log("Starting UDP flood attack...");
-            new Thread(() -> jenkinsTool.udpFlood(targetIp, 0, bytesPerSecond)).start();
+            int targetPort = Integer.parseInt(portField.getText());
+            new Thread(() -> jenkinsTool.udpFlood(targetIp, targetPort, bytesPerSecond)).start();
         } else if ("TCP SYN Flood".equals(attackType)) {
             int targetPort = Integer.parseInt(portField.getText());
             log("Starting TCP SYN flood attack...");
@@ -95,7 +110,7 @@ public class MainController {
         jenkinsTool.stopAttack();
         log("Attack stopped");
         statusLabel.setText("Status: Idle");
-        statusLabel.setStyle("-fx-text-fill: #00ff00; -fx-effect: dropshadow(gaussian, #00ff00, 5, 0, 0, 0);");
+        statusLabel.setStyle("-fx-text-fill: #c62828;");
     }
 
     @FXML

