@@ -27,7 +27,7 @@ javafx {
 jlink {
     options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages']
     launcher {
-        name = 'NetworkAttackSimulator'
+        name = 'Dorothy'
     }
     jpackage {
         if (org.gradle.internal.os.OperatingSystem.current().windows) {
