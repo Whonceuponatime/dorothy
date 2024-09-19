@@ -7,11 +7,15 @@ plugins {
 
 repositories {
     mavenCentral()
+    flatDir {
+        dirs 'libs'
+    }
 }
 
 dependencies {
     implementation 'org.openjfx:javafx-controls:17.0.6'
     implementation 'org.openjfx:javafx-fxml:17.0.6'
+    implementation files('libs/jnetpcap-1.4.r1425/jnetpcap.jar')
 }
 
 application {
@@ -44,11 +48,14 @@ java {
 
 tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
-    options.compilerArgs += ["-Xlint:unchecked", "-Xlint:deprecation", "--add-modules", "javafx.controls,javafx.fxml"]
+    options.compilerArgs += ["-Xlint:unchecked", "-Xlint:deprecation", "--add-modules", "javafx.controls,javafx.fxml,jnetpcap"]
 }
 
 run {
-    systemProperty "java.library.path", file("native").absolutePath
+    jvmArgs = [
+        '-Djava.library.path=C:\\Users\\samue\\Desktop\\Leeroy\\native',
+        '--add-modules=jnetpcap'
+    ]
 }
 
 task copyNativeLibs(type: Copy) {
@@ -58,3 +65,7 @@ task copyNativeLibs(type: Copy) {
 }
 
 run.dependsOn copyNativeLibs
+
+tasks.withType(JavaExec) {
+    jvmArgs = ['-Djava.library.path=C:\\Users\\samue\\Desktop\\Leeroy\\native']
+}

