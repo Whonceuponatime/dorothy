@@ -193,6 +193,10 @@ if "$cygwin" || "$msys" ; then
         # NB: a `for` loop captures its iteration list before it begins, so
         # changing the positional parameters here affects neither the number of
         # iterations, nor the values presented in `arg`.
+        #
+        # NB: a `for` loop captures its iteration list before it begins, so
+        # changing the positional parameters here affects neither the number of
+        # iterations, nor the values presented in `arg`.
         shift                   # remove old arg
         set -- "$@" "$arg"      # push replacement arg
     done
@@ -245,5 +249,7 @@ eval "set -- $(
         sed ' s~[^-[:alnum:]+,./:=@_]~\\&~g; ' |
         tr '\n' ' '
     )" '"$@"'
+
+export JAVA_HOME="/mnt/c/Program Files/Java/jdk-17"
 
 exec "$JAVACMD" "$@"

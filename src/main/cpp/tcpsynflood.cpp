@@ -147,6 +147,7 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     }
 
     closesocket(s);
+    return 0; // Add this line to return a DWORD value
 }
 
 JNIEXPORT void JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
