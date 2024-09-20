@@ -27,7 +27,10 @@
         <TextField fx:id="portField" promptText="Target Port" GridPane.columnIndex="0" GridPane.rowIndex="2" />
         <Button fx:id="findOpenPortButton" text="Find Port" onAction="#findOpenPort" GridPane.columnIndex="1" GridPane.rowIndex="2" />
         
-        <TextField fx:id="mbpsField" promptText="Mbps" GridPane.columnIndex="0" GridPane.rowIndex="3" GridPane.columnSpan="2" />
+        <HBox fx:id="rateBox" spacing="10" alignment="CENTER" GridPane.columnIndex="0" GridPane.rowIndex="3" GridPane.columnSpan="2">
+            <TextField fx:id="mbpsField" promptText="Rate (Mbps)" />
+            <Label text="Mbps" />
+        </HBox>
         
         <ComboBox fx:id="attackTypeComboBox" promptText="Select Attack Type" GridPane.columnIndex="0" GridPane.rowIndex="4" GridPane.columnSpan="2" />
     </GridPane>

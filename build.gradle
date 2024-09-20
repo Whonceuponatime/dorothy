@@ -52,10 +52,8 @@ tasks.withType(JavaCompile) {
 }
 
 run {
-    jvmArgs = [
-        '-Djava.library.path=C:\\Users\\samue\\Desktop\\Leeroy\\native',
-        '--add-modules=jnetpcap'
-    ]
+    systemProperty "java.library.path", file("${projectDir}/native").absolutePath
+    jvmArgs = ['-Djava.library.path=' + file("${projectDir}/native").absolutePath]
 }
 
 task copyNativeLibs(type: Copy) {
@@ -64,7 +62,7 @@ task copyNativeLibs(type: Copy) {
     include '*.dll'
 }
 
-run.dependsOn copyNativeLibs
+processResources.dependsOn copyNativeLibs
 
 tasks.withType(JavaExec) {
     jvmArgs = ['-Djava.library.path=C:\\Users\\samue\\Desktop\\Leeroy\\native']

