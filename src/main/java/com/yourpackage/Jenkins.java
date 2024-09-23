@@ -77,6 +77,7 @@ public class Jenkins {
     public native void tcpSynFlood(String targetIp, int targetPort, int bytesPerSecond);
 
     static {
+        System.out.println("Working Directory: " + System.getProperty("user.dir"));
         try {
             String libraryPath = System.getProperty("java.library.path");
             System.out.println("Java Library Path: " + libraryPath);
