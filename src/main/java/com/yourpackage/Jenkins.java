@@ -16,6 +16,9 @@ import java.util.Random;
 import java.io.File;
 import java.util.concurrent.ThreadLocalRandom;
 import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.util.Enumeration;
 
 public class Jenkins {
     private static final byte[] DEFAULT_PAYLOAD = new byte[1300]; // 1300 bytes payload
@@ -167,6 +170,32 @@ public class Jenkins {
             Platform.runLater(() -> {
                 logArea.appendText(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + " - " + message + "\n");
             });
+        }
+    }
+
+    public String getMacAddress(String targetIp) {
+        try {
+            InetAddress address = InetAddress.getByName(targetIp);
+            NetworkInterface networkInterface = NetworkInterface.getByInetAddress(address);
+            if (networkInterface == null) {
+                log("Network interface for the specified IP address is not available.");
+                return null;
+            }
+            byte[] mac = networkInterface.getHardwareAddress();
+            if (mac == null) {
+                log("MAC address could not be retrieved.");
+                return null;
+            }
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < mac.length; i++) {
+                sb.append(String.format("%02X%s", mac[i], (i < mac.length - 1) ? "-" : ""));
+            }
+            String macAddress = sb.toString();
+            log("MAC address retrieved: " + macAddress);
+            return macAddress;
+        } catch (Exception e) {
+            log("Error retrieving MAC address: " + e.getMessage());
+            return null;
         }
     }
 }

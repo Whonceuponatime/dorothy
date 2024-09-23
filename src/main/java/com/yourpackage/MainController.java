@@ -45,7 +45,7 @@ public class MainController {
         startButton.setOnAction(e -> startAttack());
         stopButton.setOnAction(e -> stopAttack());
         
-
+        getMacButton.setOnAction(e -> getMacAddress());
     }
 
     @FXML
@@ -65,28 +65,17 @@ public class MainController {
     }
 
     @FXML
-    public void getMacAddress() {
-        String ipAddress = ipAddressField.getText();
-        try {
-            InetAddress addr = InetAddress.getByName(ipAddress);
-            NetworkInterface ni = NetworkInterface.getByInetAddress(addr);
-            if (ni != null) {
-                byte[] mac = ni.getHardwareAddress();
-                if (mac != null) {
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < mac.length; i++) {
-                        sb.append(String.format("%02X%s", mac[i], (i < mac.length - 1) ? "-" : ""));
-                    }
-                    macAddressField.setText(sb.toString());
-                    log("MAC address for " + ipAddress + ": " + sb.toString());
-                } else {
-                    log("Unable to retrieve MAC address for " + ipAddress);
-                }
-            } else {
-                log("Network interface not found for " + ipAddress);
-            }
-        } catch (Exception e) {
-            log("Error getting MAC address: " + e.getMessage());
+    private void getMacAddress() {
+        String targetIp = ipAddressField.getText();
+        if (targetIp.isEmpty()) {
+            log("Please enter a target IP address.");
+            return;
+        }
+        String macAddress = jenkinsTool.getMacAddress(targetIp);
+        if (macAddress != null) {
+            macAddressField.setText(macAddress);
+        } else {
+            macAddressField.setText("MAC address not found");
         }
     }
 
@@ -169,6 +158,23 @@ public class MainController {
             logArea.appendText(timestamp + " - " + message + "\n");
             logArea.setScrollTop(Double.MAX_VALUE);
         });
+    }
+
+    public void scanPorts(String targetIp) {
+        log("Starting port scan on " + targetIp);
+        for (int port = 1; port <= 65535; port++) {
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress(targetIp, port), 100);
+                String message = "Port " + port + " is open";
+                log(message);
+                statusLabel.setText(message);
+            } catch (IOException e) {
+                // Port is not open, continue to next
+            }
+        }
+        String message = "Port scan completed";
+        log(message);
+        statusLabel.setText(message);
     }
 
 }
