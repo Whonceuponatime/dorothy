@@ -10,9 +10,9 @@ extern "C" {
 /*
  * Class:     com_yourpackage_Jenkins
  * Method:    tcpSynFlood
- * Signature: (Ljava/lang/String;II)V
+ * Signature: (Ljava/lang/String;II)Z
  */
-JNIEXPORT void JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
+JNIEXPORT jboolean JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
   (JNIEnv *, jobject, jstring, jint, jint);
 
 #ifdef __cplusplus

