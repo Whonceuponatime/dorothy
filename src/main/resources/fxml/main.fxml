@@ -28,7 +28,7 @@
         <Button fx:id="findOpenPortButton" text="Find Port" onAction="#findOpenPort" GridPane.columnIndex="1" GridPane.rowIndex="2" />
         
         <HBox fx:id="rateBox" spacing="10" alignment="CENTER" GridPane.columnIndex="0" GridPane.rowIndex="3" GridPane.columnSpan="2">
-            <TextField fx:id="mbpsField" promptText="Rate (Mbps)" />
+            <TextField fx:id="targetMbpsField" promptText="Rate (Mbps)" />
             <Label text="Mbps" />
         </HBox>
         
@@ -43,4 +43,13 @@
     <Label fx:id="statusLabel" text="Status: Idle" styleClass="status-label"/>
     
     <TextArea fx:id="logArea" editable="false" wrapText="true" VBox.vgrow="ALWAYS" styleClass="log-area"/>
+    
+    <LineChart fx:id="networkLoadChart" prefHeight="300" prefWidth="600">
+        <xAxis>
+            <NumberAxis fx:id="xAxis" label="Time (seconds)" />
+        </xAxis>
+        <yAxis>
+            <NumberAxis fx:id="yAxis" label="Network Load (Mbps)" />
+        </yAxis>
+    </LineChart>
 </VBox>

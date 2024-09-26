@@ -70,3 +70,13 @@ tasks.withType(JavaExec) {
     jvmArgs = ['-Djava.library.path=' + file("${projectDir}/native").absolutePath]
     workingDir = projectDir
 }
+
+task buildNative(type: Exec) {
+    doFirst {
+        mkdir 'src/main/resources/native'
+    }
+    workingDir '.'
+    commandLine 'wsl', 'x86_64-w64-mingw32-g++', '-shared', '-o', 'src/main/resources/native/tcpsynflood.dll', 'src/main/cpp/tcpsynflood.cpp', '-lws2_32', '-Wl,--add-stdcall-alias', '-I/mnt/c/Program Files/Java/jdk-17/include', '-I/mnt/c/Program Files/Java/jdk-17/include/win32', '-I/mnt/c/Program Files/Npcap/Include', '-L/mnt/c/Program Files/Npcap/Lib/x64', '-lwpcap'
+}
+
+build.dependsOn buildNative

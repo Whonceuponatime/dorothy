@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+<?import java.lang.String?>
+
+<VBox alignment="CENTER" spacing="15" xmlns:fx="http://javafx.com/fxml" fx:controller="com.yourpackage.MainController"
+      style="-fx-background-color: #2b2b2b; -fx-padding: 20;">
+    <stylesheets>
+        <String fx:value="fxml/styles.css" />
+    </stylesheets>
+    <Label text="Network Attack Simulator" styleClass="title-label"/>
+    
+    <GridPane hgap="10" vgap="10" alignment="CENTER">
+        <columnConstraints>
+            <ColumnConstraints hgrow="ALWAYS" minWidth="200" />
+            <ColumnConstraints hgrow="NEVER" />
+        </columnConstraints>
+        
+        <TextField fx:id="ipAddressField" promptText="Target IP Address" GridPane.columnIndex="0" GridPane.rowIndex="0" />
+        <Button fx:id="pingButton" text="Ping" onAction="#pingTargetIP" GridPane.columnIndex="1" GridPane.rowIndex="0" />
+        
+        <TextField fx:id="macAddressField" promptText="MAC Address" editable="false" styleClass="readonly-field" GridPane.columnIndex="0" GridPane.rowIndex="1" />
+        <Button fx:id="getMacButton" text="Get MAC" onAction="#getMacAddress" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+        
+        <TextField fx:id="portField" promptText="Target Port" GridPane.columnIndex="0" GridPane.rowIndex="2" />
+        <Button fx:id="findOpenPortButton" text="Find Port" onAction="#findOpenPort" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+        
+        <HBox fx:id="rateBox" spacing="10" alignment="CENTER" GridPane.columnIndex="0" GridPane.rowIndex="3" GridPane.columnSpan="2">
+            <TextField fx:id="targetMbpsField" promptText="Rate (Mbps)" />
+            <Label text="Mbps" />
+        </HBox>
+        
+        <ComboBox fx:id="attackTypeComboBox" promptText="Select Attack Type" GridPane.columnIndex="0" GridPane.rowIndex="4" GridPane.columnSpan="2" />
+    </GridPane>
+    
+    <HBox spacing="10" alignment="CENTER">
+        <Button fx:id="startButton" text="Start Attack" styleClass="attack-button, start-button"/>
+        <Button fx:id="stopButton" text="Stop Attack" styleClass="attack-button, stop-button"/>
+    </HBox>
+    
+    <Label fx:id="statusLabel" text="Status: Idle" styleClass="status-label"/>
+    
+    <TextArea fx:id="logArea" editable="false" wrapText="true" VBox.vgrow="ALWAYS" styleClass="log-area"/>
+    
+    <LineChart fx:id="networkLoadChart" prefHeight="300" prefWidth="600">
+        <xAxis>
+            <NumberAxis fx:id="xAxis" label="Time (seconds)" />
+        </xAxis>
+        <yAxis>
+            <NumberAxis fx:id="yAxis" label="Network Load (Mbps)" />
+        </yAxis>
+    </LineChart>
+</VBox>
