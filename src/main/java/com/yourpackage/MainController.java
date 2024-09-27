@@ -13,6 +13,11 @@ import javafx.scene.control.TextArea;
 import javafx.application.Platform;
 import java.net.InetSocketAddress;
 import java.io.IOException;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.layout.HBox;
+import javafx.scene.chart.LineChart;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
 
 public class MainController {
     private Jenkins jenkinsTool;
@@ -30,22 +35,35 @@ public class MainController {
     @FXML private TextArea logArea;
     @FXML private Button findOpenPortButton;
 
+    @FXML private HBox rateBox;
+    private boolean isMbps = true;
+
+    @FXML private LineChart<Number, Number> networkLoadChart;
+    @FXML private NumberAxis xAxis;
+    @FXML private NumberAxis yAxis;
+    private XYChart.Series<Number, Number> dataSeries;
+    private long startTime;
+
+    @FXML private TextField sourceIpField;
+    @FXML private TextField sourceMacField;
+    @FXML private Button loadSourceInfoButton;
+
     @FXML
     public void initialize() {
         jenkinsTool = new Jenkins();
+        jenkinsTool.setLogArea(logArea);
         attackTypeComboBox.setItems(FXCollections.observableArrayList("UDP Flood", "TCP SYN Flood", "ICMP Flood"));
-        attackTypeComboBox.setValue("UDP Flood");
 
-        attackTypeComboBox.setOnAction(event -> {
-            String selectedAttack = attackTypeComboBox.getValue();
-            boolean isTcpAttack = "TCP SYN Flood".equals(selectedAttack);
-            ipAddressField.setDisable(!isTcpAttack);
-            portField.setDisable(!isTcpAttack);
-            findOpenPortButton.setDisable(!isTcpAttack);
-        });
-
-        startButton.setOnAction(event -> startAttack());
-        stopButton.setOnAction(event -> stopAttack());
+        // Set up the chart
+        xAxis = new NumberAxis(0, 60, 10);
+        yAxis = new NumberAxis();
+        xAxis.setLabel("Time (seconds)");
+        yAxis.setLabel("Network Load (Mbps)");
+        networkLoadChart.setTitle("Network Load");
+        networkLoadChart.setAnimated(false);
+        dataSeries = new XYChart.Series<>();
+        dataSeries.setName("Network Load");
+        networkLoadChart.getData().add(dataSeries);
     }
 
     @FXML
@@ -65,37 +83,54 @@ public class MainController {
     }
 
     @FXML
-    public void getMacAddress() {
-        // Implementation
+    private void getMacAddress() {
+        String targetIp = ipAddressField.getText();
+        if (targetIp.isEmpty()) {
+            log("Please enter a target IP address.");
+            return;
+        }
+        String macAddress = jenkinsTool.getMacAddress(targetIp);
+        if (macAddress != null) {
+            macAddressField.setText(macAddress);
+        } else {
+            macAddressField.setText("MAC address not found");
+        }
     }
 
     public void startAttack() {
+        jenkinsTool.resetAttack();
         String attackType = attackTypeComboBox.getValue();
         String targetIp = ipAddressField.getText();
-        int mbps = Integer.parseInt(mbpsField.getText());
-        int bytesPerSecond = mbps * 125000; // Convert Mbps to bytes per second
+        int targetPort = Integer.parseInt(portField.getText());
+        int targetMbps = Integer.parseInt(targetMbpsField.getText());
 
-        statusLabel.setText("Status: Attack in Progress");
-        statusLabel.setStyle("-fx-text-fill: #ff0000; -fx-effect: dropshadow(gaussian, #ff0000, 5, 0, 0, 0);");
+        // Reset chart data
+        dataSeries.getData().clear();
+        startTime = System.currentTimeMillis();
 
         if ("UDP Flood".equals(attackType)) {
             log("Starting UDP flood attack...");
-            new Thread(() -> jenkinsTool.udpFlood(targetIp, 0, bytesPerSecond)).start();
+            new Thread(() -> {
+                jenkinsTool.udpFlood(targetIp, targetPort, targetMbps, this::updateChart);
+            }).start();
         } else if ("TCP SYN Flood".equals(attackType)) {
-            int targetPort = Integer.parseInt(portField.getText());
             log("Starting TCP SYN flood attack...");
-            new Thread(() -> jenkinsTool.tcpSynFlood(targetIp, targetPort, bytesPerSecond)).start();
-        } else if ("ICMP Flood".equals(attackType)) {
-            log("Starting ICMP flood attack...");
-            new Thread(() -> jenkinsTool.icmpFlood(targetIp, bytesPerSecond)).start();
+            new Thread(() -> {
+                jenkinsTool.tcpSynFlood(targetIp, targetPort, targetMbps, this::updateChart);
+            }).start();
         }
+        
+        statusLabel.setText("Status: Attack Running");
+        startButton.setDisable(true);
+        stopButton.setDisable(false);
     }
 
     public void stopAttack() {
         jenkinsTool.stopAttack();
+        statusLabel.setText("Status: Attack Stopped");
+        startButton.setDisable(false);
+        stopButton.setDisable(true);
         log("Attack stopped");
-        statusLabel.setText("Status: Idle");
-        statusLabel.setStyle("-fx-text-fill: #00ff00; -fx-effect: dropshadow(gaussian, #00ff00, 5, 0, 0, 0);");
     }
 
     @FXML
@@ -126,5 +161,59 @@ public class MainController {
             logArea.appendText(timestamp + " - " + message + "\n");
             logArea.setScrollTop(Double.MAX_VALUE);
         });
+    }
+
+    public void scanPorts(String targetIp) {
+        log("Starting port scan on " + targetIp);
+        for (int port = 1; port <= 65535; port++) {
+            try (Socket socket = new Socket()) {
+                socket.connect(new InetSocketAddress(targetIp, port), 100);
+                String message = "Port " + port + " is open";
+                log(message);
+                statusLabel.setText(message);
+            } catch (IOException e) {
+                // Port is not open, continue to next
+            }
+        }
+        String message = "Port scan completed";
+        log(message);
+        statusLabel.setText(message);
+    }
+
+    @FXML private TextField targetMbpsField;
+
+    private void updateChart(double elapsedTimeSeconds, double actualMbps) {
+        Platform.runLater(() -> {
+            dataSeries.getData().add(new XYChart.Data<>(elapsedTimeSeconds, actualMbps));
+            if (dataSeries.getData().size() > 60) {
+                dataSeries.getData().remove(0);
+            }
+            xAxis.setLowerBound(Math.max(0, elapsedTimeSeconds - 60));
+            xAxis.setUpperBound(Math.max(60, elapsedTimeSeconds));
+        });
+    }
+
+    @FXML
+    private void loadSourceInfo() {
+        try {
+            InetAddress localHost = InetAddress.getLocalHost();
+            String sourceIp = localHost.getHostAddress();
+            sourceIpField.setText(sourceIp);
+
+            NetworkInterface ni = NetworkInterface.getByInetAddress(localHost);
+            byte[] hardwareAddress = ni.getHardwareAddress();
+            String sourceMac = String.format("%02X:%02X:%02X:%02X:%02X:%02X", 
+                hardwareAddress[0], hardwareAddress[1], hardwareAddress[2], 
+                hardwareAddress[3], hardwareAddress[4], hardwareAddress[5]);
+            sourceMacField.setText(sourceMac);
+
+            // Update the Jenkins class with the new source information
+            jenkinsTool.setSourceIp(sourceIp);
+            jenkinsTool.setSourceMac(hardwareAddress);
+
+            log("Source information loaded successfully.");
+        } catch (Exception e) {
+            log("Error loading source information: " + e.getMessage());
+        }
     }
 }

@@ -1,28 +1,94 @@
 plugins {
+    id 'cpp'
+    id 'java'
     id 'application'
     id 'org.openjfx.javafxplugin' version '0.0.13'
+    id 'org.beryx.jlink' version '2.25.0'
+    id 'edu.sc.seis.launch4j' version '2.5.1'
 }
 
 repositories {
     mavenCentral()
+    flatDir {
+        dirs 'libs'
+    }
 }
 
 dependencies {
-    implementation 'org.openjfx:javafx-controls:21'
-    implementation 'org.openjfx:javafx-fxml:21'
+    implementation 'org.openjfx:javafx-controls:17.0.6'
+    implementation 'org.openjfx:javafx-fxml:17.0.6'
+    implementation files('libs/jnetpcap-1.4.r1425/jnetpcap.jar')
 }
 
 application {
-    mainClass = 'com.yourpackage.Main'
-    mainModule = 'com.yourpackage'
+    mainModule = 'com.yourpackage' // Make sure this matches your module name
+    mainClass = 'com.yourpackage.Main' // Use the full path to your main class
 }
 
 javafx {
-    version = '21'
+    version = "17.0.6"
     modules = ['javafx.controls', 'javafx.fxml']
 }
 
-tasks.withType(JavaCompile) {
-    options.compilerArgs << "-Xlint:deprecation"
+jlink {
+    options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages']
+    launcher {
+        name = 'Dorothy'
+    }
+    jpackage {
+        if (org.gradle.internal.os.OperatingSystem.current().windows) {
+            installerOptions += ['--win-per-user-install', '--win-dir-chooser', '--win-menu', '--win-shortcut']
+        }
+    }
 }
 
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ["-Xlint:unchecked", "-Xlint:deprecation", "--add-modules", "javafx.controls,javafx.fxml,jnetpcap"]
+}
+
+run {
+    systemProperty "java.library.path", file("${buildDir}/libs").absolutePath + File.pathSeparator + file("libs/jnetpcap-1.4.r1425").absolutePath
+    jvmArgs = ['-Djava.library.path=' + file("${buildDir}/libs").absolutePath + File.pathSeparator + file("libs/jnetpcap-1.4.r1425").absolutePath]
+    workingDir = projectDir
+}
+
+task copyNativeLibs(type: Copy) {
+    from 'libs/jnetpcap-1.4.r1425'
+    into 'build/libs'
+    include '*.dll'
+}
+
+processResources.dependsOn copyNativeLibs
+
+tasks.withType(JavaExec) {
+    systemProperty "java.library.path", file("${projectDir}/native").absolutePath
+    jvmArgs = ['-Djava.library.path=' + file("${projectDir}/native").absolutePath]
+    workingDir = projectDir
+}
+
+launch4j {
+    mainClassName = 'com.yourpackage.Main'
+    outfile = "${project.name}.exe"
+    manifest = "${projectDir}/app.manifest"
+    jreMinVersion = '17'
+    bundledJre64Bit = true
+    bundledJrePath = 'jre'
+    jvmOptions = ['-Djava.library.path=.']
+    classpath = ['jnetpcap.jar']
+}
+
+build.dependsOn tasks.launch4j
+
+task runAsAdmin(type: Exec) {
+    workingDir '.'
+    commandLine 'cmd', '/c', 'runas', '/user:Administrator', "\"${System.getProperty('java.home')}\\bin\\java.exe\" -jar ${jar.archivePath}"
+}
+
+runAsAdmin.dependsOn jar

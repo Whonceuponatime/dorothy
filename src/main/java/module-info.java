@@ -4,6 +4,7 @@ module com.yourpackage {
     requires java.logging;
     requires javafx.graphics;
     requires java.net.http;
+    requires jnetpcap;
 
     opens com.yourpackage to javafx.fxml;
     exports com.yourpackage;
