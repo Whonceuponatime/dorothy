@@ -4,9 +4,10 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
 <?import java.lang.String?>
+<?import javafx.scene.chart.LineChart?>
+<?import javafx.scene.chart.NumberAxis?>
 
-<VBox alignment="CENTER" spacing="15" xmlns:fx="http://javafx.com/fxml" fx:controller="com.yourpackage.MainController"
-      style="-fx-background-color: #2b2b2b; -fx-padding: 20;">
+<VBox alignment="CENTER" spacing="15" xmlns:fx="http://javafx.com/fxml" fx:controller="com.yourpackage.MainController">
     <stylesheets>
         <String fx:value="fxml/styles.css" />
     </stylesheets>
@@ -18,26 +19,30 @@
             <ColumnConstraints hgrow="NEVER" />
         </columnConstraints>
         
-        <TextField fx:id="ipAddressField" promptText="Target IP Address" GridPane.columnIndex="0" GridPane.rowIndex="0" />
-        <Button fx:id="pingButton" text="Ping" onAction="#pingTargetIP" GridPane.columnIndex="1" GridPane.rowIndex="0" />
+        <TextField fx:id="sourceIpField" promptText="Source IP Address" editable="false" styleClass="readonly-field" GridPane.columnIndex="0" GridPane.rowIndex="0" />
+        <TextField fx:id="sourceMacField" promptText="Source MAC Address" editable="false" styleClass="readonly-field" GridPane.columnIndex="0" GridPane.rowIndex="1" />
+        <Button fx:id="loadSourceInfoButton" text="Load Source Info" onAction="#loadSourceInfo" GridPane.columnIndex="1" GridPane.rowIndex="0" GridPane.rowSpan="2" />
         
-        <TextField fx:id="macAddressField" promptText="MAC Address" editable="false" styleClass="readonly-field" GridPane.columnIndex="0" GridPane.rowIndex="1" />
-        <Button fx:id="getMacButton" text="Get MAC" onAction="#getMacAddress" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+        <TextField fx:id="ipAddressField" promptText="Target IP Address" GridPane.columnIndex="0" GridPane.rowIndex="2" />
+        <Button fx:id="pingButton" text="Ping" onAction="#pingTargetIP" GridPane.columnIndex="1" GridPane.rowIndex="2" />
         
-        <TextField fx:id="portField" promptText="Target Port" GridPane.columnIndex="0" GridPane.rowIndex="2" />
-        <Button fx:id="findOpenPortButton" text="Find Port" onAction="#findOpenPort" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+        <TextField fx:id="macAddressField" promptText="MAC Address" editable="false" styleClass="readonly-field" GridPane.columnIndex="0" GridPane.rowIndex="3" />
+        <Button fx:id="getMacButton" text="Get MAC" onAction="#getMacAddress" GridPane.columnIndex="1" GridPane.rowIndex="3" />
         
-        <HBox fx:id="rateBox" spacing="10" alignment="CENTER" GridPane.columnIndex="0" GridPane.rowIndex="3" GridPane.columnSpan="2">
+        <TextField fx:id="portField" promptText="Target Port" GridPane.columnIndex="0" GridPane.rowIndex="4" />
+        <Button fx:id="findOpenPortButton" text="Find Port" onAction="#findOpenPort" GridPane.columnIndex="1" GridPane.rowIndex="4" />
+        
+        <HBox fx:id="rateBox" spacing="10" alignment="CENTER" GridPane.columnIndex="0" GridPane.rowIndex="5" GridPane.columnSpan="2">
             <TextField fx:id="targetMbpsField" promptText="Rate (Mbps)" />
             <Label text="Mbps" />
         </HBox>
         
-        <ComboBox fx:id="attackTypeComboBox" promptText="Select Attack Type" GridPane.columnIndex="0" GridPane.rowIndex="4" GridPane.columnSpan="2" />
+        <ComboBox fx:id="attackTypeComboBox" promptText="Select Attack Type" GridPane.columnIndex="0" GridPane.rowIndex="6" GridPane.columnSpan="2" />
     </GridPane>
     
     <HBox spacing="10" alignment="CENTER">
-        <Button fx:id="startButton" text="Start Attack" styleClass="attack-button, start-button"/>
-        <Button fx:id="stopButton" text="Stop Attack" styleClass="attack-button, stop-button"/>
+        <Button fx:id="startButton" text="Start Attack" onAction="#startAttack" styleClass="attack-button, start-button"/>
+        <Button fx:id="stopButton" text="Stop Attack" onAction="#stopAttack" styleClass="attack-button, stop-button"/>
     </HBox>
     
     <Label fx:id="statusLabel" text="Status: Idle" styleClass="status-label"/>

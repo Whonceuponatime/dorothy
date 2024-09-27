@@ -44,6 +44,10 @@ public class MainController {
     private XYChart.Series<Number, Number> dataSeries;
     private long startTime;
 
+    @FXML private TextField sourceIpField;
+    @FXML private TextField sourceMacField;
+    @FXML private Button loadSourceInfoButton;
+
     @FXML
     public void initialize() {
         jenkinsTool = new Jenkins();
@@ -94,7 +98,7 @@ public class MainController {
     }
 
     public void startAttack() {
-        jenkinsTool.resetAttack();  // Add this line
+        jenkinsTool.resetAttack();
         String attackType = attackTypeComboBox.getValue();
         String targetIp = ipAddressField.getText();
         int targetPort = Integer.parseInt(portField.getText());
@@ -107,18 +111,25 @@ public class MainController {
         if ("UDP Flood".equals(attackType)) {
             log("Starting UDP flood attack...");
             new Thread(() -> {
-                log("UDP flood thread started");
                 jenkinsTool.udpFlood(targetIp, targetPort, targetMbps, this::updateChart);
-                log("UDP flood thread ended");
+            }).start();
+        } else if ("TCP SYN Flood".equals(attackType)) {
+            log("Starting TCP SYN flood attack...");
+            new Thread(() -> {
+                jenkinsTool.tcpSynFlood(targetIp, targetPort, targetMbps, this::updateChart);
             }).start();
         }
-        // Add similar blocks for other attack types
+        
+        statusLabel.setText("Status: Attack Running");
+        startButton.setDisable(true);
+        stopButton.setDisable(false);
     }
 
     public void stopAttack() {
         jenkinsTool.stopAttack();
         statusLabel.setText("Status: Attack Stopped");
-        statusLabel.setStyle("-fx-text-fill: #c62828;");
+        startButton.setDisable(false);
+        stopButton.setDisable(true);
         log("Attack stopped");
     }
 
@@ -180,5 +191,29 @@ public class MainController {
             xAxis.setLowerBound(Math.max(0, elapsedTimeSeconds - 60));
             xAxis.setUpperBound(Math.max(60, elapsedTimeSeconds));
         });
+    }
+
+    @FXML
+    private void loadSourceInfo() {
+        try {
+            InetAddress localHost = InetAddress.getLocalHost();
+            String sourceIp = localHost.getHostAddress();
+            sourceIpField.setText(sourceIp);
+
+            NetworkInterface ni = NetworkInterface.getByInetAddress(localHost);
+            byte[] hardwareAddress = ni.getHardwareAddress();
+            String sourceMac = String.format("%02X:%02X:%02X:%02X:%02X:%02X", 
+                hardwareAddress[0], hardwareAddress[1], hardwareAddress[2], 
+                hardwareAddress[3], hardwareAddress[4], hardwareAddress[5]);
+            sourceMacField.setText(sourceMac);
+
+            // Update the Jenkins class with the new source information
+            jenkinsTool.setSourceIp(sourceIp);
+            jenkinsTool.setSourceMac(hardwareAddress);
+
+            log("Source information loaded successfully.");
+        } catch (Exception e) {
+            log("Error loading source information: " + e.getMessage());
+        }
     }
 }
