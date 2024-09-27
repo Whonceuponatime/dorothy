@@ -87,7 +87,8 @@ launch4j {
 build.dependsOn tasks.launch4j
 
 task runAsAdmin(type: Exec) {
-    commandLine 'cmd', '/c', 'runas', '/user:Administrator', '"' + System.getProperty('java.home') + '\\bin\\java.exe" -jar ' + jar.archivePath
+    workingDir '.'
+    commandLine 'cmd', '/c', 'runas', '/user:Administrator', "\"${System.getProperty('java.home')}\\bin\\java.exe\" -jar ${jar.archivePath}"
 }
 
 runAsAdmin.dependsOn jar
