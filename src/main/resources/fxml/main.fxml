@@ -4,9 +4,10 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
 <?import java.lang.String?>
+<?import javafx.scene.chart.LineChart?>
+<?import javafx.scene.chart.NumberAxis?>
 
-<VBox alignment="CENTER" spacing="15" xmlns:fx="http://javafx.com/fxml" fx:controller="com.yourpackage.MainController"
-      style="-fx-background-color: #2b2b2b; -fx-padding: 20;">
+<VBox alignment="CENTER" spacing="15" xmlns:fx="http://javafx.com/fxml" fx:controller="com.yourpackage.MainController">
     <stylesheets>
         <String fx:value="fxml/styles.css" />
     </stylesheets>
