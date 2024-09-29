@@ -1,0 +1,287 @@
+[2024-09-28 18:12:13.533] Logs cleared
+[2024-09-28 18:12:15.852] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 17:34:15.786] Source IP: 10.5.0.2, Source MAC: 
+[2024-09-29 17:34:25.666] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 17:40:27.098] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 17:42:42.931] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 17:43:44.987] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 17:44:02.709] Logs cleared
+[2024-09-29 17:45:52.129] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 17:45:58.138] Ping to 172.30.1.61 successful. Round-trip time: 70ms, TTL: 64
+[2024-09-29 17:45:58.141] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 17:49:27.275] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 17:49:35.327] Ping to 172.30.1.61 successful. Round-trip time: 134ms, TTL: 64
+[2024-09-29 17:49:35.331] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 17:57:28.685] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 17:57:32.723] Ping to 172.30.1.61 successful. Round-trip time: 77ms, TTL: 64
+[2024-09-29 17:57:32.733] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 17:59:21.649] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 17:59:26.385] Ping to 172.30.1.61 successful. Round-trip time: 316ms, TTL: 64
+[2024-09-29 17:59:26.389] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:01:18.111] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:01:23.741] Ping to 172.30.1.61 successful. Round-trip time: 139ms, TTL: 64
+[2024-09-29 18:01:23.743] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:03:31.528] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:03:36.452] Ping to 172.30.1.61 successful. Round-trip time: 75ms, TTL: 64
+[2024-09-29 18:03:36.456] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:04:55.325] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:05:03.694] Ping to 172.30.1.61 successful. Round-trip time: 39ms, TTL: 64
+[2024-09-29 18:05:03.697] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:06:24.360] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:06:31.145] Ping to 172.30.1.61 successful. Round-trip time: 177ms, TTL: 64
+[2024-09-29 18:06:31.152] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:06:42.203] Ping to 172.30.1.61 successful. Round-trip time: 42ms, TTL: 64
+[2024-09-29 18:06:42.206] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:09:41.169] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:09:45.400] Ping to 172.30.1.61 successful. Round-trip time: 276ms, TTL: 64
+[2024-09-29 18:09:45.404] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:09:46.935] ARP output: 
+Interface: 172.30.1.44 --- 0xc
+  Internet Address      Physical Address      Type
+  172.30.1.61           a0-c5-89-14-69-a0     dynamic   
+
+[2024-09-29 18:09:46.937] Found MAC address: a0:c5:89:14:69:a0
+[2024-09-29 18:09:46.945] MAC Address for 172.30.1.61: a0:c5:89:14:69:a0
+[2024-09-29 18:09:48.725] ARP output: 
+Interface: 172.30.1.44 --- 0xc
+  Internet Address      Physical Address      Type
+  172.30.1.61           a0-c5-89-14-69-a0     dynamic   
+
+[2024-09-29 18:09:48.728] Found MAC address: a0:c5:89:14:69:a0
+[2024-09-29 18:09:48.730] MAC Address for 172.30.1.61: a0:c5:89:14:69:a0
+[2024-09-29 18:12:43.372] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:12:54.840] Ping to 172.30.1.61 successful. Round-trip time: 26ms, TTL: 64
+[2024-09-29 18:12:54.843] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:12:56.255] MAC Address for 172.30.1.61: MAC ADDRESS NOT FOUND
+[2024-09-29 18:12:58.008] MAC Address for 172.30.1.61: MAC ADDRESS NOT FOUND
+[2024-09-29 18:12:58.594] MAC Address for 172.30.1.61: MAC ADDRESS NOT FOUND
+[2024-09-29 18:16:29.503] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:16:35.514] Ping to 172.30.1.61 successful. Round-trip time: 112ms, TTL: 64
+[2024-09-29 18:16:35.520] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:16:37.393] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 18:17:21.387] No open TCP ports found
+[2024-09-29 18:18:22.215] First open TCP port found: 8080
+[2024-09-29 18:24:23.401] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:24:29.032] Ping to 172.30.1.61 successful. Round-trip time: 85ms, TTL: 64
+[2024-09-29 18:24:29.036] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:24:30.872] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 18:24:31.911] Starting port scan...
+[2024-09-29 18:25:04.881] First open TCP port found: 8080
+[2024-09-29 18:28:17.652] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:28:21.773] Ping to 172.30.1.61 successful. Round-trip time: 131ms, TTL: 64
+[2024-09-29 18:28:21.777] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:28:23.327] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 18:28:25.187] Starting port scan...
+[2024-09-29 18:28:55.902] First open TCP port found: 8080
+[2024-09-29 18:31:49.605] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:31:53.129] Ping to 172.30.1.61 successful. Round-trip time: 251ms, TTL: 64
+[2024-09-29 18:31:53.132] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:31:54.504] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 18:31:56.477] Starting port scan...
+[2024-09-29 18:32:26.518] First open TCP port found: 8080
+[2024-09-29 18:36:28.687] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:36:31.889] Ping to 172.30.1.61 successful. Round-trip time: 6ms, TTL: 64
+[2024-09-29 18:36:31.891] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:36:33.317] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 18:36:34.459] Starting port scan...
+[2024-09-29 18:36:59.383] First open TCP port found: 8080
+[2024-09-29 18:37:11.499] Logs cleared
+[2024-09-29 18:40:38.674] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:40:43.203] Ping to 172.30.1.61 successful. Round-trip time: 3ms, TTL: 64
+[2024-09-29 18:40:43.207] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:40:44.682] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 18:40:45.582] Starting port scan...
+[2024-09-29 18:41:10.569] First open TCP port found: 8080
+[2024-09-29 18:44:09.907] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:44:11.868] Unexpected error during ping: Value cannot be null. (Parameter 'hostNameOrAddress')
+[2024-09-29 18:44:11.872] Ping to  failed. Target may be unreachable.
+[2024-09-29 18:44:26.780] Ping to 172.30.1.61 successful. Round-trip time: 4ms, TTL: 64
+[2024-09-29 18:44:26.782] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:44:28.694] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 18:44:30.154] Starting port scan...
+[2024-09-29 18:44:55.063] First open TCP port found: 8080
+[2024-09-29 18:48:53.695] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:48:57.651] Ping to 172.30.1.61 successful. Round-trip time: 169ms, TTL: 64
+[2024-09-29 18:48:57.653] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:48:58.765] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 18:48:59.770] Starting port scan...
+[2024-09-29 18:49:29.616] First open TCP port found: 8080
+[2024-09-29 18:50:32.030] Starting port scan...
+[2024-09-29 18:50:37.098] First open TCP port found: 22
+[2024-09-29 18:54:42.988] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:54:46.644] Ping to 172.30.1.61 successful. Round-trip time: 191ms, TTL: 64
+[2024-09-29 18:54:46.647] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 18:54:47.934] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 18:54:48.410] Starting port scan...
+[2024-09-29 18:54:53.415] First open TCP port found: 22
+[2024-09-29 18:58:20.295] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 18:58:27.136] Ping error: An exception occurred during a Ping request.
+[2024-09-29 18:58:27.139] Ping to 172.30..1.61 failed. Target may be unreachable.
+[2024-09-29 18:58:27.873] MAC Address for 172.30..1.61: MAC ADDRESS NOT FOUND
+[2024-09-29 18:58:28.511] Starting port scan...
+[2024-09-29 18:58:28.760] No open TCP ports found
+[2024-09-29 18:58:32.852] MAC Address for 172.30..1.61: MAC ADDRESS NOT FOUND
+[2024-09-29 18:58:34.550] MAC Address for 172.30..1.61: MAC ADDRESS NOT FOUND
+[2024-09-29 19:07:57.047] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 19:08:04.746] Ping to 172.30.1.61 successful. Round-trip time: 245ms, TTL: 64
+[2024-09-29 19:08:04.749] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 19:08:05.879] ARP output: 
+Interface: 172.30.1.44 --- 0xc
+  Internet Address      Physical Address      Type
+  172.30.1.61           a0-c5-89-14-69-a0     dynamic   
+
+[2024-09-29 19:08:06.289] Found MAC address: A0:C5:89:14:69:A0
+[2024-09-29 19:08:06.294] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 19:08:07.204] Starting port scan...
+[2024-09-29 19:08:07.512] Port 22 is open
+[2024-09-29 19:08:07.514] First open TCP port found: 22
+[2024-09-29 19:12:03.843] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 19:12:08.051] Ping to 172.30.1.61 successful. Round-trip time: 296ms, TTL: 64
+[2024-09-29 19:12:08.053] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 19:12:08.958] ARP output: 
+Interface: 172.30.1.44 --- 0xc
+  Internet Address      Physical Address      Type
+  172.30.1.61           a0-c5-89-14-69-a0     dynamic   
+
+[2024-09-29 19:12:09.332] Found MAC address: A0:C5:89:14:69:A0
+[2024-09-29 19:12:09.337] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 19:12:09.902] Starting port scan...
+[2024-09-29 19:12:10.205] Port 22 is open
+[2024-09-29 19:12:10.208] First open TCP port found: 22
+[2024-09-29 19:19:38.917] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 19:19:46.093] Ping to 172.30.1.61 successful. Round-trip time: 281ms, TTL: 64
+[2024-09-29 19:19:46.096] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 19:27:25.162] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 19:27:32.116] Ping to 172.30.1.61 successful. Round-trip time: 125ms, TTL: 64
+[2024-09-29 19:27:32.119] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 19:27:32.708] ARP output: 
+Interface: 172.30.1.44 --- 0xc
+  Internet Address      Physical Address      Type
+  172.30.1.61           a0-c5-89-14-69-a0     dynamic   
+
+[2024-09-29 19:27:33.095] Found MAC address: A0:C5:89:14:69:A0
+[2024-09-29 19:27:33.100] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 19:27:33.471] Starting port scan...
+[2024-09-29 19:27:33.654] Port 22 is open
+[2024-09-29 19:27:33.658] First open TCP port found: 22
+[2024-09-29 19:31:13.428] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 19:31:20.986] Ping to 172.30.1.61 successful. Round-trip time: 145ms, TTL: 64
+[2024-09-29 19:31:20.988] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 19:31:21.499] ARP output: 
+Interface: 172.30.1.44 --- 0xc
+  Internet Address      Physical Address      Type
+  172.30.1.61           a0-c5-89-14-69-a0     dynamic   
+
+[2024-09-29 19:31:21.893] Found MAC address: A0:C5:89:14:69:A0
+[2024-09-29 19:31:21.899] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 19:31:22.379] Starting port scan...
+[2024-09-29 19:31:22.520] Port 22 is open
+[2024-09-29 19:31:22.523] First open TCP port found: 22
+[2024-09-29 19:38:07.683] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 19:38:24.616] Ping to 172.30.1.61 successful. Round-trip time: 224ms, TTL: 64
+[2024-09-29 19:38:24.618] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 19:38:25.688] ARP output: 
+Interface: 172.30.1.44 --- 0xc
+  Internet Address      Physical Address      Type
+  172.30.1.61           a0-c5-89-14-69-a0     dynamic   
+
+[2024-09-29 19:38:26.089] Found MAC address: A0:C5:89:14:69:A0
+[2024-09-29 19:38:26.096] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 19:38:26.107] Starting port scan...
+[2024-09-29 19:38:26.156] Port 22 is open
+[2024-09-29 19:38:26.158] First open TCP port found: 22
+[2024-09-29 19:42:58.973] Logs cleared
+[2024-09-29 19:43:05.526] Starting port scan...
+[2024-09-29 19:43:07.231] ARP output: 
+Interface: 192.168.62.1 --- 0x3
+  Internet Address      Physical Address      Type
+  192.168.62.255        ff-ff-ff-ff-ff-ff     static    
+  224.0.0.2             01-00-5e-00-00-02     static    
+  224.0.0.22            01-00-5e-00-00-16     static    
+  224.0.0.251           01-00-5e-00-00-fb     static    
+  224.0.0.252           01-00-5e-00-00-fc     static    
+  239.255.255.250       01-00-5e-7f-ff-fa     static    
+
+Interface: 192.168.195.1 --- 0x7
+  Internet Address      Physical Address      Type
+  192.168.195.255       ff-ff-ff-ff-ff-ff     static    
+  224.0.0.2             01-00-5e-00-00-02     static    
+  224.0.0.22            01-00-5e-00-00-16     static    
+  224.0.0.251           01-00-5e-00-00-fb     static    
+  224.0.0.252           01-00-5e-00-00-fc     static    
+  239.255.255.250       01-00-5e-7f-ff-fa     static    
+
+Interface: 172.30.1.44 --- 0xc
+  Internet Address      Physical Address      Type
+  172.30.1.61           a0-c5-89-14-69-a0     dynamic   
+  172.30.1.254          08-5d-dd-41-b5-3b     dynamic   
+  172.30.1.255          ff-ff-ff-ff-ff-ff     static    
+  224.0.0.2             01-00-5e-00-00-02     static    
+  224.0.0.22            01-00-5e-00-00-16     static    
+  224.0.0.251           01-00-5e-00-00-fb     static    
+  224.0.0.252           01-00-5e-00-00-fc     static    
+  239.255.255.250       01-00-5e-7f-ff-fa     static    
+  255.255.255.255       ff-ff-ff-ff-ff-ff     static    
+
+[2024-09-29 19:43:07.639] Found MAC address: :::
+[2024-09-29 19:43:07.642] MAC Address for : :::
+[2024-09-29 19:43:10.436] Unexpected error during ping: Value cannot be null. (Parameter 'hostNameOrAddress')
+[2024-09-29 19:43:10.440] Ping to  failed. Target may be unreachable.
+[2024-09-29 19:43:12.523] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 19:43:14.463] ARP output: 
+Interface: 192.168.62.1 --- 0x3
+  Internet Address      Physical Address      Type
+  192.168.62.255        ff-ff-ff-ff-ff-ff     static    
+  224.0.0.2             01-00-5e-00-00-02     static    
+  224.0.0.22            01-00-5e-00-00-16     static    
+  224.0.0.251           01-00-5e-00-00-fb     static    
+  224.0.0.252           01-00-5e-00-00-fc     static    
+  239.255.255.250       01-00-5e-7f-ff-fa     static    
+
+Interface: 192.168.195.1 --- 0x7
+  Internet Address      Physical Address      Type
+  192.168.195.255       ff-ff-ff-ff-ff-ff     static    
+  224.0.0.2             01-00-5e-00-00-02     static    
+  224.0.0.22            01-00-5e-00-00-16     static    
+  224.0.0.251           01-00-5e-00-00-fb     static    
+  224.0.0.252           01-00-5e-00-00-fc     static    
+  239.255.255.250       01-00-5e-7f-ff-fa     static    
+
+Interface: 172.30.1.44 --- 0xc
+  Internet Address      Physical Address      Type
+  172.30.1.61           a0-c5-89-14-69-a0     dynamic   
+  172.30.1.254          08-5d-dd-41-b5-3b     dynamic   
+  172.30.1.255          ff-ff-ff-ff-ff-ff     static    
+  224.0.0.2             01-00-5e-00-00-02     static    
+  224.0.0.22            01-00-5e-00-00-16     static    
+  224.0.0.251           01-00-5e-00-00-fb     static    
+  224.0.0.252           01-00-5e-00-00-fc     static    
+  239.255.255.250       01-00-5e-7f-ff-fa     static    
+  255.255.255.255       ff-ff-ff-ff-ff-ff     static    
+
+[2024-09-29 19:43:14.470] Found MAC address: :::
+[2024-09-29 19:43:14.474] MAC Address for : :::
+[2024-09-29 19:43:15.033] Unexpected error during ping: Value cannot be null. (Parameter 'hostNameOrAddress')
+[2024-09-29 19:43:15.037] Ping to  failed. Target may be unreachable.
+[2024-09-29 19:43:21.066] Ping to 172.30.1.61 successful. Round-trip time: 260ms, TTL: 64
+[2024-09-29 19:43:21.069] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 19:43:21.269] ARP output: 
+Interface: 172.30.1.44 --- 0xc
+  Internet Address      Physical Address      Type
+  172.30.1.61           a0-c5-89-14-69-a0     dynamic   
+
+[2024-09-29 19:43:21.273] Found MAC address: A0:C5:89:14:69:A0
+[2024-09-29 19:43:21.277] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 19:46:34.283] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 19:46:40.767] ARP output: 
+Interface: 172.30.1.44 --- 0xc
+  Internet Address      Physical Address      Type
+  172.30.1.61           a0-c5-89-14-69-a0     dynamic   
+
+[2024-09-29 19:46:41.155] Found MAC address: A0:C5:89:14:69:A0
+[2024-09-29 19:46:41.158] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 19:46:41.670] Ping to 172.30.1.61 successful. Round-trip time: 258ms, TTL: 64
+[2024-09-29 19:46:41.675] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 19:46:45.428] Starting port scan...
+[2024-09-29 19:46:45.665] Port 22 is open
+[2024-09-29 19:46:45.668] First open TCP port found: 22
