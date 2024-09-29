@@ -40,6 +40,12 @@ partial class Form1
         this.btnStopAttack = new System.Windows.Forms.Button();
         this.lblStatus = new System.Windows.Forms.Label();
         this.chartNetworkLoad = new System.Windows.Forms.DataVisualization.Charting.Chart();
+        this.txtSourceIP = new System.Windows.Forms.TextBox();
+        this.txtSourceMAC = new System.Windows.Forms.TextBox();
+        this.btnAutoLoadSource = new System.Windows.Forms.Button();
+        this.btnClearLogs = new System.Windows.Forms.Button();
+        this.btnSaveLogs = new System.Windows.Forms.Button();
+        this.txtLogs = new System.Windows.Forms.RichTextBox();
 
         // Set up the form
         this.SuspendLayout();
@@ -47,14 +53,12 @@ partial class Form1
         this.ClientSize = new System.Drawing.Size(800, 600);
 
         // Source IP
-        this.txtSourceIP = new System.Windows.Forms.TextBox();
         this.txtSourceIP.Location = new System.Drawing.Point(20, 20);
         this.txtSourceIP.Size = new System.Drawing.Size(200, 23);
         this.txtSourceIP.ReadOnly = true;
         this.Controls.Add(this.txtSourceIP);
 
         // Source MAC
-        this.txtSourceMAC = new System.Windows.Forms.TextBox();
         this.txtSourceMAC.Location = new System.Drawing.Point(20, 50);
         this.txtSourceMAC.Size = new System.Drawing.Size(200, 23);
         this.txtSourceMAC.ReadOnly = true;
@@ -95,7 +99,7 @@ partial class Form1
         this.btnFindPort.Size = new System.Drawing.Size(75, 23);
         this.btnFindPort.Text = "Find Port";
         this.Controls.Add(this.btnFindPort);
-        this.Controls.Add(this.txtRate);
+        this.btnFindPort.Click += new System.EventHandler(this.btnFindPort_Click);
 
         // Rate (Mbps)
         this.txtRate.Location = new System.Drawing.Point(20, 170);
@@ -115,18 +119,22 @@ partial class Form1
         this.cmbAttackType.DropDownStyle = ComboBoxStyle.DropDownList;
         this.Controls.Add(this.cmbAttackType);
         this.cmbAttackType.Items.Add("UDP Flood");
+        this.cmbAttackType.Items.Add("TCP SYN Flood");
+        this.cmbAttackType.Items.Add("ICMP Flood");
 
         // Start Attack button
         this.btnStartAttack.Location = new System.Drawing.Point(20, 230);
         this.btnStartAttack.Size = new System.Drawing.Size(100, 23);
         this.btnStartAttack.Text = "Start Attack";
         this.Controls.Add(this.btnStartAttack);
+        this.btnStartAttack.Click += new System.EventHandler(this.btnStartAttack_Click);
 
         // Stop Attack button
         this.btnStopAttack.Location = new System.Drawing.Point(130, 230);
         this.btnStopAttack.Size = new System.Drawing.Size(100, 23);
         this.btnStopAttack.Text = "Stop Attack";
         this.Controls.Add(this.btnStopAttack);
+        this.btnStopAttack.Click += new System.EventHandler(this.btnStopAttack_Click);
 
         // Status label
         this.lblStatus.Location = new System.Drawing.Point(20, 260);
@@ -143,7 +151,6 @@ partial class Form1
         this.Controls.Add(this.chartNetworkLoad);
 
         // Logs TextBox
-        this.txtLogs = new System.Windows.Forms.RichTextBox();
         this.txtLogs.Location = new System.Drawing.Point(320, 20);
         this.txtLogs.Size = new System.Drawing.Size(450, 200);
         this.txtLogs.ReadOnly = true;
@@ -151,30 +158,25 @@ partial class Form1
         this.Controls.Add(this.txtLogs);
 
         // Auto Load Source button
-        this.btnAutoLoadSource = new System.Windows.Forms.Button();
         this.btnAutoLoadSource.Location = new System.Drawing.Point(230, 35);
         this.btnAutoLoadSource.Size = new System.Drawing.Size(75, 23);
         this.btnAutoLoadSource.Text = "Auto Load";
-        this.btnAutoLoadSource.Click += new System.EventHandler(this.btnAutoLoadSource_Click);
         this.Controls.Add(this.btnAutoLoadSource);
+        this.btnAutoLoadSource.Click += new System.EventHandler(this.btnAutoLoadSource_Click);
 
         // Clear Logs button
-        this.btnClearLogs = new System.Windows.Forms.Button();
         this.btnClearLogs.Location = new System.Drawing.Point(320, 230);
         this.btnClearLogs.Size = new System.Drawing.Size(75, 23);
         this.btnClearLogs.Text = "Clear Logs";
-        this.btnClearLogs.Click += new System.EventHandler(this.btnClearLogs_Click);
         this.Controls.Add(this.btnClearLogs);
+        this.btnClearLogs.Click += new System.EventHandler(this.btnClearLogs_Click);
 
         // Save Logs button
-        this.btnSaveLogs = new System.Windows.Forms.Button();
         this.btnSaveLogs.Location = new System.Drawing.Point(405, 230);
         this.btnSaveLogs.Size = new System.Drawing.Size(75, 23);
         this.btnSaveLogs.Text = "Save Logs";
-        this.btnSaveLogs.Click += new System.EventHandler(this.btnSaveLogs_Click);
         this.Controls.Add(this.btnSaveLogs);
-
-        this.btnFindPort.Click += new System.EventHandler(this.btnFindPort_Click);
+        this.btnSaveLogs.Click += new System.EventHandler(this.btnSaveLogs_Click);
 
         this.ResumeLayout(false);
         this.PerformLayout();

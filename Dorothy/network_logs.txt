@@ -285,3 +285,42 @@ Interface: 172.30.1.44 --- 0xc
 [2024-09-29 19:46:45.428] Starting port scan...
 [2024-09-29 19:46:45.665] Port 22 is open
 [2024-09-29 19:46:45.668] First open TCP port found: 22
+[2024-09-29 20:04:53.950] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 20:04:57.770] Ping to 172.30.1.61 successful. Round-trip time: 218ms, TTL: 64
+[2024-09-29 20:04:57.773] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 20:04:58.303] ARP output: 
+Interface: 172.30.1.44 --- 0xc
+  Internet Address      Physical Address      Type
+  172.30.1.61           a0-c5-89-14-69-a0     dynamic   
+
+[2024-09-29 20:04:58.694] Found MAC address: A0:C5:89:14:69:A0
+[2024-09-29 20:04:58.699] MAC Address for 172.30.1.61: A0:C5:89:14:69:A0
+[2024-09-29 20:04:58.915] Starting port scan...
+[2024-09-29 20:04:59.000] Port 22 is open
+[2024-09-29 20:04:59.003] First open TCP port found: 22
+[2024-09-29 20:13:09.033] Source IP: 192.168.62.1, Source MAC: 00:50:56:C0:00:01
+[2024-09-29 20:13:13.595] Ping to 172.30.1.61 successful. Round-trip time: 142ms, TTL: 64
+[2024-09-29 20:13:13.599] Ping to 172.30.1.61 was successful. Target is alive.
+[2024-09-29 20:13:14.139] MAC Address for 172.30.1.61: a0-c5-89-14-69-a0
+[2024-09-29 20:13:14.824] First open TCP port found: 22
+[2024-09-29 20:13:17.764] Starting UDP Flood attack on 172.30.1.61:22 at 100 Mbps
+[2024-09-29 20:13:17.766] Debug: Calling StartUdpFlood method
+[2024-09-29 20:13:17.767] Debug: Entering StartUdpFlood method
+[2024-09-29 20:13:17.773] Debug: Creating UdpClient
+[2024-09-29 20:13:17.781] Debug: Target endpoint created: 172.30.1.61:22
+[2024-09-29 20:13:17.785] Debug: Buffer created with size: 1024
+[2024-09-29 20:13:17.790] Debug: UDP Flood initialized. Target: 172.30.1.61:22, BytesPerSecond: 12500000
+[2024-09-29 20:13:18.800] Debug: UDP Flood: 68 packets sent, 0.55 Mbps
+[2024-09-29 20:13:19.816] Debug: UDP Flood: 67 packets sent, 0.54 Mbps
+[2024-09-29 20:13:20.837] Debug: UDP Flood: 66 packets sent, 0.54 Mbps
+[2024-09-29 20:13:21.856] Debug: UDP Flood: 67 packets sent, 0.55 Mbps
+[2024-09-29 20:13:22.871] Debug: UDP Flood: 67 packets sent, 0.55 Mbps
+[2024-09-29 20:13:23.899] Debug: UDP Flood: 67 packets sent, 0.54 Mbps
+[2024-09-29 20:13:24.922] Debug: UDP Flood: 67 packets sent, 0.54 Mbps
+[2024-09-29 20:13:25.936] Debug: UDP Flood: 67 packets sent, 0.55 Mbps
+[2024-09-29 20:13:26.954] Debug: UDP Flood: 67 packets sent, 0.54 Mbps
+[2024-09-29 20:13:27.983] Debug: UDP Flood: 67 packets sent, 0.54 Mbps
+[2024-09-29 20:13:28.996] Debug: UDP Flood: 67 packets sent, 0.55 Mbps
+[2024-09-29 20:13:30.017] Debug: UDP Flood: 67 packets sent, 0.54 Mbps
+[2024-09-29 20:13:31.029] Attack stopped.
+[2024-09-29 20:13:31.042] Debug: UDP Flood attack stopped.

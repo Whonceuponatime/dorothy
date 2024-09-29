@@ -110,22 +110,15 @@ namespace Dorothy
                     string output = process.StandardOutput.ReadToEnd();
                     process.WaitForExit();
 
-                    LogWithTimestamp($"ARP output: {output}", Color.Gray);
-
-                    string[] lines = output.Split('\n');
+                    string[] lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                     foreach (string line in lines)
                     {
                         if (line.Contains(ipAddress))
                         {
                             string[] parts = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                            for (int i = 0; i < parts.Length; i++)
+                            if (parts.Length >= 2)
                             {
-                                if (parts[i].Contains("-"))
-                                {
-                                    string macAddress = parts[i].Replace("-", ":").ToUpper();
-                                    LogWithTimestamp($"Found MAC address: {macAddress}", Color.Gray);
-                                    return macAddress;
-                                }
+                                return parts[1];
                             }
                         }
                     }
@@ -133,7 +126,7 @@ namespace Dorothy
             }
             catch (Exception ex)
             {
-                LogWithTimestamp($"Error fetching MAC Address: {ex.Message}", Color.Red);
+                LogWithTimestamp($"Error getting MAC address: {ex.Message}", Color.Red);
             }
             return "MAC ADDRESS NOT FOUND";
         }
@@ -199,30 +192,21 @@ namespace Dorothy
         private async void btnStartAttack_Click(object sender, EventArgs e)
         {
             string targetIp = txtTargetIP.Text;
-            LogWithTimestamp($"Debug: Target IP: {targetIp}", Color.Gray);
-
             if (!int.TryParse(txtTargetPort.Text, out int targetPort))
             {
-                LogWithTimestamp("Debug: Invalid target port.", Color.Red);
                 MessageBox.Show("Invalid target port.");
                 return;
             }
-            LogWithTimestamp($"Debug: Target Port: {targetPort}", Color.Gray);
 
             if (!int.TryParse(txtRate.Text, out int mbps))
             {
-                LogWithTimestamp("Debug: Invalid rate (Mbps).", Color.Red);
                 MessageBox.Show("Invalid rate (Mbps).");
                 return;
             }
-            LogWithTimestamp($"Debug: Rate: {mbps} Mbps", Color.Gray);
 
-            string? attackType = cmbAttackType.SelectedItem?.ToString();
-            LogWithTimestamp($"Debug: Attack Type: {attackType}", Color.Gray);
-
+            string attackType = cmbAttackType.SelectedItem?.ToString() ?? string.Empty;
             if (string.IsNullOrEmpty(attackType))
             {
-                LogWithTimestamp("Debug: No attack type selected.", Color.Red);
                 MessageBox.Show("Please select an attack type.");
                 return;
             }
@@ -244,7 +228,14 @@ namespace Dorothy
                         LogWithTimestamp("Debug: Calling StartUdpFlood method", Color.Blue);
                         await _attackLogic.StartUdpFlood(targetIp, targetPort, mbps, LogMessage);
                         break;
-                    // ... other cases ...
+                    case "TCP SYN Flood":
+                        LogWithTimestamp("Debug: Calling StartTcpSynFlood method", Color.Blue);
+                        _attackLogic.StartTcpSynFlood(targetIp, targetPort, mbps, LogMessage);
+                        break;
+                    case "ICMP Flood":
+                        LogWithTimestamp("Debug: Calling StartIcmpFlood method", Color.Blue);
+                        _attackLogic.StartIcmpFlood(targetIp, mbps, LogMessage);
+                        break;
                     default:
                         LogWithTimestamp("Debug: Unknown attack type.", Color.Red);
                         MessageBox.Show("Unknown attack type.");
@@ -262,6 +253,13 @@ namespace Dorothy
             }
         }
 
+        private void btnStopAttack_Click(object sender, EventArgs e)
+        {
+            _attackLogic.StopAttack();
+            LogWithTimestamp("Attack stopped.", Color.Red);
+            ResetAttackControls();
+        }
+
         private void ResetAttackControls()
         {
             btnStartAttack.Enabled = true;
@@ -273,24 +271,9 @@ namespace Dorothy
             lblStatus.Text = "Status: Idle";
         }
 
-        private void btnStopAttack_Click(object sender, EventArgs e)
-        {
-            _attackLogic.StopAttack();
-            LogWithTimestamp("Attack stopped.", Color.Orange);
-            ResetAttackControls();
-        }
-
         private void LogMessage(string message)
         {
-            if (InvokeRequired)
-            {
-                Invoke(new Action<string>(LogMessage), message);
-            }
-            else
-            {
-                txtLogs.AppendText(message + Environment.NewLine);
-                txtLogs.ScrollToCaret();
-            }
+            LogWithTimestamp(message, Color.Gray);
         }
 
         private void btnAutoLoadSource_Click(object sender, EventArgs e)
@@ -399,52 +382,37 @@ namespace Dorothy
             };
         }
 
-        private async void btnFindPort_Click(object sender, EventArgs e)
+        private void btnFindPort_Click(object sender, EventArgs e)
         {
             string targetIp = txtTargetIP.Text;
-            btnFindPort.Enabled = false;
-            LogWithTimestamp("Starting port scan...", Color.Blue);
-            
-            int openPort = await FindFirstOpenPortAsync(targetIp);
-            
-            if (openPort != -1)
+            int openPort = FindOpenPort(targetIp);
+            if (openPort > 0)
             {
                 txtTargetPort.Text = openPort.ToString();
-                LogWithTimestamp($"First open TCP port found: {openPort}", Color.Green);
+                LogWithTimestamp($"First open TCP port found: {openPort}", Color.LightBlue);
             }
             else
             {
-                txtTargetPort.Text = "No open port found";
-                LogWithTimestamp("No open TCP ports found", Color.Yellow);
+                LogWithTimestamp("No open TCP ports found", Color.LightCoral);
             }
-            
-            btnFindPort.Enabled = true;
         }
 
-        private async Task<int> FindFirstOpenPortAsync(string ipAddress)
+        private int FindOpenPort(string ipAddress)
         {
-            int[] commonPorts = { 22, 80, 443, 21, 25, 3389, 110, 143, 53, 23, 445, 139, 8080, 1723, 111 };
-            
-            using (var client = new TcpClient())
+            int[] commonPorts = { 22, 80, 443, 8080 };
+            foreach (int port in commonPorts)
             {
-                foreach (int port in commonPorts)
+                try
                 {
-                    try
+                    using (TcpClient client = new TcpClient())
                     {
-                        await client.ConnectAsync(ipAddress, port, new CancellationTokenSource(500).Token);
-                        client.Close();
-                        LogWithTimestamp($"Port {port} is open", Color.Green);
+                        client.Connect(ipAddress, port);
                         return port;
                     }
-                    catch (OperationCanceledException)
-                    {
-                        LogWithTimestamp($"Connection to port {port} timed out", Color.Yellow);
-                    }
-                    catch (SocketException)
-                    {
-                        LogWithTimestamp($"Port {port} is closed or filtered", Color.Gray);
-                    }
-                    await Task.Delay(10); // Small delay to prevent UI freezing
+                }
+                catch (SocketException)
+                {
+                    // Port is closed, continue to the next port
                 }
             }
             return -1;

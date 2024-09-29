@@ -65,7 +65,10 @@ namespace Dorothy
                                     Thread.Sleep(10);
                                 }
                             }
-                            await Task.Delay(1); // Add this line to make the loop truly asynchronous
+
+                            // Calculate the delay needed to match the desired Mbps
+                            double delay = (buffer.Length * 8.0 / (mbps * 1_000_000.0)) * 1000.0;
+                            await Task.Delay((int)delay);
                         }
                     }
                 }
