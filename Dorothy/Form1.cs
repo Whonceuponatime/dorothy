@@ -234,7 +234,7 @@ namespace Dorothy
                         break;
                     case "ICMP Flood":
                         LogWithTimestamp("Debug: Calling StartIcmpFlood method", Color.Blue);
-                        _attackLogic.StartIcmpFlood(targetIp, mbps, LogMessage);
+                        await _attackLogic.StartIcmpFlood(targetIp, mbps, LogMessage);
                         break;
                     default:
                         LogWithTimestamp("Debug: Unknown attack type.", Color.Red);
