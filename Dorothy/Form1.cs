@@ -38,6 +38,8 @@ namespace Dorothy
         private void btnPing_Click(object sender, EventArgs e)
         {
             string targetIp = txtTargetIP.Text;
+            LogWithTimestamp($"Attempting to ping {targetIp}", Color.LightBlue);
+
             bool pingSuccess = PingHost(targetIp);
             if (pingSuccess)
             {
@@ -62,28 +64,13 @@ namespace Dorothy
             {
                 using (Ping ping = new Ping())
                 {
-                    PingReply reply = ping.Send(ipAddress, 1000);
-                    if (reply.Status == IPStatus.Success)
-                    {
-                        string ttl = reply.Options?.Ttl.ToString() ?? "N/A";
-                        LogWithTimestamp($"Ping to {ipAddress} successful. Round-trip time: {reply.RoundtripTime}ms, TTL: {ttl}", Color.Pink);
-                        return true;
-                    }
-                    else
-                    {
-                        LogWithTimestamp($"Ping to {ipAddress} failed. Status: {reply.Status}", Color.Pink);
-                        return false;
-                    }
+                    PingReply reply = ping.Send(ipAddress, 1000); // 1 second timeout
+                    return reply.Status == IPStatus.Success;
                 }
-            }
-            catch (PingException ex)
-            {
-                LogWithTimestamp($"Ping error: {ex.Message}", Color.Pink);
-                return false;
             }
             catch (Exception ex)
             {
-                LogWithTimestamp($"Unexpected error during ping: {ex.Message}", Color.Pink);
+                LogWithTimestamp($"Ping error: {ex.Message}", Color.Red);
                 return false;
             }
         }
@@ -191,37 +178,18 @@ namespace Dorothy
 
         private async void btnStartAttack_Click(object sender, EventArgs e)
         {
-            string targetIp = txtTargetIP.Text;
-            if (!int.TryParse(txtTargetPort.Text, out int targetPort))
-            {
-                MessageBox.Show("Invalid target port.");
-                return;
-            }
-
-            if (!int.TryParse(txtRate.Text, out int mbps))
-            {
-                MessageBox.Show("Invalid rate (Mbps).");
-                return;
-            }
-
-            string attackType = cmbAttackType.SelectedItem?.ToString() ?? string.Empty;
-            if (string.IsNullOrEmpty(attackType))
-            {
-                MessageBox.Show("Please select an attack type.");
-                return;
-            }
-
-            btnStartAttack.Enabled = false;
-            btnStopAttack.Enabled = true;
-            cmbAttackType.Enabled = false;
-            txtTargetIP.Enabled = false;
-            txtTargetPort.Enabled = false;
-            txtRate.Enabled = false;
-
-            LogWithTimestamp($"Starting {attackType} attack on {targetIp}:{targetPort} at {mbps} Mbps", Color.Green);
-
             try
             {
+                string targetIp = txtTargetIP.Text;
+                int targetPort = int.Parse(txtTargetPort.Text);
+                int mbps = int.Parse(txtRate.Text);
+                string attackType = cmbAttackType.SelectedItem?.ToString() ?? "Unknown";
+
+                LogWithTimestamp($"Starting {attackType} attack on {targetIp}:{targetPort} at {mbps} Mbps", Color.LightBlue);
+
+                btnStartAttack.Enabled = false;
+                btnStopAttack.Enabled = true;
+
                 switch (attackType)
                 {
                     case "UDP Flood":
@@ -230,7 +198,7 @@ namespace Dorothy
                         break;
                     case "TCP SYN Flood":
                         LogWithTimestamp("Debug: Calling StartTcpSynFlood method", Color.Blue);
-                        _attackLogic.StartTcpSynFlood(targetIp, targetPort, mbps, LogMessage);
+                        await _attackLogic.StartTcpSynFlood(targetIp, targetPort, mbps, LogMessage);
                         break;
                     case "ICMP Flood":
                         LogWithTimestamp("Debug: Calling StartIcmpFlood method", Color.Blue);
@@ -256,7 +224,7 @@ namespace Dorothy
         private void btnStopAttack_Click(object sender, EventArgs e)
         {
             _attackLogic.StopAttack();
-            LogWithTimestamp("Attack stopped.", Color.Red);
+            LogWithTimestamp("Attack stopped.", Color.LightBlue);
             ResetAttackControls();
         }
 
@@ -264,10 +232,6 @@ namespace Dorothy
         {
             btnStartAttack.Enabled = true;
             btnStopAttack.Enabled = false;
-            cmbAttackType.Enabled = true;
-            txtTargetIP.Enabled = true;
-            txtTargetPort.Enabled = true;
-            txtRate.Enabled = true;
             lblStatus.Text = "Status: Idle";
         }
 

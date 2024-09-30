@@ -135,6 +135,7 @@ partial class Form1
         this.btnStopAttack.Text = "Stop Attack";
         this.Controls.Add(this.btnStopAttack);
         this.btnStopAttack.Click += new System.EventHandler(this.btnStopAttack_Click);
+        this.btnStopAttack.Enabled = false; // Initially disabled
 
         // Status label
         this.lblStatus.Location = new System.Drawing.Point(20, 260);
