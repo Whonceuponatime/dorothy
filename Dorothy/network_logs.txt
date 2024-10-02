@@ -9628,3 +9628,1859 @@ Interface: 172.30.1.44 --- 0xc
 [2024-09-30 23:35:16.600] Debug: ICMP Flood: 5000 packets sent
 [2024-09-30 23:35:16.622] Attack stopped by user.
 [2024-09-30 23:35:16.625] Debug: ICMP Flood attack stopped.
+[2024-10-02 10:20:08.638] Source IP: 192.168.0.162, Source MAC: 58:86:94:FB:4B:0C
+[2024-10-02 10:20:14.849] Attempting to ping 192.168.230.128
+[2024-10-02 10:20:14.858] Ping to 192.168.230.128 was successful. Target is alive.
+[2024-10-02 10:20:16.004] MAC Address for 192.168.230.128: 00-0c-29-dc-20-df
+[2024-10-02 10:20:25.660] No open TCP ports found
+[2024-10-02 10:20:43.179] Starting UDP Flood attack on 192.168.230.128:139 at 100 Mbps
+[2024-10-02 10:20:43.193] Debug: Calling StartUdpFlood method
+[2024-10-02 10:20:43.195] Debug: Entering StartUdpFlood method
+[2024-10-02 10:20:43.202] Debug: Creating UdpClient
+[2024-10-02 10:20:43.207] Debug: Target endpoint created: 192.168.230.128:139
+[2024-10-02 10:20:43.208] Debug: Buffer created with size: 1024
+[2024-10-02 10:20:43.210] Debug: UDP Flood initialized. Target: 192.168.230.128:139, BytesPerSecond: 12500000
+[2024-10-02 10:20:43.214] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:43.218] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:43.222] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:43.226] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:43.230] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:43.234] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:43.238] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:43.242] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:43.245] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:43.249] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:43.253] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:43.257] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:43.260] Debug: UDP Flood: 12208 packets sent, 2030.62 Mbps
+[2024-10-02 10:20:43.261] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:43.283] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:43.287] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:43.292] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:43.295] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:43.300] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:43.303] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:43.307] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:43.311] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:43.315] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:43.319] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:43.324] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:43.327] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:43.329] Debug: UDP Flood: 12208 packets sent, 1464.08 Mbps
+[2024-10-02 10:20:43.331] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:43.360] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:43.364] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:43.368] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:43.372] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:43.376] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:43.380] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:43.383] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:43.388] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:43.392] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:43.396] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:43.399] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:43.403] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:43.405] Debug: UDP Flood: 12208 packets sent, 1342.88 Mbps
+[2024-10-02 10:20:43.406] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:43.423] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:43.428] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:43.432] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:43.436] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:43.440] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:43.454] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:43.458] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:43.462] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:43.465] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:43.469] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:43.473] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:43.477] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:43.479] Debug: UDP Flood: 12208 packets sent, 1384.51 Mbps
+[2024-10-02 10:20:43.480] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:43.499] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:43.503] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:43.506] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:43.510] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:43.513] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:43.517] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:43.520] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:43.523] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:43.527] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:43.530] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:43.533] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:43.536] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:43.538] Debug: UDP Flood: 12208 packets sent, 1725.62 Mbps
+[2024-10-02 10:20:43.539] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:43.563] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:43.568] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:43.572] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:43.577] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:43.582] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:43.585] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:43.589] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:43.594] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:43.598] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:43.604] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:43.608] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:43.613] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:43.616] Debug: UDP Flood: 12208 packets sent, 1304.10 Mbps
+[2024-10-02 10:20:43.617] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:43.641] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:43.648] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:43.655] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:43.660] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:43.665] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:43.670] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:43.675] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:43.680] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:43.686] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:43.691] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:43.694] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:43.699] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:43.702] Debug: UDP Flood: 12208 packets sent, 1182.07 Mbps
+[2024-10-02 10:20:43.703] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:43.718] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:43.724] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:43.728] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:43.733] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:43.737] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:43.741] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:43.745] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:43.748] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:43.752] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:43.756] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:43.760] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:43.763] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:43.765] Debug: UDP Flood: 12208 packets sent, 1601.82 Mbps
+[2024-10-02 10:20:43.767] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:43.795] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:43.800] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:43.803] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:43.807] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:43.811] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:43.815] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:43.819] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:43.823] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:43.827] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:43.830] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:43.834] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:43.838] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:43.840] Debug: UDP Flood: 12208 packets sent, 1360.84 Mbps
+[2024-10-02 10:20:43.842] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:43.858] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:43.863] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:43.867] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:43.870] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:43.874] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:43.877] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:43.881] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:43.884] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:43.888] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:43.891] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:43.895] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:43.899] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:43.901] Debug: UDP Flood: 12208 packets sent, 1694.68 Mbps
+[2024-10-02 10:20:43.902] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:43.921] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:43.925] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:43.929] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:43.932] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:43.936] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:43.942] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:43.947] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:43.951] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:43.956] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:43.960] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:43.964] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:43.968] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:43.970] Debug: UDP Flood: 12208 packets sent, 1477.89 Mbps
+[2024-10-02 10:20:43.971] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:43.999] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:44.003] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:44.006] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:44.010] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:44.030] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:44.033] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:44.037] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:44.041] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:44.045] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:44.049] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:44.052] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:44.056] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:44.058] Debug: UDP Flood: 12208 packets sent, 1151.87 Mbps
+[2024-10-02 10:20:44.059] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:44.075] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:44.079] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:44.083] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:44.087] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:44.091] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:44.094] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:44.098] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:44.101] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:44.105] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:44.109] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:44.112] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:44.116] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:44.118] Debug: UDP Flood: 12208 packets sent, 1703.18 Mbps
+[2024-10-02 10:20:44.119] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:44.137] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:44.141] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:44.145] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:44.149] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:44.152] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:44.170] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:44.174] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:44.178] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:44.182] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:44.185] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:44.189] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:44.193] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:44.195] Debug: UDP Flood: 12208 packets sent, 1324.92 Mbps
+[2024-10-02 10:20:44.196] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:44.214] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:44.218] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:44.222] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:44.226] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:44.229] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:44.233] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:44.236] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:44.240] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:44.243] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:44.247] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:44.250] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:44.254] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:44.255] Debug: UDP Flood: 12208 packets sent, 1691.40 Mbps
+[2024-10-02 10:20:44.257] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:44.276] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:44.280] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:44.284] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:44.288] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:44.292] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:44.295] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:44.299] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:44.302] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:44.306] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:44.309] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:44.313] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:44.319] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:44.321] Debug: UDP Flood: 12208 packets sent, 1565.61 Mbps
+[2024-10-02 10:20:44.322] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:44.338] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:44.342] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:44.345] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:44.349] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:44.353] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:44.356] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:44.360] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:44.363] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:44.367] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:44.370] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:44.374] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:44.377] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:44.379] Debug: UDP Flood: 12208 packets sent, 1755.80 Mbps
+[2024-10-02 10:20:44.380] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:44.400] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:44.404] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:44.408] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:44.433] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:44.437] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:44.441] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:44.444] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:44.448] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:44.452] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:44.456] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:44.459] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:44.471] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:44.473] Debug: UDP Flood: 12208 packets sent, 1079.00 Mbps
+[2024-10-02 10:20:44.474] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:44.494] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:44.498] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:44.502] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:44.505] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:44.509] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:44.513] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:44.516] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:44.520] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:44.524] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:44.528] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:44.531] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:44.535] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:44.537] Debug: UDP Flood: 12208 packets sent, 1607.51 Mbps
+[2024-10-02 10:20:44.538] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:44.556] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:44.560] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:44.565] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:44.569] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:44.589] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:44.593] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:44.597] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:44.601] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:44.605] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:44.608] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:44.612] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:44.615] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:44.617] Debug: UDP Flood: 12208 packets sent, 1261.81 Mbps
+[2024-10-02 10:20:44.619] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:44.635] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:44.639] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:44.643] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:44.647] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:44.651] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:44.654] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:44.658] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:44.662] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:44.666] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:44.669] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:44.673] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:44.677] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:44.679] Debug: UDP Flood: 12208 packets sent, 1647.78 Mbps
+[2024-10-02 10:20:44.681] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:44.728] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:44.745] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:44.776] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:44.808] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:44.840] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:44.870] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:44.875] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:44.879] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:44.883] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:44.886] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:44.890] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 10:20:44.893] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 10:20:44.895] Debug: UDP Flood: 12208 packets sent, 466.49 Mbps
+[2024-10-02 10:20:44.897] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:44.915] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 10:20:44.919] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 10:20:44.923] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 10:20:44.927] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 10:20:44.931] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 10:20:44.934] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 10:20:44.938] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 10:20:44.942] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 10:20:44.945] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 10:20:44.954] Attack stopped by user.
+[2024-10-02 10:20:44.955] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 10:20:44.957] Debug: UDP Flood attack stopped.
+[2024-10-02 10:20:46.747] Starting ICMP Flood attack on 192.168.230.128:139 at 100 Mbps
+[2024-10-02 10:20:46.758] Debug: Calling StartIcmpFlood method
+[2024-10-02 10:20:46.760] Debug: Entering StartIcmpFlood method
+[2024-10-02 10:20:46.784] Debug: Creating raw socket for ICMP
+[2024-10-02 10:20:46.799] Debug: Buffer created with size: 1024
+[2024-10-02 10:20:46.813] Debug: ICMP Flood initialized. Target: 192.168.230.128, BytesPerSecond: 12500000
+[2024-10-02 10:20:46.833] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:46.846] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:46.860] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:46.864] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:46.868] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:46.871] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:46.874] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:46.878] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:46.881] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:46.885] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:46.888] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:46.892] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:46.894] Debug: ICMP Flood: 12208 packets sent, 1243.86 Mbps
+[2024-10-02 10:20:46.895] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:46.922] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:46.926] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:46.930] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:46.933] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:46.937] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:46.940] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:46.944] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:46.947] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:46.951] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:46.954] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:46.958] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:46.961] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:46.967] Debug: ICMP Flood: 12208 packets sent, 1380.41 Mbps
+[2024-10-02 10:20:46.983] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:47.015] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:47.031] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:47.046] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:47.062] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:47.066] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:47.069] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:47.073] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:47.076] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:47.080] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:47.084] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:47.088] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:47.091] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:47.093] Debug: ICMP Flood: 12208 packets sent, 903.76 Mbps
+[2024-10-02 10:20:47.094] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:47.122] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:47.126] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:47.129] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:47.133] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:47.136] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:47.140] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:47.143] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:47.146] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:47.150] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:47.153] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:47.157] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:47.161] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:47.162] Debug: ICMP Flood: 12208 packets sent, 1470.53 Mbps
+[2024-10-02 10:20:47.168] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:47.201] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:47.217] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:47.232] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:47.248] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:47.263] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:47.267] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:47.271] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:47.274] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:47.277] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:47.281] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:47.284] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:47.287] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:47.289] Debug: ICMP Flood: 12208 packets sent, 823.82 Mbps
+[2024-10-02 10:20:47.290] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:47.309] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:47.313] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:47.317] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:47.320] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:47.323] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:47.327] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:47.331] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:47.335] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:47.338] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:47.342] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:47.346] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:47.349] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:47.351] Debug: ICMP Flood: 12208 packets sent, 1641.80 Mbps
+[2024-10-02 10:20:47.353] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:47.372] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:47.389] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:47.404] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:47.419] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:47.452] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:47.468] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:47.473] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:47.477] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:47.481] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:47.484] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:47.488] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:47.491] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:47.493] Debug: ICMP Flood: 12208 packets sent, 710.45 Mbps
+[2024-10-02 10:20:47.495] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:47.513] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:47.517] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:47.521] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:47.524] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:47.528] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:47.531] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:47.535] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:47.538] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:47.542] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:47.545] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:47.549] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:47.552] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:47.554] Debug: ICMP Flood: 12208 packets sent, 1705.77 Mbps
+[2024-10-02 10:20:47.555] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:47.574] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:47.591] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:47.607] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:47.623] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:47.639] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:47.656] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:47.669] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:47.674] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:47.677] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:47.681] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:47.684] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:47.687] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:47.689] Debug: ICMP Flood: 12208 packets sent, 746.77 Mbps
+[2024-10-02 10:20:47.691] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:47.715] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:47.719] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:47.723] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:47.726] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:47.731] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:47.735] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:47.738] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:47.742] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:47.745] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:47.748] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:47.752] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:47.755] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:47.757] Debug: ICMP Flood: 12208 packets sent, 1505.47 Mbps
+[2024-10-02 10:20:47.759] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:47.777] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:47.781] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:47.785] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:47.808] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:47.840] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:47.874] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:47.906] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:47.911] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:47.914] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:47.918] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:47.921] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:47.925] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:47.926] Debug: ICMP Flood: 12208 packets sent, 595.87 Mbps
+[2024-10-02 10:20:47.928] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:47.948] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:47.952] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:47.956] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:47.960] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:47.963] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:47.966] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:47.970] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:47.973] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:47.976] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:47.980] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:47.984] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:47.987] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:47.989] Debug: ICMP Flood: 12208 packets sent, 1628.08 Mbps
+[2024-10-02 10:20:47.990] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:48.011] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:48.015] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:48.043] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:48.074] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:48.109] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:48.136] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:48.141] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:48.145] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:48.148] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:48.152] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:48.156] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:48.160] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:48.161] Debug: ICMP Flood: 12208 packets sent, 585.00 Mbps
+[2024-10-02 10:20:48.163] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:48.181] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:48.185] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:48.189] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:48.214] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:48.245] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:48.277] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:48.310] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:48.338] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:48.369] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:48.374] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:48.378] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:48.381] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:48.384] Debug: ICMP Flood: 12208 packets sent, 452.76 Mbps
+[2024-10-02 10:20:48.385] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:48.399] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:48.403] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:48.407] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:48.411] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:48.414] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:48.418] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:48.421] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:48.447] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:48.451] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:48.454] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:48.458] Debug: ICMP Flood: 11000 packets sent
+[2024-10-02 10:20:48.461] Debug: ICMP Flood: 12000 packets sent
+[2024-10-02 10:20:48.463] Debug: ICMP Flood: 12208 packets sent, 1279.10 Mbps
+[2024-10-02 10:20:48.465] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 10:20:48.494] Debug: ICMP Flood: 1000 packets sent
+[2024-10-02 10:20:48.499] Debug: ICMP Flood: 2000 packets sent
+[2024-10-02 10:20:48.503] Debug: ICMP Flood: 3000 packets sent
+[2024-10-02 10:20:48.507] Debug: ICMP Flood: 4000 packets sent
+[2024-10-02 10:20:48.511] Debug: ICMP Flood: 5000 packets sent
+[2024-10-02 10:20:48.544] Debug: ICMP Flood: 6000 packets sent
+[2024-10-02 10:20:48.576] Debug: ICMP Flood: 7000 packets sent
+[2024-10-02 10:20:48.611] Debug: ICMP Flood: 8000 packets sent
+[2024-10-02 10:20:48.638] Debug: ICMP Flood: 9000 packets sent
+[2024-10-02 10:20:48.668] Debug: ICMP Flood: 10000 packets sent
+[2024-10-02 10:20:48.700] Attack stopped by user.
+[2024-10-02 10:20:48.702] Debug: ICMP Flood attack stopped.
+[2024-10-02 10:20:50.088] Starting TCP SYN Flood attack on 192.168.230.128:139 at 100 Mbps
+[2024-10-02 10:20:50.095] Debug: Calling StartTcpSynFlood method
+[2024-10-02 10:20:50.097] Debug: Entering StartTcpSynFlood method
+[2024-10-02 10:20:50.107] Debug: Using SharpPcap for TCP SYN flood
+[2024-10-02 10:20:50.584] Debug: Selected device: Hyper-V Virtual Ethernet Adapter
+[2024-10-02 10:20:50.590] Debug: Source IP: 172.18.160.1, Destination IP: 192.168.230.128, Source Port: 7652
+[2024-10-02 10:20:50.592] Debug: TCP SYN Flood initialized. Target: 192.168.230.128:139, BytesPerSecond: 12500000
+[2024-10-02 10:20:50.630] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:20:50.662] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:20:50.695] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:20:50.730] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:20:50.783] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:20:50.828] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:20:50.868] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:20:50.909] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:20:50.948] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:20:50.985] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:20:51.025] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:20:51.077] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:20:51.118] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:20:51.155] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:20:51.204] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:20:51.256] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:20:51.297] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:20:51.338] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:20:51.372] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:20:51.410] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:20:51.445] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:20:51.478] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:20:51.512] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:20:51.543] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:20:51.573] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:20:51.592] Debug: TCP SYN Flood: 25578 packets sent, 11.05 Mbps
+[2024-10-02 10:20:51.627] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:20:51.660] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:20:51.699] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:20:51.731] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:20:51.766] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:20:51.797] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:20:51.836] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:20:51.866] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:20:51.896] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:20:51.927] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:20:51.956] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:20:51.987] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:20:52.018] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:20:52.058] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:20:52.091] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:20:52.128] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:20:52.159] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:20:52.191] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:20:52.225] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:20:52.262] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:20:52.296] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:20:52.329] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:20:52.360] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:20:52.394] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:20:52.423] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:20:52.460] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:20:52.517] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:20:52.555] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:20:52.589] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:20:52.594] Debug: TCP SYN Flood: 29084 packets sent, 12.56 Mbps
+[2024-10-02 10:20:52.633] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:20:52.670] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:20:52.706] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:20:52.740] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:20:52.779] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:20:52.818] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:20:52.855] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:20:52.894] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:20:52.926] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:20:52.962] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:20:52.999] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:20:53.046] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:20:53.089] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:20:53.127] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:20:53.162] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:20:53.198] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:20:53.233] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:20:53.269] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:20:53.303] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:20:53.339] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:20:53.401] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:20:53.439] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:20:53.474] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:20:53.511] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:20:53.547] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:20:53.582] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:20:53.596] Debug: TCP SYN Flood: 26322 packets sent, 11.37 Mbps
+[2024-10-02 10:20:53.652] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:20:53.688] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:20:53.725] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:20:53.760] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:20:53.795] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:20:53.832] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:20:53.880] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:20:53.914] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:20:53.947] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:20:53.980] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:20:54.012] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:20:54.048] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:20:54.102] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:20:54.142] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:20:54.179] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:20:54.215] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:20:54.259] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:20:54.308] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:20:54.360] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:20:54.400] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:20:54.435] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:20:54.471] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:20:54.506] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:20:54.541] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:20:54.598] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:20:54.617] Debug: TCP SYN Flood: 25514 packets sent, 11.02 Mbps
+[2024-10-02 10:20:54.650] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:20:54.684] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:20:54.718] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:20:54.749] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:20:54.784] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:20:54.818] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:20:54.856] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:20:54.891] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:20:54.922] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:20:54.958] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:20:55.005] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:20:55.039] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:20:55.073] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:20:55.106] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:20:55.138] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:20:55.171] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:20:55.226] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:20:55.261] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:20:55.296] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:20:55.329] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:20:55.361] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:20:55.393] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:20:55.446] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:20:55.481] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:20:55.516] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:20:55.550] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:20:55.583] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:20:55.616] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:20:55.633] Debug: TCP SYN Flood: 28000 packets sent, 11.93 Mbps
+[2024-10-02 10:20:55.665] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:20:55.699] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:20:55.730] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:20:55.761] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:20:55.793] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:20:55.824] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:20:55.856] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:20:55.887] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:20:55.916] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:20:55.947] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:20:55.978] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:20:56.031] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:20:56.060] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:20:56.089] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:20:56.120] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:20:56.151] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:20:56.184] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:20:56.231] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:20:56.261] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:20:56.291] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:20:56.322] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:20:56.354] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:20:56.385] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:20:56.417] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:20:56.447] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:20:56.476] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:20:56.509] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:20:56.540] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:20:56.588] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:20:56.620] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:20:56.635] Debug: TCP SYN Flood: 30424 packets sent, 13.14 Mbps
+[2024-10-02 10:20:56.667] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:20:56.698] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:20:56.734] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:20:56.765] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:20:56.797] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:20:56.827] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:20:56.858] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:20:56.889] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:20:56.920] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:20:56.951] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:20:56.981] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:20:57.011] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:20:57.041] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:20:57.072] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:20:57.129] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:20:57.160] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:20:57.192] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:20:57.224] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:20:57.252] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:20:57.284] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:20:57.324] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:20:57.353] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:20:57.385] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:20:57.417] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:20:57.448] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:20:57.513] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:20:57.542] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:20:57.572] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:20:57.601] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:20:57.632] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:20:57.637] Debug: TCP SYN Flood: 30094 packets sent, 13.00 Mbps
+[2024-10-02 10:20:57.667] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:20:57.700] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:20:57.730] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:20:57.760] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:20:57.790] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:20:57.820] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:20:57.849] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:20:57.879] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:20:57.910] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:20:57.937] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:20:57.973] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:20:58.001] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:20:58.029] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:20:58.057] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:20:58.085] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:20:58.113] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:20:58.140] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:20:58.170] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:20:58.198] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:20:58.227] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:20:58.257] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:20:58.288] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:20:58.318] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:20:58.346] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:20:58.376] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:20:58.404] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:20:58.434] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:20:58.464] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:20:58.493] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:20:58.526] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:20:58.558] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 10:20:58.590] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 10:20:58.639] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 10:20:58.641] Debug: TCP SYN Flood: 33000 packets sent, 14.23 Mbps
+[2024-10-02 10:20:58.674] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:20:58.707] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:20:58.738] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:20:58.771] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:20:58.802] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:20:58.832] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:20:58.862] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:20:58.893] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:20:58.925] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:20:58.964] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:20:58.994] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:20:59.025] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:20:59.054] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:20:59.084] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:20:59.114] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:20:59.144] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:20:59.175] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:20:59.205] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:20:59.235] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:20:59.266] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:20:59.297] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:20:59.327] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:20:59.357] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:20:59.388] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:20:59.424] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:20:59.461] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:20:59.495] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:20:59.528] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:20:59.561] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:20:59.592] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:20:59.638] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 10:20:59.642] Debug: TCP SYN Flood: 31064 packets sent, 13.42 Mbps
+[2024-10-02 10:20:59.673] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:20:59.705] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:20:59.735] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:20:59.767] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:20:59.798] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:20:59.829] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:20:59.860] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:20:59.891] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:20:59.923] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:20:59.955] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:20:59.986] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:21:00.018] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:21:00.049] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:21:00.080] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:21:00.112] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:21:00.144] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:21:00.177] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:21:00.216] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:21:00.247] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:21:00.296] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:21:00.328] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:21:00.356] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:21:00.388] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:21:00.419] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:21:00.449] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:21:00.483] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:21:00.524] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:21:00.556] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:21:00.590] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:21:00.624] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:21:00.644] Debug: TCP SYN Flood: 30553 packets sent, 13.20 Mbps
+[2024-10-02 10:21:00.679] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:21:00.692] Attack stopped by user.
+[2024-10-02 10:21:00.721] Debug: Network device closed
+[2024-10-02 10:21:00.740] Debug: TCP SYN Flood attack stopped.
+[2024-10-02 10:22:03.496] Source IP: 192.168.0.162, Source MAC: 58:86:94:FB:4B:0C
+[2024-10-02 10:22:03.716] Attempting to ping 
+[2024-10-02 10:22:03.723] Ping error: Value cannot be null. (Parameter 'hostNameOrAddress')
+[2024-10-02 10:22:03.724] Ping to  failed. Target may be unreachable.
+[2024-10-02 10:22:10.242] Attempting to ping 192.168.230.128
+[2024-10-02 10:22:10.249] Ping to 192.168.230.128 was successful. Target is alive.
+[2024-10-02 10:22:11.071] MAC Address for 192.168.230.128: 00-0c-29-dc-20-df
+[2024-10-02 10:22:20.441] No open TCP ports found
+[2024-10-02 10:22:48.938] First open TCP port found: 80
+[2024-10-02 10:22:57.613] Starting TCP SYN Flood attack on 192.168.230.128:80 at 100 Mbps
+[2024-10-02 10:22:57.624] Debug: Calling StartTcpSynFlood method
+[2024-10-02 10:22:57.626] Debug: Entering StartTcpSynFlood method
+[2024-10-02 10:22:57.634] Debug: Using SharpPcap for TCP SYN flood
+[2024-10-02 10:22:57.862] Debug: Selected device: Hyper-V Virtual Ethernet Adapter
+[2024-10-02 10:22:57.868] Debug: Source IP: 172.18.160.1, Destination IP: 192.168.230.128, Source Port: 9962
+[2024-10-02 10:22:57.870] Debug: TCP SYN Flood initialized. Target: 192.168.230.128:80, BytesPerSecond: 12500000
+[2024-10-02 10:22:57.891] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:22:57.909] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:22:57.926] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:22:57.954] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:22:57.971] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:22:57.989] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:22:58.005] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:22:58.035] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:22:58.050] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:22:58.067] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:22:58.083] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:22:58.101] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:22:58.117] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:22:58.133] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:22:58.147] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:22:58.163] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:22:58.179] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:22:58.195] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:22:58.211] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:22:58.230] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:22:58.246] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:22:58.262] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:22:58.278] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:22:58.308] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:22:58.328] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:22:58.351] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:22:58.369] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:22:58.387] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:22:58.403] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:22:58.421] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:22:58.444] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 10:22:58.462] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 10:22:58.481] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 10:22:58.497] Debug: TCP SYN Flood: 34000 packets sent
+[2024-10-02 10:22:58.513] Debug: TCP SYN Flood: 35000 packets sent
+[2024-10-02 10:22:58.530] Debug: TCP SYN Flood: 36000 packets sent
+[2024-10-02 10:22:58.546] Debug: TCP SYN Flood: 37000 packets sent
+[2024-10-02 10:22:58.562] Debug: TCP SYN Flood: 38000 packets sent
+[2024-10-02 10:22:58.578] Debug: TCP SYN Flood: 39000 packets sent
+[2024-10-02 10:22:58.597] Debug: TCP SYN Flood: 40000 packets sent
+[2024-10-02 10:22:58.613] Debug: TCP SYN Flood: 41000 packets sent
+[2024-10-02 10:22:58.631] Debug: TCP SYN Flood: 42000 packets sent
+[2024-10-02 10:22:58.648] Debug: TCP SYN Flood: 43000 packets sent
+[2024-10-02 10:22:58.665] Debug: TCP SYN Flood: 44000 packets sent
+[2024-10-02 10:22:58.684] Debug: TCP SYN Flood: 45000 packets sent
+[2024-10-02 10:22:58.703] Debug: TCP SYN Flood: 46000 packets sent
+[2024-10-02 10:22:58.720] Debug: TCP SYN Flood: 47000 packets sent
+[2024-10-02 10:22:58.737] Debug: TCP SYN Flood: 48000 packets sent
+[2024-10-02 10:22:58.754] Debug: TCP SYN Flood: 49000 packets sent
+[2024-10-02 10:22:58.781] Debug: TCP SYN Flood: 50000 packets sent
+[2024-10-02 10:22:58.798] Debug: TCP SYN Flood: 51000 packets sent
+[2024-10-02 10:22:58.815] Debug: TCP SYN Flood: 52000 packets sent
+[2024-10-02 10:22:58.832] Debug: TCP SYN Flood: 53000 packets sent
+[2024-10-02 10:22:58.848] Debug: TCP SYN Flood: 54000 packets sent
+[2024-10-02 10:22:58.865] Debug: TCP SYN Flood: 55000 packets sent
+[2024-10-02 10:22:58.870] Debug: TCP SYN Flood: 55172 packets sent, 23.83 Mbps
+[2024-10-02 10:22:58.886] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:22:58.903] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:22:58.921] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:22:58.939] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:22:58.958] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:22:58.977] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:22:58.994] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:22:59.011] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:22:59.027] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:22:59.043] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:22:59.057] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:22:59.071] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:22:59.085] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:22:59.098] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:22:59.111] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:22:59.125] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:22:59.138] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:22:59.151] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:22:59.168] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:22:59.181] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:22:59.195] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:22:59.210] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:22:59.224] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:22:59.239] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:22:59.252] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:22:59.266] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:22:59.279] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:22:59.292] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:22:59.307] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:22:59.320] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:22:59.334] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 10:22:59.348] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 10:22:59.361] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 10:22:59.373] Debug: TCP SYN Flood: 34000 packets sent
+[2024-10-02 10:22:59.386] Debug: TCP SYN Flood: 35000 packets sent
+[2024-10-02 10:22:59.398] Debug: TCP SYN Flood: 36000 packets sent
+[2024-10-02 10:22:59.411] Debug: TCP SYN Flood: 37000 packets sent
+[2024-10-02 10:22:59.423] Debug: TCP SYN Flood: 38000 packets sent
+[2024-10-02 10:22:59.447] Debug: TCP SYN Flood: 39000 packets sent
+[2024-10-02 10:22:59.460] Debug: TCP SYN Flood: 40000 packets sent
+[2024-10-02 10:22:59.476] Debug: TCP SYN Flood: 41000 packets sent
+[2024-10-02 10:22:59.489] Debug: TCP SYN Flood: 42000 packets sent
+[2024-10-02 10:22:59.503] Debug: TCP SYN Flood: 43000 packets sent
+[2024-10-02 10:22:59.516] Debug: TCP SYN Flood: 44000 packets sent
+[2024-10-02 10:22:59.529] Debug: TCP SYN Flood: 45000 packets sent
+[2024-10-02 10:22:59.542] Debug: TCP SYN Flood: 46000 packets sent
+[2024-10-02 10:22:59.555] Debug: TCP SYN Flood: 47000 packets sent
+[2024-10-02 10:22:59.568] Debug: TCP SYN Flood: 48000 packets sent
+[2024-10-02 10:22:59.580] Debug: TCP SYN Flood: 49000 packets sent
+[2024-10-02 10:22:59.593] Debug: TCP SYN Flood: 50000 packets sent
+[2024-10-02 10:22:59.607] Debug: TCP SYN Flood: 51000 packets sent
+[2024-10-02 10:22:59.620] Debug: TCP SYN Flood: 52000 packets sent
+[2024-10-02 10:22:59.633] Debug: TCP SYN Flood: 53000 packets sent
+[2024-10-02 10:22:59.646] Debug: TCP SYN Flood: 54000 packets sent
+[2024-10-02 10:22:59.659] Debug: TCP SYN Flood: 55000 packets sent
+[2024-10-02 10:22:59.673] Debug: TCP SYN Flood: 56000 packets sent
+[2024-10-02 10:22:59.687] Debug: TCP SYN Flood: 57000 packets sent
+[2024-10-02 10:22:59.701] Debug: TCP SYN Flood: 58000 packets sent
+[2024-10-02 10:22:59.715] Debug: TCP SYN Flood: 59000 packets sent
+[2024-10-02 10:22:59.729] Debug: TCP SYN Flood: 60000 packets sent
+[2024-10-02 10:22:59.743] Debug: TCP SYN Flood: 61000 packets sent
+[2024-10-02 10:22:59.755] Debug: TCP SYN Flood: 62000 packets sent
+[2024-10-02 10:22:59.769] Debug: TCP SYN Flood: 63000 packets sent
+[2024-10-02 10:22:59.782] Debug: TCP SYN Flood: 64000 packets sent
+[2024-10-02 10:22:59.795] Debug: TCP SYN Flood: 65000 packets sent
+[2024-10-02 10:22:59.815] Debug: TCP SYN Flood: 66000 packets sent
+[2024-10-02 10:22:59.835] Debug: TCP SYN Flood: 67000 packets sent
+[2024-10-02 10:22:59.859] Debug: TCP SYN Flood: 68000 packets sent
+[2024-10-02 10:22:59.871] Debug: TCP SYN Flood: 68317 packets sent, 29.51 Mbps
+[2024-10-02 10:22:59.898] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:22:59.913] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:22:59.926] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:22:59.939] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:22:59.953] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:22:59.967] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:22:59.980] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:22:59.993] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:23:00.007] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:23:00.021] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:23:00.034] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:23:00.047] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:23:00.060] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:23:00.099] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:23:00.112] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:23:00.125] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:23:00.137] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:23:00.150] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:23:00.162] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:23:00.176] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:23:00.190] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:23:00.203] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:23:00.218] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:23:00.233] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:23:00.247] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:23:00.260] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:23:00.274] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:23:00.287] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:23:00.301] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:23:00.315] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:23:00.329] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 10:23:00.343] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 10:23:00.357] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 10:23:00.370] Debug: TCP SYN Flood: 34000 packets sent
+[2024-10-02 10:23:00.383] Debug: TCP SYN Flood: 35000 packets sent
+[2024-10-02 10:23:00.397] Debug: TCP SYN Flood: 36000 packets sent
+[2024-10-02 10:23:00.410] Debug: TCP SYN Flood: 37000 packets sent
+[2024-10-02 10:23:00.424] Debug: TCP SYN Flood: 38000 packets sent
+[2024-10-02 10:23:00.437] Debug: TCP SYN Flood: 39000 packets sent
+[2024-10-02 10:23:00.451] Debug: TCP SYN Flood: 40000 packets sent
+[2024-10-02 10:23:00.465] Debug: TCP SYN Flood: 41000 packets sent
+[2024-10-02 10:23:00.481] Debug: TCP SYN Flood: 42000 packets sent
+[2024-10-02 10:23:00.494] Debug: TCP SYN Flood: 43000 packets sent
+[2024-10-02 10:23:00.508] Debug: TCP SYN Flood: 44000 packets sent
+[2024-10-02 10:23:00.521] Debug: TCP SYN Flood: 45000 packets sent
+[2024-10-02 10:23:00.535] Debug: TCP SYN Flood: 46000 packets sent
+[2024-10-02 10:23:00.548] Debug: TCP SYN Flood: 47000 packets sent
+[2024-10-02 10:23:00.561] Debug: TCP SYN Flood: 48000 packets sent
+[2024-10-02 10:23:00.574] Debug: TCP SYN Flood: 49000 packets sent
+[2024-10-02 10:23:00.587] Debug: TCP SYN Flood: 50000 packets sent
+[2024-10-02 10:23:00.601] Debug: TCP SYN Flood: 51000 packets sent
+[2024-10-02 10:23:00.615] Debug: TCP SYN Flood: 52000 packets sent
+[2024-10-02 10:23:00.629] Debug: TCP SYN Flood: 53000 packets sent
+[2024-10-02 10:23:00.642] Debug: TCP SYN Flood: 54000 packets sent
+[2024-10-02 10:23:00.656] Debug: TCP SYN Flood: 55000 packets sent
+[2024-10-02 10:23:00.669] Debug: TCP SYN Flood: 56000 packets sent
+[2024-10-02 10:23:00.682] Debug: TCP SYN Flood: 57000 packets sent
+[2024-10-02 10:23:00.695] Debug: TCP SYN Flood: 58000 packets sent
+[2024-10-02 10:23:00.708] Debug: TCP SYN Flood: 59000 packets sent
+[2024-10-02 10:23:00.723] Debug: TCP SYN Flood: 60000 packets sent
+[2024-10-02 10:23:00.737] Debug: TCP SYN Flood: 61000 packets sent
+[2024-10-02 10:23:00.752] Debug: TCP SYN Flood: 62000 packets sent
+[2024-10-02 10:23:00.765] Debug: TCP SYN Flood: 63000 packets sent
+[2024-10-02 10:23:00.782] Debug: TCP SYN Flood: 64000 packets sent
+[2024-10-02 10:23:00.805] Debug: TCP SYN Flood: 65000 packets sent
+[2024-10-02 10:23:00.819] Debug: TCP SYN Flood: 66000 packets sent
+[2024-10-02 10:23:00.835] Debug: TCP SYN Flood: 67000 packets sent
+[2024-10-02 10:23:00.850] Debug: TCP SYN Flood: 68000 packets sent
+[2024-10-02 10:23:00.864] Debug: TCP SYN Flood: 69000 packets sent
+[2024-10-02 10:23:00.873] Debug: TCP SYN Flood: 69169 packets sent, 29.88 Mbps
+[2024-10-02 10:23:00.886] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:23:00.899] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:23:00.913] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:23:00.930] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:23:00.943] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:23:00.957] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:23:00.971] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:23:00.985] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:23:00.999] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:23:01.012] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:23:01.026] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:23:01.040] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:23:01.069] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:23:01.093] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:23:01.106] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:23:01.128] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:23:01.145] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:23:01.159] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:23:01.172] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:23:01.185] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:23:01.199] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:23:01.213] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:23:01.226] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:23:01.241] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:23:01.255] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:23:01.268] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:23:01.282] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:23:01.296] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:23:01.310] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:23:01.324] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:23:01.339] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 10:23:01.353] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 10:23:01.366] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 10:23:01.379] Debug: TCP SYN Flood: 34000 packets sent
+[2024-10-02 10:23:01.396] Debug: TCP SYN Flood: 35000 packets sent
+[2024-10-02 10:23:01.425] Debug: TCP SYN Flood: 36000 packets sent
+[2024-10-02 10:23:01.439] Debug: TCP SYN Flood: 37000 packets sent
+[2024-10-02 10:23:01.453] Debug: TCP SYN Flood: 38000 packets sent
+[2024-10-02 10:23:01.467] Debug: TCP SYN Flood: 39000 packets sent
+[2024-10-02 10:23:01.481] Debug: TCP SYN Flood: 40000 packets sent
+[2024-10-02 10:23:01.498] Debug: TCP SYN Flood: 41000 packets sent
+[2024-10-02 10:23:01.519] Debug: TCP SYN Flood: 42000 packets sent
+[2024-10-02 10:23:01.536] Debug: TCP SYN Flood: 43000 packets sent
+[2024-10-02 10:23:01.550] Debug: TCP SYN Flood: 44000 packets sent
+[2024-10-02 10:23:01.565] Debug: TCP SYN Flood: 45000 packets sent
+[2024-10-02 10:23:01.579] Debug: TCP SYN Flood: 46000 packets sent
+[2024-10-02 10:23:01.597] Debug: TCP SYN Flood: 47000 packets sent
+[2024-10-02 10:23:01.615] Debug: TCP SYN Flood: 48000 packets sent
+[2024-10-02 10:23:01.633] Debug: TCP SYN Flood: 49000 packets sent
+[2024-10-02 10:23:01.653] Debug: TCP SYN Flood: 50000 packets sent
+[2024-10-02 10:23:01.669] Debug: TCP SYN Flood: 51000 packets sent
+[2024-10-02 10:23:01.689] Debug: TCP SYN Flood: 52000 packets sent
+[2024-10-02 10:23:01.705] Debug: TCP SYN Flood: 53000 packets sent
+[2024-10-02 10:23:01.721] Debug: TCP SYN Flood: 54000 packets sent
+[2024-10-02 10:23:01.735] Debug: TCP SYN Flood: 55000 packets sent
+[2024-10-02 10:23:01.751] Debug: TCP SYN Flood: 56000 packets sent
+[2024-10-02 10:23:01.766] Debug: TCP SYN Flood: 57000 packets sent
+[2024-10-02 10:23:01.798] Debug: TCP SYN Flood: 58000 packets sent
+[2024-10-02 10:23:01.811] Debug: TCP SYN Flood: 59000 packets sent
+[2024-10-02 10:23:01.826] Debug: TCP SYN Flood: 60000 packets sent
+[2024-10-02 10:23:01.841] Debug: TCP SYN Flood: 61000 packets sent
+[2024-10-02 10:23:01.856] Debug: TCP SYN Flood: 62000 packets sent
+[2024-10-02 10:23:01.870] Debug: TCP SYN Flood: 63000 packets sent
+[2024-10-02 10:23:01.875] Debug: TCP SYN Flood: 63288 packets sent, 27.34 Mbps
+[2024-10-02 10:23:01.888] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:23:01.902] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:23:01.915] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:23:01.929] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:23:01.942] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:23:01.957] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:23:01.971] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:23:01.984] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:23:01.997] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:23:02.011] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:23:02.025] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:23:02.041] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:23:02.056] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:23:02.097] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:23:02.110] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:23:02.125] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:23:02.142] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:23:02.157] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:23:02.172] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:23:02.186] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:23:02.200] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:23:02.215] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:23:02.229] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:23:02.242] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:23:02.257] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:23:02.270] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:23:02.284] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:23:02.298] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:23:02.312] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:23:02.326] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:23:02.348] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 10:23:02.365] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 10:23:02.382] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 10:23:02.396] Debug: TCP SYN Flood: 34000 packets sent
+[2024-10-02 10:23:02.410] Debug: TCP SYN Flood: 35000 packets sent
+[2024-10-02 10:23:02.424] Debug: TCP SYN Flood: 36000 packets sent
+[2024-10-02 10:23:02.439] Debug: TCP SYN Flood: 37000 packets sent
+[2024-10-02 10:23:02.452] Debug: TCP SYN Flood: 38000 packets sent
+[2024-10-02 10:23:02.467] Debug: TCP SYN Flood: 39000 packets sent
+[2024-10-02 10:23:02.481] Debug: TCP SYN Flood: 40000 packets sent
+[2024-10-02 10:23:02.496] Debug: TCP SYN Flood: 41000 packets sent
+[2024-10-02 10:23:02.515] Debug: TCP SYN Flood: 42000 packets sent
+[2024-10-02 10:23:02.529] Debug: TCP SYN Flood: 43000 packets sent
+[2024-10-02 10:23:02.543] Debug: TCP SYN Flood: 44000 packets sent
+[2024-10-02 10:23:02.558] Debug: TCP SYN Flood: 45000 packets sent
+[2024-10-02 10:23:02.572] Debug: TCP SYN Flood: 46000 packets sent
+[2024-10-02 10:23:02.585] Debug: TCP SYN Flood: 47000 packets sent
+[2024-10-02 10:23:02.598] Debug: TCP SYN Flood: 48000 packets sent
+[2024-10-02 10:23:02.611] Debug: TCP SYN Flood: 49000 packets sent
+[2024-10-02 10:23:02.625] Debug: TCP SYN Flood: 50000 packets sent
+[2024-10-02 10:23:02.639] Debug: TCP SYN Flood: 51000 packets sent
+[2024-10-02 10:23:02.655] Debug: TCP SYN Flood: 52000 packets sent
+[2024-10-02 10:23:02.669] Debug: TCP SYN Flood: 53000 packets sent
+[2024-10-02 10:23:02.684] Debug: TCP SYN Flood: 54000 packets sent
+[2024-10-02 10:23:02.698] Debug: TCP SYN Flood: 55000 packets sent
+[2024-10-02 10:23:02.713] Debug: TCP SYN Flood: 56000 packets sent
+[2024-10-02 10:23:02.729] Debug: TCP SYN Flood: 57000 packets sent
+[2024-10-02 10:23:02.743] Debug: TCP SYN Flood: 58000 packets sent
+[2024-10-02 10:23:02.759] Debug: TCP SYN Flood: 59000 packets sent
+[2024-10-02 10:23:02.774] Debug: TCP SYN Flood: 60000 packets sent
+[2024-10-02 10:23:02.790] Debug: TCP SYN Flood: 61000 packets sent
+[2024-10-02 10:23:02.805] Debug: TCP SYN Flood: 62000 packets sent
+[2024-10-02 10:23:02.820] Debug: TCP SYN Flood: 63000 packets sent
+[2024-10-02 10:23:02.837] Debug: TCP SYN Flood: 64000 packets sent
+[2024-10-02 10:23:02.856] Debug: TCP SYN Flood: 65000 packets sent
+[2024-10-02 10:23:02.871] Debug: TCP SYN Flood: 66000 packets sent
+[2024-10-02 10:23:02.876] Debug: TCP SYN Flood: 66209 packets sent, 28.60 Mbps
+[2024-10-02 10:23:02.891] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:23:02.906] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:23:02.923] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:23:02.938] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:23:02.952] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:23:02.972] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:23:02.988] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:23:03.003] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:23:03.019] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:23:03.042] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:23:03.057] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:23:03.073] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:23:03.089] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:23:03.105] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:23:03.123] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:23:03.139] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:23:03.156] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:23:03.173] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:23:03.190] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:23:03.207] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:23:03.224] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:23:03.239] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:23:03.265] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:23:03.284] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:23:03.297] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:23:03.314] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:23:03.328] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:23:03.344] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:23:03.361] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:23:03.380] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:23:03.397] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 10:23:03.413] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 10:23:03.429] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 10:23:03.445] Debug: TCP SYN Flood: 34000 packets sent
+[2024-10-02 10:23:03.465] Debug: TCP SYN Flood: 35000 packets sent
+[2024-10-02 10:23:03.481] Debug: TCP SYN Flood: 36000 packets sent
+[2024-10-02 10:23:03.495] Debug: TCP SYN Flood: 37000 packets sent
+[2024-10-02 10:23:03.509] Debug: TCP SYN Flood: 38000 packets sent
+[2024-10-02 10:23:03.528] Debug: TCP SYN Flood: 39000 packets sent
+[2024-10-02 10:23:03.542] Debug: TCP SYN Flood: 40000 packets sent
+[2024-10-02 10:23:03.559] Debug: TCP SYN Flood: 41000 packets sent
+[2024-10-02 10:23:03.573] Debug: TCP SYN Flood: 42000 packets sent
+[2024-10-02 10:23:03.588] Debug: TCP SYN Flood: 43000 packets sent
+[2024-10-02 10:23:03.604] Debug: TCP SYN Flood: 44000 packets sent
+[2024-10-02 10:23:03.619] Debug: TCP SYN Flood: 45000 packets sent
+[2024-10-02 10:23:03.635] Debug: TCP SYN Flood: 46000 packets sent
+[2024-10-02 10:23:03.650] Debug: TCP SYN Flood: 47000 packets sent
+[2024-10-02 10:23:03.666] Debug: TCP SYN Flood: 48000 packets sent
+[2024-10-02 10:23:03.680] Debug: TCP SYN Flood: 49000 packets sent
+[2024-10-02 10:23:03.694] Debug: TCP SYN Flood: 50000 packets sent
+[2024-10-02 10:23:03.711] Debug: TCP SYN Flood: 51000 packets sent
+[2024-10-02 10:23:03.726] Debug: TCP SYN Flood: 52000 packets sent
+[2024-10-02 10:23:03.742] Debug: TCP SYN Flood: 53000 packets sent
+[2024-10-02 10:23:03.756] Debug: TCP SYN Flood: 54000 packets sent
+[2024-10-02 10:23:03.773] Debug: TCP SYN Flood: 55000 packets sent
+[2024-10-02 10:23:03.788] Debug: TCP SYN Flood: 56000 packets sent
+[2024-10-02 10:23:03.807] Debug: TCP SYN Flood: 57000 packets sent
+[2024-10-02 10:23:03.822] Debug: TCP SYN Flood: 58000 packets sent
+[2024-10-02 10:23:03.840] Debug: TCP SYN Flood: 59000 packets sent
+[2024-10-02 10:23:03.858] Debug: TCP SYN Flood: 60000 packets sent
+[2024-10-02 10:23:03.874] Debug: TCP SYN Flood: 61000 packets sent
+[2024-10-02 10:23:03.878] Debug: TCP SYN Flood: 61128 packets sent, 26.41 Mbps
+[2024-10-02 10:23:03.892] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:23:03.908] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:23:03.922] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:23:03.937] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:23:03.956] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:23:03.972] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:23:03.988] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:23:04.012] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:23:04.027] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:23:04.043] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:23:04.059] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:23:04.073] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:23:04.088] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:23:04.103] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:23:04.123] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:23:04.159] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:23:04.181] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:23:04.200] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:23:04.214] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:23:04.230] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:23:04.246] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:23:04.261] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:23:04.276] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:23:04.293] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:23:04.309] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:23:04.327] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:23:04.349] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:23:04.366] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:23:04.386] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:23:04.401] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:23:04.417] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 10:23:04.432] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 10:23:04.472] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 10:23:04.487] Debug: TCP SYN Flood: 34000 packets sent
+[2024-10-02 10:23:04.501] Debug: TCP SYN Flood: 35000 packets sent
+[2024-10-02 10:23:04.520] Debug: TCP SYN Flood: 36000 packets sent
+[2024-10-02 10:23:04.540] Debug: TCP SYN Flood: 37000 packets sent
+[2024-10-02 10:23:04.556] Debug: TCP SYN Flood: 38000 packets sent
+[2024-10-02 10:23:04.574] Debug: TCP SYN Flood: 39000 packets sent
+[2024-10-02 10:23:04.597] Debug: TCP SYN Flood: 40000 packets sent
+[2024-10-02 10:23:04.611] Debug: TCP SYN Flood: 41000 packets sent
+[2024-10-02 10:23:04.632] Debug: TCP SYN Flood: 42000 packets sent
+[2024-10-02 10:23:04.646] Debug: TCP SYN Flood: 43000 packets sent
+[2024-10-02 10:23:04.663] Debug: TCP SYN Flood: 44000 packets sent
+[2024-10-02 10:23:04.681] Debug: TCP SYN Flood: 45000 packets sent
+[2024-10-02 10:23:04.698] Debug: TCP SYN Flood: 46000 packets sent
+[2024-10-02 10:23:04.717] Debug: TCP SYN Flood: 47000 packets sent
+[2024-10-02 10:23:04.733] Debug: TCP SYN Flood: 48000 packets sent
+[2024-10-02 10:23:04.751] Debug: TCP SYN Flood: 49000 packets sent
+[2024-10-02 10:23:04.768] Debug: TCP SYN Flood: 50000 packets sent
+[2024-10-02 10:23:04.791] Debug: TCP SYN Flood: 51000 packets sent
+[2024-10-02 10:23:04.809] Debug: TCP SYN Flood: 52000 packets sent
+[2024-10-02 10:23:04.824] Debug: TCP SYN Flood: 53000 packets sent
+[2024-10-02 10:23:04.841] Debug: TCP SYN Flood: 54000 packets sent
+[2024-10-02 10:23:04.856] Debug: TCP SYN Flood: 55000 packets sent
+[2024-10-02 10:23:04.872] Debug: TCP SYN Flood: 56000 packets sent
+[2024-10-02 10:23:04.889] Debug: TCP SYN Flood: 56000 packets sent, 23.99 Mbps
+[2024-10-02 10:23:04.921] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:23:04.937] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:23:04.957] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:23:04.973] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:23:04.993] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:23:05.010] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:23:05.035] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:23:05.050] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:23:05.066] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:23:05.082] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:23:05.097] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:23:05.112] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:23:05.128] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:23:05.142] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:23:05.156] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:23:05.171] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:23:05.187] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:23:05.210] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:23:05.224] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:23:05.239] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:23:05.259] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:23:05.277] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:23:05.294] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:23:05.308] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:23:05.323] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:23:05.339] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:23:05.354] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:23:05.368] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:23:05.383] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:23:05.400] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:23:05.415] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 10:23:05.431] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 10:23:05.445] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 10:23:05.459] Debug: TCP SYN Flood: 34000 packets sent
+[2024-10-02 10:23:05.473] Debug: TCP SYN Flood: 35000 packets sent
+[2024-10-02 10:23:05.491] Debug: TCP SYN Flood: 36000 packets sent
+[2024-10-02 10:23:05.506] Debug: TCP SYN Flood: 37000 packets sent
+[2024-10-02 10:23:05.520] Debug: TCP SYN Flood: 38000 packets sent
+[2024-10-02 10:23:05.536] Debug: TCP SYN Flood: 39000 packets sent
+[2024-10-02 10:23:05.551] Debug: TCP SYN Flood: 40000 packets sent
+[2024-10-02 10:23:05.569] Debug: TCP SYN Flood: 41000 packets sent
+[2024-10-02 10:23:05.584] Debug: TCP SYN Flood: 42000 packets sent
+[2024-10-02 10:23:05.603] Debug: TCP SYN Flood: 43000 packets sent
+[2024-10-02 10:23:05.620] Debug: TCP SYN Flood: 44000 packets sent
+[2024-10-02 10:23:05.636] Debug: TCP SYN Flood: 45000 packets sent
+[2024-10-02 10:23:05.652] Debug: TCP SYN Flood: 46000 packets sent
+[2024-10-02 10:23:05.668] Debug: TCP SYN Flood: 47000 packets sent
+[2024-10-02 10:23:05.683] Debug: TCP SYN Flood: 48000 packets sent
+[2024-10-02 10:23:05.712] Debug: TCP SYN Flood: 49000 packets sent
+[2024-10-02 10:23:05.728] Debug: TCP SYN Flood: 50000 packets sent
+[2024-10-02 10:23:05.743] Debug: TCP SYN Flood: 51000 packets sent
+[2024-10-02 10:23:05.758] Debug: TCP SYN Flood: 52000 packets sent
+[2024-10-02 10:23:05.774] Debug: TCP SYN Flood: 53000 packets sent
+[2024-10-02 10:23:05.962] Debug: TCP SYN Flood: 54000 packets sent
+[2024-10-02 10:23:05.965] Debug: TCP SYN Flood: 54000 packets sent, 21.75 Mbps
+[2024-10-02 10:23:05.986] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 10:23:06.002] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 10:23:06.015] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 10:23:06.030] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 10:23:06.046] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 10:23:06.061] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 10:23:06.078] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 10:23:06.092] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 10:23:06.106] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 10:23:06.121] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 10:23:06.137] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 10:23:06.155] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 10:23:06.171] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 10:23:06.184] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 10:23:06.199] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 10:23:06.212] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 10:23:06.226] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 10:23:06.261] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 10:23:06.274] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 10:23:06.288] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 10:23:06.306] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 10:23:06.323] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 10:23:06.338] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 10:23:06.351] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 10:23:06.368] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 10:23:06.382] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 10:23:06.400] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 10:23:06.418] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 10:23:06.434] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 10:23:06.462] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 10:23:06.477] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 10:23:06.489] Attack stopped by user.
+[2024-10-02 10:23:06.500] Debug: Network device closed
+[2024-10-02 10:23:06.503] Debug: TCP SYN Flood attack stopped.
+[2024-10-02 11:31:25.822] Source IP: 192.168.0.162, Source MAC: 58:86:94:FB:4B:0C
+[2024-10-02 11:31:30.912] Attempting to ping 192.168.230.128
+[2024-10-02 11:31:30.935] Ping to 192.168.230.128 was successful. Target is alive.
+[2024-10-02 11:31:31.737] MAC Address for 192.168.230.128: 00-0c-29-dc-20-df
+[2024-10-02 11:31:40.815] No open TCP ports found
+[2024-10-02 11:32:18.242] First open TCP port found: 80
+[2024-10-02 11:32:23.523] Starting TCP SYN Flood attack on 192.168.230.128:80 at 100 Mbps
+[2024-10-02 11:32:23.536] Debug: Calling StartTcpSynFlood method
+[2024-10-02 11:32:23.538] Debug: Entering StartTcpSynFlood method
+[2024-10-02 11:32:23.611] Debug: Using SharpPcap for TCP SYN flood
+[2024-10-02 11:32:23.864] Debug: Selected device: Hyper-V Virtual Ethernet Adapter
+[2024-10-02 11:32:23.871] Debug: Source IP: 172.18.160.1, Destination IP: 192.168.230.128, Source Port: 11127
+[2024-10-02 11:32:23.873] Debug: TCP SYN Flood initialized. Target: 192.168.230.128:80, BytesPerSecond: 12500000
+[2024-10-02 11:32:23.915] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 11:32:23.952] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 11:32:23.987] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 11:32:24.021] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 11:32:24.057] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 11:32:24.092] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 11:32:24.130] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 11:32:24.165] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 11:32:24.203] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 11:32:24.245] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 11:32:24.284] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 11:32:24.324] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 11:32:24.361] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 11:32:24.397] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 11:32:24.432] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 11:32:24.465] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 11:32:24.497] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 11:32:24.530] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 11:32:24.561] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 11:32:24.588] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 11:32:24.615] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 11:32:24.643] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 11:32:24.672] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 11:32:24.701] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 11:32:24.730] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 11:32:24.764] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 11:32:24.795] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 11:32:24.826] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 11:32:24.853] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 11:32:24.873] Debug: TCP SYN Flood: 29604 packets sent, 12.79 Mbps
+[2024-10-02 11:32:24.904] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 11:32:24.935] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 11:32:24.963] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 11:32:24.993] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 11:32:25.023] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 11:32:25.054] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 11:32:25.083] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 11:32:25.112] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 11:32:25.140] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 11:32:25.168] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 11:32:25.196] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 11:32:25.224] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 11:32:25.254] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 11:32:25.280] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 11:32:25.309] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 11:32:25.339] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 11:32:25.370] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 11:32:25.401] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 11:32:25.432] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 11:32:25.463] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 11:32:25.492] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 11:32:25.520] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 11:32:25.549] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 11:32:25.577] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 11:32:25.606] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 11:32:25.636] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 11:32:25.686] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 11:32:25.715] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 11:32:25.747] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 11:32:25.778] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 11:32:25.807] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 11:32:25.837] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 11:32:25.867] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 11:32:25.874] Debug: TCP SYN Flood: 33191 packets sent, 14.34 Mbps
+[2024-10-02 11:32:25.904] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 11:32:25.933] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 11:32:25.963] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 11:32:25.993] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 11:32:26.022] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 11:32:26.052] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 11:32:26.080] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 11:32:26.108] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 11:32:26.137] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 11:32:26.168] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 11:32:26.197] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 11:32:26.225] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 11:32:26.254] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 11:32:26.285] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 11:32:26.332] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 11:32:26.363] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 11:32:26.393] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 11:32:26.421] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 11:32:26.449] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 11:32:26.476] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 11:32:26.502] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 11:32:26.528] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 11:32:26.559] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 11:32:26.586] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 11:32:26.613] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 11:32:26.640] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 11:32:26.668] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 11:32:26.696] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 11:32:26.724] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 11:32:26.759] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 11:32:26.787] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 11:32:26.818] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 11:32:26.856] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 11:32:26.876] Debug: TCP SYN Flood: 33654 packets sent, 14.54 Mbps
+[2024-10-02 11:32:26.905] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 11:32:26.935] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 11:32:26.964] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 11:32:26.995] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 11:32:27.025] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 11:32:27.055] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 11:32:27.085] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 11:32:27.115] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 11:32:27.161] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 11:32:27.188] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 11:32:27.214] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 11:32:27.240] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 11:32:27.270] Attack stopped by user.
+[2024-10-02 11:32:27.280] Debug: Network device closed
+[2024-10-02 11:32:27.285] Debug: TCP SYN Flood attack stopped.
+[2024-10-02 11:32:32.553] Starting TCP SYN Flood attack on 192.168.230.128:80 at 100 Mbps
+[2024-10-02 11:32:32.565] Debug: Calling StartTcpSynFlood method
+[2024-10-02 11:32:32.568] Debug: Entering StartTcpSynFlood method
+[2024-10-02 11:32:32.570] Debug: Using SharpPcap for TCP SYN flood
+[2024-10-02 11:32:32.572] Debug: Selected device: Hyper-V Virtual Ethernet Adapter
+[2024-10-02 11:32:32.575] Debug: Source IP: 172.18.160.1, Destination IP: 192.168.230.128, Source Port: 11128
+[2024-10-02 11:32:32.577] Debug: TCP SYN Flood initialized. Target: 192.168.230.128:80, BytesPerSecond: 12500000
+[2024-10-02 11:32:32.602] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 11:32:32.628] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 11:32:32.653] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 11:32:32.666] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 11:32:32.686] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 11:32:32.710] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 11:32:32.734] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 11:32:32.750] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 11:32:32.774] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 11:32:32.800] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 11:32:32.816] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 11:32:32.829] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 11:32:32.842] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 11:32:32.859] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 11:32:32.876] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 11:32:32.889] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 11:32:32.902] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 11:32:32.919] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 11:32:32.935] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 11:32:32.948] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 11:32:32.964] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 11:32:32.987] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 11:32:33.002] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 11:32:33.025] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 11:32:33.044] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 11:32:33.058] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 11:32:33.077] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 11:32:33.101] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 11:32:33.117] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 11:32:33.130] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 11:32:33.152] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 11:32:33.173] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 11:32:33.195] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 11:32:33.211] Debug: TCP SYN Flood: 34000 packets sent
+[2024-10-02 11:32:33.231] Debug: TCP SYN Flood: 35000 packets sent
+[2024-10-02 11:32:33.245] Debug: TCP SYN Flood: 36000 packets sent
+[2024-10-02 11:32:33.258] Debug: TCP SYN Flood: 37000 packets sent
+[2024-10-02 11:32:33.270] Debug: TCP SYN Flood: 38000 packets sent
+[2024-10-02 11:32:33.283] Debug: TCP SYN Flood: 39000 packets sent
+[2024-10-02 11:32:33.297] Debug: TCP SYN Flood: 40000 packets sent
+[2024-10-02 11:32:33.309] Debug: TCP SYN Flood: 41000 packets sent
+[2024-10-02 11:32:33.327] Debug: TCP SYN Flood: 42000 packets sent
+[2024-10-02 11:32:33.346] Debug: TCP SYN Flood: 43000 packets sent
+[2024-10-02 11:32:33.359] Debug: TCP SYN Flood: 44000 packets sent
+[2024-10-02 11:32:33.380] Debug: TCP SYN Flood: 45000 packets sent
+[2024-10-02 11:32:33.396] Debug: TCP SYN Flood: 46000 packets sent
+[2024-10-02 11:32:33.409] Debug: TCP SYN Flood: 47000 packets sent
+[2024-10-02 11:32:33.422] Debug: TCP SYN Flood: 48000 packets sent
+[2024-10-02 11:32:33.444] Debug: TCP SYN Flood: 49000 packets sent
+[2024-10-02 11:32:33.457] Debug: TCP SYN Flood: 50000 packets sent
+[2024-10-02 11:32:33.473] Debug: TCP SYN Flood: 51000 packets sent
+[2024-10-02 11:32:33.490] Debug: TCP SYN Flood: 52000 packets sent
+[2024-10-02 11:32:33.502] Debug: TCP SYN Flood: 53000 packets sent
+[2024-10-02 11:32:33.515] Debug: TCP SYN Flood: 54000 packets sent
+[2024-10-02 11:32:33.531] Debug: TCP SYN Flood: 55000 packets sent
+[2024-10-02 11:32:33.546] Debug: TCP SYN Flood: 56000 packets sent
+[2024-10-02 11:32:33.558] Debug: TCP SYN Flood: 57000 packets sent
+[2024-10-02 11:32:33.571] Debug: TCP SYN Flood: 58000 packets sent
+[2024-10-02 11:32:33.577] Debug: TCP SYN Flood: 58355 packets sent, 25.21 Mbps
+[2024-10-02 11:32:33.593] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 11:32:33.610] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 11:32:33.623] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 11:32:33.639] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 11:32:33.659] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 11:32:33.675] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 11:32:33.694] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 11:32:33.710] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 11:32:33.724] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 11:32:33.742] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 11:32:33.758] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 11:32:33.774] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 11:32:33.789] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 11:32:33.805] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 11:32:33.818] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 11:32:33.831] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 11:32:33.855] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 11:32:33.867] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 11:32:33.882] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 11:32:33.899] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 11:32:33.916] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 11:32:33.934] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 11:32:33.951] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 11:32:33.963] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 11:32:33.977] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 11:32:33.991] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 11:32:34.010] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 11:32:34.024] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 11:32:34.039] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 11:32:34.055] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 11:32:34.068] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 11:32:34.082] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 11:32:34.101] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 11:32:34.119] Debug: TCP SYN Flood: 34000 packets sent
+[2024-10-02 11:32:34.156] Debug: TCP SYN Flood: 35000 packets sent
+[2024-10-02 11:32:34.170] Debug: TCP SYN Flood: 36000 packets sent
+[2024-10-02 11:32:34.183] Debug: TCP SYN Flood: 37000 packets sent
+[2024-10-02 11:32:34.196] Debug: TCP SYN Flood: 38000 packets sent
+[2024-10-02 11:32:34.212] Debug: TCP SYN Flood: 39000 packets sent
+[2024-10-02 11:32:34.236] Debug: TCP SYN Flood: 40000 packets sent
+[2024-10-02 11:32:34.252] Debug: TCP SYN Flood: 41000 packets sent
+[2024-10-02 11:32:34.271] Debug: TCP SYN Flood: 42000 packets sent
+[2024-10-02 11:32:34.283] Debug: TCP SYN Flood: 43000 packets sent
+[2024-10-02 11:32:34.296] Debug: TCP SYN Flood: 44000 packets sent
+[2024-10-02 11:32:34.309] Debug: TCP SYN Flood: 45000 packets sent
+[2024-10-02 11:32:34.322] Debug: TCP SYN Flood: 46000 packets sent
+[2024-10-02 11:32:34.335] Debug: TCP SYN Flood: 47000 packets sent
+[2024-10-02 11:32:34.348] Debug: TCP SYN Flood: 48000 packets sent
+[2024-10-02 11:32:34.368] Debug: TCP SYN Flood: 49000 packets sent
+[2024-10-02 11:32:34.383] Debug: TCP SYN Flood: 50000 packets sent
+[2024-10-02 11:32:34.396] Debug: TCP SYN Flood: 51000 packets sent
+[2024-10-02 11:32:34.410] Debug: TCP SYN Flood: 52000 packets sent
+[2024-10-02 11:32:34.422] Debug: TCP SYN Flood: 53000 packets sent
+[2024-10-02 11:32:34.440] Debug: TCP SYN Flood: 54000 packets sent
+[2024-10-02 11:32:34.456] Debug: TCP SYN Flood: 55000 packets sent
+[2024-10-02 11:32:34.482] Debug: TCP SYN Flood: 56000 packets sent
+[2024-10-02 11:32:34.501] Debug: TCP SYN Flood: 57000 packets sent
+[2024-10-02 11:32:34.513] Debug: TCP SYN Flood: 58000 packets sent
+[2024-10-02 11:32:34.552] Debug: TCP SYN Flood: 59000 packets sent
+[2024-10-02 11:32:34.575] Debug: TCP SYN Flood: 60000 packets sent
+[2024-10-02 11:32:34.579] Debug: TCP SYN Flood: 60093 packets sent, 25.96 Mbps
+[2024-10-02 11:32:34.593] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 11:32:34.616] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 11:32:34.628] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 11:32:34.641] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 11:32:34.654] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 11:32:34.668] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 11:32:34.681] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 11:32:34.694] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 11:32:34.710] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 11:32:34.729] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 11:32:34.742] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 11:32:34.762] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 11:32:34.774] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 11:32:34.797] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 11:32:34.843] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 11:32:34.858] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 11:32:34.873] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 11:32:34.889] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 11:32:34.902] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 11:32:34.917] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 11:32:34.933] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 11:32:34.948] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 11:32:34.963] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 11:32:34.980] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 11:32:35.002] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 11:32:35.021] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 11:32:35.040] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 11:32:35.052] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 11:32:35.066] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 11:32:35.081] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 11:32:35.099] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 11:32:35.115] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 11:32:35.131] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 11:32:35.150] Debug: TCP SYN Flood: 34000 packets sent
+[2024-10-02 11:32:35.173] Debug: TCP SYN Flood: 35000 packets sent
+[2024-10-02 11:32:35.186] Debug: TCP SYN Flood: 36000 packets sent
+[2024-10-02 11:32:35.200] Debug: TCP SYN Flood: 37000 packets sent
+[2024-10-02 11:32:35.219] Debug: TCP SYN Flood: 38000 packets sent
+[2024-10-02 11:32:35.253] Debug: TCP SYN Flood: 39000 packets sent
+[2024-10-02 11:32:35.266] Debug: TCP SYN Flood: 40000 packets sent
+[2024-10-02 11:32:35.284] Debug: TCP SYN Flood: 41000 packets sent
+[2024-10-02 11:32:35.301] Debug: TCP SYN Flood: 42000 packets sent
+[2024-10-02 11:32:35.315] Debug: TCP SYN Flood: 43000 packets sent
+[2024-10-02 11:32:35.331] Debug: TCP SYN Flood: 44000 packets sent
+[2024-10-02 11:32:35.345] Debug: TCP SYN Flood: 45000 packets sent
+[2024-10-02 11:32:35.358] Debug: TCP SYN Flood: 46000 packets sent
+[2024-10-02 11:32:35.399] Attack stopped by user.
+[2024-10-02 11:32:35.401] Debug: Network device closed
+[2024-10-02 11:32:35.402] Debug: TCP SYN Flood attack stopped.
+[2024-10-02 11:32:39.793] Starting UDP Flood attack on 192.168.230.128:80 at 100 Mbps
+[2024-10-02 11:32:39.804] Debug: Calling StartUdpFlood method
+[2024-10-02 11:32:39.807] Debug: Entering StartUdpFlood method
+[2024-10-02 11:32:39.810] Debug: Creating UdpClient
+[2024-10-02 11:32:39.814] Debug: Target endpoint created: 192.168.230.128:80
+[2024-10-02 11:32:39.817] Debug: Buffer created with size: 1024
+[2024-10-02 11:32:39.818] Debug: UDP Flood initialized. Target: 192.168.230.128:80, BytesPerSecond: 12500000
+[2024-10-02 11:32:39.825] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 11:32:39.832] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 11:32:39.837] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 11:32:39.843] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 11:32:39.848] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 11:32:39.854] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 11:32:39.879] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 11:32:39.885] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 11:32:39.891] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 11:32:39.897] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 11:32:39.904] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 11:32:39.910] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 11:32:39.913] Debug: UDP Flood: 12208 packets sent, 1052.99 Mbps
+[2024-10-02 11:32:39.915] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 11:32:39.941] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 11:32:39.948] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 11:32:39.955] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 11:32:39.962] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 11:32:39.969] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 11:32:39.976] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 11:32:39.982] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 11:32:39.988] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 11:32:39.995] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 11:32:40.000] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 11:32:40.007] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 11:32:40.012] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 11:32:40.015] Debug: UDP Flood: 12208 packets sent, 1001.74 Mbps
+[2024-10-02 11:32:40.016] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 11:32:40.033] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 11:32:40.039] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 11:32:40.051] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 11:32:40.057] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 11:32:40.063] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 11:32:40.069] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 11:32:40.076] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 11:32:40.082] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 11:32:40.088] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 11:32:40.094] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 11:32:40.101] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 11:32:40.107] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 11:32:40.110] Debug: UDP Flood: 12208 packets sent, 1069.43 Mbps
+[2024-10-02 11:32:40.112] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 11:32:40.128] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 11:32:40.134] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 11:32:40.140] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 11:32:40.145] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 11:32:40.151] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 11:32:40.157] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 11:32:40.162] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 11:32:40.168] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 11:32:40.174] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 11:32:40.179] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 11:32:40.185] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 11:32:40.190] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 11:32:40.201] Debug: UDP Flood: 12208 packets sent, 1112.95 Mbps
+[2024-10-02 11:32:40.203] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 11:32:40.220] Debug: UDP Flood: 1000 packets sent
+[2024-10-02 11:32:40.225] Debug: UDP Flood: 2000 packets sent
+[2024-10-02 11:32:40.231] Debug: UDP Flood: 3000 packets sent
+[2024-10-02 11:32:40.236] Debug: UDP Flood: 4000 packets sent
+[2024-10-02 11:32:40.241] Debug: UDP Flood: 5000 packets sent
+[2024-10-02 11:32:40.246] Debug: UDP Flood: 6000 packets sent
+[2024-10-02 11:32:40.252] Debug: UDP Flood: 7000 packets sent
+[2024-10-02 11:32:40.257] Debug: UDP Flood: 8000 packets sent
+[2024-10-02 11:32:40.263] Debug: UDP Flood: 9000 packets sent
+[2024-10-02 11:32:40.268] Debug: UDP Flood: 10000 packets sent
+[2024-10-02 11:32:40.273] Debug: UDP Flood: 11000 packets sent
+[2024-10-02 11:32:40.278] Debug: UDP Flood: 12000 packets sent
+[2024-10-02 11:32:40.280] Debug: UDP Flood: 12208 packets sent, 1300.81 Mbps
+[2024-10-02 11:32:40.286] Attack stopped by user.
+[2024-10-02 11:32:40.287] Debug: Rate exceeded, sleeping for 10ms
+[2024-10-02 11:32:40.309] Debug: UDP Flood attack stopped.
+[2024-10-02 11:32:42.114] Starting TCP SYN Flood attack on 192.168.230.128:80 at 100 Mbps
+[2024-10-02 11:32:42.128] Debug: Calling StartTcpSynFlood method
+[2024-10-02 11:32:42.131] Debug: Entering StartTcpSynFlood method
+[2024-10-02 11:32:42.133] Debug: Using SharpPcap for TCP SYN flood
+[2024-10-02 11:32:42.138] Debug: Selected device: Hyper-V Virtual Ethernet Adapter
+[2024-10-02 11:32:42.143] Debug: Source IP: 172.18.160.1, Destination IP: 192.168.230.128, Source Port: 11129
+[2024-10-02 11:32:42.156] Debug: TCP SYN Flood initialized. Target: 192.168.230.128:80, BytesPerSecond: 12500000
+[2024-10-02 11:32:42.169] Debug: TCP SYN Flood: 1000 packets sent
+[2024-10-02 11:32:42.183] Debug: TCP SYN Flood: 2000 packets sent
+[2024-10-02 11:32:42.197] Debug: TCP SYN Flood: 3000 packets sent
+[2024-10-02 11:32:42.211] Debug: TCP SYN Flood: 4000 packets sent
+[2024-10-02 11:32:42.225] Debug: TCP SYN Flood: 5000 packets sent
+[2024-10-02 11:32:42.239] Debug: TCP SYN Flood: 6000 packets sent
+[2024-10-02 11:32:42.252] Debug: TCP SYN Flood: 7000 packets sent
+[2024-10-02 11:32:42.266] Debug: TCP SYN Flood: 8000 packets sent
+[2024-10-02 11:32:42.280] Debug: TCP SYN Flood: 9000 packets sent
+[2024-10-02 11:32:42.293] Debug: TCP SYN Flood: 10000 packets sent
+[2024-10-02 11:32:42.307] Debug: TCP SYN Flood: 11000 packets sent
+[2024-10-02 11:32:42.322] Debug: TCP SYN Flood: 12000 packets sent
+[2024-10-02 11:32:42.336] Debug: TCP SYN Flood: 13000 packets sent
+[2024-10-02 11:32:42.349] Debug: TCP SYN Flood: 14000 packets sent
+[2024-10-02 11:32:42.361] Debug: TCP SYN Flood: 15000 packets sent
+[2024-10-02 11:32:42.375] Debug: TCP SYN Flood: 16000 packets sent
+[2024-10-02 11:32:42.388] Debug: TCP SYN Flood: 17000 packets sent
+[2024-10-02 11:32:42.402] Debug: TCP SYN Flood: 18000 packets sent
+[2024-10-02 11:32:42.414] Debug: TCP SYN Flood: 19000 packets sent
+[2024-10-02 11:32:42.431] Debug: TCP SYN Flood: 20000 packets sent
+[2024-10-02 11:32:42.445] Debug: TCP SYN Flood: 21000 packets sent
+[2024-10-02 11:32:42.458] Debug: TCP SYN Flood: 22000 packets sent
+[2024-10-02 11:32:42.472] Debug: TCP SYN Flood: 23000 packets sent
+[2024-10-02 11:32:42.485] Debug: TCP SYN Flood: 24000 packets sent
+[2024-10-02 11:32:42.499] Debug: TCP SYN Flood: 25000 packets sent
+[2024-10-02 11:32:42.512] Debug: TCP SYN Flood: 26000 packets sent
+[2024-10-02 11:32:42.525] Debug: TCP SYN Flood: 27000 packets sent
+[2024-10-02 11:32:42.538] Debug: TCP SYN Flood: 28000 packets sent
+[2024-10-02 11:32:42.551] Debug: TCP SYN Flood: 29000 packets sent
+[2024-10-02 11:32:42.564] Debug: TCP SYN Flood: 30000 packets sent
+[2024-10-02 11:32:42.577] Debug: TCP SYN Flood: 31000 packets sent
+[2024-10-02 11:32:42.590] Debug: TCP SYN Flood: 32000 packets sent
+[2024-10-02 11:32:42.603] Debug: TCP SYN Flood: 33000 packets sent
+[2024-10-02 11:32:42.616] Debug: TCP SYN Flood: 34000 packets sent
+[2024-10-02 11:32:42.630] Debug: TCP SYN Flood: 35000 packets sent
+[2024-10-02 11:32:42.643] Debug: TCP SYN Flood: 36000 packets sent
+[2024-10-02 11:32:42.656] Debug: TCP SYN Flood: 37000 packets sent
+[2024-10-02 11:32:42.669] Debug: TCP SYN Flood: 38000 packets sent
+[2024-10-02 11:32:42.682] Debug: TCP SYN Flood: 39000 packets sent
+[2024-10-02 11:32:42.696] Debug: TCP SYN Flood: 40000 packets sent
+[2024-10-02 11:32:42.709] Debug: TCP SYN Flood: 41000 packets sent
+[2024-10-02 11:32:42.722] Debug: TCP SYN Flood: 42000 packets sent
+[2024-10-02 11:32:42.735] Debug: TCP SYN Flood: 43000 packets sent
+[2024-10-02 11:32:42.748] Debug: TCP SYN Flood: 44000 packets sent
+[2024-10-02 11:32:42.762] Debug: TCP SYN Flood: 45000 packets sent
+[2024-10-02 11:32:42.775] Debug: TCP SYN Flood: 46000 packets sent
+[2024-10-02 11:32:42.788] Debug: TCP SYN Flood: 47000 packets sent
+[2024-10-02 11:32:42.808] Attack stopped by user.
+[2024-10-02 11:32:42.817] Debug: Network device closed
+[2024-10-02 11:32:42.819] Debug: TCP SYN Flood attack stopped.
