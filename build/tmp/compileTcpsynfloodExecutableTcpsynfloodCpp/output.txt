@@ -1,0 +1,8 @@
+See file:///C:/Users/samue/Desktop/dorothy/build/tmp/compileTcpsynfloodExecutableTcpsynfloodCpp/output.txt for all output for compileTcpsynfloodExecutableTcpsynfloodCpp.
+compiling tcpsynflood.cpp successful.
+tcpsynflood.cpp
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.41.34120\include\ostream(787): warning C4530: C++ exception handler used, but unwind semantics are not enabled. Specify /EHsc
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.41.34120\include\ostream(787): note: the template instantiation context (the oldest one first) is
+C:\Users\samue\Desktop\dorothy\src\main\cpp\tcpsynflood.cpp(296): note: see reference to function template instantiation 'std::basic_ostream<char,std::char_traits<char>> &std::operator <<<std::char_traits<char>>(std::basic_ostream<char,std::char_traits<char>> &,const char *)' being compiled
+
+Finished compileTcpsynfloodExecutableTcpsynfloodCpp, see full log file:///C:/Users/samue/Desktop/dorothy/build/tmp/compileTcpsynfloodExecutableTcpsynfloodCpp/output.txt.

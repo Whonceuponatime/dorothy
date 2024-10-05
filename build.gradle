@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'application'
     id 'org.openjfx.javafxplugin' version '0.0.13'
+    id 'cpp'
 }
 
 repositories {
@@ -9,80 +10,50 @@ repositories {
 }
 
 javafx {
-    version = "21.0.4"
-    modules = ['javafx.controls', 'javafx.fxml', 'javafx.graphics']
-}
-
-dependencies {
-    implementation files('libs/jnetpcap-1.4.r1425/jnetpcap.jar')
-}
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
-    }
+    version = "17"
+    modules = ['javafx.controls', 'javafx.fxml']
 }
 
 application {
+    mainModule = 'com.yourpackage'
     mainClass = 'com.yourpackage.Main'
-    mainModule = 'com.yourpackage' // Add this line
 }
 
-task copyNpcapHeaders(type: Copy) {
-    from '/mnt/c/Program Files/Npcap/Include'
-    into "${buildDir}/npcap-include"
-    fileMode = 0644
-    dirMode = 0755
+model {
+    components {
+        tcpsynflood(NativeExecutableSpec) {
+            targetPlatform "windows_x86-64"
+            sources {
+                cpp {
+                    source {
+                        srcDir "src/main/cpp"
+                        include "**/*.cpp"
+                    }
+                }
+            }
+            binaries.all {
+                cppCompiler.args "-IC:/Program Files/Java/jdk-17/include", "-IC:/Program Files/Java/jdk-17/include/win32"
+                cppCompiler.args "-IC:/Program Files/Npcap/Include"
+                linker.args "/LIBPATH:C:/Program Files/Npcap/Lib/x64", "wpcap.lib", "Packet.lib"
+            }
+        }
+    }
 }
 
-task copyPcapHeader(type: Copy) {
-    from '/mnt/c/Program Files/Npcap/Include/pcap.h'
-    into "${buildDir}/mingw-include"
+tasks.withType(CppCompile) {
+    compilerArgs.add("-IC:/Program Files/Java/jdk-17/include")
+    compilerArgs.add("-IC:/Program Files/Java/jdk-17/include/win32")
 }
 
-task copyWpcapLib(type: Copy) {
-    from '/mnt/c/Program Files/Npcap/Lib/x64'
-    include 'wpcap.lib', 'Packet.lib'
-    into "${buildDir}/libs"
+compileJava {
+    options.compilerArgs += [
+        '--add-modules', 'java.logging'
+    ]
 }
 
-task buildNative(type: Exec) {
-    def javaHome = new File('C:/Program Files/Java/jdk-17') // Update this path to your JDK location
-    def jniIncludePath = javaHome.absolutePath + '/include'
-    def jniIncludeWinPath = jniIncludePath + '/win32'
-    def npcapIncludePath = "${buildDir}/npcap-include"
-    def npcapLibPath = "${buildDir}/libs"
-
-    commandLine 'g++', 
-                '-o', "${buildDir}/libs/tcpsynflood.dll",
-                '-shared', 
-                '-I' + jniIncludePath, 
-                '-I' + jniIncludeWinPath,
-                '-I' + npcapIncludePath,
-                '-L' + npcapLibPath,
-                'src/main/cpp/tcpsynflood.cpp', 
-                '-lwpcap', 
-                '-lpacket',
-                '-lws2_32', 
-                '-liphlpapi', 
-                '-static-libgcc', 
-                '-static-libstdc++',
-                '-D_WIN32_WINNT=0x0601',
-                '-DWINVER=0x0601'
+dependencies {
+    implementation 'org.openjfx:javafx-controls:17'
+    implementation 'org.openjfx:javafx-fxml:17'
+    implementation files('libs/jnetpcap-1.4.r1425/jnetpcap.jar')
+    // ... other dependencies ...
 }
-
-buildNative.dependsOn copyNpcapHeaders
-
-buildNative.dependsOn copyPcapHeader
-
-buildNative.dependsOn copyWpcapLib
-
-run.dependsOn buildNative
-
-run {
-    systemProperty "java.library.path", "${buildDir}/libs"
-}
-
-distZip.dependsOn copyWpcapLib
-distTar.dependsOn copyWpcapLib
-startScripts.dependsOn copyWpcapLib

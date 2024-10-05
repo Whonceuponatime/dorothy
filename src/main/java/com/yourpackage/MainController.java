@@ -89,11 +89,18 @@ public class MainController {
             log("Please enter a target IP address.");
             return;
         }
-        String macAddress = jenkinsTool.getMacAddress(targetIp);
-        if (macAddress != null) {
-            macAddressField.setText(macAddress);
-        } else {
-            macAddressField.setText("MAC address not found");
+        try {
+            String macAddress = jenkinsTool.getMacAddress(targetIp);
+            if (macAddress != null && !macAddress.equals("MAC address not found") && !macAddress.startsWith("Error:")) {
+                macAddressField.setText(macAddress);
+                log("MAC address found: " + macAddress);
+            } else {
+                macAddressField.setText(macAddress);
+                log("Unable to retrieve MAC address for " + targetIp + ": " + macAddress);
+            }
+        } catch (Exception e) {
+            macAddressField.setText("Error retrieving MAC address");
+            log("Error retrieving MAC address: " + e.getMessage());
         }
     }
 
@@ -110,7 +117,12 @@ public class MainController {
 
         switch (attackType) {
             case "UDP Flood":
-                // Existing UDP flood implementation
+                jenkinsTool.udpFlood(targetIp, targetPort, targetBytesPerSecond, () -> {
+                    long currentTime = System.currentTimeMillis();
+                    double elapsedTimeSeconds = (currentTime - startTime) / 1000.0;
+                    double actualMbps = targetBytesPerSecond * 8.0 / 1_000_000.0; // Convert bytes/sec to Mbps
+                    updateChart(elapsedTimeSeconds, actualMbps);
+                });
                 break;
             case "TCP SYN Flood":
                 jenkinsTool.tcpSynFlood(targetIp, targetPort, targetBytesPerSecond, () -> {
@@ -121,11 +133,16 @@ public class MainController {
                 });
                 break;
             case "ICMP Flood":
-                // Existing ICMP flood implementation
+                // Implement ICMP flood if needed
                 break;
             default:
                 log("Unknown attack type selected.");
         }
+    
+        startButton.setDisable(true);
+        stopButton.setDisable(false);
+        statusLabel.setText("Status: Attack Started");
+        log("Attack started: " + attackType);
     }
 
     public void stopAttack() {

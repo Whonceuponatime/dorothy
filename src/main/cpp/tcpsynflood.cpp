@@ -5,15 +5,17 @@
 #include <iphlpapi.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "pcap.h"
+#include <pcap.h>
 #include "com_yourpackage_Jenkins.h"
-
+#include <iphlpapi.h>
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
 #include <iphlpapi.h>
 #pragma comment(lib, "Ws2_32.lib")
+#pragma comment(lib, "wpcap.lib")
+#pragma comment(lib, "Packet.lib")
 
 // Define Windows-specific structures and functions
 #define PACKET_SIZE 4096
@@ -105,11 +107,13 @@ unsigned short tcp_checksum(struct iphdr *iph, struct tcphdr *tcph) {
 #include <iostream>        // For std::cout and std::endl
 
 // Define the Ethernet header
+#pragma pack(push, 1) // Set alignment to 1 byte
 struct ethhdr {
     unsigned char dest_mac[6];
     unsigned char src_mac[6];
     unsigned short ethertype;
-} __attribute__((packed));
+};
+#pragma pack(pop) // Restore previous alignment
 
 // Existing pseudo_header and other structures ...
 

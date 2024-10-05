@@ -1,0 +1,5 @@
+See file:///C:/Users/samue/Desktop/dorothy/build/tmp/linkTcpsynfloodExecutable/output.txt for all output for linkTcpsynfloodExecutable.
+linking tcpsynflood.exe successful.
+   Creating library C:\Users\samue\Desktop\dorothy\build\exe\tcpsynflood\tcpsynflood.lib and object C:\Users\samue\Desktop\dorothy\build\exe\tcpsynflood\tcpsynflood.exp
+
+Finished linkTcpsynfloodExecutable, see full log file:///C:/Users/samue/Desktop/dorothy/build/tmp/linkTcpsynfloodExecutable/output.txt.

@@ -35,16 +35,18 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <executable>g++</executable> <!-- Change this line -->
+                    <executable>cl</executable>
                     <arguments>
-                        <argument>-shared</argument>
-                        <argument>-o</argument>
-                        <argument>src/main/resources/native/tcpsynflood.dll</argument>
-                        <argument>src/main/cpp/tcpsynflood.cpp</argument>
-                        <argument>-I</argument>
-                        <argument>-mconsole</argument> <!-- Add this line -->
-                        <argument>-lstdc++</argument> <!-- Added to link C++ standard library -->
-                        <!-- Other arguments -->
+                        <argument>/LD</argument>
+                        <argument>/Fe${project.basedir}/src/main/resources/native/tcpsynflood.dll</argument>
+                        <argument>${project.basedir}/src/main/cpp/tcpsynflood.cpp</argument>
+                        <argument>/I"C:\Program Files\Java\jdk-17\include"</argument>
+                        <argument>/I"C:\Program Files\Java\jdk-17\include\win32"</argument>
+                        <argument>/I"C:\Program Files\Npcap\Include"</argument>
+                        <argument>/link</argument>
+                        <argument>/LIBPATH:"C:\Program Files\Npcap\Lib\x64"</argument>
+                        <argument>wpcap.lib</argument>
+                        <argument>Packet.lib</argument>
                     </arguments>
                 </configuration>
             </plugin>

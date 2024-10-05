@@ -1,0 +1,9 @@
+"/LIBPATH:C:/Program Files/Npcap/Lib/x64"
+wpcap.lib
+Packet.lib
+/OUT:C:\Users\samue\Desktop\dorothy\build\exe\tcpsynflood\tcpsynflood.exe
+/NOLOGO
+"/LIBPATH:C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.41.34120\lib\x64"
+"/LIBPATH:C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\um\x64"
+"/LIBPATH:C:\Program Files (x86)\Windows Kits\10\Lib\10.0.26100.0\ucrt\x64"
+C:\Users\samue\Desktop\dorothy\build\objs\tcpsynflood\tcpsynfloodCpp\33qmg3mptej6hbflrahje4z3z\tcpsynflood.obj

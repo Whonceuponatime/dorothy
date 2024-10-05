@@ -1,0 +1,11 @@
+/TP
+/nologo
+/c
+"-IC:/Program Files/Java/jdk-17/include"
+"-IC:/Program Files/Java/jdk-17/include/win32"
+"-IC:/Program Files/Npcap/Include"
+/IC:\Users\samue\Desktop\dorothy\src\tcpsynflood\headers
+"/IC:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.41.34120\include"
+"/IC:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\um"
+"/IC:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\shared"
+"/IC:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\ucrt"
