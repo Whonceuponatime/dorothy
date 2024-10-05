@@ -1,45 +1,20 @@
 plugins {
-    id 'cpp'
     id 'java'
     id 'application'
     id 'org.openjfx.javafxplugin' version '0.0.13'
-    id 'org.beryx.jlink' version '2.25.0'
-    id 'edu.sc.seis.launch4j' version '2.5.1'
 }
 
 repositories {
     mavenCentral()
-    flatDir {
-        dirs 'libs'
-    }
-}
-
-dependencies {
-    implementation 'org.openjfx:javafx-controls:17.0.6'
-    implementation 'org.openjfx:javafx-fxml:17.0.6'
-    implementation files('libs/jnetpcap-1.4.r1425/jnetpcap.jar')
-}
-
-application {
-    mainModule = 'com.yourpackage' // Make sure this matches your module name
-    mainClass = 'com.yourpackage.Main' // Use the full path to your main class
 }
 
 javafx {
-    version = "17.0.6"
-    modules = ['javafx.controls', 'javafx.fxml']
+    version = "21.0.4"
+    modules = ['javafx.controls', 'javafx.fxml', 'javafx.graphics']
 }
 
-jlink {
-    options = ['--strip-debug', '--compress', '2', '--no-header-files', '--no-man-pages']
-    launcher {
-        name = 'Dorothy'
-    }
-    jpackage {
-        if (org.gradle.internal.os.OperatingSystem.current().windows) {
-            installerOptions += ['--win-per-user-install', '--win-dir-chooser', '--win-menu', '--win-shortcut']
-        }
-    }
+dependencies {
+    implementation files('libs/jnetpcap-1.4.r1425/jnetpcap.jar')
 }
 
 java {
@@ -48,47 +23,66 @@ java {
     }
 }
 
-tasks.withType(JavaCompile) {
-    options.encoding = 'UTF-8'
-    options.compilerArgs += ["-Xlint:unchecked", "-Xlint:deprecation", "--add-modules", "javafx.controls,javafx.fxml,jnetpcap"]
+application {
+    mainClass = 'com.yourpackage.Main'
+    mainModule = 'com.yourpackage' // Add this line
 }
+
+task copyNpcapHeaders(type: Copy) {
+    from '/mnt/c/Program Files/Npcap/Include'
+    into "${buildDir}/npcap-include"
+    fileMode = 0644
+    dirMode = 0755
+}
+
+task copyPcapHeader(type: Copy) {
+    from '/mnt/c/Program Files/Npcap/Include/pcap.h'
+    into "${buildDir}/mingw-include"
+}
+
+task copyWpcapLib(type: Copy) {
+    from '/mnt/c/Program Files/Npcap/Lib/x64'
+    include 'wpcap.lib', 'Packet.lib'
+    into "${buildDir}/libs"
+}
+
+task buildNative(type: Exec) {
+    def javaHome = new File('C:/Program Files/Java/jdk-17') // Update this path to your JDK location
+    def jniIncludePath = javaHome.absolutePath + '/include'
+    def jniIncludeWinPath = jniIncludePath + '/win32'
+    def npcapIncludePath = "${buildDir}/npcap-include"
+    def npcapLibPath = "${buildDir}/libs"
+
+    commandLine 'g++', 
+                '-o', "${buildDir}/libs/tcpsynflood.dll",
+                '-shared', 
+                '-I' + jniIncludePath, 
+                '-I' + jniIncludeWinPath,
+                '-I' + npcapIncludePath,
+                '-L' + npcapLibPath,
+                'src/main/cpp/tcpsynflood.cpp', 
+                '-lwpcap', 
+                '-lpacket',
+                '-lws2_32', 
+                '-liphlpapi', 
+                '-static-libgcc', 
+                '-static-libstdc++',
+                '-D_WIN32_WINNT=0x0601',
+                '-DWINVER=0x0601'
+}
+
+buildNative.dependsOn copyNpcapHeaders
+
+buildNative.dependsOn copyPcapHeader
+
+buildNative.dependsOn copyWpcapLib
+
+run.dependsOn buildNative
 
 run {
-    systemProperty "java.library.path", file("${buildDir}/libs").absolutePath + File.pathSeparator + file("libs/jnetpcap-1.4.r1425").absolutePath
-    jvmArgs = ['-Djava.library.path=' + file("${buildDir}/libs").absolutePath + File.pathSeparator + file("libs/jnetpcap-1.4.r1425").absolutePath]
-    workingDir = projectDir
+    systemProperty "java.library.path", "${buildDir}/libs"
 }
 
-task copyNativeLibs(type: Copy) {
-    from 'libs/jnetpcap-1.4.r1425'
-    into 'build/libs'
-    include '*.dll'
-}
-
-processResources.dependsOn copyNativeLibs
-
-tasks.withType(JavaExec) {
-    systemProperty "java.library.path", file("${projectDir}/native").absolutePath
-    jvmArgs = ['-Djava.library.path=' + file("${projectDir}/native").absolutePath]
-    workingDir = projectDir
-}
-
-launch4j {
-    mainClassName = 'com.yourpackage.Main'
-    outfile = "${project.name}.exe"
-    manifest = "${projectDir}/app.manifest"
-    jreMinVersion = '17'
-    bundledJre64Bit = true
-    bundledJrePath = 'jre'
-    jvmOptions = ['-Djava.library.path=.']
-    classpath = ['jnetpcap.jar']
-}
-
-build.dependsOn tasks.launch4j
-
-task runAsAdmin(type: Exec) {
-    workingDir '.'
-    commandLine 'cmd', '/c', 'runas', '/user:Administrator', "\"${System.getProperty('java.home')}\\bin\\java.exe\" -jar ${jar.archivePath}"
-}
-
-runAsAdmin.dependsOn jar
+distZip.dependsOn copyWpcapLib
+distTar.dependsOn copyWpcapLib
+startScripts.dependsOn copyWpcapLib

