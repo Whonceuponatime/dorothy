@@ -38,6 +38,9 @@
         </HBox>
         
         <ComboBox fx:id="attackTypeComboBox" promptText="Select Attack Type" GridPane.columnIndex="0" GridPane.rowIndex="6" GridPane.columnSpan="2" />
+        
+        <!-- Added ComboBox for Network Card Selection -->
+        <ComboBox fx:id="networkCardComboBox" promptText="Select Network Card" GridPane.columnIndex="0" GridPane.rowIndex="7" GridPane.columnSpan="2" />
     </GridPane>
     
     <HBox spacing="10" alignment="CENTER">
