@@ -10,14 +10,14 @@ plugins {
 repositories {
     mavenCentral()
     flatDir {
-        dirs 'libs'
+        dirs 'libs'  // Make sure your libs folder actually contains the correct JAR files
     }
 }
 
 dependencies {
-    implementation 'org.openjfx:javafx-controls:17.0.6'
-    implementation 'org.openjfx:javafx-fxml:17.0.6'
-    implementation files('libs/jnetpcap-1.4.r1425/jnetpcap.jar')
+    implementation 'org.pcap4j:pcap4j-core:1.8.0' // Adjust the version if necessary
+    implementation 'org.pcap4j:pcap4j-packetfactory-static:1.8.0'
+    implementation 'net.sourceforge.jnetpcap:jnetpcap:1.4.r1425-1'
 }
 
 application {
@@ -50,16 +50,15 @@ java {
 
 tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
-    options.compilerArgs += ["-Xlint:unchecked", "-Xlint:deprecation", "--add-modules", "javafx.controls,javafx.fxml,jnetpcap"]
+    options.compilerArgs += ["-Xlint:unchecked", "-Xlint:deprecation"]
+    modularity.inferModulePath.set(true)
 }
 
 run {
-    systemProperty "java.library.path", file("${buildDir}/libs").absolutePath + File.pathSeparator + file("libs/jnetpcap-1.4.r1425").absolutePath
-    jvmArgs = ['-Djava.library.path=' + file("${buildDir}/libs").absolutePath + File.pathSeparator + file("libs/jnetpcap-1.4.r1425").absolutePath]
+    systemProperty "java.library.path", file("${buildDir}/libs").absolutePath + File.pathSeparator + file("libs").absolutePath
+    jvmArgs = ['-Djava.library.path=' + file("${buildDir}/libs").absolutePath + File.pathSeparator + file("libs").absolutePath]
     workingDir = projectDir
 }
-
-
 
 task copyNativeLibs(type: Copy) {
     from 'libs/jnetpcap-1.4.r1425'
@@ -83,7 +82,7 @@ launch4j {
     bundledJre64Bit = true
     bundledJrePath = 'jre'
     jvmOptions = ['-Djava.library.path=.']
-    classpath = ['jnetpcap.jar']
+    classpath = ['jnetpcap-1.4.r1425.jar'] // Make sure the filename matches the actual jar in your libs folder
 }
 
 build.dependsOn tasks.launch4j

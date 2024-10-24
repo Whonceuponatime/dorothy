@@ -45,6 +45,7 @@ public class MainController {
 
     @FXML
     public void initialize() {
+        log("Initializing MainController...");
         jenkinsTool = new Jenkins();
         attackTypeComboBox.setItems(FXCollections.observableArrayList("TCP SYN Flood"));
         populateNetworkCardComboBox();
@@ -59,11 +60,13 @@ public class MainController {
         dataSeries = new XYChart.Series<>();
         dataSeries.setName("Network Load");
         networkLoadChart.getData().add(dataSeries);
+        log("Initialization complete.");
     }
 
     // Method to populate the network card ComboBox
     @FXML
     public void populateNetworkCardComboBox() {
+        log("Populating network card ComboBox...");
         try {
             List<String> devices = jenkinsTool.getNetworkDevices();
             networkCardComboBox.getItems().clear();
@@ -76,6 +79,7 @@ public class MainController {
 
     @FXML
     public void pingTargetIP() {
+        log("Pinging target IP...");
         try {
             String ip = ipAddressField.getText();
             if (ip.isEmpty()) {
@@ -96,6 +100,7 @@ public class MainController {
 
     @FXML
     private void getMacAddress() {
+        log("Getting MAC address...");
         String targetIp = ipAddressField.getText();
         if (targetIp.isEmpty()) {
             log("Please enter a target IP address.");
@@ -104,13 +109,16 @@ public class MainController {
         String macAddress = jenkinsTool.getMacAddress(targetIp);
         if (macAddress != null) {
             macAddressField.setText(macAddress);
+            log("MAC address found: " + macAddress);
         } else {
             macAddressField.setText("MAC address not found");
+            log("MAC address not found for IP: " + targetIp);
         }
     }
 
     @FXML
     public void startAttack() {
+        log("Starting attack...");
         // Validation of input fields
         if (ipAddressField.getText().isEmpty() || portField.getText().isEmpty() || targetMbpsField.getText().isEmpty() ||
             sourceIpField.getText().isEmpty() || sourceMacField.getText().isEmpty() || attackTypeComboBox.getValue() == null || networkCardComboBox.getValue() == null) {
@@ -118,6 +126,7 @@ public class MainController {
             return;
         }
 
+        log("Stopping any previous attack...");
         jenkinsTool.stopAttack(); // Ensure any previous attack is stopped
         String attackType = attackTypeComboBox.getValue();
         String targetIp = ipAddressField.getText();
@@ -126,7 +135,7 @@ public class MainController {
 
         String sourceIp = sourceIpField.getText();
         String sourceMac = sourceMacField.getText();
-        String networkCard = networkCardComboBox.getValue();
+        String networkCard = networkCardComboBox.getValue().split(" - ")[0]; // Extract only the device name
 
         log("Preparing to start attack: Type = " + attackType + ", Target IP = " + targetIp + ", Source IP = " + sourceIp);
 
@@ -137,12 +146,14 @@ public class MainController {
         if ("TCP SYN Flood".equals(attackType)) {
             log("Starting TCP SYN flood attack...");
             new Thread(() -> {
+                log("Calling JNI method tcpSynFloodJNI...");
                 int result = jenkinsTool.tcpSynFloodJNI(targetIp, targetPort, targetMbps, sourceIp, sourceMac, networkCard);
+                log("JNI method tcpSynFloodJNI returned with result: " + result);
                 Platform.runLater(() -> {
                     if (result == 0) {
                         log("TCP SYN flood attack completed successfully.");
                     } else {
-                        log("Error occurred during TCP SYN flood attack.");
+                        log("Error occurred during TCP SYN flood attack. Error code: " + result);
                     }
                     stopAttack(); // Automatically stop after execution
                 });
@@ -161,6 +172,7 @@ public class MainController {
     public void stopAttack() {
         log("Stopping the attack...");
         jenkinsTool.nativeStopAttack();
+        log("Called nativeStopAttack to stop the attack.");
         statusLabel.setText("Status: Attack Stopped");
         startButton.setDisable(false);
         stopButton.setDisable(true);
@@ -169,6 +181,7 @@ public class MainController {
 
     @FXML
     public void findOpenPort() {
+        log("Finding open port...");
         String ip = ipAddressField.getText();
         if (ip.isEmpty()) {
             log("Please enter a target IP address to scan for open ports.");
@@ -178,6 +191,7 @@ public class MainController {
         int[] commonPorts = {80, 443, 22, 21, 25, 3306, 8080, 1433, 3389, 5432};
         for (int port : commonPorts) {
             try (Socket socket = new Socket()) {
+                log("Checking port: " + port);
                 socket.connect(new InetSocketAddress(ip, port), 100);
                 portField.setText(String.valueOf(port));
                 String message = "Open port found: " + port;
@@ -185,7 +199,7 @@ public class MainController {
                 statusLabel.setText(message);
                 return;
             } catch (IOException e) {
-                // Port is not open, continue to next
+                log("Port " + port + " is not open.");
             }
         }
         String message = "No open ports found";
@@ -195,6 +209,7 @@ public class MainController {
 
     @FXML
     private void loadSourceInfo() {
+        log("Loading source information...");
         try {
             InetAddress localHost = InetAddress.getLocalHost();
             String sourceIp = localHost.getHostAddress();
@@ -211,7 +226,7 @@ public class MainController {
                     hardwareAddress[3], hardwareAddress[4], hardwareAddress[5]);
             sourceMacField.setText(sourceMac);
 
-            log("Source information loaded successfully.");
+            log("Source information loaded successfully: IP = " + sourceIp + ", MAC = " + sourceMac);
         } catch (Exception e) {
             log("Error loading source information: " + e.getMessage());
         }
@@ -223,9 +238,11 @@ public class MainController {
             logArea.appendText(timestamp + " - " + message + "\n");
             logArea.setScrollTop(Double.MAX_VALUE);
         });
+        System.out.println(timestamp + " - " + message);
     }
 
     private void updateChart(double elapsedTimeSeconds, double actualMbps) {
+        log("Updating chart: elapsedTimeSeconds = " + elapsedTimeSeconds + ", actualMbps = " + actualMbps);
         Platform.runLater(() -> {
             dataSeries.getData().add(new XYChart.Data<>(elapsedTimeSeconds, actualMbps));
             if (elapsedTimeSeconds > 60) {
