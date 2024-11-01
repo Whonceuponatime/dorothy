@@ -1,0 +1,98 @@
+.root {
+    -fx-background-color: #2E3440;
+}
+
+.label {
+    -fx-text-fill: #FFFFFF;
+}
+
+.text-field {
+    -fx-background-color: #4C566A;
+    -fx-text-fill: #FFFFFF;
+    -fx-border-color: #3B4252;
+    -fx-border-width: 1px;
+}
+
+.button {
+    -fx-background-color: #4C6EF5;
+    -fx-text-fill: #FFFFFF;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+}
+
+.button:hover {
+    -fx-background-color: #364FC7;
+}
+
+.combo-box {
+    -fx-background-color: #4C566A;
+    -fx-text-fill: #FFFFFF;
+}
+
+.combo-box .list-cell {
+    -fx-background-color: #4C566A;
+    -fx-text-fill: #FFFFFF;
+}
+
+.text-area {
+    -fx-background-color: #3B4252;
+    -fx-text-fill: #81C784;
+    -fx-font-family: "Consolas", "Monaco", monospace;
+    -fx-font-size: 12px;
+}
+
+.text-area .content {
+    -fx-background-color: #3B4252;
+}
+
+.title-label {
+    -fx-font-size: 24px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #81C784;
+}
+
+.status-label {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.attack-button {
+    -fx-font-weight: bold;
+    -fx-min-width: 100px;
+}
+
+.start-button {
+    -fx-background-color: #4CAF50;
+}
+
+.start-button:hover {
+    -fx-background-color: #388E3C;
+}
+
+.stop-button {
+    -fx-background-color: #D32F2F;
+}
+
+.stop-button:hover {
+    -fx-background-color: #B71C1C;
+}
+
+.readonly-field {
+    -fx-background-color: #2E3440;
+    -fx-text-fill: #B0BEC5;
+    -fx-border-color: #3B4252;
+    -fx-border-width: 1px;
+}
+
+.utility-button {
+    -fx-background-color: #4C566A;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-weight: bold;
+    -fx-min-width: 100px;
+    -fx-border-radius: 3px;
+    -fx-background-radius: 3px;
+}
+
+.utility-button:hover {
+    -fx-background-color: #434C5E;
+}

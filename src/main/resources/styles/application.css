@@ -1,0 +1,12 @@
+.text-field {
+    -fx-text-fill: black;
+    -fx-font-size: 14px;
+    -fx-background-color: #f0f0f0;
+    -fx-border-color: #cccccc;
+    -fx-border-radius: 3px;
+}
+
+.title-text {
+    -fx-font-size: 36px;
+    -fx-font-weight: bold;
+} 

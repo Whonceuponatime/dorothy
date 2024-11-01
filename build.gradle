@@ -1,0 +1,208 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.openjfx.javafxplugin' version '0.0.13'
+    id 'cpp'
+    id 'distribution'
+    id 'edu.sc.seis.launch4j' version '3.0.5'
+}
+
+repositories {
+    mavenCentral()
+}
+
+javafx {
+    version = "17"
+    modules = ['javafx.controls', 'javafx.fxml', 'javafx.graphics', 'javafx.base']
+}
+
+application {
+    mainModule = 'com.yourpackage'
+    mainClass = 'com.yourpackage.Main'
+}
+
+dependencies {
+    implementation 'org.openjfx:javafx-controls:17'
+    implementation 'org.openjfx:javafx-fxml:17'
+    implementation files('libs/jnetpcap-1.4.r1425/jnetpcap.jar')
+    // Log4j dependencies with explicit module names
+    implementation 'org.apache.logging.log4j:log4j-api:2.20.0'
+    implementation 'org.apache.logging.log4j:log4j-core:2.20.0'
+    // JNA dependencies with explicit module names
+    implementation 'net.java.dev.jna:jna:5.13.0'
+    implementation 'net.java.dev.jna:jna-platform:5.13.0'
+    // ... other dependencies ...
+}
+
+task createNativeDir {
+    doLast {
+        mkdir "${projectDir}/src/main/resources/native"
+    }
+}
+
+task compileCpp(type: Exec) {
+    dependsOn createNativeDir
+    
+    def vsPath = 'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community'
+    def vcvarsall = "${vsPath}\\VC\\Auxiliary\\Build\\vcvars64.bat"
+    
+    workingDir projectDir
+    commandLine 'cmd', '/c', """
+        call "${vcvarsall}" && ^
+        cl /LD ^
+        /Fe"${projectDir}/src/main/resources/native/tcpsynflood.dll" ^
+        /I"${System.getProperty('java.home')}/include" ^
+        /I"${System.getProperty('java.home')}/include/win32" ^
+        /I"C:/Program Files/Npcap/Include" ^
+        "${projectDir}/src/main/cpp/tcpsynflood.cpp" ^
+        /link ^
+        /LIBPATH:"C:/Program Files/Npcap/Lib/x64" ^
+        wpcap.lib ^
+        Packet.lib ^
+        ws2_32.lib ^
+        iphlpapi.lib && ^
+        del tcpsynflood.obj tcpsynflood.exp tcpsynflood.lib
+    """
+}
+
+tasks.withType(JavaCompile) {
+    dependsOn compileCpp
+}
+
+processResources {
+    dependsOn compileCpp
+}
+
+run {
+    dependsOn processResources
+}
+
+// First define the createExecutablePackage task
+task createExecutablePackage(type: Copy) {
+    dependsOn createExe
+    
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    
+    from("${buildDir}/launch4j") {
+        include '*.exe'
+    }
+    from('src/main/resources/native') {
+        include '*.dll'
+        into 'native'
+    }
+    from(configurations.runtimeClasspath) {
+        exclude 'jnetpcap-*.jar'
+        into 'lib'
+    }
+    from('libs/jnetpcap-1.4.r1425') {
+        include 'jnetpcap.jar'
+        into 'lib'
+    }
+    from(jar) {
+        into '.'
+    }
+    
+    into "${buildDir}/executable"
+}
+
+// Then configure distributions and dependencies
+distributions {
+    main {
+        distributionBaseName = project.name
+        contents {
+            duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+            from("${buildDir}/executable")
+        }
+    }
+}
+
+// Disable tar task
+tasks.distTar.enabled = false
+
+// Add dependencies after tasks are defined
+tasks.distZip.dependsOn createExecutablePackage
+tasks.distTar.dependsOn createExecutablePackage
+
+launch4j {
+    mainClassName = application.mainClass.get()
+    icon = "${projectDir}/src/main/resources/icon.ico"
+    outputDir = "${buildDir}/launch4j"
+    jarTask = jar
+    dontWrapJar = false
+    headerType = "console"
+    manifest = "${projectDir}/src/main/resources/app.manifest"
+    
+    chdir = '.'
+    stayAlive = true
+    
+    jvmOptions = [
+        '-Djava.library.path=./native',
+        '-Dfile.encoding=UTF-8',
+        '-Xms256m',
+        '-Xmx1024m',
+        '-Dlog4j.debug=true',
+        '--module-path=lib/platform-specific',
+        '--add-modules=javafx.controls,javafx.fxml,javafx.graphics'
+    ]
+    
+    classpath = [
+        'dorothy.jar',
+        'lib/*',
+        'lib/platform-specific/*'
+    ]
+}
+
+// Task to copy dependencies and native files for executable
+task prepareExecutable(type: Copy) {
+    dependsOn jar
+    dependsOn compileCpp
+    
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    
+    from jar, {
+        rename { 'dorothy.jar' }
+    }
+    
+    // Only copy tcpsynflood.dll since others are Java implementations
+    from('src/main/resources/native') {
+        include '*.dll'
+        into 'native'
+    }
+    
+    // Handle non-JavaFX dependencies
+    from(configurations.runtimeClasspath) {
+        exclude 'javafx-*.jar'
+        exclude 'jnetpcap-*.jar'
+        into 'lib'
+    }
+    
+    // Handle only Windows-specific JavaFX modules
+    from(configurations.runtimeClasspath) {
+        include 'javafx-*-win.jar'
+        into 'lib/platform-specific'
+    }
+    
+    from('libs/jnetpcap-1.4.r1425') {
+        include 'jnetpcap.jar'
+        into 'lib'
+    }
+    
+    from('src/main/resources') {
+        include 'icon.ico'
+        include 'app.manifest'
+        include 'fxml/**'
+    }
+    
+    into "${buildDir}/executable"
+}
+
+// Make launch4j task depend on our preparation
+tasks.createExe.dependsOn prepareExecutable
+
+startScripts {
+    defaultJvmOpts = [
+        '--module-path', 'lib',
+        '--module', "com.yourpackage/com.yourpackage.Main",
+        '-Djava.library.path=./native'
+    ]
+}

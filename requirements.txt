@@ -1,0 +1,71 @@
+# Required Software and SDKs
+1. Java Development Kit (JDK) 17
+   - Download from: https://www.oracle.com/java/technologies/downloads/#java17
+   - Set JAVA_HOME environment variable to JDK installation path
+   - Example: JAVA_HOME=C:\Program Files\Java\jdk-17
+
+2. Microsoft Visual Studio Build Tools 2022
+   - Download from: https://visualstudio.microsoft.com/downloads/
+   - During installation, select "Desktop development with C++"
+   - Required path: C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools
+
+3. Npcap SDK
+   - Download and install Npcap: https://npcap.com/#download
+   - Download and install Npcap SDK to: C:\Program Files\Npcap
+
+4. Gradle (optional - wrapper included in project)
+   - Project uses Gradle wrapper (gradlew.bat)
+
+# Project Dependencies (automatically managed by Gradle)
+- JavaFX 17
+- JNetPcap 1.4.r1425
+
+# Environment Variables Setup
+1. JAVA_HOME=C:\Program Files\Java\jdk-17
+2. Add to PATH:
+   - %JAVA_HOME%\bin
+   - C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\<version>\bin\Hostx64\x64
+
+# System Requirements
+- Windows 64-bit operating system
+- Administrator privileges (required for Npcap)
+- At least 4GB RAM recommended
+- 2GB free disk space for all tools and SDKs
+
+# Installation Steps
+1. Install JDK 17
+2. Install Visual Studio Build Tools 2022 with C++ components
+3. Install Npcap and Npcap SDK
+4. Set required environment variables
+5. Clone project repository - command prompt: git clone https://github.com/Whonecuponatime/dorothy.git
+6. Open command prompt in project directory and run `.\compile.bat` to compile
+7. Run `gradle clean build run` to compile and run
+
+# Note
+- All paths should match exactly as specified in compile.bat
+- Administrator privileges required for running the compiled application
+
+# Required for gradle clean build run
+1. Java Development Kit (JDK) 17
+   - Download from: https://www.oracle.com/java/technologies/downloads/#java17
+   - Set JAVA_HOME environment variable to JDK installation path
+   - Example: JAVA_HOME=C:\Program Files\Java\jdk-17
+
+2. Microsoft Visual Studio Build Tools 2022
+   - Download from: https://visualstudio.microsoft.com/downloads/
+   - During installation, select "Desktop development with C++"
+   - Required path: C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools
+
+3. Npcap SDK
+   - Download and install Npcap: https://npcap.com/#download
+   - Download and install Npcap SDK to: C:\Program Files\Npcap
+
+# Quick Setup Steps
+1. Install all three required components above
+2. Set JAVA_HOME environment variable
+3. Run: gradle clean build run
+
+# Troubleshooting
+- If build fails, verify all paths match exactly as specified
+- Ensure you have administrator privileges
+- Check that JAVA_HOME is correctly set by running: echo %JAVA_HOME%

@@ -1,0 +1,55 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.yourpackage</groupId>
+    <artifactId>your-artifact-id</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-controls</artifactId>
+            <version>20.0.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>20.0.1</version>
+        </dependency>
+        <!-- Add other JavaFX modules if needed -->
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.0.0</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <executable>cl</executable>
+                    <arguments>
+                        <argument>/LD</argument>
+                        <argument>/Fe${project.basedir}/src/main/resources/native/tcpsynflood.dll</argument>
+                        <argument>${project.basedir}/src/main/cpp/tcpsynflood.cpp</argument>
+                        <argument>/I"C:\Program Files\Java\jdk-17\include"</argument>
+                        <argument>/I"C:\Program Files\Java\jdk-17\include\win32"</argument>
+                        <argument>/I"C:\Program Files\Npcap\Include"</argument>
+                        <argument>/link</argument>
+                        <argument>/LIBPATH:"C:\Program Files\Npcap\Lib\x64"</argument>
+                        <argument>wpcap.lib</argument>
+                        <argument>Packet.lib</argument>
+                    </arguments>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
