@@ -42,22 +42,37 @@ namespace Dorothy.Views
             {
                 NetworkInterfaceComboBox.SelectedIndex = 0;
             }
-            else
-            {
-                MessageBox.Show("No active network interfaces found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+        }
+
+        public void SetSourceIp(string ip)
+        {
+            SourceIpTextBox.Text = ip;
+        }
+
+        public void SetSourceMac(byte[] mac)
+        {
+            SourceMacTextBox.Text = BytesToMacString(mac);
+        }
+
+        private string BytesToMacString(byte[] mac)
+        {
+            if (mac == null || mac.Length != 6)
+                throw new ArgumentException("Invalid MAC address", nameof(mac));
+
+            return string.Join("-", mac.Select(b => b.ToString("X2")));
         }
 
         private async void StartButton_Click(object sender, RoutedEventArgs e)
         {
             string attackType = (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content as string;
+            string targetIp = TargetIpTextBox.Text;
+
             if (string.IsNullOrEmpty(attackType))
             {
                 MessageBox.Show("Please select an attack type.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            string targetIp = TargetIpTextBox.Text;
             if (string.IsNullOrEmpty(targetIp))
             {
                 MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -70,13 +85,13 @@ namespace Dorothy.Views
                 return;
             }
 
-            if (!long.TryParse(BytesPerSecondTextBox.Text, out long targetBytesPerSecond))
+            if (!long.TryParse(MegabitsPerSecondTextBox.Text, out long megabitsPerSecond))
             {
-                MessageBox.Show("Please enter a valid number for bytes per second.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Please enter a valid number for Mbps.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            await _mainController.StartAttackAsync(attackType, targetIp, targetPort, targetBytesPerSecond);
+            await _mainController.StartAttackAsync(attackType, targetIp, targetPort, megabitsPerSecond);
         }
 
         private async void StopButton_Click(object sender, RoutedEventArgs e)
@@ -86,8 +101,7 @@ namespace Dorothy.Views
 
         private void NetworkInterfaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            var selectedItem = NetworkInterfaceComboBox.SelectedItem as ComboBoxItem;
-            if (selectedItem != null)
+            if (NetworkInterfaceComboBox.SelectedItem is ComboBoxItem selectedItem)
             {
                 string interfaceName = selectedItem.Content as string;
                 if (!string.IsNullOrEmpty(interfaceName))
@@ -97,25 +111,6 @@ namespace Dorothy.Views
             }
         }
 
-        public void SetSourceIp(string sourceIp)
-        {
-            SourceIpTextBox.Text = sourceIp;
-        }
-
-        public void SetSourceMac(byte[] sourceMac)
-        {
-            SourceMacTextBox.Text = BytesToMacString(sourceMac);
-        }
-
-        private string BytesToMacString(byte[] mac)
-        {
-            if (mac == null || mac.Length != 6)
-                throw new ArgumentException("Invalid MAC address", nameof(mac));
-
-            return string.Join("-", mac.Select(b => b.ToString("X2")));
-        }
-
-        // Optional: Implement PingButton_Click event handler if you want ping functionality
         private async void PingButton_Click(object sender, RoutedEventArgs e)
         {
             string targetIp = TargetIpTextBox.Text;
@@ -144,6 +139,23 @@ namespace Dorothy.Views
                     PingResultText.Text = $"Ping error: {ex.Message}";
                 }
             }
+        }
+
+        protected override async void OnClosing(System.ComponentModel.CancelEventArgs e)
+        {
+            if (_networkStorm.IsAttackRunning)
+            {
+                var result = MessageBox.Show("An attack is in progress. Do you want to stop it and exit?", "Confirm Exit", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (result == MessageBoxResult.Yes)
+                {
+                    await _mainController.StopAttackAsync();
+                }
+                else
+                {
+                    e.Cancel = true;
+                }
+            }
+            base.OnClosing(e);
         }
     }
 } 

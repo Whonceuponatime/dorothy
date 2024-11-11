@@ -1,5 +1,4 @@
 using System;
-using System.Net.NetworkInformation;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -35,7 +34,7 @@ namespace Dorothy.Controllers
             _mainWindow = mainWindow ?? throw new ArgumentNullException(nameof(mainWindow));
         }
 
-        public async Task StartAttackAsync(string attackType, string targetIp, int targetPort, long targetBytesPerSecond)
+        public async Task StartAttackAsync(string attackType, string targetIp, int targetPort, long megabitsPerSecond)
         {
             if (_networkStorm.IsAttackRunning)
             {
@@ -49,8 +48,8 @@ namespace Dorothy.Controllers
 
             try
             {
-                await _networkStorm.StartAttackAsync(attackType, targetIp, targetPort, targetBytesPerSecond);
-                Log($"Started {attackType} attack on {targetIp}:{targetPort} at {targetBytesPerSecond} bytes/sec.");
+                await _networkStorm.StartAttackAsync(attackType, targetIp, targetPort, megabitsPerSecond);
+                Log($"Started {attackType} attack on {targetIp}:{targetPort} at {megabitsPerSecond} Mbps.");
             }
             catch (Exception ex)
             {
@@ -74,11 +73,12 @@ namespace Dorothy.Controllers
             }
 
             _stopButton.IsEnabled = false;
-            _statusLabel.Content = "Status: Stopping Attack...";
+            _startButton.IsEnabled = true;
+            _statusLabel.Content = "Status: Stopping...";
 
             try
             {
-                _networkStorm.StopAttack();
+                await _networkStorm.StopAttackAsync();
                 Log("Attack stopped.");
             }
             catch (Exception ex)
@@ -88,11 +88,8 @@ namespace Dorothy.Controllers
             }
             finally
             {
-                _startButton.IsEnabled = true;
                 _statusLabel.Content = "Status: Ready";
             }
-
-            await Task.CompletedTask;
         }
 
         public void UpdateNetworkInterface(string interfaceName)
@@ -113,7 +110,7 @@ namespace Dorothy.Controllers
                         _mainWindow.SetSourceIp(ipv4Addr.Address.ToString());
                     }
 
-                    PhysicalAddress mac = networkInterface.GetPhysicalAddress();
+                    System.Net.NetworkInformation.PhysicalAddress mac = networkInterface.GetPhysicalAddress();
                     _mainWindow.SetSourceMac(mac.GetAddressBytes());
                 }
                 else

