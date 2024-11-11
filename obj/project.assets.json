@@ -1,7 +1,7 @@
 {
   "version": 3,
   "targets": {
-    "net8.0-windows7.0": {
+    "net7.0-windows7.0": {
       "NLog/5.3.4": {
         "type": "package",
         "compile": {
@@ -15,23 +15,23 @@
           }
         }
       },
-      "PacketDotNet/1.4.7": {
+      "PacketDotNet/1.4.8-pre20": {
         "type": "package",
         "dependencies": {
           "System.Runtime.CompilerServices.Unsafe": "6.0.0"
         },
         "compile": {
-          "lib/netstandard2.1/PacketDotNet.dll": {}
+          "lib/net7.0/PacketDotNet.dll": {}
         },
         "runtime": {
-          "lib/netstandard2.1/PacketDotNet.dll": {}
+          "lib/net7.0/PacketDotNet.dll": {}
         }
       },
-      "SharpPcap/6.3.0": {
+      "SharpPcap/6.2.0": {
         "type": "package",
         "dependencies": {
-          "PacketDotNet": "1.4.7",
-          "System.Memory": "4.5.5",
+          "PacketDotNet": "1.4.0",
+          "System.Memory": "4.5.4",
           "System.Text.Encoding.CodePages": "6.0.0"
         },
         "compile": {
@@ -41,7 +41,7 @@
           "lib/netstandard2.0/SharpPcap.dll": {}
         }
       },
-      "System.Memory/4.5.5": {
+      "System.Memory/4.5.4": {
         "type": "package",
         "compile": {
           "ref/netcoreapp2.1/_._": {}
@@ -118,36 +118,36 @@
         "nlog.nuspec"
       ]
     },
-    "PacketDotNet/1.4.7": {
-      "sha512": "xh4MGjkDFhJfFtAr6IEwg3ocPm3TO0/AxbYeCVoh9BaVT0xeWJB1p0nwKQ9olsQiQtSqF8M0UXz97U2VnOYY0w==",
+    "PacketDotNet/1.4.8-pre20": {
+      "sha512": "q8Rk53ndx/oEtscVaTzacHxnlLZDc+OEMf1PoPoNdvy4ikBbQwrE+j4hE9ASBQUsvjmmQcAhBorRvxVopGfh3g==",
       "type": "package",
-      "path": "packetdotnet/1.4.7",
+      "path": "packetdotnet/1.4.8-pre20",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
-        "lib/net47/PacketDotNet.dll",
-        "lib/netstandard2.0/PacketDotNet.dll",
-        "lib/netstandard2.1/PacketDotNet.dll",
-        "packetdotnet.1.4.7.nupkg.sha512",
+        "lib/net472/PacketDotNet.dll",
+        "lib/net6.0/PacketDotNet.dll",
+        "lib/net7.0/PacketDotNet.dll",
+        "packetdotnet.1.4.8-pre20.nupkg.sha512",
         "packetdotnet.nuspec"
       ]
     },
-    "SharpPcap/6.3.0": {
-      "sha512": "9tFnPgVYWJj/6fQRFLV34n0Uh9SLwi2zkQ/dPaxx8ZoNuPm1XuJU731qWMsMJlwQD6FL0AFeQpRj7zXLV8iu1Q==",
+    "SharpPcap/6.2.0": {
+      "sha512": "60DgMzopC5EEg2vFL+liB9ebspS6s/TGIremE40paEKSUI5T+Igl5DhIBG3gQYNCEs2nRGxOkygTaD90e0sTBw==",
       "type": "package",
-      "path": "sharppcap/6.3.0",
+      "path": "sharppcap/6.2.0",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
         "lib/netstandard2.0/SharpPcap.dll",
-        "sharppcap.6.3.0.nupkg.sha512",
+        "sharppcap.6.2.0.nupkg.sha512",
         "sharppcap.nuspec"
       ]
     },
-    "System.Memory/4.5.5": {
-      "sha512": "XIWiDvKPXaTveaB7HVganDlOCRoj03l+jrwNvcge/t8vhGYKvqV+dMv6G4SAX2NoNmN0wZfVPTAlFwZcZvVOUw==",
+    "System.Memory/4.5.4": {
+      "sha512": "1MbJTHS1lZ4bS4FmsJjnuGJOu88ZzTT2rLvrhW7Ygic+pC0NWA+3hgAen0HRdsocuQXCkUTdFn9yHJJhsijDXw==",
       "type": "package",
-      "path": "system.memory/4.5.5",
+      "path": "system.memory/4.5.4",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -161,7 +161,7 @@
         "lib/netstandard2.0/System.Memory.dll",
         "lib/netstandard2.0/System.Memory.xml",
         "ref/netcoreapp2.1/_._",
-        "system.memory.4.5.5.nupkg.sha512",
+        "system.memory.4.5.4.nupkg.sha512",
         "system.memory.nuspec",
         "useSharedDesignerContext.txt",
         "version.txt"
@@ -233,9 +233,10 @@
     }
   },
   "projectFileDependencyGroups": {
-    "net8.0-windows7.0": [
+    "net7.0-windows7.0": [
       "NLog >= 5.3.4",
-      "SharpPcap >= 6.3.0"
+      "PacketDotNet >= 1.4.8-pre20",
+      "SharpPcap >= 6.2.0"
     ]
   },
   "packageFolders": {
@@ -254,14 +255,14 @@
         "C:\\Users\\SAMSUNG\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
-        "net8.0-windows"
+        "net7.0-windows"
       ],
       "sources": {
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
-        "net8.0-windows7.0": {
-          "targetAlias": "net8.0-windows",
+        "net7.0-windows7.0": {
+          "targetAlias": "net7.0-windows",
           "projectReferences": {}
         }
       },
@@ -277,16 +278,20 @@
       }
     },
     "frameworks": {
-      "net8.0-windows7.0": {
-        "targetAlias": "net8.0-windows",
+      "net7.0-windows7.0": {
+        "targetAlias": "net7.0-windows",
         "dependencies": {
           "NLog": {
             "target": "Package",
             "version": "[5.3.4, )"
           },
+          "PacketDotNet": {
+            "target": "Package",
+            "version": "[1.4.8-pre20, )"
+          },
           "SharpPcap": {
             "target": "Package",
-            "version": "[6.3.0, )"
+            "version": "[6.2.0, )"
           }
         },
         "imports": [
@@ -300,6 +305,24 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
+        "downloadDependencies": [
+          {
+            "name": "Microsoft.AspNetCore.App.Ref",
+            "version": "[7.0.20, 7.0.20]"
+          },
+          {
+            "name": "Microsoft.NETCore.App.Host.win-x64",
+            "version": "[7.0.20, 7.0.20]"
+          },
+          {
+            "name": "Microsoft.NETCore.App.Ref",
+            "version": "[7.0.20, 7.0.20]"
+          },
+          {
+            "name": "Microsoft.WindowsDesktop.App.Ref",
+            "version": "[7.0.20, 7.0.20]"
+          }
+        ],
         "frameworkReferences": {
           "Microsoft.NETCore.App": {
             "privateAssets": "all"
@@ -308,7 +331,7 @@
             "privateAssets": "none"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.402/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.402\\RuntimeIdentifierGraph.json"
       }
     }
   }

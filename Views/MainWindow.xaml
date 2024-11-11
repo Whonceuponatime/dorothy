@@ -26,6 +26,7 @@
                 <ComboBox x:Name="AttackTypeComboBox" Grid.Row="0" Grid.Column="1" Margin="5">
                     <ComboBoxItem Content="UDP Flood"/>
                     <ComboBoxItem Content="ICMP Flood"/>
+                    <ComboBoxItem Content="TCP SYN Flood"/>
                 </ComboBox>
 
                 <Label Grid.Row="1" Grid.Column="0" Content="Target IP:" Style="{StaticResource DefaultLabel}"/>
@@ -66,9 +67,9 @@
         </GroupBox>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
-            <Button x:Name="StartButton" Content="Start Attack" Style="{StaticResource DefaultButton}"/>
-            <Button x:Name="StopButton" Content="Stop Attack" IsEnabled="False" Style="{StaticResource DefaultButton}"/>
-            <Button x:Name="PingButton" Content="Ping Target" Style="{StaticResource DefaultButton}"/>
+            <Button x:Name="StartButton" Content="Start Attack" Style="{StaticResource DefaultButton}" Click="StartButton_Click"/>
+            <Button x:Name="StopButton" Content="Stop Attack" IsEnabled="False" Style="{StaticResource DefaultButton}" Click="StopButton_Click"/>
+            <Button x:Name="PingButton" Content="Ping Target" Style="{StaticResource DefaultButton}" Click="PingButton_Click"/>
             <TextBlock x:Name="PingResultText" Margin="10,0,0,0" VerticalAlignment="Center"/>
         </StackPanel>
 

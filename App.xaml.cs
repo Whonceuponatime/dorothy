@@ -1,4 +1,7 @@
+using System;
+using System.IO;
 using System.Windows;
+using NLog;
 
 namespace Dorothy
 {
@@ -9,6 +12,17 @@ namespace Dorothy
             base.OnStartup(e);
             var mainWindow = new Views.MainWindow();
             mainWindow.Show();
+
+            var logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+            
+            if (!Directory.Exists(logPath))
+            {
+                Directory.CreateDirectory(logPath);
+            }
+
+            var logger = LogManager.GetCurrentClassLogger();
+            logger.Info("Application starting");
+            logger.Debug("Log directory created at: " + logPath);
         }
     }
 }

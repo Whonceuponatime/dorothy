@@ -1,8 +1,10 @@
 using System;
+using System.Net.NetworkInformation;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Dorothy.Models;
+using Dorothy.Views;
 using NLog;
 
 namespace Dorothy.Controllers
@@ -15,95 +17,136 @@ namespace Dorothy.Controllers
         private readonly Button _stopButton;
         private readonly Label _statusLabel;
         private readonly TextBox _logArea;
+        private readonly MainWindow _mainWindow;
 
         public MainController(
             NetworkStorm networkStorm,
             Button startButton,
             Button stopButton,
             Label statusLabel,
-            TextBox logArea)
+            TextBox logArea,
+            MainWindow mainWindow)
         {
-            _networkStorm = networkStorm;
-            _startButton = startButton;
-            _stopButton = stopButton;
-            _statusLabel = statusLabel;
-            _logArea = logArea;
-            
-            _networkStorm.SetLogArea(_logArea);
+            _networkStorm = networkStorm ?? throw new ArgumentNullException(nameof(networkStorm));
+            _startButton = startButton ?? throw new ArgumentNullException(nameof(startButton));
+            _stopButton = stopButton ?? throw new ArgumentNullException(nameof(stopButton));
+            _statusLabel = statusLabel ?? throw new ArgumentNullException(nameof(statusLabel));
+            _logArea = logArea ?? throw new ArgumentNullException(nameof(logArea));
+            _mainWindow = mainWindow ?? throw new ArgumentNullException(nameof(mainWindow));
         }
 
         public async Task StartAttackAsync(string attackType, string targetIp, int targetPort, long targetBytesPerSecond)
         {
             if (_networkStorm.IsAttackRunning)
             {
-                Log("Attack already in progress");
+                Log("Attack already in progress.");
                 return;
             }
 
+            _startButton.IsEnabled = false;
+            _stopButton.IsEnabled = true;
+            _statusLabel.Content = "Status: Attacking";
+
             try
             {
-                switch (attackType)
-                {
-                    case "UDP Flood":
-                        await _networkStorm.StartUdpFloodAsync(targetIp, targetPort, targetBytesPerSecond);
-                        break;
-                    case "ICMP Flood":
-                        await _networkStorm.StartIcmpFloodAsync(targetIp, targetBytesPerSecond);
-                        break;
-                    default:
-                        Log($"Unknown attack type selected: {attackType}");
-                        return;
-                }
-
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    _startButton.IsEnabled = false;
-                    _stopButton.IsEnabled = true;
-                    _statusLabel.Content = "Status: Attack Started";
-                });
+                await _networkStorm.StartAttackAsync(attackType, targetIp, targetPort, targetBytesPerSecond);
+                Log($"Started {attackType} attack on {targetIp}:{targetPort} at {targetBytesPerSecond} bytes/sec.");
             }
             catch (Exception ex)
             {
-                Logger.Error(ex, "Error starting attack");
+                Logger.Error(ex, "Error starting attack.");
                 Log($"Error starting attack: {ex.Message}");
-                
-                // Reset UI state on error
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    _startButton.IsEnabled = true;
-                    _stopButton.IsEnabled = false;
-                    _statusLabel.Content = "Status: Error";
-                });
+            }
+            finally
+            {
+                _startButton.IsEnabled = true;
+                _stopButton.IsEnabled = false;
+                _statusLabel.Content = "Status: Ready";
             }
         }
 
         public async Task StopAttackAsync()
         {
+            if (!_networkStorm.IsAttackRunning)
+            {
+                Log("No attack is running.");
+                return;
+            }
+
+            _stopButton.IsEnabled = false;
+            _statusLabel.Content = "Status: Stopping Attack...";
+
             try
             {
-                await _networkStorm.StopAttackAsync();
-                
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    _startButton.IsEnabled = true;
-                    _stopButton.IsEnabled = false;
-                    _statusLabel.Content = "Status: Attack Stopped";
-                });
+                _networkStorm.StopAttack();
+                Log("Attack stopped.");
             }
             catch (Exception ex)
             {
-                Logger.Error(ex, "Error stopping attack");
+                Logger.Error(ex, "Error stopping attack.");
                 Log($"Error stopping attack: {ex.Message}");
+            }
+            finally
+            {
+                _startButton.IsEnabled = true;
+                _statusLabel.Content = "Status: Ready";
+            }
+
+            await Task.CompletedTask;
+        }
+
+        public void UpdateNetworkInterface(string interfaceName)
+        {
+            try
+            {
+                var networkInterface = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                    .FirstOrDefault(ni => ni.Name.Equals(interfaceName, StringComparison.OrdinalIgnoreCase));
+
+                if (networkInterface != null)
+                {
+                    var ipProps = networkInterface.GetIPProperties();
+                    var ipv4Addr = ipProps.UnicastAddresses
+                        .FirstOrDefault(ua => ua.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+
+                    if (ipv4Addr != null)
+                    {
+                        _mainWindow.SetSourceIp(ipv4Addr.Address.ToString());
+                    }
+
+                    PhysicalAddress mac = networkInterface.GetPhysicalAddress();
+                    _mainWindow.SetSourceMac(mac.GetAddressBytes());
+                }
+                else
+                {
+                    Log($"Network interface '{interfaceName}' not found.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Error updating network interface.");
+                Log($"Error updating network interface: {ex.Message}");
             }
         }
 
         private void Log(string message)
         {
-            Application.Current.Dispatcher.Invoke(() =>
+            try
             {
-                _logArea.AppendText($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}\n");
-                _logArea.ScrollToEnd();
-            });
+                var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                var logMessage = $"[{timestamp}] {message}\n";
+
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    _logArea.AppendText(logMessage);
+                    _logArea.ScrollToEnd();
+                });
+
+                Logger.Debug(message);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Logging error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
 } 

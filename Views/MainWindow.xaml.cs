@@ -1,140 +1,148 @@
 using System;
-using System.Net.NetworkInformation;
 using System.Linq;
+using System.Net.NetworkInformation;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using Dorothy.Models;
 using Dorothy.Controllers;
+using Dorothy.Models;
 
 namespace Dorothy.Views
 {
     public partial class MainWindow : Window
     {
+        private readonly MainController _mainController;
         private readonly NetworkStorm _networkStorm;
-        private readonly MainController _controller;
 
         public MainWindow()
         {
             InitializeComponent();
-            
-            _networkStorm = new NetworkStorm();
-            _controller = new MainController(
-                _networkStorm,
-                StartButton,
-                StopButton,
-                StatusLabel,
-                LogTextBox
-            );
-
-            StartButton.Click += StartButton_Click;
-            StopButton.Click += StopButton_Click;
-            PingButton.Click += PingButton_Click;
-            Loaded += Window_Loaded;
+            _networkStorm = new NetworkStorm(LogTextBox);
+            _mainController = new MainController(_networkStorm, StartButton, StopButton, StatusLabel, LogTextBox, this);
+            NetworkInterfaceComboBox.SelectionChanged += NetworkInterfaceComboBox_SelectionChanged;
+            PopulateNetworkInterfaces();
         }
 
-        private void Window_Loaded(object sender, RoutedEventArgs e)
-        {
-            LoadNetworkInterfaces();
-        }
-
-        private void LoadNetworkInterfaces()
+        private void PopulateNetworkInterfaces()
         {
             var interfaces = NetworkInterface.GetAllNetworkInterfaces()
-                .Where(ni => ni.OperationalStatus == OperationalStatus.Up &&
-                            ni.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                .Where(ni => ni.NetworkInterfaceType != NetworkInterfaceType.Loopback && ni.OperationalStatus == OperationalStatus.Up)
                 .ToList();
 
-            NetworkInterfaceComboBox.ItemsSource = interfaces;
-            NetworkInterfaceComboBox.DisplayMemberPath = "Description";
-            
-            if (interfaces.Any())
+            foreach (var ni in interfaces)
+            {
+                ComboBoxItem item = new ComboBoxItem
+                {
+                    Content = ni.Name
+                };
+                NetworkInterfaceComboBox.Items.Add(item);
+            }
+
+            if (NetworkInterfaceComboBox.Items.Count > 0)
             {
                 NetworkInterfaceComboBox.SelectedIndex = 0;
             }
-        }
-
-        private void NetworkInterfaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (NetworkInterfaceComboBox.SelectedItem is NetworkInterface networkInterface)
+            else
             {
-                var ipProps = networkInterface.GetIPProperties();
-                var ipAddress = ipProps.UnicastAddresses
-                    .FirstOrDefault(addr => addr.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                    ?.Address.ToString();
-                
-                var macAddress = string.Join(":", networkInterface.GetPhysicalAddress()
-                    .GetAddressBytes()
-                    .Select(b => b.ToString("X2")));
-
-                SourceIpTextBox.Text = ipAddress;
-                SourceMacTextBox.Text = macAddress;
-
-                if (ipAddress != null)
-                {
-                    _networkStorm.SetSourceIp(ipAddress);
-                    _networkStorm.SetSourceMac(networkInterface.GetPhysicalAddress().GetAddressBytes());
-                }
+                MessageBox.Show("No active network interfaces found.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         private async void StartButton_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrEmpty(SourceIpTextBox.Text))
+            string attackType = (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content as string;
+            if (string.IsNullOrEmpty(attackType))
             {
-                MessageBox.Show("Please select a network interface first");
+                MessageBox.Show("Please select an attack type.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            if (!long.TryParse(BytesPerSecondTextBox.Text, out long targetMbps) || targetMbps <= 0)
+            string targetIp = TargetIpTextBox.Text;
+            if (string.IsNullOrEmpty(targetIp))
             {
-                MessageBox.Show("Target rate must be a positive number (Mbps)");
-                return;
-            }
-            long bytesPerSecond = targetMbps * 1_000_000 / 8; // Convert Mbps to bytes per second
-
-            if (!int.TryParse(TargetPortTextBox.Text, out int targetPort) || targetPort <= 0 || targetPort > 65535)
-            {
-                MessageBox.Show("Port must be between 1 and 65535");
+                MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            await _controller.StartAttackAsync(
-                AttackTypeComboBox.Text,
-                TargetIpTextBox.Text,
-                targetPort,
-                bytesPerSecond
-            );
+            if (!int.TryParse(TargetPortTextBox.Text, out int targetPort))
+            {
+                MessageBox.Show("Please enter a valid target port.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            if (!long.TryParse(BytesPerSecondTextBox.Text, out long targetBytesPerSecond))
+            {
+                MessageBox.Show("Please enter a valid number for bytes per second.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            await _mainController.StartAttackAsync(attackType, targetIp, targetPort, targetBytesPerSecond);
         }
 
         private async void StopButton_Click(object sender, RoutedEventArgs e)
         {
-            await _controller.StopAttackAsync();
+            await _mainController.StopAttackAsync();
         }
 
+        private void NetworkInterfaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var selectedItem = NetworkInterfaceComboBox.SelectedItem as ComboBoxItem;
+            if (selectedItem != null)
+            {
+                string interfaceName = selectedItem.Content as string;
+                if (!string.IsNullOrEmpty(interfaceName))
+                {
+                    _mainController.UpdateNetworkInterface(interfaceName);
+                }
+            }
+        }
+
+        public void SetSourceIp(string sourceIp)
+        {
+            SourceIpTextBox.Text = sourceIp;
+        }
+
+        public void SetSourceMac(byte[] sourceMac)
+        {
+            SourceMacTextBox.Text = BytesToMacString(sourceMac);
+        }
+
+        private string BytesToMacString(byte[] mac)
+        {
+            if (mac == null || mac.Length != 6)
+                throw new ArgumentException("Invalid MAC address", nameof(mac));
+
+            return string.Join("-", mac.Select(b => b.ToString("X2")));
+        }
+
+        // Optional: Implement PingButton_Click event handler if you want ping functionality
         private async void PingButton_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrEmpty(TargetIpTextBox.Text))
+            string targetIp = TargetIpTextBox.Text;
+            if (string.IsNullOrEmpty(targetIp))
             {
-                MessageBox.Show("Please enter a target IP address");
+                MessageBox.Show("Please enter a target IP address to ping.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            PingButton.IsEnabled = false;
-            PingResultText.Text = "Pinging...";
-            
-            try
+            using (var ping = new System.Net.NetworkInformation.Ping())
             {
-                using var ping = new Ping();
-                var reply = await ping.SendPingAsync(TargetIpTextBox.Text, 1000);
-                PingResultText.Text = $"Response: {reply.Status}, Time: {reply.RoundtripTime}ms";
-            }
-            catch (Exception ex)
-            {
-                PingResultText.Text = $"Error: {ex.Message}";
-            }
-            finally
-            {
-                PingButton.IsEnabled = true;
+                try
+                {
+                    var reply = await ping.SendPingAsync(targetIp);
+                    if (reply.Status == System.Net.NetworkInformation.IPStatus.Success)
+                    {
+                        PingResultText.Text = $"Ping successful: Time={reply.RoundtripTime}ms";
+                    }
+                    else
+                    {
+                        PingResultText.Text = $"Ping failed: {reply.Status}";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    PingResultText.Text = $"Ping error: {ex.Message}";
+                }
             }
         }
     }
