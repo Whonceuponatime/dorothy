@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -29,69 +30,49 @@ namespace Dorothy.Views
                 .Where(ni => ni.NetworkInterfaceType != NetworkInterfaceType.Loopback && ni.OperationalStatus == OperationalStatus.Up)
                 .ToList();
 
-            foreach (var ni in interfaces)
-            {
-                ComboBoxItem item = new ComboBoxItem
-                {
-                    Content = ni.Name
-                };
-                NetworkInterfaceComboBox.Items.Add(item);
-            }
-
-            if (NetworkInterfaceComboBox.Items.Count > 0)
-            {
-                NetworkInterfaceComboBox.SelectedIndex = 0;
-            }
-        }
-
-        public void SetSourceIp(string ip)
-        {
-            SourceIpTextBox.Text = ip;
-        }
-
-        public void SetSourceMac(byte[] mac)
-        {
-            SourceMacTextBox.Text = BytesToMacString(mac);
-        }
-
-        private string BytesToMacString(byte[] mac)
-        {
-            if (mac == null || mac.Length != 6)
-                throw new ArgumentException("Invalid MAC address", nameof(mac));
-
-            return string.Join("-", mac.Select(b => b.ToString("X2")));
+            NetworkInterfaceComboBox.ItemsSource = interfaces;
+            NetworkInterfaceComboBox.DisplayMemberPath = "Name";
+            NetworkInterfaceComboBox.SelectedIndex = 0;
         }
 
         private async void StartButton_Click(object sender, RoutedEventArgs e)
         {
-            string attackType = (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content as string;
-            string targetIp = TargetIpTextBox.Text;
-
-            if (string.IsNullOrEmpty(attackType))
+            string targetIp = TargetIpTextBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(targetIp))
             {
-                MessageBox.Show("Please select an attack type.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Please enter a valid Target IP.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            if (string.IsNullOrEmpty(targetIp))
+            if (!int.TryParse(TargetPortTextBox.Text.Trim(), out int targetPort))
             {
-                MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Please enter a valid Target Port.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            if (!int.TryParse(TargetPortTextBox.Text, out int targetPort))
+            if (!long.TryParse(MegabitsPerSecondTextBox.Text.Trim(), out long megabitsPerSecond) || megabitsPerSecond <= 0)
             {
-                MessageBox.Show("Please enter a valid target port.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Please enter a valid Mbps value.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            if (!long.TryParse(MegabitsPerSecondTextBox.Text, out long megabitsPerSecond))
+            if (AttackTypeComboBox.SelectedItem is ComboBoxItem selectedAttackType)
             {
-                MessageBox.Show("Please enter a valid number for Mbps.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
+                string attackTypeString = selectedAttackType.Content.ToString();
+                AttackType attackType = attackTypeString switch
+                {
+                    "UDP Flood" => AttackType.UdpFlood,
+                    "ICMP Flood" => AttackType.IcmpFlood,
+                    "TCP SYN Flood" => AttackType.TcpSynFlood,
+                    _ => AttackType.UdpFlood
+                };
 
-            await _mainController.StartAttackAsync(attackType, targetIp, targetPort, megabitsPerSecond);
+                await _mainController.StartAttackAsync(attackType, targetIp, targetPort, megabitsPerSecond);
+            }
+            else
+            {
+                MessageBox.Show("Please select an Attack Type.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private async void StopButton_Click(object sender, RoutedEventArgs e)
@@ -99,45 +80,29 @@ namespace Dorothy.Views
             await _mainController.StopAttackAsync();
         }
 
-        private void NetworkInterfaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void PingButton_Click(object sender, RoutedEventArgs e)
         {
-            if (NetworkInterfaceComboBox.SelectedItem is ComboBoxItem selectedItem)
-            {
-                string interfaceName = selectedItem.Content as string;
-                if (!string.IsNullOrEmpty(interfaceName))
-                {
-                    _mainController.UpdateNetworkInterface(interfaceName);
-                }
-            }
+            // Implement the ping logic here
+            // For example, you could call a method in _mainController to perform a ping
         }
 
-        private async void PingButton_Click(object sender, RoutedEventArgs e)
+        private void NetworkInterfaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            string targetIp = TargetIpTextBox.Text;
-            if (string.IsNullOrEmpty(targetIp))
+            var selectedInterface = NetworkInterfaceComboBox.SelectedItem as NetworkInterface;
+            if (selectedInterface != null)
             {
-                MessageBox.Show("Please enter a target IP address to ping.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
+                var ipProps = selectedInterface.GetIPProperties();
+                var ipv4Address = ipProps.UnicastAddresses
+                    .FirstOrDefault(ua => ua.Address.AddressFamily == AddressFamily.InterNetwork)?.Address.ToString() 
+                    ?? "N/A";
 
-            using (var ping = new System.Net.NetworkInformation.Ping())
+                SourceIpTextBox.Text = ipv4Address;
+                SourceMacTextBox.Text = selectedInterface.GetPhysicalAddress().ToString();
+            }
+            else
             {
-                try
-                {
-                    var reply = await ping.SendPingAsync(targetIp);
-                    if (reply.Status == System.Net.NetworkInformation.IPStatus.Success)
-                    {
-                        PingResultText.Text = $"Ping successful: Time={reply.RoundtripTime}ms";
-                    }
-                    else
-                    {
-                        PingResultText.Text = $"Ping failed: {reply.Status}";
-                    }
-                }
-                catch (Exception ex)
-                {
-                    PingResultText.Text = $"Ping error: {ex.Message}";
-                }
+                SourceIpTextBox.Text = "N/A";
+                SourceMacTextBox.Text = "N/A";
             }
         }
 
@@ -145,7 +110,7 @@ namespace Dorothy.Views
         {
             if (_networkStorm.IsAttackRunning)
             {
-                var result = MessageBox.Show("An attack is in progress. Do you want to stop it and exit?", "Confirm Exit", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                var result = MessageBox.Show("An attack is currently running. Do you want to stop it and exit?", "Confirm Exit", MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (result == MessageBoxResult.Yes)
                 {
                     await _mainController.StopAttackAsync();
@@ -156,6 +121,28 @@ namespace Dorothy.Views
                 }
             }
             base.OnClosing(e);
+        }
+
+        public void Log(string message)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                LogTextBox.AppendText($"{DateTime.Now}: {message}\n");
+                LogTextBox.ScrollToEnd();
+            });
+        }
+
+        public void UpdateStatus(string status)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                StatusLabel.Content = $"Status: {status}";
+            });
+        }
+
+        private string BytesToMacString(byte[] macBytes)
+        {
+            return string.Join(":", macBytes.Select(b => b.ToString("X2")));
         }
     }
 } 

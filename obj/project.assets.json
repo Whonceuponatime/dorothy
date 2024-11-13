@@ -2,7 +2,7 @@
   "version": 3,
   "targets": {
     "net7.0-windows7.0": {
-      "NLog/5.3.4": {
+      "NLog/4.7.10": {
         "type": "package",
         "compile": {
           "lib/netstandard2.0/NLog.dll": {
@@ -15,24 +15,23 @@
           }
         }
       },
-      "PacketDotNet/1.4.8-pre20": {
+      "PacketDotNet/1.2.0": {
         "type": "package",
         "dependencies": {
-          "System.Runtime.CompilerServices.Unsafe": "6.0.0"
+          "System.Runtime.CompilerServices.Unsafe": "4.7.0"
         },
         "compile": {
-          "lib/net7.0/PacketDotNet.dll": {}
+          "lib/netstandard2.0/PacketDotNet.dll": {}
         },
         "runtime": {
-          "lib/net7.0/PacketDotNet.dll": {}
+          "lib/netstandard2.0/PacketDotNet.dll": {}
         }
       },
-      "SharpPcap/6.2.0": {
+      "SharpPcap/6.0.0": {
         "type": "package",
         "dependencies": {
-          "PacketDotNet": "1.4.0",
-          "System.Memory": "4.5.4",
-          "System.Text.Encoding.CodePages": "6.0.0"
+          "PacketDotNet": "1.2.0",
+          "System.Memory": "4.5.4"
         },
         "compile": {
           "lib/netstandard2.0/SharpPcap.dll": {}
@@ -50,97 +49,77 @@
           "lib/netcoreapp2.1/_._": {}
         }
       },
-      "System.Runtime.CompilerServices.Unsafe/6.0.0": {
+      "System.Runtime.CompilerServices.Unsafe/4.7.0": {
         "type": "package",
         "compile": {
-          "lib/net6.0/System.Runtime.CompilerServices.Unsafe.dll": {
+          "ref/netstandard2.0/System.Runtime.CompilerServices.Unsafe.dll": {
             "related": ".xml"
           }
         },
         "runtime": {
-          "lib/net6.0/System.Runtime.CompilerServices.Unsafe.dll": {
+          "lib/netcoreapp2.0/System.Runtime.CompilerServices.Unsafe.dll": {
             "related": ".xml"
-          }
-        },
-        "build": {
-          "buildTransitive/netcoreapp3.1/_._": {}
-        }
-      },
-      "System.Text.Encoding.CodePages/6.0.0": {
-        "type": "package",
-        "dependencies": {
-          "System.Runtime.CompilerServices.Unsafe": "6.0.0"
-        },
-        "compile": {
-          "lib/net6.0/System.Text.Encoding.CodePages.dll": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/net6.0/System.Text.Encoding.CodePages.dll": {
-            "related": ".xml"
-          }
-        },
-        "build": {
-          "buildTransitive/netcoreapp3.1/_._": {}
-        },
-        "runtimeTargets": {
-          "runtimes/win/lib/net6.0/System.Text.Encoding.CodePages.dll": {
-            "assetType": "runtime",
-            "rid": "win"
           }
         }
       }
     }
   },
   "libraries": {
-    "NLog/5.3.4": {
-      "sha512": "gLy7+O1hEYJXIlcTr1/VWjGXrZTQFZzYNO18IWasD64pNwz0BreV+nHLxWKXWZzERRzoKnsk2XYtwLkTVk7J1A==",
+    "NLog/4.7.10": {
+      "sha512": "rcegW7kYOCjl7wX0SzsqpPBqnJ51JKi1WkYb6QBVX0Wc5IgH19Pv4t/co+T0s06OS0Ne44xgkY/mHg0PdrmJow==",
       "type": "package",
-      "path": "nlog/5.3.4",
+      "path": "nlog/4.7.10",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
-        "N.png",
+        "lib/monoandroid44/NLog.dll",
+        "lib/monoandroid44/NLog.xml",
         "lib/net35/NLog.dll",
         "lib/net35/NLog.xml",
+        "lib/net40-client/NLog.dll",
+        "lib/net40-client/NLog.xml",
         "lib/net45/NLog.dll",
         "lib/net45/NLog.xml",
-        "lib/net46/NLog.dll",
-        "lib/net46/NLog.xml",
         "lib/netstandard1.3/NLog.dll",
         "lib/netstandard1.3/NLog.xml",
         "lib/netstandard1.5/NLog.dll",
         "lib/netstandard1.5/NLog.xml",
         "lib/netstandard2.0/NLog.dll",
         "lib/netstandard2.0/NLog.xml",
-        "nlog.5.3.4.nupkg.sha512",
+        "lib/sl4/NLog.dll",
+        "lib/sl4/NLog.xml",
+        "lib/sl5/NLog.dll",
+        "lib/sl5/NLog.xml",
+        "lib/wp8/NLog.dll",
+        "lib/wp8/NLog.xml",
+        "lib/xamarinios10/NLog.dll",
+        "lib/xamarinios10/NLog.xml",
+        "nlog.4.7.10.nupkg.sha512",
         "nlog.nuspec"
       ]
     },
-    "PacketDotNet/1.4.8-pre20": {
-      "sha512": "q8Rk53ndx/oEtscVaTzacHxnlLZDc+OEMf1PoPoNdvy4ikBbQwrE+j4hE9ASBQUsvjmmQcAhBorRvxVopGfh3g==",
+    "PacketDotNet/1.2.0": {
+      "sha512": "lse8dxIjyZ7QzC7ua0YBfDZywDovkhr1BZ9J2erxUNdyrCoQsbI74JPnZfEiODIzoWmkRmkz76zZU4mguHc2zQ==",
       "type": "package",
-      "path": "packetdotnet/1.4.8-pre20",
+      "path": "packetdotnet/1.2.0",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
-        "lib/net472/PacketDotNet.dll",
-        "lib/net6.0/PacketDotNet.dll",
-        "lib/net7.0/PacketDotNet.dll",
-        "packetdotnet.1.4.8-pre20.nupkg.sha512",
+        "lib/net45/PacketDotNet.dll",
+        "lib/netstandard2.0/PacketDotNet.dll",
+        "packetdotnet.1.2.0.nupkg.sha512",
         "packetdotnet.nuspec"
       ]
     },
-    "SharpPcap/6.2.0": {
-      "sha512": "60DgMzopC5EEg2vFL+liB9ebspS6s/TGIremE40paEKSUI5T+Igl5DhIBG3gQYNCEs2nRGxOkygTaD90e0sTBw==",
+    "SharpPcap/6.0.0": {
+      "sha512": "KHbeSfVhnI3Eum35fhzWLB13IM9T6/Y2KPKwEum7UfX4yydTuXexcW+PDMjFfz6OPehVCDvQTi28EYcJDvORXg==",
       "type": "package",
-      "path": "sharppcap/6.2.0",
+      "path": "sharppcap/6.0.0",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
         "lib/netstandard2.0/SharpPcap.dll",
-        "sharppcap.6.2.0.nupkg.sha512",
+        "sharppcap.6.0.0.nupkg.sha512",
         "sharppcap.nuspec"
       ]
     },
@@ -167,76 +146,37 @@
         "version.txt"
       ]
     },
-    "System.Runtime.CompilerServices.Unsafe/6.0.0": {
-      "sha512": "/iUeP3tq1S0XdNNoMz5C9twLSrM/TH+qElHkXWaPvuNOt+99G75NrV0OS2EqHx5wMN7popYjpc8oTjC1y16DLg==",
+    "System.Runtime.CompilerServices.Unsafe/4.7.0": {
+      "sha512": "IpU1lcHz8/09yDr9N+Juc7SCgNUz+RohkCQI+KsWKR67XxpFr8Z6c8t1iENCXZuRuNCc4HBwme/MDHNVCwyAKg==",
       "type": "package",
-      "path": "system.runtime.compilerservices.unsafe/6.0.0",
+      "path": "system.runtime.compilerservices.unsafe/4.7.0",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
-        "Icon.png",
         "LICENSE.TXT",
         "THIRD-PARTY-NOTICES.TXT",
-        "buildTransitive/netcoreapp2.0/System.Runtime.CompilerServices.Unsafe.targets",
-        "buildTransitive/netcoreapp3.1/_._",
-        "lib/net461/System.Runtime.CompilerServices.Unsafe.dll",
-        "lib/net461/System.Runtime.CompilerServices.Unsafe.xml",
-        "lib/net6.0/System.Runtime.CompilerServices.Unsafe.dll",
-        "lib/net6.0/System.Runtime.CompilerServices.Unsafe.xml",
-        "lib/netcoreapp3.1/System.Runtime.CompilerServices.Unsafe.dll",
-        "lib/netcoreapp3.1/System.Runtime.CompilerServices.Unsafe.xml",
+        "lib/netcoreapp2.0/System.Runtime.CompilerServices.Unsafe.dll",
+        "lib/netcoreapp2.0/System.Runtime.CompilerServices.Unsafe.xml",
+        "lib/netstandard1.0/System.Runtime.CompilerServices.Unsafe.dll",
+        "lib/netstandard1.0/System.Runtime.CompilerServices.Unsafe.xml",
         "lib/netstandard2.0/System.Runtime.CompilerServices.Unsafe.dll",
         "lib/netstandard2.0/System.Runtime.CompilerServices.Unsafe.xml",
-        "system.runtime.compilerservices.unsafe.6.0.0.nupkg.sha512",
+        "ref/netstandard1.0/System.Runtime.CompilerServices.Unsafe.dll",
+        "ref/netstandard1.0/System.Runtime.CompilerServices.Unsafe.xml",
+        "ref/netstandard2.0/System.Runtime.CompilerServices.Unsafe.dll",
+        "ref/netstandard2.0/System.Runtime.CompilerServices.Unsafe.xml",
+        "system.runtime.compilerservices.unsafe.4.7.0.nupkg.sha512",
         "system.runtime.compilerservices.unsafe.nuspec",
-        "useSharedDesignerContext.txt"
-      ]
-    },
-    "System.Text.Encoding.CodePages/6.0.0": {
-      "sha512": "ZFCILZuOvtKPauZ/j/swhvw68ZRi9ATCfvGbk1QfydmcXBkIWecWKn/250UH7rahZ5OoDBaiAudJtPvLwzw85A==",
-      "type": "package",
-      "path": "system.text.encoding.codepages/6.0.0",
-      "files": [
-        ".nupkg.metadata",
-        ".signature.p7s",
-        "Icon.png",
-        "LICENSE.TXT",
-        "THIRD-PARTY-NOTICES.TXT",
-        "buildTransitive/netcoreapp2.0/System.Text.Encoding.CodePages.targets",
-        "buildTransitive/netcoreapp3.1/_._",
-        "lib/MonoAndroid10/_._",
-        "lib/MonoTouch10/_._",
-        "lib/net461/System.Text.Encoding.CodePages.dll",
-        "lib/net461/System.Text.Encoding.CodePages.xml",
-        "lib/net6.0/System.Text.Encoding.CodePages.dll",
-        "lib/net6.0/System.Text.Encoding.CodePages.xml",
-        "lib/netcoreapp3.1/System.Text.Encoding.CodePages.dll",
-        "lib/netcoreapp3.1/System.Text.Encoding.CodePages.xml",
-        "lib/netstandard2.0/System.Text.Encoding.CodePages.dll",
-        "lib/netstandard2.0/System.Text.Encoding.CodePages.xml",
-        "lib/xamarinios10/_._",
-        "lib/xamarinmac20/_._",
-        "lib/xamarintvos10/_._",
-        "lib/xamarinwatchos10/_._",
-        "runtimes/win/lib/net461/System.Text.Encoding.CodePages.dll",
-        "runtimes/win/lib/net461/System.Text.Encoding.CodePages.xml",
-        "runtimes/win/lib/net6.0/System.Text.Encoding.CodePages.dll",
-        "runtimes/win/lib/net6.0/System.Text.Encoding.CodePages.xml",
-        "runtimes/win/lib/netcoreapp3.1/System.Text.Encoding.CodePages.dll",
-        "runtimes/win/lib/netcoreapp3.1/System.Text.Encoding.CodePages.xml",
-        "runtimes/win/lib/netstandard2.0/System.Text.Encoding.CodePages.dll",
-        "runtimes/win/lib/netstandard2.0/System.Text.Encoding.CodePages.xml",
-        "system.text.encoding.codepages.6.0.0.nupkg.sha512",
-        "system.text.encoding.codepages.nuspec",
-        "useSharedDesignerContext.txt"
+        "useSharedDesignerContext.txt",
+        "version.txt"
       ]
     }
   },
   "projectFileDependencyGroups": {
     "net7.0-windows7.0": [
-      "NLog >= 5.3.4",
-      "PacketDotNet >= 1.4.8-pre20",
-      "SharpPcap >= 6.2.0"
+      "NLog >= 4.7.10",
+      "PacketDotNet >= 1.2.0",
+      "SharpPcap >= 6.0.0"
     ]
   },
   "packageFolders": {
@@ -283,15 +223,15 @@
         "dependencies": {
           "NLog": {
             "target": "Package",
-            "version": "[5.3.4, )"
+            "version": "[4.7.10, )"
           },
           "PacketDotNet": {
             "target": "Package",
-            "version": "[1.4.8-pre20, )"
+            "version": "[1.2.0, )"
           },
           "SharpPcap": {
             "target": "Package",
-            "version": "[6.2.0, )"
+            "version": "[6.0.0, )"
           }
         },
         "imports": [

@@ -1,9 +1,11 @@
 using System;
+using System.Linq;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using Dorothy.Models;
-using Dorothy.Views;
 using NLog;
 
 namespace Dorothy.Controllers
@@ -16,7 +18,7 @@ namespace Dorothy.Controllers
         private readonly Button _stopButton;
         private readonly Label _statusLabel;
         private readonly TextBox _logArea;
-        private readonly MainWindow _mainWindow;
+        private readonly Window _mainWindow;
 
         public MainController(
             NetworkStorm networkStorm,
@@ -24,7 +26,7 @@ namespace Dorothy.Controllers
             Button stopButton,
             Label statusLabel,
             TextBox logArea,
-            MainWindow mainWindow)
+            Window mainWindow)
         {
             _networkStorm = networkStorm ?? throw new ArgumentNullException(nameof(networkStorm));
             _startButton = startButton ?? throw new ArgumentNullException(nameof(startButton));
@@ -34,7 +36,7 @@ namespace Dorothy.Controllers
             _mainWindow = mainWindow ?? throw new ArgumentNullException(nameof(mainWindow));
         }
 
-        public async Task StartAttackAsync(string attackType, string targetIp, int targetPort, long megabitsPerSecond)
+        public async Task StartAttackAsync(AttackType attackType, string targetIp, int targetPort, long megabitsPerSecond)
         {
             if (_networkStorm.IsAttackRunning)
             {
@@ -49,18 +51,14 @@ namespace Dorothy.Controllers
             try
             {
                 await _networkStorm.StartAttackAsync(attackType, targetIp, targetPort, megabitsPerSecond);
-                Log($"Started {attackType} attack on {targetIp}:{targetPort} at {megabitsPerSecond} Mbps.");
             }
             catch (Exception ex)
             {
-                Logger.Error(ex, "Error starting attack.");
-                Log($"Error starting attack: {ex.Message}");
-            }
-            finally
-            {
+                Logger.Error(ex, "Attack failed to start.");
+                Log($"Attack failed to start: {ex.Message}");
                 _startButton.IsEnabled = true;
                 _stopButton.IsEnabled = false;
-                _statusLabel.Content = "Status: Ready";
+                _statusLabel.Content = "Status: Idle";
             }
         }
 
@@ -73,56 +71,49 @@ namespace Dorothy.Controllers
             }
 
             _stopButton.IsEnabled = false;
-            _startButton.IsEnabled = true;
             _statusLabel.Content = "Status: Stopping...";
 
-            try
-            {
-                await _networkStorm.StopAttackAsync();
-                Log("Attack stopped.");
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "Error stopping attack.");
-                Log($"Error stopping attack: {ex.Message}");
-            }
-            finally
-            {
-                _statusLabel.Content = "Status: Ready";
-            }
+            await _networkStorm.StopAttackAsync();
+
+            _startButton.IsEnabled = true;
+            _statusLabel.Content = "Status: Idle";
+            Log("Attack has been stopped.");
         }
 
-        public void UpdateNetworkInterface(string interfaceName)
+        public async Task UpdateNetworkInterface(string interfaceName)
         {
             try
             {
-                var networkInterface = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                var networkInterface = NetworkInterface.GetAllNetworkInterfaces()
                     .FirstOrDefault(ni => ni.Name.Equals(interfaceName, StringComparison.OrdinalIgnoreCase));
 
-                if (networkInterface != null)
+                if (networkInterface == null)
                 {
-                    var ipProps = networkInterface.GetIPProperties();
-                    var ipv4Addr = ipProps.UnicastAddresses
-                        .FirstOrDefault(ua => ua.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-
-                    if (ipv4Addr != null)
-                    {
-                        _mainWindow.SetSourceIp(ipv4Addr.Address.ToString());
-                    }
-
-                    System.Net.NetworkInformation.PhysicalAddress mac = networkInterface.GetPhysicalAddress();
-                    _mainWindow.SetSourceMac(mac.GetAddressBytes());
+                    Log($"No network interface found with name {interfaceName}.");
+                    return;
                 }
-                else
+
+                var unicastAddr = networkInterface.GetIPProperties().UnicastAddresses
+                    .FirstOrDefault(addr => addr.Address.AddressFamily == AddressFamily.InterNetwork);
+
+                if (unicastAddr == null)
                 {
-                    Log($"Network interface '{interfaceName}' not found.");
+                    Log($"No IPv4 address found for interface '{interfaceName}'.");
+                    return;
                 }
+
+                _networkStorm.SetSourceIp(unicastAddr.Address.ToString());
+                _networkStorm.SetSourceMac(networkInterface.GetPhysicalAddress().GetAddressBytes());
+
+                Log($"Updated network interface to '{interfaceName}' with IP {unicastAddr.Address} and MAC {BytesToMacString(networkInterface.GetPhysicalAddress().GetAddressBytes())}.");
             }
             catch (Exception ex)
             {
                 Logger.Error(ex, "Error updating network interface.");
                 Log($"Error updating network interface: {ex.Message}");
             }
+
+            await Task.CompletedTask;
         }
 
         private void Log(string message)
@@ -132,18 +123,20 @@ namespace Dorothy.Controllers
                 var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                 var logMessage = $"[{timestamp}] {message}\n";
 
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    _logArea.AppendText(logMessage);
-                    _logArea.ScrollToEnd();
-                });
+                _logArea.Dispatcher.Invoke(() => _logArea.AppendText(logMessage));
+                _logArea.Dispatcher.Invoke(() => _logArea.ScrollToEnd());
 
                 Logger.Debug(message);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Logging error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                Logger.Error(ex, "Logging failed.");
             }
+        }
+
+        private string BytesToMacString(byte[] macBytes)
+        {
+            return string.Join(":", macBytes.Select(b => b.ToString("X2")));
         }
     }
 } 

