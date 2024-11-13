@@ -24,7 +24,7 @@ namespace Dorothy.Views
             PopulateNetworkInterfaces();
         }
 
-        private void PopulateNetworkInterfaces()
+        private async void PopulateNetworkInterfaces()
         {
             var interfaces = NetworkInterface.GetAllNetworkInterfaces()
                 .Where(ni => ni.NetworkInterfaceType != NetworkInterfaceType.Loopback && ni.OperationalStatus == OperationalStatus.Up)
@@ -33,6 +33,11 @@ namespace Dorothy.Views
             NetworkInterfaceComboBox.ItemsSource = interfaces;
             NetworkInterfaceComboBox.DisplayMemberPath = "Name";
             NetworkInterfaceComboBox.SelectedIndex = 0;
+
+            if (NetworkInterfaceComboBox.SelectedItem is NetworkInterface selectedInterface)
+            {
+                await _mainController.UpdateNetworkInterface(selectedInterface.Name);
+            }
         }
 
         private async void StartButton_Click(object sender, RoutedEventArgs e)
@@ -58,7 +63,7 @@ namespace Dorothy.Views
 
             if (AttackTypeComboBox.SelectedItem is ComboBoxItem selectedAttackType)
             {
-                string attackTypeString = selectedAttackType.Content.ToString();
+                string attackTypeString = selectedAttackType.Content?.ToString() ?? "UDP Flood";
                 AttackType attackType = attackTypeString switch
                 {
                     "UDP Flood" => AttackType.UdpFlood,
@@ -80,13 +85,37 @@ namespace Dorothy.Views
             await _mainController.StopAttackAsync();
         }
 
-        private void PingButton_Click(object sender, RoutedEventArgs e)
+        private async void PingButton_Click(object sender, RoutedEventArgs e)
         {
-            // Implement the ping logic here
-            // For example, you could call a method in _mainController to perform a ping
+            string targetIp = TargetIpTextBox.Text.Trim();
+            if (string.IsNullOrWhiteSpace(targetIp))
+            {
+                MessageBox.Show("Please enter a valid Target IP.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            try
+            {
+                bool pingSuccess = await _networkStorm.PingHostAsync(targetIp);
+                if (pingSuccess)
+                {
+                    _mainController.Log($"Ping to {targetIp} successful.");
+                    MessageBox.Show($"Ping to {targetIp} succeeded.", "Ping Result", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    _mainController.Log($"Ping to {targetIp} failed.");
+                    MessageBox.Show($"Ping to {targetIp} failed.", "Ping Result", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                _mainController.Log($"Ping operation failed: {ex.Message}");
+                MessageBox.Show($"Ping operation failed: {ex.Message}", "Ping Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
-        private void NetworkInterfaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async void NetworkInterfaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             var selectedInterface = NetworkInterfaceComboBox.SelectedItem as NetworkInterface;
             if (selectedInterface != null)
@@ -98,6 +127,9 @@ namespace Dorothy.Views
 
                 SourceIpTextBox.Text = ipv4Address;
                 SourceMacTextBox.Text = selectedInterface.GetPhysicalAddress().ToString();
+
+                // Update the NetworkStorm with the selected interface details
+                await _mainController.UpdateNetworkInterface(selectedInterface.Name);
             }
             else
             {
@@ -121,28 +153,6 @@ namespace Dorothy.Views
                 }
             }
             base.OnClosing(e);
-        }
-
-        public void Log(string message)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                LogTextBox.AppendText($"{DateTime.Now}: {message}\n");
-                LogTextBox.ScrollToEnd();
-            });
-        }
-
-        public void UpdateStatus(string status)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                StatusLabel.Content = $"Status: {status}";
-            });
-        }
-
-        private string BytesToMacString(byte[] macBytes)
-        {
-            return string.Join(":", macBytes.Select(b => b.ToString("X2")));
         }
     }
 } 

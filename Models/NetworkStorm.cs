@@ -29,6 +29,8 @@ namespace Dorothy.Models
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
 
         public bool IsAttackRunning => _isAttackRunning;
+        public string SourceIp => _sourceIp;
+        public byte[] SourceMac => _sourceMac;
 
         public NetworkStorm(TextBox logArea)
         {
@@ -59,6 +61,12 @@ namespace Dorothy.Models
             {
                 Log("Attack already in progress.");
                 return;
+            }
+
+            if (string.IsNullOrWhiteSpace(_sourceIp) || _sourceMac.Length != 6)
+            {
+                Log("Source IP or MAC is not set. Cannot start attack.");
+                throw new Exception("Source IP or MAC is not set.");
             }
 
             _cancellationSource = new CancellationTokenSource();
@@ -110,20 +118,19 @@ namespace Dorothy.Models
                             await tcpFlood.StartAsync();
                         }
                         break;
-                    default:
-                        throw new ArgumentException($"Unsupported attack type: {attackType}", nameof(attackType));
                 }
+
+                Log("Attack finished successfully.");
             }
             catch (Exception ex)
             {
-                Log($"Error during attack: {ex.Message}");
                 Logger.Error(ex, "Attack failed.");
+                Log($"Attack failed: {ex.Message}");
             }
             finally
             {
                 _isAttackRunning = false;
                 _cancellationSource.Dispose();
-                Log("Attack finished.");
             }
         }
 
@@ -136,13 +143,13 @@ namespace Dorothy.Models
             }
 
             _cancellationSource?.Cancel();
+            Log("Stopping attack...");
 
             // Allow some time for the attack to stop gracefully
             await Task.Delay(500);
 
             _cancellationSource?.Dispose();
             _isAttackRunning = false;
-
             Log("Attack has been stopped.");
         }
 
@@ -157,36 +164,49 @@ namespace Dorothy.Models
                     throw new Exception($"Target IP {targetIp} is not reachable.");
                 }
 
-                // Resolve source IP to interface
-                NetworkInterface? sourceInterface = NetworkInterface.GetAllNetworkInterfaces()
-                    .FirstOrDefault(ni =>
-                    {
-                        var ipv4Props = ni.GetIPProperties().UnicastAddresses
-                            .FirstOrDefault(ua => ua.Address.ToString() == sourceIp);
-                        return ipv4Props != null && ni.OperationalStatus == OperationalStatus.Up;
-                    });
+                // Get source IP bytes
+                var srcBytes = sourceIp.Split('.')
+                    .Select(byte.Parse)
+                    .ToArray();
 
-                if (sourceInterface == null)
+                // Get destination IP bytes
+                var dstBytes = targetIp.Split('.')
+                    .Select(byte.Parse)
+                    .ToArray();
+
+                // Check if we need to reverse byte order based on architecture
+                if (!BitConverter.IsLittleEndian)
                 {
-                    throw new Exception($"No network interface found with source IP {sourceIp}.");
+                    Array.Reverse(srcBytes);
+                    Array.Reverse(dstBytes);
                 }
 
-                // Convert IP addresses to integers (network byte order)
-                IPAddress srcIp = IPAddress.Parse(sourceIp);
-                IPAddress dstIp = IPAddress.Parse(targetIp);
-                uint srcIpInt = BitConverter.ToUInt32(srcIp.GetAddressBytes().Reverse().ToArray(), 0);
-                uint dstIpInt = BitConverter.ToUInt32(dstIp.GetAddressBytes().Reverse().ToArray(), 0);
+                int srcIpInt = BitConverter.ToInt32(srcBytes, 0);
+                int dstIpInt = BitConverter.ToInt32(dstBytes, 0);
 
                 byte[] macAddr = new byte[6];
                 int macAddrLen = macAddr.Length;
 
-                int result = SendARP((int)dstIpInt, (int)srcIpInt, macAddr, ref macAddrLen);
-                if (result != 0)
+                int result = SendARP(dstIpInt, srcIpInt, macAddr, ref macAddrLen);
+                if (result == 1168) // ERROR_NOT_FOUND
+                {
+                    Logger.Warn($"Target IP {targetIp} is not in the local ARP cache. Attempting to populate cache...");
+                    
+                    // Try to populate ARP cache by sending a ping
+                    await PingHostAsync(targetIp);
+                    
+                    // Retry SendARP
+                    result = SendARP(dstIpInt, srcIpInt, macAddr, ref macAddrLen);
+                    if (result != 0)
+                    {
+                        throw new Exception($"SendARP failed with error code {result} after retry.");
+                    }
+                }
+                else if (result != 0)
                 {
                     throw new Exception($"SendARP failed with error code {result}.");
                 }
 
-                // Convert MAC address bytes to string format
                 string macAddress = BitConverter.ToString(macAddr, 0, macAddrLen).Replace("-", ":");
                 return macAddress;
             }
@@ -210,7 +230,7 @@ namespace Dorothy.Models
             }
         }
 
-        private async Task<bool> PingHostAsync(string host)
+        public async Task<bool> PingHostAsync(string host)
         {
             using (var ping = new Ping())
             {

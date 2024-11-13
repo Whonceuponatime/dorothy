@@ -1,61 +1,49 @@
 using System;
 using System.Linq;
 using System.Net.NetworkInformation;
-using System.Net.Sockets;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Controls;
-using Dorothy.Models;
 using NLog;
+using Dorothy.Models;
+using System.Windows;
 
 namespace Dorothy.Controllers
 {
     public class MainController
     {
-        private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
         private readonly NetworkStorm _networkStorm;
         private readonly Button _startButton;
         private readonly Button _stopButton;
         private readonly Label _statusLabel;
-        private readonly TextBox _logArea;
+        private readonly TextBox _logTextBox;
         private readonly Window _mainWindow;
 
-        public MainController(
-            NetworkStorm networkStorm,
-            Button startButton,
-            Button stopButton,
-            Label statusLabel,
-            TextBox logArea,
-            Window mainWindow)
+        private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
+
+        public MainController(NetworkStorm networkStorm, Button startButton, Button stopButton, Label statusLabel, TextBox logTextBox, Window mainWindow)
         {
-            _networkStorm = networkStorm ?? throw new ArgumentNullException(nameof(networkStorm));
-            _startButton = startButton ?? throw new ArgumentNullException(nameof(startButton));
-            _stopButton = stopButton ?? throw new ArgumentNullException(nameof(stopButton));
-            _statusLabel = statusLabel ?? throw new ArgumentNullException(nameof(statusLabel));
-            _logArea = logArea ?? throw new ArgumentNullException(nameof(logArea));
-            _mainWindow = mainWindow ?? throw new ArgumentNullException(nameof(mainWindow));
+            _networkStorm = networkStorm;
+            _startButton = startButton;
+            _stopButton = stopButton;
+            _statusLabel = statusLabel;
+            _logTextBox = logTextBox;
+            _mainWindow = mainWindow;
         }
 
         public async Task StartAttackAsync(AttackType attackType, string targetIp, int targetPort, long megabitsPerSecond)
         {
-            if (_networkStorm.IsAttackRunning)
-            {
-                Log("Attack already in progress.");
-                return;
-            }
-
-            _startButton.IsEnabled = false;
-            _stopButton.IsEnabled = true;
-            _statusLabel.Content = "Status: Attacking";
-
             try
             {
+                _startButton.IsEnabled = false;
+                _stopButton.IsEnabled = true;
+                _statusLabel.Content = "Status: Attacking";
+
                 await _networkStorm.StartAttackAsync(attackType, targetIp, targetPort, megabitsPerSecond);
             }
             catch (Exception ex)
             {
-                Logger.Error(ex, "Attack failed to start.");
-                Log($"Attack failed to start: {ex.Message}");
+                Logger.Error(ex, "Attack failed.");
+                Log($"Attack failed: {ex.Message}");
                 _startButton.IsEnabled = true;
                 _stopButton.IsEnabled = false;
                 _statusLabel.Content = "Status: Idle";
@@ -64,20 +52,24 @@ namespace Dorothy.Controllers
 
         public async Task StopAttackAsync()
         {
-            if (!_networkStorm.IsAttackRunning)
+            try
             {
-                Log("No attack is running.");
-                return;
+                _stopButton.IsEnabled = false;
+                _statusLabel.Content = "Status: Stopping...";
+
+                await _networkStorm.StopAttackAsync();
+
+                _startButton.IsEnabled = true;
+                _statusLabel.Content = "Status: Idle";
+                Log("Attack has been stopped.");
             }
-
-            _stopButton.IsEnabled = false;
-            _statusLabel.Content = "Status: Stopping...";
-
-            await _networkStorm.StopAttackAsync();
-
-            _startButton.IsEnabled = true;
-            _statusLabel.Content = "Status: Idle";
-            Log("Attack has been stopped.");
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Error stopping attack.");
+                Log($"Error stopping attack: {ex.Message}");
+                _stopButton.IsEnabled = true;
+                _statusLabel.Content = "Status: Idle";
+            }
         }
 
         public async Task UpdateNetworkInterface(string interfaceName)
@@ -94,7 +86,7 @@ namespace Dorothy.Controllers
                 }
 
                 var unicastAddr = networkInterface.GetIPProperties().UnicastAddresses
-                    .FirstOrDefault(addr => addr.Address.AddressFamily == AddressFamily.InterNetwork);
+                    .FirstOrDefault(addr => addr.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
 
                 if (unicastAddr == null)
                 {
@@ -102,36 +94,26 @@ namespace Dorothy.Controllers
                     return;
                 }
 
-                _networkStorm.SetSourceIp(unicastAddr.Address.ToString());
-                _networkStorm.SetSourceMac(networkInterface.GetPhysicalAddress().GetAddressBytes());
+                string newIp = unicastAddr.Address.ToString();
+                byte[] newMac = networkInterface.GetPhysicalAddress().GetAddressBytes();
 
-                Log($"Updated network interface to '{interfaceName}' with IP {unicastAddr.Address} and MAC {BytesToMacString(networkInterface.GetPhysicalAddress().GetAddressBytes())}.");
+                if (_networkStorm.SourceIp != newIp || !_networkStorm.SourceMac.SequenceEqual(newMac))
+                {
+                    _networkStorm.SetSourceIp(newIp);
+                    _networkStorm.SetSourceMac(newMac);
+                    Log($"Updated network interface to '{interfaceName}' with IP {newIp} and MAC {BytesToMacString(newMac)}.");
+                }
             }
             catch (Exception ex)
             {
                 Logger.Error(ex, "Error updating network interface.");
                 Log($"Error updating network interface: {ex.Message}");
             }
-
-            await Task.CompletedTask;
         }
 
-        private void Log(string message)
+        public void Log(string message)
         {
-            try
-            {
-                var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                var logMessage = $"[{timestamp}] {message}\n";
-
-                _logArea.Dispatcher.Invoke(() => _logArea.AppendText(logMessage));
-                _logArea.Dispatcher.Invoke(() => _logArea.ScrollToEnd());
-
-                Logger.Debug(message);
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "Logging failed.");
-            }
+            _networkStorm.Log(message);
         }
 
         private string BytesToMacString(byte[] macBytes)

