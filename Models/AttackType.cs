@@ -4,6 +4,12 @@ namespace Dorothy.Models
     {
         UdpFlood,
         IcmpFlood,
-        TcpSynFlood
+        SynFlood,
+        HttpFlood
+    }
+    public enum AdvancedAttackType
+    {
+        ArpSpoof,
+        MacFlood
     }
 } 

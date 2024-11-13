@@ -6,6 +6,9 @@ using System.Windows.Controls;
 using NLog;
 using Dorothy.Models;
 using System.Windows;
+using System.Text.RegularExpressions;
+using System.Net;
+using System.Runtime.InteropServices;
 
 namespace Dorothy.Controllers
 {
@@ -17,8 +20,10 @@ namespace Dorothy.Controllers
         private readonly Label _statusLabel;
         private readonly TextBox _logTextBox;
         private readonly Window _mainWindow;
+        private readonly ILogger _logger;
 
-        private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
+        [DllImport("iphlpapi.dll", ExactSpelling = true)]
+        private static extern int SendARP(Int32 destIp, Int32 srcIp, byte[] macAddr, ref uint macAddrLen);
 
         public MainController(NetworkStorm networkStorm, Button startButton, Button stopButton, Label statusLabel, TextBox logTextBox, Window mainWindow)
         {
@@ -28,6 +33,7 @@ namespace Dorothy.Controllers
             _statusLabel = statusLabel;
             _logTextBox = logTextBox;
             _mainWindow = mainWindow;
+            _logger = LogManager.GetCurrentClassLogger();
         }
 
         public async Task StartAttackAsync(AttackType attackType, string targetIp, int targetPort, long megabitsPerSecond)
@@ -42,7 +48,7 @@ namespace Dorothy.Controllers
             }
             catch (Exception ex)
             {
-                Logger.Error(ex, "Attack failed.");
+                _logger.Error(ex, "Attack failed.");
                 Log($"Attack failed: {ex.Message}");
                 _startButton.IsEnabled = true;
                 _stopButton.IsEnabled = false;
@@ -58,67 +64,92 @@ namespace Dorothy.Controllers
                 _statusLabel.Content = "Status: Stopping...";
 
                 await _networkStorm.StopAttackAsync();
-
+                _startButton.IsEnabled = true;
+                _statusLabel.Content = "Status: Ready";
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to stop attack.");
+                Log($"Failed to stop attack: {ex.Message}");
+                _stopButton.IsEnabled = false;
                 _startButton.IsEnabled = true;
                 _statusLabel.Content = "Status: Idle";
-                Log("Attack has been stopped.");
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "Error stopping attack.");
-                Log($"Error stopping attack: {ex.Message}");
-                _stopButton.IsEnabled = true;
-                _statusLabel.Content = "Status: Idle";
-            }
-        }
-
-        public async Task UpdateNetworkInterface(string interfaceName)
-        {
-            try
-            {
-                var networkInterface = NetworkInterface.GetAllNetworkInterfaces()
-                    .FirstOrDefault(ni => ni.Name.Equals(interfaceName, StringComparison.OrdinalIgnoreCase));
-
-                if (networkInterface == null)
-                {
-                    Log($"No network interface found with name {interfaceName}.");
-                    return;
-                }
-
-                var unicastAddr = networkInterface.GetIPProperties().UnicastAddresses
-                    .FirstOrDefault(addr => addr.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-
-                if (unicastAddr == null)
-                {
-                    Log($"No IPv4 address found for interface '{interfaceName}'.");
-                    return;
-                }
-
-                string newIp = unicastAddr.Address.ToString();
-                byte[] newMac = networkInterface.GetPhysicalAddress().GetAddressBytes();
-
-                if (_networkStorm.SourceIp != newIp || !_networkStorm.SourceMac.SequenceEqual(newMac))
-                {
-                    _networkStorm.SetSourceIp(newIp);
-                    _networkStorm.SetSourceMac(newMac);
-                    Log($"Updated network interface to '{interfaceName}' with IP {newIp} and MAC {BytesToMacString(newMac)}.");
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "Error updating network interface.");
-                Log($"Error updating network interface: {ex.Message}");
             }
         }
 
         public void Log(string message)
         {
-            _networkStorm.Log(message);
+            _logTextBox.Dispatcher.Invoke(() =>
+            {
+                _logTextBox.AppendText(message + Environment.NewLine);
+                _logTextBox.ScrollToEnd();
+            });
         }
 
-        private string BytesToMacString(byte[] macBytes)
+        public async Task<string> GetMacAddressAsync(string ipAddress)
         {
-            return string.Join(":", macBytes.Select(b => b.ToString("X2")));
+            try
+            {
+                var destIp = BitConverter.ToInt32(IPAddress.Parse(ipAddress).GetAddressBytes(), 0);
+                var srcIp = 0;
+                var macAddr = new byte[6];
+                var macAddrLen = (uint)macAddr.Length;
+
+                var result = SendARP(destIp, srcIp, macAddr, ref macAddrLen);
+                if (result != 0)
+                {
+                    throw new Exception($"Failed to get MAC address. Error code: {result}");
+                }
+
+                return BitConverter.ToString(macAddr, 0, (int)macAddrLen).Replace("-", ":");
+            }
+            catch (Exception ex)
+            {
+                Log($"Error retrieving MAC address: {ex.Message}");
+                _logger.Error(ex, "Error retrieving MAC address.");
+                return "Error";
+            }
         }
+
+        public async Task<PingResult> PingHostAsync(string ipAddress)
+        {
+            try
+            {
+                using var ping = new Ping();
+                var reply = await ping.SendPingAsync(ipAddress);
+                return new PingResult
+                {
+                    Success = reply.Status == IPStatus.Success,
+                    RoundtripTime = reply.RoundtripTime
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, $"Failed to ping {ipAddress}");
+                return new PingResult { Success = false };
+            }
+        }
+
+        public async Task ApplyAdvancedSettingsAsync(string additionalAttackType, bool enableLogging, string customParameters)
+        {
+            try
+            {
+                // Implement advanced settings logic here
+                Log($"Advanced Settings Applied: Additional Attack Type - {additionalAttackType}, Custom Parameters - {customParameters}");
+                
+                await Task.CompletedTask;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to apply advanced settings.");
+                throw;
+            }
+        }
+    }
+
+    public class PingResult
+    {
+        public bool Success { get; set; }
+        public long RoundtripTime { get; set; }
     }
 } 

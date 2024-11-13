@@ -1,87 +1,273 @@
 <Window x:Class="Dorothy.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Network Attack Simulator - SeaNet" Height="700" Width="800"
-        MinHeight="700" MinWidth="800">
-    
+        Title="Network Attack Simulator - SeaNet" 
+        Height="700" Width="1000" 
+        WindowState="Maximized">
     <Window.Resources>
-        <ResourceDictionary Source="/Dorothy;component/Resources/Styles.xaml"/>
+        <!-- Default TextBox Style -->
+        <Style x:Key="DefaultTextBox" TargetType="TextBox">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Default Label Style -->
+        <Style x:Key="DefaultLabel" TargetType="Label">
+            <Setter Property="FontSize" Value="14"/>
+        </Style>
+
+        <!-- Default Button Style -->
+        <Style x:Key="DefaultButton" TargetType="Button">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Padding" Value="5,2"/>
+        </Style>
     </Window.Resources>
 
-    <StackPanel Margin="15">
-        <GroupBox Header="Attack Configuration" Margin="0,0,0,10">
-            <Grid Margin="10">
+    <Grid Margin="0">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" /> <!-- Left Panel -->
+            <ColumnDefinition Width="*" /> <!-- Right Panel -->
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/> <!-- Header or any top element if needed -->
+            <RowDefinition Height="*"/>    <!-- Main Content -->
+            <RowDefinition Height="Auto"/> <!-- Status Label -->
+        </Grid.RowDefinitions>
+
+        <!-- Left Panel: Basic and Advanced Settings -->
+        <ScrollViewer Grid.Column="0" Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="10">
+                <!-- Settings Tabs -->
+                <TabControl>
+                    <!-- Basic Settings Tab -->
+                    <TabItem Header="Basic Settings">
+                        <StackPanel Margin="10">
+                            <!-- Network Information Section (Left Panel) -->
+                            <Grid Grid.Column="0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <GroupBox Header="Network Information" Margin="5">
+                                    <Grid Margin="5">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Network Interface ComboBox -->
+                                        <Label Grid.Row="0" Grid.Column="0" Content="Network Interface:" 
+                                               Style="{StaticResource DefaultLabel}" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="NetworkInterfaceComboBox" Grid.Row="0" Grid.Column="1" 
+                                                  Height="25" Margin="0,5"/>
+
+                                        <!-- Source IP TextBox -->
+                                        <Label Grid.Row="1" Grid.Column="0" Content="Source IP:" 
+                                               Style="{StaticResource DefaultLabel}" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="SourceIpTextBox" Grid.Row="1" Grid.Column="1" 
+                                                 Height="25" FontSize="14" Padding="5" 
+                                                 IsReadOnly="True" Style="{StaticResource DefaultTextBox}" />
+
+                                        <!-- Source MAC TextBox -->
+                                        <Label Grid.Row="2" Grid.Column="0" Content="Source MAC:" 
+                                               Style="{StaticResource DefaultLabel}" VerticalAlignment="Center"/>
+                                        <TextBox x:Name="SourceMacTextBox" Grid.Row="2" Grid.Column="1" 
+                                                 Height="25" FontSize="14" Padding="5" 
+                                                 IsReadOnly="True" Style="{StaticResource DefaultTextBox}" />
+                                    </Grid>
+                                </GroupBox>
+                            </Grid>
+
+                            <!-- Target Information Section (Middle Panel) -->
+                            <Grid Grid.Column="1">
+                                <GroupBox Header="Target Information" Margin="5">
+                                    <Grid Margin="5">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Target IP Row -->
+                                        <Label Grid.Row="0" Grid.Column="0" Content="Target IP:" 
+                                               Style="{StaticResource DefaultLabel}"/>
+                                        <TextBox x:Name="TargetIpTextBox" Grid.Row="0" Grid.Column="1" 
+                                                 Height="25" Margin="0,5"/>
+                                        <Button x:Name="PingButton" Grid.Row="0" Grid.Column="2"
+                                                Content="Ping" Margin="5,0,0,0" Width="80"
+                                                Click="LoadInformationButton_Click"/>
+
+                                        <!-- Target MAC Row -->
+                                        <Label Grid.Row="1" Grid.Column="0" Content="Target MAC:" 
+                                               Style="{StaticResource DefaultLabel}"/>
+                                        <TextBox x:Name="TargetMacTextBox" Grid.Row="1" Grid.Column="1" 
+                                                 Height="25" Margin="0,5" IsReadOnly="True"/>
+                                        <Button x:Name="GetMacButton" Grid.Row="1" Grid.Column="2"
+                                                Content="Get MAC" Margin="5,0,0,0" Width="80"
+                                                Click="GetMacButton_Click"/>
+
+                                        <!-- Target Port Row -->
+                                        <Label Grid.Row="2" Grid.Column="0" Content="Target Port:" 
+                                               Style="{StaticResource DefaultLabel}"/>
+                                        <TextBox x:Name="TargetPortTextBox" Grid.Row="2" Grid.Column="1" 
+                                                 Height="25" Margin="0,5"/>
+                                    </Grid>
+                                </GroupBox>
+                            </Grid>
+
+                            <!-- Attack Type GroupBox -->
+                            <GroupBox Header="Attack Type" Margin="0,0,0,10">
+                                <Grid Margin="10">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200"/>
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Label Grid.Row="0" Grid.Column="0" Content="Attack Type:" 
+                                           Style="{StaticResource DefaultLabel}" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="AttackTypeComboBox" Grid.Row="0" Grid.Column="1" 
+                                              Height="25" Margin="0,5">
+                                        <ComboBoxItem Content="TCP SYN Flood"/>
+                                        <ComboBoxItem Content="UDP Flood"/>
+                                        <ComboBoxItem Content="ICMP Flood"/>
+                                        <ComboBoxItem Content="HTTP Flood"/>
+                                    </ComboBox>
+
+                                    <!-- Megabits Per Second TextBox -->
+                                    <Label Grid.Row="1" Grid.Column="0" Content="Megabits Per Second (Mbps):" 
+                                           Style="{StaticResource DefaultLabel}" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="MegabitsPerSecondTextBox" Grid.Row="1" Grid.Column="1" 
+                                             Height="25" FontSize="14" Padding="5" 
+                                             VerticalAlignment="Center" 
+                                             Style="{StaticResource DefaultTextBox}" />
+                                </Grid>
+                            </GroupBox>
+
+                            <!-- Start and Stop Buttons -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" Margin="10,0,0,0">
+                                <Button x:Name="StartButton" Content="Start" Width="100" Height="35" 
+                                        Style="{StaticResource DefaultButton}" 
+                                        Click="StartButton_Click"/>
+                                <Button x:Name="StopButton" Content="Stop" Width="100" Height="35" 
+                                        Style="{StaticResource DefaultButton}" 
+                                        Click="StopButton_Click" IsEnabled="False"/>
+                            </StackPanel>
+
+                            <!-- Attack Log TextBox -->
+                            <GroupBox Header="Attack Log" Margin="0,10,0,10">
+                                <Grid Margin="10">
+                                    <TextBox x:Name="LogTextBox" 
+                                             Height="200" 
+                                             FontSize="14" 
+                                             Padding="5" 
+                                             VerticalScrollBarVisibility="Auto" 
+                                             IsReadOnly="True" 
+                                             TextWrapping="Wrap" 
+                                             Style="{StaticResource DefaultTextBox}" 
+                                             Margin="0,5,0,0" />
+                                </Grid>
+                            </GroupBox>
+
+                            <!-- Status Label -->
+                            <Label x:Name="StatusLabel" 
+                                   Content="Status: Ready" 
+                                   HorizontalAlignment="Right" 
+                                   Style="{StaticResource DefaultLabel}" Margin="0,10,0,0"/>
+                        </StackPanel>
+                    </TabItem>
+
+                    <!-- Advanced Settings Tab -->
+                    <TabItem Header="Advanced Settings">
+                        <StackPanel Margin="10">
+                            <!-- Advanced Settings Controls -->
+                            <GroupBox Header="Advanced Attack Configuration" Margin="0,0,0,10">
+                                <Grid Margin="10">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200"/>
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Label Grid.Row="0" Grid.Column="0" Content="Additional Attack Type:" 
+                                           Style="{StaticResource DefaultLabel}" VerticalAlignment="Center"/>
+                                    <ComboBox x:Name="AdvancedAttackTypeComboBox" Grid.Row="0" Grid.Column="1" 
+                                              Height="25" FontSize="14" Padding="5" 
+                                              VerticalAlignment="Center">
+                                        <ComboBoxItem Content="ARP Spoofing"/>
+                                        <ComboBoxItem Content="Unicast Attack"/>
+                                        <ComboBoxItem Content="Multicast Attack"/>
+                                        <ComboBoxItem Content="Broadcast Attack"/>
+                                    </ComboBox>
+
+                                    <Label Grid.Row="1" Grid.Column="0" Content="Enable Logging:" 
+                                           Style="{StaticResource DefaultLabel}" VerticalAlignment="Center"/>
+                                    <CheckBox x:Name="EnableLoggingCheckBox" Grid.Row="1" Grid.Column="1" 
+                                              VerticalAlignment="Center"/>
+
+                                    <Label Grid.Row="2" Grid.Column="0" Content="Custom Parameters:" 
+                                           Style="{StaticResource DefaultLabel}" VerticalAlignment="Top"/>
+                                    <TextBox x:Name="CustomParametersTextBox" Grid.Row="2" Grid.Column="1" 
+                                             Height="60" FontSize="14" Padding="5" 
+                                             VerticalAlignment="Top" 
+                                             TextWrapping="Wrap" 
+                                             AcceptsReturn="True"
+                                             Style="{StaticResource DefaultTextBox}" />
+                                </Grid>
+                            </GroupBox>
+
+                            <!-- Apply Settings Button -->
+                            <Button Content="Apply Settings" Width="150" Height="35" 
+                                    HorizontalAlignment="Left" Margin="0,10,0,0" 
+                                    Style="{StaticResource DefaultButton}" 
+                                    Click="ApplyAdvancedSettings_Click"/>
+                        </StackPanel>
+                    </TabItem>
+                </TabControl>
+            </StackPanel>
+        </ScrollViewer>
+            <!-- Statistics Section -->
+    <StackPanel Grid.Column="1" Grid.Row="1" Margin="10">
+        <GroupBox Header="Statistics" Margin="5">
+            <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
 
-                <Label Grid.Row="0" Grid.Column="0" Content="Attack Type:" Style="{StaticResource DefaultLabel}"/>
-                <ComboBox x:Name="AttackTypeComboBox" Grid.Row="0" Grid.Column="1" Margin="5">
-                    <ComboBoxItem Content="UDP Flood"/>
-                    <ComboBoxItem Content="ICMP Flood"/>
-                    <ComboBoxItem Content="TCP SYN Flood"/>
-                </ComboBox>
+                <!-- Logo at the top of the statistics panel -->
+                <Image Source="/Resources/logo.png" 
+                       Height="100" Width="100" 
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Top"
+                       Margin="10"/>
 
-                <Label Grid.Row="1" Grid.Column="0" Content="Target IP:" Style="{StaticResource DefaultLabel}"/>
-                <TextBox x:Name="TargetIpTextBox" Grid.Row="1" Grid.Column="1" Style="{StaticResource DefaultTextBox}"/>
-
-                <Label Grid.Row="2" Grid.Column="0" Content="Target Port:" Style="{StaticResource DefaultLabel}"/>
-                <TextBox x:Name="TargetPortTextBox" Grid.Row="2" Grid.Column="1" Style="{StaticResource DefaultTextBox}"/>
-
-                <Label Grid.Row="3" Grid.Column="0" Content="Mbps:" Style="{StaticResource DefaultLabel}"/>
-                <TextBox x:Name="MegabitsPerSecondTextBox" Grid.Row="3" Grid.Column="1" Style="{StaticResource DefaultTextBox}"/>
+                <!-- Statistics content -->
+                <StackPanel Grid.Row="1">
+                    <!-- Add statistics-related UI elements here -->
+                </StackPanel>
             </Grid>
-        </GroupBox>
-
-        <GroupBox Header="Network Interface" Margin="0,0,0,10">
-            <Grid Margin="10">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <Label Grid.Row="0" Grid.Column="0" Content="Interface:" Style="{StaticResource DefaultLabel}"/>
-                <ComboBox x:Name="NetworkInterfaceComboBox" Grid.Row="0" Grid.Column="1" 
-                          SelectionChanged="NetworkInterfaceComboBox_SelectionChanged" Margin="5"/>
-
-                <Label Grid.Row="1" Grid.Column="0" Content="Source IP:" Style="{StaticResource DefaultLabel}"/>
-                <TextBox x:Name="SourceIpTextBox" Grid.Row="1" Grid.Column="1" IsReadOnly="True" 
-                         Style="{StaticResource DefaultTextBox}"/>
-
-                <Label Grid.Row="2" Grid.Column="0" Content="MAC Address:" Style="{StaticResource DefaultLabel}"/>
-                <TextBox x:Name="SourceMacTextBox" Grid.Row="2" Grid.Column="1" IsReadOnly="True" 
-                         Style="{StaticResource DefaultTextBox}"/>
-            </Grid>
-        </GroupBox>
-
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
-            <Button x:Name="StartButton" Content="Start Attack" Style="{StaticResource DefaultButton}" Click="StartButton_Click"/>
-            <Button x:Name="StopButton" Content="Stop Attack" IsEnabled="False" Style="{StaticResource DefaultButton}" Click="StopButton_Click"/>
-            <Button x:Name="PingButton" Content="Ping Target" Style="{StaticResource DefaultButton}" Click="PingButton_Click"/>
-            <TextBlock x:Name="PingResultText" Margin="10,0,0,0" VerticalAlignment="Center"/>
-        </StackPanel>
-
-        <Label x:Name="StatusLabel" Content="Status: Ready" HorizontalAlignment="Center"/>
-
-        <GroupBox Header="Log Output" Margin="0,10,0,0">
-            <TextBox x:Name="LogTextBox" 
-                     Height="300" 
-                     IsReadOnly="True" 
-                     VerticalScrollBarVisibility="Auto"
-                     TextWrapping="Wrap"
-                     Style="{StaticResource DefaultTextBox}"/>
         </GroupBox>
     </StackPanel>
+    </Grid>
 </Window> 

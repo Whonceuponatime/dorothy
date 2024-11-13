@@ -1,0 +1,12 @@
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Debug\net7.0-windows\Dorothy.csproj.AssemblyReference.cache
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Debug\net7.0-windows\Views\MainWindow.baml
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Debug\net7.0-windows\App.baml
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Debug\net7.0-windows\Views\MainWindow.g.cs
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Debug\net7.0-windows\App.g.cs
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Debug\net7.0-windows\Dorothy_MarkupCompile.cache
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Debug\net7.0-windows\Dorothy.g.resources
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Debug\net7.0-windows\Dorothy.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Debug\net7.0-windows\Dorothy.AssemblyInfoInputs.cache
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Debug\net7.0-windows\Dorothy.AssemblyInfo.cs
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Debug\net7.0-windows\Dorothy.csproj.CoreCompileInputs.cache
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Debug\net7.0-windows\Dorothy.sourcelink.json
