@@ -105,9 +105,6 @@ namespace Dorothy.Models
                             await tcpFlood.StartAsync();
                         }
                         break;
-                    case AttackType.HttpFlood:
-                        Log("HTTP Flood attack not implemented yet.");
-                        break;
                     default:
                         Log("Unknown Attack Type.");
                         break;
@@ -180,5 +177,19 @@ namespace Dorothy.Models
 
         [DllImport("iphlpapi.dll", ExactSpelling = true)]
         private static extern int SendARP(int destIp, int srcIp, byte[] macAddr, ref uint macAddrLen);
+
+        public async Task StartBroadcastAttackAsync(string targetIp, int targetPort, long megabitsPerSecond)
+        {
+            // Placeholder for broadcast attack implementation
+            Logger.Info($"Starting broadcast attack (placeholder) - Target: {targetIp}:{targetPort}, Rate: {megabitsPerSecond}Mbps");
+            await Task.CompletedTask;
+        }
+
+        public async Task StartMulticastAttackAsync(string targetIp, int targetPort, long megabitsPerSecond)
+        {
+            // Placeholder for multicast attack implementation
+            Logger.Info($"Starting multicast attack (placeholder) - Target: {targetIp}:{targetPort}, Rate: {megabitsPerSecond}Mbps");
+            await Task.CompletedTask;
+        }
     }
 }

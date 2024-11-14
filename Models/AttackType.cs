@@ -5,7 +5,6 @@ namespace Dorothy.Models
         UdpFlood,
         IcmpFlood,
         SynFlood,
-        HttpFlood
     }
     public enum AdvancedAttackType
     {

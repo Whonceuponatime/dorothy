@@ -11,6 +11,8 @@ using NLog;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32;
+using System.IO;
 
 namespace Dorothy.Views
 {
@@ -28,7 +30,6 @@ namespace Dorothy.Views
             _mainController = new MainController(_networkStorm, StartButton, StopButton, StatusLabel, LogTextBox, this);
             NetworkInterfaceComboBox.SelectionChanged += NetworkInterfaceComboBox_SelectionChanged;
             AttackTypeComboBox.SelectionChanged += AttackTypeComboBox_SelectionChanged;
-            AdvancedAttackTypeComboBox.SelectionChanged += AdvancedAttackTypeComboBox_SelectionChanged;
             PopulateNetworkInterfaces();
         }
 
@@ -88,9 +89,6 @@ namespace Dorothy.Views
                 case "ICMP Flood":
                     attackType = AttackType.IcmpFlood;
                     break;
-                case "HTTP Flood":
-                    attackType = AttackType.HttpFlood;
-                    break;
                 default:
                     MessageBox.Show("Invalid Attack Type selected.", "Invalid Attack Type", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
@@ -125,16 +123,13 @@ namespace Dorothy.Views
                     SourceMacTextBox.Text = "N/A";
                 }
             }
+
+            SyncNetworkInfo();
         }
 
         private void AttackTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             // Handle Attack Type selection changes if necessary
-        }
-
-        private void AdvancedAttackTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            // Handle Advanced Attack Type selection changes if necessary
         }
 
         private async void LoadInformationButton_Click(object sender, RoutedEventArgs e)
@@ -210,6 +205,8 @@ namespace Dorothy.Views
                 GetMacButton.IsEnabled = true;
                 GetMacButton.Content = "Get MAC";
             }
+
+            SyncNetworkInfo();
         }
 
         private void PopulateNetworkInterfaces()
@@ -234,8 +231,12 @@ namespace Dorothy.Views
 
         private void LogResult(string message)
         {
-            LogTextBox.AppendText(message + Environment.NewLine);
+            string timestamp = DateTime.Now.ToString("HH:mm:ss");
+            string logMessage = $"[{timestamp}] {message}{Environment.NewLine}";
+            LogTextBox.AppendText(logMessage);
+            AdvLogTextBox.AppendText(logMessage);
             LogTextBox.ScrollToEnd();
+            AdvLogTextBox.ScrollToEnd();
         }
 
         private void SetSourceMac(NetworkInterface networkInterface)
@@ -243,38 +244,15 @@ namespace Dorothy.Views
             byte[] macBytes = networkInterface.GetPhysicalAddress().GetAddressBytes();
             string formattedMac = BytesToMacString(macBytes);
             SourceMacTextBox.Text = formattedMac;
-            _networkStorm.SetSourceInfo(_sourceIp, macBytes);
+            if (_sourceIp != null)
+            {
+                _networkStorm.SetSourceInfo(_sourceIp, macBytes);
+            }
         }
 
         private string BytesToMacString(byte[] macBytes)
         {
             return string.Join(":", macBytes.Select(b => b.ToString("X2")));
-        }
-
-        private async void ApplyAdvancedSettings_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                // Retrieve values from Advanced Settings UI controls
-                if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedAdvancedAttackTypeItem)
-                {
-                    string additionalAttackType = selectedAdvancedAttackTypeItem.Content?.ToString() ?? string.Empty;
-                    bool enableLogging = EnableLoggingCheckBox.IsChecked ?? false;
-                    string customParameters = CustomParametersTextBox.Text;
-
-                    await _mainController.ApplyAdvancedSettingsAsync(additionalAttackType, enableLogging, customParameters);
-                    LogResult("Advanced settings applied successfully.");
-                }
-                else
-                {
-                    MessageBox.Show("Please select an additional attack type.", "Missing Selection", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Failed to apply advanced settings.");
-                MessageBox.Show($"Failed to apply advanced settings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
         }
 
         [DllImport("iphlpapi.dll", ExactSpelling = true)]
@@ -310,6 +288,307 @@ namespace Dorothy.Views
                 _logger.Error(ex, "Failed to retrieve MAC address.");
                 return "Error Retrieving MAC Address";
             }
+        }
+
+        private void ArpTargetIpTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is TextBox textBox)
+            {
+                string ipAddress = textBox.Text.Trim();
+                if (!string.IsNullOrEmpty(ipAddress))
+                {
+                    try
+                    {
+                        IPAddress.Parse(ipAddress); // Validate IP address format
+                    }
+                    catch
+                    {
+                        MessageBox.Show("Invalid IP address format", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        textBox.Text = string.Empty;
+                    }
+                }
+            }
+        }
+
+        private async void PingButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string targetIp = TargetIpTextBox.Text.Trim();
+                if (string.IsNullOrEmpty(targetIp))
+                {
+                    MessageBox.Show("Please enter a Target IP.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                PingButton.IsEnabled = false;
+                var result = await _mainController.PingHostAsync(targetIp);
+                
+                if (result.Success)
+                {
+                    LogResult($"Ping successful! Round-trip time: {result.RoundtripTime}ms");
+                }
+                else
+                {
+                    LogResult("Ping failed!");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogResult($"Error during ping: {ex.Message}");
+            }
+            finally
+            {
+                PingButton.IsEnabled = true;
+            }
+        }
+
+        private void SyncNetworkInfo()
+        {
+            // Sync Source Information
+            AdvSourceIpTextBox.Text = SourceIpTextBox.Text;
+            AdvSourceMacTextBox.Text = SourceMacTextBox.Text;
+            
+            // Sync Target Information
+            AdvTargetIpTextBox.Text = TargetIpTextBox.Text;
+            AdvTargetMacTextBox.Text = TargetMacTextBox.Text;
+        }
+
+        private async void StartAdvancedAttack_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var selectedAttackTypeItem = AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem;
+                if (selectedAttackTypeItem == null)
+                {
+                    MessageBox.Show("Please select an attack type.", "Invalid Attack Type", 
+                                  MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                string attackTypeContent = selectedAttackTypeItem.Content?.ToString() ?? string.Empty;
+                switch (attackTypeContent)
+                {
+                    case "ARP Spoofing":
+                        await StartArpSpoofing();
+                        break;
+                    case "Broadcast Attack":
+                        await StartBroadcastAttack();
+                        break;
+                    case "Multicast Attack":
+                        await StartMulticastAttack();
+                        break;
+                    default:
+                        MessageBox.Show("Invalid Attack Type selected.", "Invalid Attack Type", 
+                                      MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                }
+
+                StartAdvancedAttackButton.IsEnabled = false;
+                StopAdvancedAttackButton.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                LogResult($"Failed to start attack: {ex.Message}");
+                StartAdvancedAttackButton.IsEnabled = true;
+                StopAdvancedAttackButton.IsEnabled = false;
+            }
+        }
+
+        private async void StopAdvancedAttack_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var selectedAttackTypeItem = AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem;
+                if (selectedAttackTypeItem == null) return;
+
+                string attackTypeContent = selectedAttackTypeItem.Content?.ToString() ?? string.Empty;
+                switch (attackTypeContent)
+                {
+                    case "ARP Spoofing":
+                        await _mainController.StopArpSpoofingAsync();
+                        break;
+                    case "Broadcast Attack":
+                        await _mainController.StopBroadcastAttackAsync();
+                        break;
+                    case "Multicast Attack":
+                        await _mainController.StopMulticastAttackAsync();
+                        break;
+                }
+
+                StartAdvancedAttackButton.IsEnabled = true;
+                StopAdvancedAttackButton.IsEnabled = false;
+            }
+            catch (Exception ex)
+            {
+                LogResult($"Failed to stop attack: {ex.Message}");
+            }
+        }
+
+        private async Task StartArpSpoofing()
+        {
+            if (string.IsNullOrEmpty(AdvTargetIpTextBox.Text) || 
+                string.IsNullOrEmpty(AdvTargetMacTextBox.Text))
+            {
+                throw new InvalidOperationException("Target information is required for ARP spoofing");
+            }
+
+            StartAdvancedAttackButton.IsEnabled = false;
+            StopAdvancedAttackButton.IsEnabled = true;  // Enable immediately
+
+            await _mainController.StartArpSpoofingAsync(
+                AdvSourceIpTextBox.Text,
+                AdvSourceMacTextBox.Text,
+                AdvTargetIpTextBox.Text,
+                AdvTargetMacTextBox.Text.Replace('-', ':'),
+                SpoofedMacTextBox.Text.Replace('-', ':')
+            );
+        }
+
+        private async Task StartBroadcastAttack()
+        {
+            if (string.IsNullOrEmpty(AdvTargetIpTextBox.Text))
+            {
+                throw new InvalidOperationException("Target IP is required for Broadcast attack");
+            }
+
+            if (!int.TryParse(AdvTargetPortTextBox.Text, out int targetPort))
+            {
+                throw new InvalidOperationException("Invalid target port");
+            }
+
+            if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out long mbps))
+            {
+                throw new InvalidOperationException("Invalid megabits per second value");
+            }
+
+            await _mainController.StartBroadcastAttackAsync(
+                AdvTargetIpTextBox.Text,
+                targetPort,
+                mbps
+            );
+        }
+
+        private async Task StartMulticastAttack()
+        {
+            if (string.IsNullOrEmpty(AdvTargetIpTextBox.Text))
+            {
+                throw new InvalidOperationException("Target IP is required for Multicast attack");
+            }
+
+            if (!int.TryParse(AdvTargetPortTextBox.Text, out int targetPort))
+            {
+                throw new InvalidOperationException("Invalid target port");
+            }
+
+            if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out long mbps))
+            {
+                throw new InvalidOperationException("Invalid megabits per second value");
+            }
+
+            await _mainController.StartMulticastAttackAsync(
+                AdvTargetIpTextBox.Text,
+                targetPort,
+                mbps
+            );
+        }
+
+        private void AdvancedAttackTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var selectedItem = AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem;
+            if (selectedItem != null)
+            {
+                bool isArpSpoof = selectedItem.Content.ToString() == "ARP Spoofing";
+                
+                // Show/hide fields based on attack type
+                AdvTargetPortTextBox.IsEnabled = !isArpSpoof;
+                AdvMegabitsPerSecondTextBox.IsEnabled = !isArpSpoof;
+                SpoofedMacTextBox.IsEnabled = isArpSpoof;
+            }
+        }
+
+        private async void AdvTargetIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                string targetIp = AdvTargetIpTextBox.Text.Trim();
+                if (string.IsNullOrEmpty(targetIp) || !IPAddress.TryParse(targetIp, out _))
+                {
+                    AdvTargetMacTextBox.Text = string.Empty;
+                    return;
+                }
+
+                // Use existing ping functionality
+                var pingResult = await _mainController.PingHostAsync(targetIp);
+                if (pingResult.Success)
+                {
+                    string macAddress = await _mainController.GetMacAddressAsync(targetIp);
+                    if (!string.IsNullOrEmpty(macAddress))
+                    {
+                        AdvTargetMacTextBox.Text = macAddress;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogResult($"Failed to get MAC address: {ex.Message}");
+            }
+        }
+
+        private void SpoofedMacTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            var textBox = (TextBox)sender;
+            string text = textBox.Text.Replace(":", "").Replace("-", "");
+            
+            if (text.Length > 12)
+            {
+                text = text.Substring(0, 12);
+            }
+
+            // Format with colons
+            string formattedText = string.Empty;
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (i > 0 && i % 2 == 0 && i < text.Length)
+                {
+                    formattedText += ":";
+                }
+                formattedText += text[i];
+            }
+
+            textBox.Text = formattedText;
+            textBox.CaretIndex = formattedText.Length;
+        }
+
+        private async void SaveLogButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new SaveFileDialog
+            {
+                Filter = "Log files (*.log)|*.log|Text files (*.txt)|*.txt|All files (*.*)|*.*",
+                DefaultExt = "log",
+                FileName = $"Dorothy_Log_{DateTime.Now:yyyyMMdd_HHmmss}.log"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                var textBox = ((Button)sender).Name.StartsWith("Adv") ? AdvLogTextBox : LogTextBox;
+                await File.WriteAllTextAsync(dialog.FileName, textBox.Text);
+                LogResult("Log file saved successfully");
+            }
+        }
+
+        private void ClearLogButton_Click(object sender, RoutedEventArgs e)
+        {
+            var textBox = ((Button)sender).Name.StartsWith("Adv") ? AdvLogTextBox : LogTextBox;
+            textBox.Clear();
+            LogResult("Log cleared");
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Set default attack type to ARP Spoofing
+            AdvancedAttackTypeComboBox.SelectedIndex = 0;
+            SyncNetworkInfo();
         }
 
     } 
