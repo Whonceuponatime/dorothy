@@ -31,7 +31,7 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         
-        <TabControl Grid.Row="0" Grid.Column="0" Margin="5,40,0,0">
+        <TabControl Grid.Row="0" Grid.Column="0" Margin="5,20,0,0" SelectionChanged="TabControl_SelectionChanged">
             <TabItem Header="Basic Settings">
                 <StackPanel Margin="5">
                     <Grid Grid.Column="0">
@@ -184,7 +184,7 @@
                 </StackPanel>
             </TabItem>
 
-            <TabItem Header="Advanced Settings">
+            <TabItem x:Name="AdvancedTab" Header="Advanced Settings">
                 <StackPanel Margin="5">
                     <GroupBox Header="Network Information" Margin="5">
                         <Grid Margin="5">
@@ -325,11 +325,12 @@
             </TabItem>
         </TabControl>
         
-        <StackPanel Grid.Row="0" Grid.Column="1" Margin="10,40,10,10">
-            <TextBlock Text="Packets Sent: 0" Margin="5"/>
-            <TextBlock Text="Bytes Sent: 0" Margin="5"/>
-            <TextBlock Text="Duration: 00:00:00" Margin="5"/>
-        </StackPanel>
+        <Grid Grid.Row="0" Grid.Column="1" Margin="10,40,10,10">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+        
+        </Grid>
         
         <Label x:Name="StatusLabel" 
                Content="Status: Ready"
@@ -342,6 +343,6 @@
                Width="120" Height="120"
                HorizontalAlignment="Right"
                VerticalAlignment="Top"
-               Margin="0"/>
+               Margin="20,20,20,20"/>
     </Grid>
 </Window> 

@@ -13,6 +13,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Microsoft.Win32;
 using System.IO;
+using System.Windows.Media.Animation;
+using System.Collections.Generic;
 
 namespace Dorothy.Views
 {
@@ -589,6 +591,85 @@ namespace Dorothy.Views
             // Set default attack type to ARP Spoofing
             AdvancedAttackTypeComboBox.SelectedIndex = 0;
             SyncNetworkInfo();
+        }
+
+        private bool CheckAdvancedPassword()
+        {
+            var passwordDialog = new PasswordBox
+            {
+                Width = 200,
+                Margin = new Thickness(10)
+            };
+
+            var dialog = new Window
+            {
+                Title = "Advanced Settings Authentication",
+                Width = 300,
+                Height = 150,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize
+            };
+
+            var stackPanel = new StackPanel
+            {
+                Margin = new Thickness(10)
+            };
+            
+            stackPanel.Children.Add(new TextBlock 
+            { 
+                Text = "Enter password:", 
+                Margin = new Thickness(0, 0, 0, 10) 
+            });
+            stackPanel.Children.Add(passwordDialog);
+
+            var buttonPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 10, 0, 0)
+            };
+
+            var okButton = new Button
+            {
+                Content = "OK",
+                Width = 60,
+                Margin = new Thickness(0, 0, 10, 0)
+            };
+            var cancelButton = new Button
+            {
+                Content = "Cancel",
+                Width = 60
+            };
+
+            okButton.Click += (s, e) => { dialog.DialogResult = true; };
+            cancelButton.Click += (s, e) => { dialog.DialogResult = false; };
+
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+            stackPanel.Children.Add(buttonPanel);
+
+            dialog.Content = stackPanel;
+
+            if (dialog.ShowDialog() == true)
+            {
+                return passwordDialog.Password == "dagger";
+            }
+
+            return false;
+        }
+
+        private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (e.Source is TabControl tabControl && tabControl.SelectedItem == AdvancedTab)
+            {
+                if (!CheckAdvancedPassword())
+                {
+                    tabControl.SelectedIndex = 0; // Switch back to basic tab
+                    MessageBox.Show("Invalid password!", "Authentication Failed", 
+                                  MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
         }
 
     } 

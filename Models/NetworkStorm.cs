@@ -19,19 +19,21 @@ namespace Dorothy.Models
         private readonly ILogger Logger = LogManager.GetCurrentClassLogger();
         private bool _isAttackRunning;
         private CancellationTokenSource? _cancellationSource;
-        private string _sourceIp = string.Empty;
-        private byte[] _sourceMac = new byte[6];
+        public string SourceIp { get; private set; }
+        public byte[] SourceMac { get; private set; }
         public bool EnableLogging { get; set; }
 
         public NetworkStorm(TextBox logArea)
         {
             _logArea = logArea ?? throw new ArgumentNullException(nameof(logArea));
+            SourceIp = string.Empty;
+            SourceMac = Array.Empty<byte>();
         }
 
         public void SetSourceInfo(string sourceIp, byte[] sourceMac)
         {
-            _sourceIp = sourceIp;
-            _sourceMac = sourceMac;
+            SourceIp = sourceIp;
+            SourceMac = sourceMac;
         }
 
         private void Log(string message)
@@ -51,7 +53,7 @@ namespace Dorothy.Models
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(_sourceIp) || _sourceMac.Length != 6)
+            if (string.IsNullOrWhiteSpace(SourceIp) || SourceMac.Length != 6)
             {
                 Log("Source IP or MAC is not set. Cannot start attack.");
                 throw new Exception("Source IP or MAC is not set.");
@@ -63,14 +65,14 @@ namespace Dorothy.Models
             Log("Starting attack...");
             try
             {
-                byte[] targetMac = await GetMacAddressAsync(targetIp, _sourceIp);
+                byte[] targetMac = await GetMacAddressAsync(targetIp);
 
                 switch (attackType)
                 {
                     case AttackType.UdpFlood:
                         using (var udpFlood = new UdpFlood(
-                            _sourceIp,
-                            _sourceMac,
+                            SourceIp,
+                            SourceMac,
                             targetIp,
                             targetMac,
                             targetPort,
@@ -82,8 +84,8 @@ namespace Dorothy.Models
                         break;
                     case AttackType.IcmpFlood:
                         using (var icmpFlood = new IcmpFlood(
-                            _sourceIp,
-                            _sourceMac,
+                            SourceIp,
+                            SourceMac,
                             targetIp,
                             targetMac,
                             megabitsPerSecond * 125_000,
@@ -94,8 +96,8 @@ namespace Dorothy.Models
                         break;
                     case AttackType.SynFlood:
                         using (var tcpFlood = new TcpFlood(
-                            _sourceIp,
-                            _sourceMac,
+                            SourceIp,
+                            SourceMac,
                             targetIp,
                             targetMac,
                             targetPort,
@@ -147,14 +149,14 @@ namespace Dorothy.Models
             }
         }
 
-        private async Task<byte[]> GetMacAddressAsync(string targetIp, string sourceIp)
+        public async Task<byte[]> GetMacAddressAsync(string ipAddress)
         {
             return await Task.Run(() =>
             {
                 try
                 {
-                    var targetAddr = BitConverter.ToInt32(IPAddress.Parse(targetIp).GetAddressBytes(), 0);
-                    var srcAddr = BitConverter.ToInt32(IPAddress.Parse(sourceIp).GetAddressBytes(), 0);
+                    var targetAddr = BitConverter.ToInt32(IPAddress.Parse(ipAddress).GetAddressBytes(), 0);
+                    var srcAddr = BitConverter.ToInt32(IPAddress.Parse(SourceIp).GetAddressBytes(), 0);
                     var macAddr = new byte[6];
                     var macAddrLen = (uint)macAddr.Length;
                     
