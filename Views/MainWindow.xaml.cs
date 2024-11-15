@@ -539,9 +539,16 @@ namespace Dorothy.Views
         {
             if (e.Source is TabControl tabControl && tabControl.SelectedItem == AdvancedTab)
             {
+                // Prevent the event from firing multiple times
+                if (e.RemovedItems.Count == 0) return;
+
                 if (!CheckAdvancedPassword())
                 {
+                    // Prevent the SelectionChanged event from firing again
+                    tabControl.SelectionChanged -= TabControl_SelectionChanged;
                     tabControl.SelectedIndex = 0; // Switch back to basic tab
+                    tabControl.SelectionChanged += TabControl_SelectionChanged;
+                    
                     MessageBox.Show("Invalid password!", "Authentication Failed", 
                                   MessageBoxButton.OK, MessageBoxImage.Warning);
                 }

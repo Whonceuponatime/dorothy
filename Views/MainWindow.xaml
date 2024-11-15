@@ -7,7 +7,6 @@
         <Style x:Key="DefaultTextBox" TargetType="TextBox">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="Padding" Value="5"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
 
         <Style x:Key="DefaultLabel" TargetType="Label">
