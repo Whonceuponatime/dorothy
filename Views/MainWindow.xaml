@@ -299,38 +299,56 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <Label x:Name="StatusLabel"
-                   Grid.Row="0"
-                   Content="Status: Ready"
-                   HorizontalAlignment="Left"
-                   VerticalAlignment="Center"
-                   Margin="5,0,0,10"
-                   Style="{StaticResource AnimatedStatusLabel}"/>
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-            <Image Source="/Resources/logo.png" 
-                   Grid.Row="0"
-                   Width="120" Height="120"
-                   HorizontalAlignment="Right"
-                   VerticalAlignment="Top"
-                   Margin="0,20,20,0"/>
+                <Label x:Name="StatusLabel"
+                       Grid.Column="0"
+                       Content="Status: Ready"
+                       HorizontalAlignment="Left"
+                       VerticalAlignment="Center"
+                       Style="{StaticResource AnimatedStatusLabel}"/>
+
+                <Image Source="/Resources/logo.png" 
+                       Grid.Column="2"
+                       Width="100" Height="40"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center"
+                       Margin="0,0,10,0"/>
+            </Grid>
 
             <GroupBox Header="Attack Log" 
                       Grid.Row="1" 
-                      Margin="5,5,5,5">
+                      Margin="5,0,5,5">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                        
+
+                    <Button x:Name="TaskManagerButton"
+                            Grid.Row="0"
+                            Content="Task Manager"
+                            Width="100"
+                            Height="25"
+                            HorizontalAlignment="Left"
+                            Margin="0,5,0,5"
+                            Style="{StaticResource DefaultButton}"
+                            Click="TaskManagerButton_Click"/>
+
                     <TextBox x:Name="LogTextBox" 
-                             Grid.Row="0"
+                             Grid.Row="1"
                              IsReadOnly="True" 
                              TextWrapping="Wrap"
                              VerticalScrollBarVisibility="Auto"
                              Style="{StaticResource DefaultTextBox}"/>
-                                     
-                    <StackPanel Grid.Row="1" 
+
+                    <StackPanel Grid.Row="2" 
                                 Orientation="Horizontal" 
                                 HorizontalAlignment="Right" 
                                 Margin="0,5,0,0">

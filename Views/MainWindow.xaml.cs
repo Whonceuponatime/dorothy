@@ -15,6 +15,7 @@ using Microsoft.Win32;
 using System.IO;
 using System.Windows.Media.Animation;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace Dorothy.Views
 {
@@ -603,6 +604,18 @@ namespace Dorothy.Views
             // Lock/unlock buttons
             StartAdvancedAttackButton.IsEnabled = !isLocked;
             StopAdvancedAttackButton.IsEnabled = isLocked;
+        }
+
+        private void TaskManagerButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Process.Start("taskmgr.exe");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error opening Task Manager: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
     } 
