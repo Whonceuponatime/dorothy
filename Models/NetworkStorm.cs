@@ -15,8 +15,8 @@ namespace Dorothy.Models
 {
     public class NetworkStorm
     {
+        private readonly AttackLogger _logger;
         private readonly TextBox _logArea;
-        private readonly ILogger Logger = LogManager.GetCurrentClassLogger();
         private bool _isAttackRunning;
         private CancellationTokenSource? _cancellationSource;
         public string SourceIp { get; private set; }
@@ -26,6 +26,7 @@ namespace Dorothy.Models
         public NetworkStorm(TextBox logArea)
         {
             _logArea = logArea ?? throw new ArgumentNullException(nameof(logArea));
+            _logger = new AttackLogger(logArea);
             SourceIp = string.Empty;
             SourceMac = Array.Empty<byte>();
         }
@@ -38,35 +39,30 @@ namespace Dorothy.Models
 
         private void Log(string message)
         {
-            _logArea.Dispatcher.Invoke(() =>
-            {
-                _logArea.AppendText($"{DateTime.Now}: {message}\n");
-                _logArea.ScrollToEnd();
-            });
+            _logger.LogInfo(message);
         }
 
         public async Task StartAttackAsync(AttackType attackType, string targetIp, int targetPort, long megabitsPerSecond)
         {
             if (_isAttackRunning)
             {
-                Log("Attack already in progress.");
+                _logger.LogWarning("Attack already in progress.");
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(SourceIp) || SourceMac.Length != 6)
             {
-                Log("Source IP or MAC is not set. Cannot start attack.");
+                _logger.LogError("Source IP or MAC is not set. Cannot start attack.");
                 throw new Exception("Source IP or MAC is not set.");
             }
 
             _cancellationSource = new CancellationTokenSource();
             _isAttackRunning = true;
 
-            Log("Starting attack...");
+            byte[] targetMac = await GetMacAddressAsync(targetIp);
+            _logger.StartAttack(attackType, SourceIp, SourceMac, targetIp, targetMac, megabitsPerSecond);
             try
             {
-                byte[] targetMac = await GetMacAddressAsync(targetIp);
-
                 switch (attackType)
                 {
                     case AttackType.UdpFlood:
@@ -116,8 +112,7 @@ namespace Dorothy.Models
             }
             catch (Exception ex)
             {
-                Logger.Error(ex, "Attack failed.");
-                Log($"Attack failed: {ex.Message}");
+                _logger.LogError($"Attack failed: {ex.Message}");
             }
             finally
             {
@@ -130,17 +125,17 @@ namespace Dorothy.Models
         {
             if (!_isAttackRunning)
             {
-                Log("No attack is currently running.");
+                _logger.LogWarning("No attack is currently running.");
                 return;
             }
 
             try
             {
-                Log("Stopping attack...");
+                _logger.LogInfo("Stopping attack...");
                 _cancellationSource?.Cancel();
                 _isAttackRunning = false;
                 await Task.CompletedTask;
-                Log("Attack stop signal sent.");
+                _logger.LogInfo("Attack stop signal sent.");
             }
             finally
             {
@@ -171,7 +166,7 @@ namespace Dorothy.Models
                 }
                 catch (Exception ex)
                 {
-                    Logger.Error(ex, "Failed to get MAC address.");
+                    _logger.LogError("Failed to get MAC address.");
                     throw;
                 }
             });
@@ -183,14 +178,14 @@ namespace Dorothy.Models
         public async Task StartBroadcastAttackAsync(string targetIp, int targetPort, long megabitsPerSecond)
         {
             // Placeholder for broadcast attack implementation
-            Logger.Info($"Starting broadcast attack (placeholder) - Target: {targetIp}:{targetPort}, Rate: {megabitsPerSecond}Mbps");
+            _logger.LogInfo($"Starting broadcast attack (placeholder) - Target: {targetIp}:{targetPort}, Rate: {megabitsPerSecond}Mbps");
             await Task.CompletedTask;
         }
 
         public async Task StartMulticastAttackAsync(string targetIp, int targetPort, long megabitsPerSecond)
         {
             // Placeholder for multicast attack implementation
-            Logger.Info($"Starting multicast attack (placeholder) - Target: {targetIp}:{targetPort}, Rate: {megabitsPerSecond}Mbps");
+            _logger.LogInfo($"Starting multicast attack (placeholder) - Target: {targetIp}:{targetPort}, Rate: {megabitsPerSecond}Mbps");
             await Task.CompletedTask;
         }
     }

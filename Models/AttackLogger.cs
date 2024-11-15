@@ -15,6 +15,7 @@ namespace Dorothy.Models
         private string _targetIp = string.Empty;
         private string _targetMac = string.Empty;
         private long _targetBytesPerSecond;
+        private int _messageCount = 0;
 
         public AttackLogger(TextBox logArea)
         {
@@ -33,7 +34,7 @@ namespace Dorothy.Models
             _targetBytesPerSecond = megabitsPerSecond * 1_000_000 / 8;
 
             var message = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] Attack Details\n" +
-                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
                          $"Protocol: UDP\n" +
                          $"Source Host: {_sourceIp}\n" +
                          $"Source MAC: {_sourceMac}\n" +
@@ -41,30 +42,40 @@ namespace Dorothy.Models
                          $"Target MAC: {_targetMac}\n" +
                          $"Target Rate: {_targetBytesPerSecond * 8.0 / 1_000_000:F2} Mbps\n" +
                          $"Attack Type: {_attackType}\n" +
-                         "Status: Attack Started\n" +
-                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
-            LogEvent(message);
+                         "Status: Attack Started";
+            LogEvent(message, true);
         }
 
         public void LogInfo(string message)
         {
-            var formattedMessage = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] {message}\n" +
-                                  "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
-            LogEvent(formattedMessage);
+            var formattedMessage = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] {message}";
+            LogEvent(formattedMessage, false);
         }
 
         public void LogError(string message)
         {
-            var formattedMessage = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] ERROR: {message}\n" +
-                                  "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
-            LogEvent(formattedMessage);
+            var formattedMessage = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] ERROR: {message}";
+            LogEvent(formattedMessage, false);
         }
 
-        private void LogEvent(string message)
+        public void LogWarning(string message)
+        {
+            var formattedMessage = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] WARNING: {message}";
+            LogEvent(formattedMessage, false);
+        }
+
+        private void LogEvent(string message, bool isAttackDetails)
         {
             _logArea.Dispatcher.Invoke(() =>
             {
+                if (_messageCount > 0) _logArea.AppendText("\n");
                 _logArea.AppendText(message);
+                _messageCount++;
+                
+                if (message.Contains("Attack finished successfully") || isAttackDetails)
+                {
+                    _logArea.AppendText("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                }
                 _logArea.ScrollToEnd();
             });
         }

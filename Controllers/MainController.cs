@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Windows.Media;
 
 namespace Dorothy.Controllers
 {
@@ -54,7 +55,7 @@ namespace Dorothy.Controllers
                 Log($"Attack failed: {ex.Message}");
                 _startButton.IsEnabled = true;
                 _stopButton.IsEnabled = false;
-                _statusLabel.Content = "Status: Idle";
+                _statusLabel.Content = "Status: Error";
             }
         }
 
@@ -62,20 +63,15 @@ namespace Dorothy.Controllers
         {
             try
             {
-                _stopButton.IsEnabled = false;
-                _statusLabel.Content = "Status: Stopping...";
-
                 await _networkStorm.StopAttackAsync();
                 _startButton.IsEnabled = true;
+                _stopButton.IsEnabled = false;
                 _statusLabel.Content = "Status: Ready";
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed to stop attack.");
-                Log($"Failed to stop attack: {ex.Message}");
-                _stopButton.IsEnabled = false;
-                _startButton.IsEnabled = true;
-                _statusLabel.Content = "Status: Idle";
+                _logger.Error(ex, "Error stopping attack");
+                throw;
             }
         }
 
@@ -238,22 +234,6 @@ namespace Dorothy.Controllers
             }
         }
 
-        public async Task StartMulticastAttackAsync(string targetIp, int targetPort, long megabitsPerSecond)
-        {
-            try
-            {
-                _logger.Info($"Starting Multicast attack: Target={targetIp}:{targetPort}, Rate={megabitsPerSecond}Mbps");
-                await _networkStorm.StartMulticastAttackAsync(targetIp, targetPort, megabitsPerSecond);
-                _statusLabel.Content = "Status: Multicast Attack Active";
-                Log("Multicast attack started successfully");
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Failed to start multicast attack");
-                throw;
-            }
-        }
-
         public async Task StopBroadcastAttackAsync()
         {
             try
@@ -265,21 +245,6 @@ namespace Dorothy.Controllers
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to stop broadcast attack");
-                throw;
-            }
-        }
-
-        public async Task StopMulticastAttackAsync()
-        {
-            try
-            {
-                await _networkStorm.StopAttackAsync();
-                _statusLabel.Content = "Status: Ready";
-                Log("Multicast attack stopped");
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Failed to stop multicast attack");
                 throw;
             }
         }

@@ -214,9 +214,7 @@ namespace Dorothy.Views
             string timestamp = DateTime.Now.ToString("HH:mm:ss");
             string logMessage = $"[{timestamp}] {message}{Environment.NewLine}";
             LogTextBox.AppendText(logMessage);
-            AdvLogTextBox.AppendText(logMessage);
             LogTextBox.ScrollToEnd();
-            AdvLogTextBox.ScrollToEnd();
         }
 
         private void SetSourceMac(NetworkInterface networkInterface)
@@ -339,24 +337,7 @@ namespace Dorothy.Views
             try
             {
                 LockAdvancedControls(true);
-                
-                var selectedAttackTypeItem = AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem;
-                if (selectedAttackTypeItem != null)
-                {
-                    string attackTypeContent = selectedAttackTypeItem.Content?.ToString() ?? string.Empty;
-                    switch (attackTypeContent)
-                    {
-                        case "ARP Spoofing":
-                            await StartArpSpoofing();
-                            break;
-                        case "Broadcast Attack":
-                            await StartBroadcastAttack();
-                            break;
-                        case "Multicast Attack":
-                            await StartMulticastAttack();
-                            break;
-                    }
-                }
+                await StartArpSpoofing();
             }
             catch (Exception ex)
             {
@@ -369,23 +350,7 @@ namespace Dorothy.Views
         {
             try
             {
-                var selectedAttackTypeItem = AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem;
-                if (selectedAttackTypeItem != null)
-                {
-                    string attackTypeContent = selectedAttackTypeItem.Content?.ToString() ?? string.Empty;
-                    switch (attackTypeContent)
-                    {
-                        case "ARP Spoofing":
-                            await _mainController.StopArpSpoofingAsync();
-                            break;
-                        case "Broadcast Attack":
-                            await _mainController.StopBroadcastAttackAsync();
-                            break;
-                        case "Multicast Attack":
-                            await _mainController.StopMulticastAttackAsync();
-                            break;
-                    }
-                }
+                await _mainController.StopArpSpoofingAsync();
                 LockAdvancedControls(false);
             }
             catch (Exception ex)
@@ -412,54 +377,6 @@ namespace Dorothy.Views
                 AdvTargetIpTextBox.Text,
                 AdvTargetMacTextBox.Text.Replace('-', ':'),
                 SpoofedMacTextBox.Text.Replace('-', ':')
-            );
-        }
-
-        private async Task StartBroadcastAttack()
-        {
-            if (string.IsNullOrEmpty(AdvTargetIpTextBox.Text))
-            {
-                throw new InvalidOperationException("Target IP is required for Broadcast attack");
-            }
-
-            if (!int.TryParse(AdvTargetPortTextBox.Text, out int targetPort))
-            {
-                throw new InvalidOperationException("Invalid target port");
-            }
-
-            if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out long mbps))
-            {
-                throw new InvalidOperationException("Invalid megabits per second value");
-            }
-
-            await _mainController.StartBroadcastAttackAsync(
-                AdvTargetIpTextBox.Text,
-                targetPort,
-                mbps
-            );
-        }
-
-        private async Task StartMulticastAttack()
-        {
-            if (string.IsNullOrEmpty(AdvTargetIpTextBox.Text))
-            {
-                throw new InvalidOperationException("Target IP is required for Multicast attack");
-            }
-
-            if (!int.TryParse(AdvTargetPortTextBox.Text, out int targetPort))
-            {
-                throw new InvalidOperationException("Invalid target port");
-            }
-
-            if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out long mbps))
-            {
-                throw new InvalidOperationException("Invalid megabits per second value");
-            }
-
-            await _mainController.StartMulticastAttackAsync(
-                AdvTargetIpTextBox.Text,
-                targetPort,
-                mbps
             );
         }
 
@@ -541,16 +458,14 @@ namespace Dorothy.Views
 
             if (dialog.ShowDialog() == true)
             {
-                var textBox = ((Button)sender).Name.StartsWith("Adv") ? AdvLogTextBox : LogTextBox;
-                await File.WriteAllTextAsync(dialog.FileName, textBox.Text);
+                await File.WriteAllTextAsync(dialog.FileName, LogTextBox.Text);
                 LogResult("Log file saved successfully");
             }
         }
 
         private void ClearLogButton_Click(object sender, RoutedEventArgs e)
         {
-            var textBox = ((Button)sender).Name.StartsWith("Adv") ? AdvLogTextBox : LogTextBox;
-            textBox.Clear();
+            LogTextBox.Clear();
             LogResult("Log cleared");
         }
 
@@ -579,17 +494,9 @@ namespace Dorothy.Views
                 ResizeMode = ResizeMode.NoResize
             };
 
-            var stackPanel = new StackPanel
-            {
-                Margin = new Thickness(10)
-            };
-            
-            stackPanel.Children.Add(new TextBlock 
-            { 
-                Text = "Enter password:", 
-                Margin = new Thickness(0, 0, 0, 10) 
-            });
-            stackPanel.Children.Add(passwordDialog);
+            var panel = new StackPanel { Margin = new Thickness(10) };
+            panel.Children.Add(new Label { Content = "Enter password:" });
+            panel.Children.Add(passwordDialog);
 
             var buttonPanel = new StackPanel
             {
@@ -602,29 +509,29 @@ namespace Dorothy.Views
             {
                 Content = "OK",
                 Width = 60,
-                Margin = new Thickness(0, 0, 10, 0)
+                Margin = new Thickness(0, 0, 10, 0),
+                IsDefault = true
             };
+
             var cancelButton = new Button
             {
                 Content = "Cancel",
-                Width = 60
+                Width = 60,
+                IsCancel = true
             };
 
-            okButton.Click += (s, e) => { dialog.DialogResult = true; };
-            cancelButton.Click += (s, e) => { dialog.DialogResult = false; };
+            okButton.Click += (s, e) =>
+            {
+                dialog.DialogResult = passwordDialog.Password == "sadder";
+                dialog.Close();
+            };
 
             buttonPanel.Children.Add(okButton);
             buttonPanel.Children.Add(cancelButton);
-            stackPanel.Children.Add(buttonPanel);
+            panel.Children.Add(buttonPanel);
+            dialog.Content = panel;
 
-            dialog.Content = stackPanel;
-
-            if (dialog.ShowDialog() == true)
-            {
-                return passwordDialog.Password == "dagger";
-            }
-
-            return false;
+            return dialog.ShowDialog() == true;
         }
 
         private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
