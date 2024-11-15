@@ -37,71 +37,89 @@ namespace Dorothy.Views
 
         private async void StartButton_Click(object sender, RoutedEventArgs e)
         {
-            string targetIp = TargetIpTextBox.Text.Trim();
-            string portText = TargetPortTextBox.Text.Trim();
-            string mbpsText = MegabitsPerSecondTextBox.Text.Trim();
-
-            if (string.IsNullOrEmpty(targetIp))
+            try
             {
-                MessageBox.Show("Please enter a Target IP.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
+                string targetIp = TargetIpTextBox.Text.Trim();
+                string portText = TargetPortTextBox.Text.Trim();
+                string mbpsText = MegabitsPerSecondTextBox.Text.Trim();
 
-            if (!IPAddress.TryParse(targetIp, out IPAddress? ipAddress))
-            {
-                MessageBox.Show("Please enter a valid Target IP.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            if (ipAddress.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
-            {
-                MessageBox.Show("Only IPv4 addresses are supported.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            if (!int.TryParse(portText, out int targetPort))
-            {
-                MessageBox.Show("Please enter a valid Target Port.", "Invalid Port", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            if (!long.TryParse(mbpsText, out long mbps))
-            {
-                MessageBox.Show("Please enter a valid Mbps value.", "Invalid Mbps", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            var selectedAttackTypeItem = AttackTypeComboBox.SelectedItem as ComboBoxItem;
-            if (selectedAttackTypeItem == null)
-            {
-                MessageBox.Show("Please select an Attack Type.", "No Attack Type Selected", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            string attackTypeContent = selectedAttackTypeItem.Content?.ToString() ?? string.Empty;
-            AttackType attackType;
-            switch (attackTypeContent)
-            {
-                case "TCP SYN Flood":
-                    attackType = AttackType.SynFlood;
-                    break;
-                case "UDP Flood":
-                    attackType = AttackType.UdpFlood;
-                    break;
-                case "ICMP Flood":
-                    attackType = AttackType.IcmpFlood;
-                    break;
-                default:
-                    MessageBox.Show("Invalid Attack Type selected.", "Invalid Attack Type", MessageBoxButton.OK, MessageBoxImage.Warning);
+                if (string.IsNullOrEmpty(targetIp))
+                {
+                    MessageBox.Show("Please enter a Target IP.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
-            }
+                }
 
-            await _mainController.StartAttackAsync(attackType, targetIp, targetPort, mbps);
+                if (!IPAddress.TryParse(targetIp, out IPAddress? ipAddress))
+                {
+                    MessageBox.Show("Please enter a valid Target IP.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (ipAddress.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+                {
+                    MessageBox.Show("Only IPv4 addresses are supported.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (!int.TryParse(portText, out int targetPort))
+                {
+                    MessageBox.Show("Please enter a valid Target Port.", "Invalid Port", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (!long.TryParse(mbpsText, out long mbps))
+                {
+                    MessageBox.Show("Please enter a valid Mbps value.", "Invalid Mbps", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var selectedAttackTypeItem = AttackTypeComboBox.SelectedItem as ComboBoxItem;
+                if (selectedAttackTypeItem == null)
+                {
+                    MessageBox.Show("Please select an Attack Type.", "No Attack Type Selected", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                string attackTypeContent = selectedAttackTypeItem.Content?.ToString() ?? string.Empty;
+                AttackType attackType;
+                switch (attackTypeContent)
+                {
+                    case "TCP SYN Flood":
+                        attackType = AttackType.SynFlood;
+                        break;
+                    case "UDP Flood":
+                        attackType = AttackType.UdpFlood;
+                        break;
+                    case "ICMP Flood":
+                        attackType = AttackType.IcmpFlood;
+                        break;
+                    default:
+                        MessageBox.Show("Invalid Attack Type selected.", "Invalid Attack Type", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                }
+
+                LockBasicControls(true);
+                await _mainController.StartAttackAsync(attackType, targetIp, targetPort, mbps);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error starting attack: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                LockBasicControls(false);
+            }
         }
 
         private async void StopButton_Click(object sender, RoutedEventArgs e)
         {
-            await _mainController.StopAttackAsync();
+            try
+            {
+                await _mainController.StopAttackAsync();
+                LockBasicControls(false);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error stopping attack: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                LockBasicControls(false);
+            }
         }
 
         private void NetworkInterfaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -169,46 +187,6 @@ namespace Dorothy.Views
                 PingButton.IsEnabled = true;
                 PingButton.Content = "Ping";
             }
-        }
-
-        private async void GetMacButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                string targetIp = TargetIpTextBox.Text.Trim();
-
-                if (string.IsNullOrEmpty(targetIp))
-                {
-                    MessageBox.Show("Please enter a Target IP first.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                if (!IPAddress.TryParse(targetIp, out IPAddress? ipAddress))
-                {
-                    MessageBox.Show("Please enter a valid Target IP.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                // Show loading indicator
-                GetMacButton.IsEnabled = false;
-                GetMacButton.Content = "Getting MAC...";
-
-                // Get MAC address using the existing method
-                string macAddress = GetMacAddress(targetIp);
-                TargetMacTextBox.Text = macAddress;
-                LogResult($"MAC Address for {targetIp}: {macAddress}");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error getting MAC address: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                GetMacButton.IsEnabled = true;
-                GetMacButton.Content = "Get MAC";
-            }
-
-            SyncNetworkInfo();
         }
 
         private void PopulateNetworkInterfaces()
@@ -360,40 +338,30 @@ namespace Dorothy.Views
         {
             try
             {
+                LockAdvancedControls(true);
+                
                 var selectedAttackTypeItem = AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem;
-                if (selectedAttackTypeItem == null)
+                if (selectedAttackTypeItem != null)
                 {
-                    MessageBox.Show("Please select an attack type.", "Invalid Attack Type", 
-                                  MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
+                    string attackTypeContent = selectedAttackTypeItem.Content?.ToString() ?? string.Empty;
+                    switch (attackTypeContent)
+                    {
+                        case "ARP Spoofing":
+                            await StartArpSpoofing();
+                            break;
+                        case "Broadcast Attack":
+                            await StartBroadcastAttack();
+                            break;
+                        case "Multicast Attack":
+                            await StartMulticastAttack();
+                            break;
+                    }
                 }
-
-                string attackTypeContent = selectedAttackTypeItem.Content?.ToString() ?? string.Empty;
-                switch (attackTypeContent)
-                {
-                    case "ARP Spoofing":
-                        await StartArpSpoofing();
-                        break;
-                    case "Broadcast Attack":
-                        await StartBroadcastAttack();
-                        break;
-                    case "Multicast Attack":
-                        await StartMulticastAttack();
-                        break;
-                    default:
-                        MessageBox.Show("Invalid Attack Type selected.", "Invalid Attack Type", 
-                                      MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                }
-
-                StartAdvancedAttackButton.IsEnabled = false;
-                StopAdvancedAttackButton.IsEnabled = true;
             }
             catch (Exception ex)
             {
-                LogResult($"Failed to start attack: {ex.Message}");
-                StartAdvancedAttackButton.IsEnabled = true;
-                StopAdvancedAttackButton.IsEnabled = false;
+                MessageBox.Show($"Error starting attack: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                LockAdvancedControls(false);
             }
         }
 
@@ -402,28 +370,28 @@ namespace Dorothy.Views
             try
             {
                 var selectedAttackTypeItem = AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem;
-                if (selectedAttackTypeItem == null) return;
-
-                string attackTypeContent = selectedAttackTypeItem.Content?.ToString() ?? string.Empty;
-                switch (attackTypeContent)
+                if (selectedAttackTypeItem != null)
                 {
-                    case "ARP Spoofing":
-                        await _mainController.StopArpSpoofingAsync();
-                        break;
-                    case "Broadcast Attack":
-                        await _mainController.StopBroadcastAttackAsync();
-                        break;
-                    case "Multicast Attack":
-                        await _mainController.StopMulticastAttackAsync();
-                        break;
+                    string attackTypeContent = selectedAttackTypeItem.Content?.ToString() ?? string.Empty;
+                    switch (attackTypeContent)
+                    {
+                        case "ARP Spoofing":
+                            await _mainController.StopArpSpoofingAsync();
+                            break;
+                        case "Broadcast Attack":
+                            await _mainController.StopBroadcastAttackAsync();
+                            break;
+                        case "Multicast Attack":
+                            await _mainController.StopMulticastAttackAsync();
+                            break;
+                    }
                 }
-
-                StartAdvancedAttackButton.IsEnabled = true;
-                StopAdvancedAttackButton.IsEnabled = false;
+                LockAdvancedControls(false);
             }
             catch (Exception ex)
             {
-                LogResult($"Failed to stop attack: {ex.Message}");
+                MessageBox.Show($"Error stopping attack: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                LockAdvancedControls(false);
             }
         }
 
@@ -670,6 +638,64 @@ namespace Dorothy.Views
                                   MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
+        }
+
+        private async void TargetIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                string targetIp = TargetIpTextBox.Text.Trim();
+                if (string.IsNullOrEmpty(targetIp) || !IPAddress.TryParse(targetIp, out _))
+                {
+                    TargetMacTextBox.Text = string.Empty;
+                    return;
+                }
+
+                // Use existing ping functionality
+                var pingResult = await _mainController.PingHostAsync(targetIp);
+                if (pingResult.Success)
+                {
+                    string macAddress = await _mainController.GetMacAddressAsync(targetIp);
+                    if (!string.IsNullOrEmpty(macAddress))
+                    {
+                        TargetMacTextBox.Text = macAddress;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogResult($"Failed to get MAC address: {ex.Message}");
+            }
+        }
+
+        private void LockBasicControls(bool isLocked)
+        {
+            // Lock/unlock input fields
+            TargetIpTextBox.IsEnabled = !isLocked;
+            TargetPortTextBox.IsEnabled = !isLocked;
+            TargetMacTextBox.IsEnabled = !isLocked;
+            MegabitsPerSecondTextBox.IsEnabled = !isLocked;
+            NetworkInterfaceComboBox.IsEnabled = !isLocked;
+            AttackTypeComboBox.IsEnabled = !isLocked;
+            
+            // Lock/unlock buttons
+            StartButton.IsEnabled = !isLocked;
+            StopButton.IsEnabled = isLocked;
+        }
+
+        private void LockAdvancedControls(bool isLocked)
+        {
+            // Lock/unlock input fields
+            AdvTargetIpTextBox.IsEnabled = !isLocked;
+            AdvTargetPortTextBox.IsEnabled = !isLocked;
+            AdvTargetMacTextBox.IsEnabled = !isLocked;
+            AdvMegabitsPerSecondTextBox.IsEnabled = !isLocked;
+            AdvancedAttackTypeComboBox.IsEnabled = !isLocked;
+            SpoofedMacTextBox.IsEnabled = !isLocked;
+            
+            // Lock/unlock buttons
+            StartAdvancedAttackButton.IsEnabled = !isLocked;
+            StopAdvancedAttackButton.IsEnabled = isLocked;
         }
 
     } 

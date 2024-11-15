@@ -34,42 +34,35 @@
         <TabControl Grid.Row="0" Grid.Column="0" Margin="5,20,0,0" SelectionChanged="TabControl_SelectionChanged">
             <TabItem Header="Basic Settings">
                 <StackPanel Margin="5">
-                    <Grid Grid.Column="0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
+                    <GroupBox Header="Source Network Information" Margin="5">
+                        <Grid Margin="5">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
 
-                        <GroupBox Header="Network Information" Margin="5">
-                            <Grid Margin="5">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
+                            <Label Grid.Row="0" Grid.Column="0" Content="Network Interface:" 
+                                   Style="{StaticResource DefaultLabel}" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="NetworkInterfaceComboBox" Grid.Row="0" Grid.Column="1" 
+                                      Height="25" Margin="0,5"
+                                      SelectionChanged="NetworkInterfaceComboBox_SelectionChanged"/>
 
-                                <Label Grid.Row="0" Grid.Column="0" Content="Network Interface:" 
-                                       Style="{StaticResource DefaultLabel}" VerticalAlignment="Center"/>
-                                <ComboBox x:Name="NetworkInterfaceComboBox" Grid.Row="0" Grid.Column="1" 
-                                          Height="25" Margin="0,5"
-                                          SelectionChanged="NetworkInterfaceComboBox_SelectionChanged"/>
+                            <Label Grid.Row="1" Grid.Column="0" Content="Source IP:" 
+                                   Style="{StaticResource DefaultLabel}" VerticalAlignment="Center"/>
+                            <TextBox x:Name="SourceIpTextBox" Grid.Row="1" Grid.Column="1" 
+                                     IsReadOnly="True" Style="{StaticResource DefaultTextBox}" />
 
-                                <Label Grid.Row="1" Grid.Column="0" Content="Source IP:" 
-                                       Style="{StaticResource DefaultLabel}" VerticalAlignment="Center"/>
-                                <TextBox x:Name="SourceIpTextBox" Grid.Row="1" Grid.Column="1" 
-                                         IsReadOnly="True" Style="{StaticResource DefaultTextBox}" />
-
-                                <Label Grid.Row="2" Grid.Column="0" Content="Source MAC:" 
-                                       Style="{StaticResource DefaultLabel}" VerticalAlignment="Center"/>
-                                <TextBox x:Name="SourceMacTextBox" Grid.Row="2" Grid.Column="1" 
-                                         IsReadOnly="True" Style="{StaticResource DefaultTextBox}" />
-                            </Grid>
-                        </GroupBox>
-                    </Grid>
+                            <Label Grid.Row="2" Grid.Column="0" Content="Source MAC:" 
+                                   Style="{StaticResource DefaultLabel}" VerticalAlignment="Center"/>
+                            <TextBox x:Name="SourceMacTextBox" Grid.Row="2" Grid.Column="1" 
+                                     IsReadOnly="True" Style="{StaticResource DefaultTextBox}" />
+                        </Grid>
+                    </GroupBox>
 
                     <GroupBox Header="Target Information" Margin="5">
                         <Grid Margin="5">
@@ -86,26 +79,48 @@
 
                             <Label Grid.Row="0" Grid.Column="0" Content="Target IP:" 
                                    Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="TargetIpTextBox" Grid.Row="0" Grid.Column="1" 
-                                     Style="{StaticResource DefaultTextBox}"/>
-                            <Button x:Name="PingButton" Grid.Row="0" Grid.Column="2"
-                                    Content="Ping" Width="80" Margin="5,0,0,0"
-                                    Style="{StaticResource DefaultButton}"
-                                    Click="PingButton_Click"/>
+                            <Grid Grid.Row="0" Grid.Column="1">
+                                <TextBox x:Name="TargetIpTextBox" 
+                                         Style="{StaticResource DefaultTextBox}"
+                                         TextChanged="TargetIpTextBox_TextChanged"/>
+                                <Button x:Name="PingButton"
+                                        Content="Ping"
+                                        Width="50"
+                                        Height="25"
+                                        HorizontalAlignment="Right"
+                                        Margin="0,0,5,0"
+                                        Click="PingButton_Click">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="BorderThickness" Value="1"/>
+                                            <Setter Property="BorderBrush" Value="#CCCCCC"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Tag, ElementName=PingButton}" Value="Success">
+                                                    <Setter Property="Foreground" Value="Green"/>
+                                                    <Setter Property="BorderBrush" Value="#A0D8A0"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Tag, ElementName=PingButton}" Value="Failed">
+                                                    <Setter Property="Foreground" Value="Red"/>
+                                                    <Setter Property="BorderBrush" Value="#D8A0A0"/>
+                                                </DataTrigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="BorderBrush" Value="#999999"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </Grid>
 
                             <Label Grid.Row="1" Grid.Column="0" Content="Target MAC:" 
                                    Style="{StaticResource DefaultLabel}"/>
                             <TextBox x:Name="TargetMacTextBox" Grid.Row="1" Grid.Column="1" 
                                      IsReadOnly="True" Style="{StaticResource DefaultTextBox}"/>
-                            <Button x:Name="GetMacButton" Grid.Row="1" Grid.Column="2"
-                                    Content="Get MAC" Width="80" Margin="5,0,0,0"
-                                    Style="{StaticResource DefaultButton}"
-                                    Click="GetMacButton_Click"/>
-
-                            <Label Grid.Row="2" Grid.Column="0" Content="Target Port:" 
-                                   Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="TargetPortTextBox" Grid.Row="2" Grid.Column="1" 
-                                     Style="{StaticResource DefaultTextBox}"/>
+                        <Label Grid.Row="3" Grid.Column="0" Content="Target Port:" 
+                               Style="{StaticResource DefaultLabel}"/>
+                        <TextBox x:Name="TargetPortTextBox" Grid.Row="2" Grid.Column="1" 
+                                 Style="{StaticResource DefaultTextBox}"/>
                         </Grid>
                     </GroupBox>
 
