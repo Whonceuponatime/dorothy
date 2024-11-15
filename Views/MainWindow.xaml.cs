@@ -16,6 +16,7 @@ using System.IO;
 using System.Windows.Media.Animation;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Windows.Input;
 
 namespace Dorothy.Views
 {
@@ -25,6 +26,8 @@ namespace Dorothy.Views
         private readonly NetworkStorm _networkStorm;
         private readonly ILogger _logger = LogManager.GetCurrentClassLogger();
         private string? _sourceIp;
+        private bool _isPasswordCheckInProgress = false;
+        private bool _isInitialized = false;
 
         public MainWindow()
         {
@@ -33,6 +36,18 @@ namespace Dorothy.Views
             _mainController = new MainController(_networkStorm, StartButton, StopButton, StatusLabel, LogTextBox, this);
             NetworkInterfaceComboBox.SelectionChanged += NetworkInterfaceComboBox_SelectionChanged;
             AttackTypeComboBox.SelectionChanged += AttackTypeComboBox_SelectionChanged;
+            
+            // Set default values for attack types
+            AttackTypeComboBox.SelectedIndex = 1;  // UDP Flood
+            AdvancedAttackTypeComboBox.SelectedIndex = 0;  // ARP Spoofing
+            
+            LogTextBox.Text = "DISCLAIMER:\n" +
+                  "======================\n" +
+                  "This is a DoS (Denial of Service) Testing Program for AUTHORIZED USE ONLY.\n" +
+                  "This tool is intended solely for authorized testing in controlled environments with explicit permission.\n" +
+                  "SeaNet and its affiliates assume no responsibility for any misuse, unauthorized access, or damages resulting from the use of this program.\n" +
+                  "By using this program, you acknowledge that you have the necessary authorization and accept full responsibility.\n" +
+                  "======================\n\n";
             PopulateNetworkInterfaces();
         }
 
@@ -454,7 +469,7 @@ namespace Dorothy.Views
             {
                 Filter = "Log files (*.log)|*.log|Text files (*.txt)|*.txt|All files (*.*)|*.*",
                 DefaultExt = "log",
-                FileName = $"Dorothy_Log_{DateTime.Now:yyyyMMdd_HHmmss}.log"
+                FileName = $"Dorothy_Log_{DateTime.Now.ToLocalTime():yyyyMMdd_HHmmss}.log"
             };
 
             if (dialog.ShowDialog() == true)
@@ -469,14 +484,6 @@ namespace Dorothy.Views
             LogTextBox.Clear();
             LogResult("Log cleared");
         }
-
-        private void Window_Loaded(object sender, RoutedEventArgs e)
-        {
-            // Set default attack type to ARP Spoofing
-            AdvancedAttackTypeComboBox.SelectedIndex = 0;
-            SyncNetworkInfo();
-        }
-
         private bool CheckAdvancedPassword()
         {
             var passwordDialog = new PasswordBox
@@ -489,7 +496,7 @@ namespace Dorothy.Views
             {
                 Title = "Advanced Settings Authentication",
                 Width = 300,
-                Height = 150,
+                Height = 160,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 Owner = this,
                 ResizeMode = ResizeMode.NoResize
@@ -506,51 +513,52 @@ namespace Dorothy.Views
                 Margin = new Thickness(0, 10, 0, 0)
             };
 
+            bool? dialogResult = null;
+            
             var okButton = new Button
             {
                 Content = "OK",
                 Width = 60,
-                Margin = new Thickness(0, 0, 10, 0),
-                IsDefault = true
+                Height = 25,
+                Margin = new Thickness(0, 0, 10, 0)
             };
+            okButton.Click += (s, e) => { dialogResult = true; dialog.Close(); };
 
             var cancelButton = new Button
             {
                 Content = "Cancel",
                 Width = 60,
-                IsCancel = true
+                Height = 25
             };
-
-            okButton.Click += (s, e) =>
-            {
-                dialog.DialogResult = passwordDialog.Password == "sadder";
-                dialog.Close();
-            };
+            cancelButton.Click += (s, e) => { dialogResult = false; dialog.Close(); };
 
             buttonPanel.Children.Add(okButton);
             buttonPanel.Children.Add(cancelButton);
             panel.Children.Add(buttonPanel);
             dialog.Content = panel;
 
-            return dialog.ShowDialog() == true;
+            passwordDialog.Focus();
+            dialog.ShowDialog();
+
+            if (!dialogResult.HasValue || !dialogResult.Value) return false;
+            return passwordDialog.Password == "sadder";
         }
 
-        private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void AdvancedTab_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (e.Source is TabControl tabControl && tabControl.SelectedItem == AdvancedTab)
+            if (MainTabControl.SelectedItem != AdvancedTab)
             {
-                // Prevent the event from firing multiple times
-                if (e.RemovedItems.Count == 0) return;
-
-                if (!CheckAdvancedPassword())
+                e.Handled = true;
+                
+                if (CheckAdvancedPassword())
                 {
-                    // Prevent the SelectionChanged event from firing again
-                    tabControl.SelectionChanged -= TabControl_SelectionChanged;
-                    tabControl.SelectedIndex = 0; // Switch back to basic tab
-                    tabControl.SelectionChanged += TabControl_SelectionChanged;
-                    
+                    MainTabControl.SelectedIndex = 1;  // Switch to Advanced tab
+                }
+                else
+                {
                     MessageBox.Show("Invalid password!", "Authentication Failed", 
-                                  MessageBoxButton.OK, MessageBoxImage.Warning);
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MainTabControl.SelectedIndex = 0;  // Stay on Basic tab
                 }
             }
         }

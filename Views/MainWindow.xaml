@@ -57,7 +57,7 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         
-        <TabControl Grid.Row="0" Grid.Column="0" Margin="5,20,0,20" SelectionChanged="TabControl_SelectionChanged">
+        <TabControl x:Name="MainTabControl" Grid.Row="0" Grid.Column="0" Margin="5,20,0,20">
             <TabItem Header="Basic Settings">
                 <StackPanel Margin="5">
                     <GroupBox Header="Source Network Information" Margin="5">
@@ -189,7 +189,7 @@
                 </StackPanel>
             </TabItem>
 
-            <TabItem x:Name="AdvancedTab" Header="Advanced Settings">
+            <TabItem x:Name="AdvancedTab" Header="Advanced Settings" PreviewMouseDown="AdvancedTab_PreviewMouseDown">
                 <StackPanel Margin="5">
                     <GroupBox Header="Network Information" Margin="5">
                         <Grid Margin="5">

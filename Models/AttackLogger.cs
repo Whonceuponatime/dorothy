@@ -25,7 +25,7 @@ namespace Dorothy.Models
         public void StartAttack(AttackType attackType, string sourceIp, byte[] sourceMac, 
                           string targetIp, byte[] targetMac, long megabitsPerSecond)
         {
-            _attackStartTime = DateTime.UtcNow;
+            _attackStartTime = DateTime.Now;
             _attackType = attackType.ToString();
             _sourceIp = sourceIp;
             _sourceMac = BitConverter.ToString(sourceMac).Replace("-", ":");
@@ -33,7 +33,7 @@ namespace Dorothy.Models
             _targetMac = BitConverter.ToString(targetMac).Replace("-", ":");
             _targetBytesPerSecond = megabitsPerSecond * 1_000_000 / 8;
 
-            var message = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] Attack Details\n" +
+            var message = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Attack Details\n" +
                          "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
                          $"Protocol: UDP\n" +
                          $"Source Host: {_sourceIp}\n" +
@@ -48,19 +48,19 @@ namespace Dorothy.Models
 
         public void LogInfo(string message)
         {
-            var formattedMessage = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] {message}";
+            var formattedMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
             LogEvent(formattedMessage, false);
         }
 
         public void LogError(string message)
         {
-            var formattedMessage = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] ERROR: {message}";
+            var formattedMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ERROR: {message}";
             LogEvent(formattedMessage, false);
         }
 
         public void LogWarning(string message)
         {
-            var formattedMessage = $"[{DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}] WARNING: {message}";
+            var formattedMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] WARNING: {message}";
             LogEvent(formattedMessage, false);
         }
 
