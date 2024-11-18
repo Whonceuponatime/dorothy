@@ -1,4 +1,4 @@
-# Dorothy - Maritime Network Testing Tool 🚢
+# Maritime Network Testing Tool 🚢
 
 ## Overview
 Dorothy is a specialized network testing tool designed for maritime cybersecurity evaluation. Developed by Hojin Samuel Tae, this tool simulates various network stress conditions to test the resilience of maritime network infrastructure.
