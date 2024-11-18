@@ -1,4 +1,4 @@
-# Dorothy - Maritime Network Testing Tool
+# Dorothy - Maritime Network Testing Tool 🚢
 
 ## Overview
 Dorothy is a specialized network testing tool designed for maritime cybersecurity evaluation. Developed by Hojin Samuel Tae, this tool simulates various network stress conditions to test the resilience of maritime network infrastructure.
@@ -58,7 +58,6 @@ Reference implementation:
 - .NET 7.0 or higher
 - Administrative privileges
 - Network adapter with packet injection support
-- WinPcap/Npcap installed
 
 ### Technical Architecture
 - Built on .NET 7.0
@@ -82,3 +81,10 @@ SeaNet
 ## License
 Proprietary software. All rights reserved.  
 Copyright © 2024 SeaNet
+
+## Packet Engineering & Network Analysis 📡
+
+### Packet Creation & Structure 📦
+The tool constructs network packets with precise control over:
+
+- Ethernet Frame Construction 🔧
