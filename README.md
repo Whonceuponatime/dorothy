@@ -75,7 +75,7 @@ This tool should only be used by authorized personnel in maritime environments f
 
 ## Author
 Hojin Samuel Tae  
-Maritime Cybersecurity Engineer  
+Cybersecurity Engineer  
 SeaNet
 
 ## License
