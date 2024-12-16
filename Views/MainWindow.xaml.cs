@@ -26,9 +26,6 @@ namespace Dorothy.Views
         private readonly NetworkStorm _networkStorm;
         private readonly ILogger _logger = LogManager.GetCurrentClassLogger();
         private string? _sourceIp;
-        private bool _isPasswordCheckInProgress = false;
-        private bool _isInitialized = false;
-
         public MainWindow()
         {
             InitializeComponent();

@@ -86,27 +86,86 @@ namespace Dorothy.Controllers
 
         public async Task<string> GetMacAddressAsync(string ipAddress)
         {
-            try
-            {
-                var destIp = BitConverter.ToInt32(IPAddress.Parse(ipAddress).GetAddressBytes(), 0);
-                var srcIp = 0;
-                var macAddr = new byte[6];
-                var macAddrLen = (uint)macAddr.Length;
-
-                var result = SendARP(destIp, srcIp, macAddr, ref macAddrLen);
-                if (result != 0)
+            return await Task.Run(() => {
+                try
                 {
-                    throw new Exception($"Failed to get MAC address. Error code: {result}");
+                    IPAddress targetIP = IPAddress.Parse(ipAddress);
+                    // Check if it's a broadcast address
+                    if (targetIP.GetAddressBytes()[3] == 255)
+                    {
+                        return "FF:FF:FF:FF:FF:FF";
+                    }
+                    
+                    IPAddress sourceIP = IPAddress.Parse(_networkStorm.SourceIp);
+                    
+                    // Check if target is on different subnet
+                    if (!IsOnSameSubnet(sourceIP, targetIP))
+                    {
+                        var gateway = GetDefaultGateway();
+                        if (gateway == null)
+                        {
+                            throw new Exception("Could not determine default gateway");
+                        }
+                        
+                        var gatewayIp = BitConverter.ToInt32(gateway.GetAddressBytes(), 0);
+                        var gatewayMacAddr = new byte[6];
+                        var gatewayMacAddrLen = (uint)gatewayMacAddr.Length;
+                        
+                        var gatewayResult = SendARP(gatewayIp, 0, gatewayMacAddr, ref gatewayMacAddrLen);
+                        if (gatewayResult != 0)
+                        {
+                            throw new Exception($"Failed to get gateway MAC address. Error code: {gatewayResult}");
+                        }
+                        
+                        return BitConverter.ToString(gatewayMacAddr, 0, (int)gatewayMacAddrLen).Replace("-", ":");
+                    }
+                    
+                    var destIp = BitConverter.ToInt32(targetIP.GetAddressBytes(), 0);
+                    var srcIp = 0;
+                    var macAddr = new byte[6];
+                    var macAddrLen = (uint)macAddr.Length;
+                    
+                    var result = SendARP(destIp, srcIp, macAddr, ref macAddrLen);
+                    if (result != 0)
+                    {
+                        throw new Exception($"Failed to get MAC address. Error code: {result}");
+                    }
+                    
+                    return BitConverter.ToString(macAddr, 0, (int)macAddrLen).Replace("-", ":");
                 }
+                catch (Exception ex)
+                {
+                    Log($"Error retrieving MAC address: {ex.Message}");
+                    _logger.Error(ex, "Error retrieving MAC address.");
+                    return "Error";
+                }
+            });
+        }
 
-                return BitConverter.ToString(macAddr, 0, (int)macAddrLen).Replace("-", ":");
-            }
-            catch (Exception ex)
+        private bool IsOnSameSubnet(IPAddress ip1, IPAddress ip2)
+        {
+            byte[] subnet = new byte[] { 255, 255, 255, 0 }; // Default subnet mask
+            byte[] bytes1 = ip1.GetAddressBytes();
+            byte[] bytes2 = ip2.GetAddressBytes();
+            
+            for (int i = 0; i < 4; i++)
             {
-                Log($"Error retrieving MAC address: {ex.Message}");
-                _logger.Error(ex, "Error retrieving MAC address.");
-                return "Error";
+                if ((bytes1[i] & subnet[i]) != (bytes2[i] & subnet[i]))
+                    return false;
             }
+            return true;
+        }
+
+        private IPAddress? GetDefaultGateway()
+        {
+            var gateway = NetworkInterface.GetAllNetworkInterfaces()
+                .Where(n => n.OperationalStatus == OperationalStatus.Up)
+                .Where(n => n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                .SelectMany(n => n.GetIPProperties()?.GatewayAddresses)
+                .Select(g => g?.Address)
+                .FirstOrDefault(a => a != null && a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+
+            return gateway ?? throw new Exception("No default gateway found");
         }
 
         public async Task<PingResult> PingHostAsync(string ipAddress)

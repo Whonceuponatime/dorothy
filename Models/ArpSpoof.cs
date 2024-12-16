@@ -20,7 +20,7 @@ namespace Dorothy.Models
         private readonly PhysicalAddress _targetMac;
         private readonly PhysicalAddress _spoofedMac;
         private CancellationTokenSource _cancellationTokenSource;
-        private LibPcapLiveDevice _device;
+        private LibPcapLiveDevice? _device;
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
 
         public ArpSpoof(string sourceIp, byte[] sourceMac, string targetIp, byte[] targetMac, byte[] spoofedMac, CancellationToken cancellationToken)
@@ -38,28 +38,19 @@ namespace Dorothy.Models
             Logger.Info("Starting ARP Spoofing attack.");
             try
             {
-                // Get all available network interfaces
-                _device = CaptureDeviceList.Instance
+                var device = CaptureDeviceList.Instance
                     .OfType<LibPcapLiveDevice>()
                     .FirstOrDefault(d => d.Interface.Addresses
                         .Any(a => a.Addr != null && 
                                  a.Addr.ipAddress != null && 
                                  a.Addr.ipAddress.ToString().StartsWith("192.168")));
 
-                if (_device == null)
+                if (device == null)
                 {
-                    // Fallback to any active interface if no matching IP found
-                    _device = CaptureDeviceList.Instance
-                        .OfType<LibPcapLiveDevice>()
-                        .FirstOrDefault(d => d.Interface.Addresses
-                            .Any(a => a.Addr != null && 
-                                     a.Addr.ipAddress != null));
+                    throw new Exception("No suitable network interface found");
                 }
 
-                if (_device == null)
-                {
-                    throw new Exception("No active network interface found. Please check your network connection.");
-                }
+                _device = device;
 
                 _device.Open(DeviceModes.Promiscuous);
 

@@ -75,16 +75,9 @@ This tool should only be used by authorized personnel in maritime environments f
 
 ## Author
 Hojin Samuel Tae  
-Maritime Cybersecurity Researcher  
+Maritime Cybersecurity Engineer  
 SeaNet
 
 ## License
 Proprietary software. All rights reserved.  
 Copyright © 2024 SeaNet
-
-## Packet Engineering & Network Analysis 📡
-
-### Packet Creation & Structure 📦
-The tool constructs network packets with precise control over:
-
-- Ethernet Frame Construction 🔧

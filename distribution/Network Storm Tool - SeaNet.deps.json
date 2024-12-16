@@ -7,14 +7,14 @@
   "targets": {
     ".NETCoreApp,Version=v7.0": {},
     ".NETCoreApp,Version=v7.0/win-x64": {
-      "Dorothy/1.0.0": {
+      "Network Storm Tool - SeaNet/1.0.0": {
         "dependencies": {
           "NLog": "4.7.10",
           "PacketDotNet": "1.2.0",
           "SharpPcap": "6.0.0"
         },
         "runtime": {
-          "Dorothy.dll": {}
+          "Network Storm Tool - SeaNet.dll": {}
         }
       },
       "NLog/4.7.10": {
@@ -53,7 +53,7 @@
     }
   },
   "libraries": {
-    "Dorothy/1.0.0": {
+    "Network Storm Tool - SeaNet/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

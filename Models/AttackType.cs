@@ -3,8 +3,9 @@ namespace Dorothy.Models
     public enum AttackType
     {
         UdpFlood,
-        IcmpFlood,
         SynFlood,
+        IcmpFlood,
+        BroadcastUdp
     }
     public enum AdvancedAttackType
     {
