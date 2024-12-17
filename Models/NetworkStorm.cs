@@ -51,7 +51,9 @@ namespace Dorothy.Models
         public async Task SetGatewayIp(string gatewayIp)
         {
             GatewayIp = gatewayIp;
-            if (!string.IsNullOrEmpty(gatewayIp))
+            
+            // Only proceed if we have a potentially valid IP address
+            if (gatewayIp.Count(c => c == '.') == 3 && gatewayIp.Length >= 7)
             {
                 try
                 {
@@ -62,15 +64,15 @@ namespace Dorothy.Models
                     // Wait for typing to finish (500ms delay)
                     await Task.Delay(500, _gatewayResolutionCts.Token);
                     
-                    var gatewayMac = await GetMacAddressAsync(gatewayIp);
-                    if (gatewayMac.Length > 0)
+                    // Validate IP format before attempting resolution
+                    if (IPAddress.TryParse(gatewayIp, out _))
                     {
-                        GatewayMac = gatewayMac;
-                        _logger.LogInfo($"Gateway MAC resolved: {BitConverter.ToString(gatewayMac).Replace("-", ":")}");
-                    }
-                    else
-                    {
-                        _logger.LogWarning("Could not resolve Gateway MAC address automatically");
+                        var gatewayMac = await GetMacAddressAsync(gatewayIp);
+                        if (gatewayMac.Length > 0)
+                        {
+                            GatewayMac = gatewayMac;
+                            _logger.LogInfo($"Gateway MAC resolved: {BitConverter.ToString(gatewayMac).Replace("-", ":")}");
+                        }
                     }
                 }
                 catch (OperationCanceledException)

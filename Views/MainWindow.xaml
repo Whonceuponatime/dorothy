@@ -67,32 +67,36 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
                             <Label Grid.Row="0" Grid.Column="0" Content="Network Interface:" 
                                    Style="{StaticResource DefaultLabel}"/>
-                            <ComboBox x:Name="NetworkInterfaceComboBox" Grid.Row="0" Grid.Column="1" 
+                            <ComboBox x:Name="NetworkInterfaceComboBox" Grid.Row="0" Grid.Column="1"
                                       Height="25" Margin="0,5"
                                       SelectionChanged="NetworkInterfaceComboBox_SelectionChanged"/>
 
                             <Label Grid.Row="1" Grid.Column="0" Content="Source IP:" 
                                    Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="SourceIpTextBox" Grid.Row="1" Grid.Column="1" 
-                                     Height="25" Margin="0,5" IsReadOnly="True"/>
+                            <TextBox x:Name="SourceIpTextBox" Grid.Row="1" Grid.Column="1"
+                                     Style="{StaticResource DefaultTextBox}"
+                                     IsReadOnly="True"/>
 
                             <Label Grid.Row="2" Grid.Column="0" Content="Source MAC:" 
                                    Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="SourceMacTextBox" Grid.Row="2" Grid.Column="1" 
-                                     Height="25" Margin="0,5" IsReadOnly="True"/>
+                            <TextBox x:Name="SourceMacTextBox" Grid.Row="2" Grid.Column="1"
+                                     Style="{StaticResource DefaultTextBox}"
+                                     IsReadOnly="True"/>
 
                             <Label Grid.Row="3" Grid.Column="0" Content="Gateway IP:" 
                                    Style="{StaticResource DefaultLabel}"/>
                             <TextBox x:Name="GatewayIpTextBox" Grid.Row="3" Grid.Column="1"
-                                     Height="25" Margin="0,5" 
+                                     Style="{StaticResource DefaultTextBox}"
                                      TextChanged="GatewayIpTextBox_TextChanged"/>
                         </Grid>
                     </GroupBox>
