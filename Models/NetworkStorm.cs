@@ -19,6 +19,7 @@ namespace Dorothy.Models
         private readonly TextBox _logArea;
         private bool _isAttackRunning;
         private CancellationTokenSource? _cancellationSource;
+        private CancellationTokenSource? _gatewayResolutionCts;
         public string SourceIp { get; private set; }
         public byte[] SourceMac { get; private set; }
         public string GatewayIp { get; private set; }
@@ -47,9 +48,45 @@ namespace Dorothy.Models
             SourceMac = sourceMac;
         }
 
-        public void SetGatewayIp(string gatewayIp)
+        public async Task SetGatewayIp(string gatewayIp)
         {
             GatewayIp = gatewayIp;
+            if (!string.IsNullOrEmpty(gatewayIp))
+            {
+                try
+                {
+                    // Cancel any previous resolution attempt
+                    _gatewayResolutionCts?.Cancel();
+                    _gatewayResolutionCts = new CancellationTokenSource();
+                    
+                    // Wait for typing to finish (500ms delay)
+                    await Task.Delay(500, _gatewayResolutionCts.Token);
+                    
+                    var gatewayMac = await GetMacAddressAsync(gatewayIp);
+                    if (gatewayMac.Length > 0)
+                    {
+                        GatewayMac = gatewayMac;
+                        _logger.LogInfo($"Gateway MAC resolved: {BitConverter.ToString(gatewayMac).Replace("-", ":")}");
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Could not resolve Gateway MAC address automatically");
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Ignore cancellation
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Error resolving Gateway MAC: {ex.Message}");
+                }
+                finally
+                {
+                    _gatewayResolutionCts?.Dispose();
+                    _gatewayResolutionCts = null;
+                }
+            }
         }
 
         public async Task SetGatewayMacAsync(byte[] mac)
@@ -105,6 +142,7 @@ namespace Dorothy.Models
                 _isAttackRunning = true;
 
                 byte[] macToUse;
+                string macDisplay;
                 if (!IsOnSameSubnet(IPAddress.Parse(SourceIp), IPAddress.Parse(targetIp)))
                 {
                     if (GatewayMac.Length == 0)
@@ -112,7 +150,8 @@ namespace Dorothy.Models
                         throw new Exception("Gateway MAC address is required for cross-subnet attacks");
                     }
                     macToUse = GatewayMac;
-                    _logger.LogInfo($"Using Gateway MAC for cross-subnet attack: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
+                    macDisplay = $"{BitConverter.ToString(GatewayMac).Replace("-", ":")} (Gateway MAC)";
+                    _logger.LogInfo($"Using Gateway MAC for cross-subnet attack: {macDisplay}");
                 }
                 else
                 {
@@ -122,12 +161,14 @@ namespace Dorothy.Models
                         throw new Exception("Could not resolve target MAC address");
                     }
                     macToUse = targetMac;
-                    _logger.LogInfo($"Using Target MAC for same-subnet attack: {BitConverter.ToString(targetMac).Replace("-", ":")}");
+                    macDisplay = BitConverter.ToString(targetMac).Replace("-", ":");
+                    _logger.LogInfo($"Using Target MAC for same-subnet attack: {macDisplay}");
                 }
 
                 _logger.StartAttack(attackType, SourceIp, SourceMac, targetIp, macToUse, megabitsPerSecond);
+                _logger.LogInfo($"Target MAC: {macDisplay}");
 
-                var bytesPerSecond = megabitsPerSecond * 125_000; // Convert Mbps to Bytes/s
+                var bytesPerSecond = megabitsPerSecond * 125_000;
                 switch (attackType)
                 {
                     case AttackType.UdpFlood:
@@ -137,44 +178,24 @@ namespace Dorothy.Models
                         }
                         break;
                     case AttackType.IcmpFlood:
-                        using (var icmpFlood = new IcmpFlood(
-                            SourceIp,
-                            SourceMac,
-                            targetIp,
-                            macToUse,
-                            GatewayMac,
-                            bytesPerSecond,
-                            _cancellationSource.Token))
+                        using (var icmpFlood = new IcmpFlood(SourceIp, SourceMac, targetIp, macToUse, GatewayMac, bytesPerSecond, _cancellationSource.Token))
                         {
                             await icmpFlood.StartAsync();
                         }
                         break;
                     case AttackType.SynFlood:
-                        using (var tcpFlood = new TcpFlood(
-                            SourceIp,
-                            SourceMac,
-                            targetIp,
-                            macToUse,
-                            GatewayMac,
-                            targetPort,
-                            bytesPerSecond,
-                            _cancellationSource.Token))
+                        using (var tcpFlood = new TcpFlood(SourceIp, SourceMac, targetIp, macToUse, GatewayMac, targetPort, bytesPerSecond, _cancellationSource.Token))
                         {
                             await tcpFlood.StartAsync();
                         }
                         break;
                     default:
-                        Log("Unknown Attack Type.");
-                        break;
+                        throw new ArgumentException($"Unsupported attack type: {attackType}");
                 }
-
-                _logger.LogInfo("Attack finished successfully.");
-                _logger.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Attack failed: {ex.Message}");
-                _logger.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
                 throw;
             }
         }
