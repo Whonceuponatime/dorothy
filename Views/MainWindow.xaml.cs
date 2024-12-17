@@ -17,6 +17,7 @@ using System.Windows.Media.Animation;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace Dorothy.Views
 {
@@ -627,6 +628,69 @@ namespace Dorothy.Views
             catch (Exception ex)
             {
                 MessageBox.Show($"Error opening Task Manager: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void InitializeNetworkInfo()
+        {
+            try
+            {
+                var networkInterface = GetActiveNetworkInterface();
+                if (networkInterface != null)
+                {
+                    var ipProperties = networkInterface.GetIPProperties();
+                    var ipv4Address = ipProperties.UnicastAddresses
+                        .FirstOrDefault(addr => addr.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+
+                    if (ipv4Address != null)
+                    {
+                        _sourceIp = ipv4Address.Address.ToString();
+                        SourceIpTextBox.Text = _sourceIp;
+                        UpdateMacAddress(networkInterface);
+                        
+                        // Get and set default gateway
+                        var gateway = ipProperties.GatewayAddresses
+                            .FirstOrDefault(g => g.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+                        var defaultGateway = gateway?.Address.ToString() ?? string.Empty;
+                        
+                        GatewayIpTextBox.Text = defaultGateway;
+                        _networkStorm.SetGatewayIp(defaultGateway);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error initializing network info: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private NetworkInterface? GetActiveNetworkInterface()
+        {
+            var selectedInterface = NetworkInterfaceComboBox.SelectedItem as NetworkInterface;
+            return selectedInterface;
+        }
+
+        private void UpdateMacAddress(NetworkInterface networkInterface)
+        {
+            byte[] macBytes = networkInterface.GetPhysicalAddress().GetAddressBytes();
+            string formattedMac = string.Join(":", macBytes.Select(b => b.ToString("X2")));
+            SourceMacTextBox.Text = formattedMac;
+            if (_sourceIp != null)
+            {
+                _networkStorm.SetSourceInfo(_sourceIp, macBytes);
+            }
+        }
+
+        private void GatewayIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (IPAddress.TryParse(GatewayIpTextBox.Text, out _))
+            {
+                _networkStorm.SetGatewayIp(GatewayIpTextBox.Text);
+                GatewayIpTextBox.Background = Brushes.White;
+            }
+            else
+            {
+                GatewayIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
             }
         }
 

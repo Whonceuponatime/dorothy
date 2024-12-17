@@ -21,6 +21,8 @@ namespace Dorothy.Models
         private CancellationTokenSource? _cancellationSource;
         public string SourceIp { get; private set; }
         public byte[] SourceMac { get; private set; }
+        public string GatewayIp { get; private set; }
+        public byte[] GatewayMac { get; private set; }
         public bool EnableLogging { get; set; }
 
         public NetworkStorm(TextBox logArea)
@@ -29,12 +31,59 @@ namespace Dorothy.Models
             _logger = new AttackLogger(logArea);
             SourceIp = string.Empty;
             SourceMac = Array.Empty<byte>();
+            GatewayIp = string.Empty;
+            GatewayMac = Array.Empty<byte>();
+        }
+
+        public void Initialize(string sourceIp, byte[] sourceMac)
+        {
+            SourceIp = sourceIp;
+            SourceMac = sourceMac;
         }
 
         public void SetSourceInfo(string sourceIp, byte[] sourceMac)
         {
             SourceIp = sourceIp;
             SourceMac = sourceMac;
+        }
+
+        public void SetGatewayIp(string gatewayIp)
+        {
+            GatewayIp = gatewayIp;
+        }
+
+        public async Task SetGatewayMacAsync(byte[] mac)
+        {
+            GatewayMac = mac;
+        }
+
+        private async Task<byte[]> GetMacAddressAsync(string ipAddress)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(ipAddress))
+                    return Array.Empty<byte>();
+
+                var addr = IPAddress.Parse(ipAddress);
+                var macAddr = new byte[6];
+                var macAddrLen = (uint)macAddr.Length;
+
+                var result = await Task.Run(() => SendARP(
+                    BitConverter.ToInt32(addr.GetAddressBytes(), 0),
+                    0,
+                    macAddr,
+                    ref macAddrLen));
+
+                if (result != 0)
+                    return Array.Empty<byte>();
+
+                return macAddr;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error getting MAC address: {ex.Message}");
+                return Array.Empty<byte>();
+            }
         }
 
         private void Log(string message)
@@ -50,30 +99,39 @@ namespace Dorothy.Models
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(SourceIp) || SourceMac.Length != 6)
-            {
-                _logger.LogError("Source IP or MAC is not set. Cannot start attack.");
-                throw new Exception("Source IP or MAC is not set.");
-            }
-
-            _cancellationSource = new CancellationTokenSource();
-            _isAttackRunning = true;
-
-            byte[] targetMac = await GetMacAddressAsync(targetIp);
-            _logger.StartAttack(attackType, SourceIp, SourceMac, targetIp, targetMac, megabitsPerSecond);
             try
             {
+                _cancellationSource = new CancellationTokenSource();
+                _isAttackRunning = true;
+
+                byte[] macToUse;
+                if (!IsOnSameSubnet(IPAddress.Parse(SourceIp), IPAddress.Parse(targetIp)))
+                {
+                    if (GatewayMac.Length == 0)
+                    {
+                        throw new Exception("Gateway MAC address is required for cross-subnet attacks");
+                    }
+                    macToUse = GatewayMac;
+                    _logger.LogInfo($"Using Gateway MAC for cross-subnet attack: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
+                }
+                else
+                {
+                    var targetMac = await GetMacAddressAsync(targetIp);
+                    if (targetMac.Length == 0)
+                    {
+                        throw new Exception("Could not resolve target MAC address");
+                    }
+                    macToUse = targetMac;
+                    _logger.LogInfo($"Using Target MAC for same-subnet attack: {BitConverter.ToString(targetMac).Replace("-", ":")}");
+                }
+
+                _logger.StartAttack(attackType, SourceIp, SourceMac, targetIp, macToUse, megabitsPerSecond);
+
+                var bytesPerSecond = megabitsPerSecond * 125_000; // Convert Mbps to Bytes/s
                 switch (attackType)
                 {
                     case AttackType.UdpFlood:
-                        using (var udpFlood = new UdpFlood(
-                            SourceIp,
-                            SourceMac,
-                            targetIp,
-                            targetMac,
-                            targetPort,
-                            megabitsPerSecond * 125_000,
-                            _cancellationSource.Token))
+                        using (var udpFlood = new UdpFlood(SourceIp, SourceMac, targetIp, macToUse, GatewayMac, targetPort, bytesPerSecond, _cancellationSource.Token))
                         {
                             await udpFlood.StartAsync();
                         }
@@ -83,8 +141,9 @@ namespace Dorothy.Models
                             SourceIp,
                             SourceMac,
                             targetIp,
-                            targetMac,
-                            megabitsPerSecond * 125_000,
+                            macToUse,
+                            GatewayMac,
+                            bytesPerSecond,
                             _cancellationSource.Token))
                         {
                             await icmpFlood.StartAsync();
@@ -95,9 +154,10 @@ namespace Dorothy.Models
                             SourceIp,
                             SourceMac,
                             targetIp,
-                            targetMac,
+                            macToUse,
+                            GatewayMac,
                             targetPort,
-                            megabitsPerSecond * 125_000,
+                            bytesPerSecond,
                             _cancellationSource.Token))
                         {
                             await tcpFlood.StartAsync();
@@ -108,16 +168,14 @@ namespace Dorothy.Models
                         break;
                 }
 
-                Log("Attack finished successfully.");
+                _logger.LogInfo("Attack finished successfully.");
+                _logger.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Attack failed: {ex.Message}");
-            }
-            finally
-            {
-                _isAttackRunning = false;
-                _cancellationSource?.Dispose();
+                _logger.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                throw;
             }
         }
 
@@ -131,71 +189,19 @@ namespace Dorothy.Models
 
             try
             {
-                _logger.LogInfo("Stopping attack...");
                 _cancellationSource?.Cancel();
                 _isAttackRunning = false;
-                await Task.CompletedTask;
                 _logger.LogInfo("Attack stop signal sent.");
             }
             finally
             {
-                _cancellationSource?.Dispose();
-                _cancellationSource = null;
+                if (_cancellationSource != null)
+                {
+                    await Task.Delay(100); // Give time for cleanup
+                    _cancellationSource.Dispose();
+                    _cancellationSource = null;
+                }
             }
-        }
-
-        public async Task<byte[]> GetMacAddressAsync(string ipAddress)
-        {
-            return await Task.Run(() =>
-            {
-                try
-                {
-                    IPAddress targetIP = IPAddress.Parse(ipAddress);
-                    IPAddress sourceIP = IPAddress.Parse(SourceIp);
-                    
-                    // Check if target is on different subnet
-                    if (!IsOnSameSubnet(sourceIP, targetIP))
-                    {
-                        // Get default gateway address and MAC
-                        var gateway = GetDefaultGateway();
-                        if (gateway == null)
-                        {
-                            throw new Exception("Could not determine default gateway");
-                        }
-                        
-                        var gatewayIp = BitConverter.ToInt32(gateway.GetAddressBytes(), 0);
-                        var gatewayMacAddr = new byte[6];
-                        var gatewayMacAddrLen = (uint)gatewayMacAddr.Length;
-                        
-                        var gatewayResult = SendARP(gatewayIp, 0, gatewayMacAddr, ref gatewayMacAddrLen);
-                        if (gatewayResult != 0)
-                        {
-                            throw new Exception($"Failed to get gateway MAC address. Error code: {gatewayResult}");
-                        }
-                        
-                        return gatewayMacAddr;
-                    }
-                    
-                    // Same subnet - get target MAC directly
-                    var destIp = BitConverter.ToInt32(targetIP.GetAddressBytes(), 0);
-                    var srcIp = BitConverter.ToInt32(sourceIP.GetAddressBytes(), 0);
-                    var targetMacAddr = new byte[6];
-                    var targetMacAddrLen = (uint)targetMacAddr.Length;
-                    
-                    var targetResult = SendARP(destIp, srcIp, targetMacAddr, ref targetMacAddrLen);
-                    if (targetResult != 0)
-                    {
-                        throw new Exception($"Failed to get MAC address. Error code: {targetResult}");
-                    }
-                    
-                    return targetMacAddr;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"Failed to get MAC address: {ex.Message}");
-                    throw;
-                }
-            });
         }
 
         private bool IsOnSameSubnet(IPAddress ip1, IPAddress ip2)

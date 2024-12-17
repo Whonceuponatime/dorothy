@@ -20,18 +20,20 @@ namespace Dorothy.Models
         private readonly PhysicalAddress _sourceMac;
         private readonly string _targetIp;
         private readonly byte[] _targetMac;
+        private readonly byte[] _gatewayMac;
         private readonly int _targetPort;
         private readonly long _bytesPerSecond;
         private readonly CancellationToken _cancellationToken;
         private LibPcapLiveDevice? _device;
         private static readonly ArrayPool<byte> PacketPool = ArrayPool<byte>.Shared;
 
-        public TcpFlood(string sourceIp, byte[] sourceMac, string targetIp, byte[] targetMac, int targetPort, long bytesPerSecond, CancellationToken cancellationToken)
+        public TcpFlood(string sourceIp, byte[] sourceMac, string targetIp, byte[] targetMac, byte[] gatewayMac, int targetPort, long bytesPerSecond, CancellationToken cancellationToken)
         {
             _sourceIp = sourceIp;
             _sourceMac = new PhysicalAddress(sourceMac);
             _targetIp = targetIp;
             _targetMac = targetMac;
+            _gatewayMac = gatewayMac;
             _targetPort = targetPort;
             _bytesPerSecond = bytesPerSecond;
             _cancellationToken = cancellationToken;

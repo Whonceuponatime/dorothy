@@ -4,15 +4,15 @@
 winexe
 C#
 .cs
-C:\Users\SAMSUNG\Desktop\Dorothy\obj\Release\net7.0-windows\win-x64\
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Debug\net7.0-windows\
 Dorothy
 none
 false
-TRACE;RELEASE;NET;NET7_0;NETCOREAPP
+TRACE;DEBUG;NET;NET7_0;NETCOREAPP
 C:\Users\SAMSUNG\Desktop\Dorothy\App.xaml
 2-733531562
 
-12-1845731278
+12-1255336775
 201-623377785
 Views\CustomGatewayDialog.xaml;Views\MainWindow.xaml;
 

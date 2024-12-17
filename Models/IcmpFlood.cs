@@ -20,16 +20,18 @@ namespace Dorothy.Models
         private readonly PhysicalAddress _sourceMac;
         private readonly string _targetIp;
         private readonly byte[] _targetMac;
+        private readonly byte[] _gatewayMac;
         private readonly long _bytesPerSecond;
         private readonly CancellationToken _cancellationToken;
         private LibPcapLiveDevice? _device;
 
-        public IcmpFlood(string sourceIp, byte[] sourceMac, string targetIp, byte[] targetMac, long bytesPerSecond, CancellationToken cancellationToken)
+        public IcmpFlood(string sourceIp, byte[] sourceMac, string targetIp, byte[] targetMac, byte[] gatewayMac, long bytesPerSecond, CancellationToken cancellationToken)
         {
             _sourceIp = sourceIp;
             _sourceMac = new PhysicalAddress(sourceMac);
             _targetIp = targetIp;
             _targetMac = targetMac;
+            _gatewayMac = gatewayMac;
             _bytesPerSecond = bytesPerSecond;
             _cancellationToken = cancellationToken;
         }

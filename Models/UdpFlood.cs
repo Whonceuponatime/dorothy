@@ -19,17 +19,19 @@ namespace Dorothy.Models
         private readonly PhysicalAddress _sourceMac;
         private readonly string _targetIp;
         private readonly byte[] _targetMac;
+        private readonly byte[] _gatewayMac;
         private readonly int _targetPort;
         private readonly long _bytesPerSecond;
         private readonly CancellationToken _cancellationToken;
         private LibPcapLiveDevice? _device;
 
-        public UdpFlood(string sourceIp, byte[] sourceMac, string targetIp, byte[] targetMac, int targetPort, long bytesPerSecond, CancellationToken cancellationToken)
+        public UdpFlood(string sourceIp, byte[] sourceMac, string targetIp, byte[] targetMac, byte[] gatewayMac, int targetPort, long bytesPerSecond, CancellationToken cancellationToken)
         {
             _sourceIp = sourceIp;
             _sourceMac = new PhysicalAddress(sourceMac);
             _targetIp = targetIp;
             _targetMac = targetMac;
+            _gatewayMac = gatewayMac;
             _targetPort = targetPort;
             _bytesPerSecond = bytesPerSecond;
             _cancellationToken = cancellationToken;
@@ -62,7 +64,9 @@ namespace Dorothy.Models
                 var random = new Random();
                 var ethernetPacket = new EthernetPacket(
                     _sourceMac,
-                    new PhysicalAddress(_targetMac),
+                    new PhysicalAddress(_targetIp.Contains(".") && !IsOnSameSubnet(IPAddress.Parse(_sourceIp), IPAddress.Parse(_targetIp)) 
+                        ? _gatewayMac 
+                        : _targetMac),
                     EthernetType.IPv4);
 
                 var ipPacket = new IPv4Packet(
@@ -149,5 +153,19 @@ namespace Dorothy.Models
 
         [DllImport("iphlpapi.dll", ExactSpelling = true)]
         private static extern int SendARP(int DestIP, int SrcIP, byte[] pMacAddr, ref int PhyAddrLen);
+
+        private bool IsOnSameSubnet(IPAddress ip1, IPAddress ip2)
+        {
+            byte[] subnet = new byte[] { 255, 255, 255, 0 }; // Default subnet mask
+            byte[] bytes1 = ip1.GetAddressBytes();
+            byte[] bytes2 = ip2.GetAddressBytes();
+            
+            for (int i = 0; i < 4; i++)
+            {
+                if ((bytes1[i] & subnet[i]) != (bytes2[i] & subnet[i]))
+                    return false;
+            }
+            return true;
+        }
     }
 } 

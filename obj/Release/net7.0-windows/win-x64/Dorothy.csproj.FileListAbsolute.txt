@@ -25,3 +25,5 @@ C:\Users\SAMSUNG\Desktop\Dorothy\obj\Release\net7.0-windows\win-x64\Dorothy.dll
 C:\Users\SAMSUNG\Desktop\Dorothy\obj\Release\net7.0-windows\win-x64\refint\Dorothy.dll
 C:\Users\SAMSUNG\Desktop\Dorothy\obj\Release\net7.0-windows\win-x64\Dorothy.pdb
 C:\Users\SAMSUNG\Desktop\Dorothy\obj\Release\net7.0-windows\win-x64\ref\Dorothy.dll
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Release\net7.0-windows\win-x64\Views\CustomGatewayDialog.baml
+C:\Users\SAMSUNG\Desktop\Dorothy\obj\Release\net7.0-windows\win-x64\Views\CustomGatewayDialog.g.cs
