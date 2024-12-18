@@ -66,18 +66,22 @@ namespace Dorothy.Models
 
         private void LogEvent(string message, bool isAttackDetails)
         {
-            _logArea.Dispatcher.Invoke(() =>
+            if (isAttackDetails)
             {
-                if (_messageCount > 0) _logArea.AppendText("\n");
-                _logArea.AppendText(message);
-                _messageCount++;
-                
-                if (message.Contains("Attack finished successfully") || isAttackDetails)
+                _logArea.Dispatcher.Invoke(() =>
                 {
-                    _logArea.AppendText("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                }
-                _logArea.ScrollToEnd();
-            });
+                    _logArea.AppendText($"{message}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+                    _logArea.ScrollToEnd();
+                });
+            }
+            else
+            {
+                _logArea.Dispatcher.Invoke(() =>
+                {
+                    _logArea.AppendText($"{message}{Environment.NewLine}");
+                    _logArea.ScrollToEnd();
+                });
+            }
         }
     }
 } 

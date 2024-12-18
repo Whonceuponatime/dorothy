@@ -18,6 +18,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Net.Sockets;
 
 namespace Dorothy.Views
 {
@@ -225,9 +226,8 @@ namespace Dorothy.Views
 
         private void LogResult(string message)
         {
-            string timestamp = DateTime.Now.ToString("HH:mm:ss");
-            string logMessage = $"[{timestamp}] {message}{Environment.NewLine}";
-            LogTextBox.AppendText(logMessage);
+            string timestampedMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}";
+            LogTextBox.AppendText(timestampedMessage);
             LogTextBox.ScrollToEnd();
         }
 
@@ -681,17 +681,91 @@ namespace Dorothy.Views
             }
         }
 
-        private void GatewayIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private async void GatewayIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
+            if (string.IsNullOrEmpty(GatewayIpTextBox.Text))
+            {
+                GatewayIpTextBox.Background = Brushes.White;
+                return;
+            }
+
             if (IPAddress.TryParse(GatewayIpTextBox.Text, out _))
             {
-                _networkStorm.SetGatewayIp(GatewayIpTextBox.Text);
+                await _networkStorm.SetGatewayIp(GatewayIpTextBox.Text);
                 GatewayIpTextBox.Background = Brushes.White;
             }
             else
             {
                 GatewayIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
             }
+        }
+
+        private async void UpdateGatewayIpField()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(TargetIpTextBox.Text) || string.IsNullOrEmpty(SourceIpTextBox.Text))
+                {
+                    GatewayIpTextBox.IsEnabled = false;
+                    GatewayIpTextBox.Background = Brushes.LightGray;
+                    return;
+                }
+
+                var sourceIp = IPAddress.Parse(SourceIpTextBox.Text);
+                var targetIp = IPAddress.Parse(TargetIpTextBox.Text);
+
+                if (IsOnSameSubnet(sourceIp, targetIp))
+                {
+                    GatewayIpTextBox.IsEnabled = false;
+                    GatewayIpTextBox.Background = Brushes.LightGray;
+                    GatewayIpTextBox.Text = string.Empty;
+                    await _networkStorm.SetGatewayIp(string.Empty);
+                }
+                else
+                {
+                    GatewayIpTextBox.IsEnabled = true;
+                    GatewayIpTextBox.Background = Brushes.White;
+                    if (string.IsNullOrEmpty(GatewayIpTextBox.Text))
+                    {
+                        var sourceOctets = SourceIpTextBox.Text.Split('.');
+                        GatewayIpTextBox.Text = $"{sourceOctets[0]}.{sourceOctets[1]}.{sourceOctets[2]}.1";
+                    }
+                }
+            }
+            catch
+            {
+                GatewayIpTextBox.IsEnabled = false;
+                GatewayIpTextBox.Background = Brushes.LightGray;
+            }
+        }
+
+        private bool IsOnSameSubnet(IPAddress ip1, IPAddress ip2)
+        {
+            // Get subnet mask from the selected network interface
+            var selectedItem = NetworkInterfaceComboBox.SelectedItem as ComboBoxItem;
+            if (selectedItem?.Tag is NetworkInterface networkInterface)
+            {
+                var ipProps = networkInterface.GetIPProperties();
+                var ipv4Address = ipProps.UnicastAddresses
+                    .FirstOrDefault(ua => ua.Address.AddressFamily == AddressFamily.InterNetwork);
+
+                if (ipv4Address != null)
+                {
+                    byte[] subnetMask = ipv4Address.IPv4Mask.GetAddressBytes();
+                    byte[] ip1Bytes = ip1.GetAddressBytes();
+                    byte[] ip2Bytes = ip2.GetAddressBytes();
+
+                    for (int i = 0; i < 4; i++)
+                    {
+                        if ((ip1Bytes[i] & subnetMask[i]) != (ip2Bytes[i] & subnetMask[i]))
+                        {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+            }
+            return false;
         }
 
     } 
