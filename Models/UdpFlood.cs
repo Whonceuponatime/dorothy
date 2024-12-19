@@ -89,7 +89,7 @@ namespace Dorothy.Models
 
                 double packetSize = ethernetPacket.Bytes.Length;
                 int packetsPerSecond = (int)Math.Ceiling(_bytesPerSecond / packetSize);
-                int batchSize = 1000;
+                int batchSize = 100;
                 double delayMicroseconds = (1_000_000.0 * batchSize) / packetsPerSecond;
 
                 Logger.Info($"UDP Flood: Sending {packetsPerSecond} packets per second ({_bytesPerSecond / 125_000} Mbps).");

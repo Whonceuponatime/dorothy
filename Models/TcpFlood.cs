@@ -92,7 +92,7 @@ namespace Dorothy.Models
 
                 double packetSize = ethernetPacket.Bytes.Length;
                 int packetsPerSecond = (int)Math.Ceiling(_bytesPerSecond / packetSize);
-                int batchSize = 1000;
+                int batchSize = 100;
                 double delayMicroseconds = (1_000_000.0 * batchSize) / packetsPerSecond;
 
                 Logger.Info($"TCP SYN Flood: Target rate {_bytesPerSecond / 125_000} Mbps ({packetsPerSecond} packets/sec, {batchSize} batch size)");
