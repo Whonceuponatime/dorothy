@@ -19,6 +19,7 @@ using System.Diagnostics;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace Dorothy.Views
 {
@@ -28,6 +29,8 @@ namespace Dorothy.Views
         private readonly NetworkStorm _networkStorm;
         private readonly ILogger _logger = LogManager.GetCurrentClassLogger();
         private string? _sourceIp;
+        private CancellationTokenSource? _routeUpdateCts;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -55,6 +58,11 @@ namespace Dorothy.Views
             try
             {
                 string targetIp = TargetIpTextBox.Text.Trim();
+                
+                // Add connectivity check
+                var diagnostics = await _networkStorm.GetRoutingDiagnosticsAsync(targetIp);
+                LogResult(diagnostics);
+                
                 string portText = TargetPortTextBox.Text.Trim();
                 string mbpsText = MegabitsPerSecondTextBox.Text.Trim();
 
@@ -118,8 +126,7 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error starting attack: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                LockBasicControls(false);
+                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -563,30 +570,157 @@ namespace Dorothy.Views
 
         private async void TargetIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
+            // Only update gateway field availability
+            UpdateGatewayIpField();
+        }
+
+        private async void GatewayIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(GatewayIpTextBox.Text))
+            {
+                GatewayIpTextBox.Background = Brushes.White;
+                return;
+            }
+
+            // Only proceed if we have a complete, valid IP address
+            if (IPAddress.TryParse(GatewayIpTextBox.Text, out _) && 
+                GatewayIpTextBox.Text.Count(c => c == '.') == 3 && 
+                !GatewayIpTextBox.Text.EndsWith("."))
+            {
+                try
+                {
+                    _routeUpdateCts?.Cancel();
+                    _routeUpdateCts = new CancellationTokenSource();
+                    
+                    // Wait for typing to finish
+                    await Task.Delay(500, _routeUpdateCts.Token);
+                    
+                    string targetIp = TargetIpTextBox.Text;
+                    if (!string.IsNullOrEmpty(targetIp) && IPAddress.TryParse(targetIp, out _))
+                    {
+                        var sourceNetwork = GetNetworkAddress(SourceIpTextBox.Text);
+                        var targetNetwork = GetNetworkAddress(targetIp);
+                        
+                        if (!string.IsNullOrEmpty(targetNetwork) && targetNetwork != sourceNetwork)
+                        {
+                            await _networkStorm.AddRouteAsync(targetNetwork, GatewayIpTextBox.Text);
+                            
+                            // Update Target MAC with Gateway MAC
+                            var gatewayMac = await _networkStorm.GetGatewayMacAsync();
+                            if (!string.IsNullOrEmpty(gatewayMac))
+                            {
+                                TargetMacTextBox.Text = $"{gatewayMac} (Gateway MAC)";
+                            }
+                        }
+                    }
+                    
+                    await _networkStorm.SetGatewayIp(GatewayIpTextBox.Text);
+                    GatewayIpTextBox.Background = Brushes.White;
+                }
+                catch (OperationCanceledException)
+                {
+                    // Ignore cancellation
+                }
+                catch (Exception ex)
+                {
+                    LogResult($"Failed to set route: {ex.Message}");
+                    GatewayIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                }
+                finally
+                {
+                    _routeUpdateCts?.Dispose();
+                    _routeUpdateCts = null;
+                }
+            }
+            else
+            {
+                GatewayIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+            }
+        }
+
+        private string GetNetworkAddress(string ipAddress)
+        {
             try
             {
-                string targetIp = TargetIpTextBox.Text.Trim();
-                if (string.IsNullOrEmpty(targetIp) || !IPAddress.TryParse(targetIp, out _))
+                if (IPAddress.TryParse(ipAddress, out var ip))
                 {
-                    TargetMacTextBox.Text = string.Empty;
+                    var bytes = ip.GetAddressBytes();
+                    return $"{bytes[0]}.{bytes[1]}.{bytes[2]}.0";
+                }
+            }
+            catch { }
+            return string.Empty;
+        }
+
+        private async void UpdateGatewayIpField()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(TargetIpTextBox.Text) || string.IsNullOrEmpty(SourceIpTextBox.Text))
+                {
+                    GatewayIpTextBox.IsEnabled = false;
+                    GatewayIpTextBox.Background = Brushes.LightGray;
                     return;
                 }
 
-                // Use existing ping functionality
-                var pingResult = await _mainController.PingHostAsync(targetIp);
-                if (pingResult.Success)
+                var sourceIp = IPAddress.Parse(SourceIpTextBox.Text);
+                var targetIp = IPAddress.Parse(TargetIpTextBox.Text);
+
+                if (IsOnSameSubnet(sourceIp, targetIp))
                 {
-                    string macAddress = await _mainController.GetMacAddressAsync(targetIp);
-                    if (!string.IsNullOrEmpty(macAddress))
+                    GatewayIpTextBox.IsEnabled = false;
+                    GatewayIpTextBox.Background = Brushes.LightGray;
+                    GatewayIpTextBox.Text = string.Empty;
+                    await _networkStorm.SetGatewayIp(string.Empty);
+                }
+                else
+                {
+                    GatewayIpTextBox.IsEnabled = true;
+                    GatewayIpTextBox.Background = Brushes.White;
+                    
+                    // Set default gateway if empty
+                    if (string.IsNullOrEmpty(GatewayIpTextBox.Text))
                     {
-                        TargetMacTextBox.Text = macAddress;
+                        var sourceOctets = SourceIpTextBox.Text.Split('.');
+                        GatewayIpTextBox.Text = $"{sourceOctets[0]}.{sourceOctets[1]}.{sourceOctets[2]}.1";
+                        await _networkStorm.SetGatewayIp(GatewayIpTextBox.Text);
                     }
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                LogResult($"Failed to get MAC address: {ex.Message}");
+                GatewayIpTextBox.IsEnabled = false;
+                GatewayIpTextBox.Background = Brushes.LightGray;
             }
+        }
+
+        private bool IsOnSameSubnet(IPAddress ip1, IPAddress ip2)
+        {
+            // Get subnet mask from the selected network interface
+            var selectedItem = NetworkInterfaceComboBox.SelectedItem as ComboBoxItem;
+            if (selectedItem?.Tag is NetworkInterface networkInterface)
+            {
+                var ipProps = networkInterface.GetIPProperties();
+                var ipv4Address = ipProps.UnicastAddresses
+                    .FirstOrDefault(ua => ua.Address.AddressFamily == AddressFamily.InterNetwork);
+
+                if (ipv4Address != null)
+                {
+                    byte[] subnetMask = ipv4Address.IPv4Mask.GetAddressBytes();
+                    byte[] ip1Bytes = ip1.GetAddressBytes();
+                    byte[] ip2Bytes = ip2.GetAddressBytes();
+
+                    for (int i = 0; i < 4; i++)
+                    {
+                        if ((ip1Bytes[i] & subnetMask[i]) != (ip2Bytes[i] & subnetMask[i]))
+                        {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+            }
+            return false;
         }
 
         private void LockBasicControls(bool isLocked)
@@ -631,7 +765,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void InitializeNetworkInfo()
+        private async void InitializeNetworkInfo()
         {
             try
             {
@@ -654,7 +788,7 @@ namespace Dorothy.Views
                         var defaultGateway = gateway?.Address.ToString() ?? string.Empty;
                         
                         GatewayIpTextBox.Text = defaultGateway;
-                        _networkStorm.SetGatewayIp(defaultGateway);
+                        await _networkStorm.SetGatewayIp(defaultGateway);
                     }
                 }
             }
@@ -679,93 +813,6 @@ namespace Dorothy.Views
             {
                 _networkStorm.SetSourceInfo(_sourceIp, macBytes);
             }
-        }
-
-        private async void GatewayIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            if (string.IsNullOrEmpty(GatewayIpTextBox.Text))
-            {
-                GatewayIpTextBox.Background = Brushes.White;
-                return;
-            }
-
-            if (IPAddress.TryParse(GatewayIpTextBox.Text, out _))
-            {
-                await _networkStorm.SetGatewayIp(GatewayIpTextBox.Text);
-                GatewayIpTextBox.Background = Brushes.White;
-            }
-            else
-            {
-                GatewayIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
-            }
-        }
-
-        private async void UpdateGatewayIpField()
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(TargetIpTextBox.Text) || string.IsNullOrEmpty(SourceIpTextBox.Text))
-                {
-                    GatewayIpTextBox.IsEnabled = false;
-                    GatewayIpTextBox.Background = Brushes.LightGray;
-                    return;
-                }
-
-                var sourceIp = IPAddress.Parse(SourceIpTextBox.Text);
-                var targetIp = IPAddress.Parse(TargetIpTextBox.Text);
-
-                if (IsOnSameSubnet(sourceIp, targetIp))
-                {
-                    GatewayIpTextBox.IsEnabled = false;
-                    GatewayIpTextBox.Background = Brushes.LightGray;
-                    GatewayIpTextBox.Text = string.Empty;
-                    await _networkStorm.SetGatewayIp(string.Empty);
-                }
-                else
-                {
-                    GatewayIpTextBox.IsEnabled = true;
-                    GatewayIpTextBox.Background = Brushes.White;
-                    if (string.IsNullOrEmpty(GatewayIpTextBox.Text))
-                    {
-                        var sourceOctets = SourceIpTextBox.Text.Split('.');
-                        GatewayIpTextBox.Text = $"{sourceOctets[0]}.{sourceOctets[1]}.{sourceOctets[2]}.1";
-                    }
-                }
-            }
-            catch
-            {
-                GatewayIpTextBox.IsEnabled = false;
-                GatewayIpTextBox.Background = Brushes.LightGray;
-            }
-        }
-
-        private bool IsOnSameSubnet(IPAddress ip1, IPAddress ip2)
-        {
-            // Get subnet mask from the selected network interface
-            var selectedItem = NetworkInterfaceComboBox.SelectedItem as ComboBoxItem;
-            if (selectedItem?.Tag is NetworkInterface networkInterface)
-            {
-                var ipProps = networkInterface.GetIPProperties();
-                var ipv4Address = ipProps.UnicastAddresses
-                    .FirstOrDefault(ua => ua.Address.AddressFamily == AddressFamily.InterNetwork);
-
-                if (ipv4Address != null)
-                {
-                    byte[] subnetMask = ipv4Address.IPv4Mask.GetAddressBytes();
-                    byte[] ip1Bytes = ip1.GetAddressBytes();
-                    byte[] ip2Bytes = ip2.GetAddressBytes();
-
-                    for (int i = 0; i < 4; i++)
-                    {
-                        if ((ip1Bytes[i] & subnetMask[i]) != (ip2Bytes[i] & subnetMask[i]))
-                        {
-                            return false;
-                        }
-                    }
-                    return true;
-                }
-            }
-            return false;
         }
 
     } 

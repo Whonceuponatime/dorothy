@@ -10,6 +10,10 @@ using PacketDotNet;
 using SharpPcap;
 using SharpPcap.LibPcap;
 using System.Runtime.InteropServices;
+using System.Diagnostics;
+using System.Text;
+using System.Net.Sockets;
+using System.Net.NetworkInformation;
 
 namespace Dorothy.Models
 {
@@ -25,6 +29,7 @@ namespace Dorothy.Models
         public string GatewayIp { get; private set; }
         public byte[] GatewayMac { get; private set; }
         public bool EnableLogging { get; set; }
+        public string TargetIp { get; private set; } = string.Empty;
 
         public NetworkStorm(TextBox logArea)
         {
@@ -94,6 +99,7 @@ namespace Dorothy.Models
         public async Task SetGatewayMacAsync(byte[] mac)
         {
             GatewayMac = mac;
+            await Task.CompletedTask;
         }
 
         private async Task<byte[]> GetMacAddressAsync(string ipAddress)
@@ -132,6 +138,8 @@ namespace Dorothy.Models
 
         public async Task StartAttackAsync(AttackType attackType, string targetIp, int targetPort, long megabitsPerSecond)
         {
+            TargetIp = targetIp;
+            
             if (_isAttackRunning)
             {
                 _logger.LogWarning("Attack already in progress.");
@@ -212,15 +220,25 @@ namespace Dorothy.Models
 
             try
             {
+                // Get target network before stopping
+                string targetNetwork = GetNetworkAddress(TargetIp);
+                
                 _cancellationSource?.Cancel();
                 _isAttackRunning = false;
+                
+                // Remove the route if it exists
+                if (!string.IsNullOrEmpty(targetNetwork))
+                {
+                    await RemoveRouteAsync(targetNetwork);
+                }
+                
                 _logger.LogInfo("Attack stop signal sent.");
             }
             finally
             {
                 if (_cancellationSource != null)
                 {
-                    await Task.Delay(100); // Give time for cleanup
+                    await Task.Delay(100);
                     _cancellationSource.Dispose();
                     _cancellationSource = null;
                 }
@@ -229,13 +247,41 @@ namespace Dorothy.Models
 
         private bool IsOnSameSubnet(IPAddress ip1, IPAddress ip2)
         {
-            byte[] subnet = new byte[] { 255, 255, 255, 0 }; // Default subnet mask
-            byte[] bytes1 = ip1.GetAddressBytes();
-            byte[] bytes2 = ip2.GetAddressBytes();
+            var networkInterface = CaptureDeviceList.Instance
+                .OfType<LibPcapLiveDevice>()
+                .FirstOrDefault(d => d.Addresses.Any(addr => 
+                    addr.Addr?.ipAddress != null && 
+                    addr.Addr.ipAddress.ToString() == ip1.ToString()));
+
+            if (networkInterface != null)
+            {
+                var ipProps = networkInterface.Addresses
+                    .FirstOrDefault(a => a.Addr?.ipAddress != null && 
+                                        a.Addr.ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+                
+                if (ipProps?.Netmask?.ipAddress != null)
+                {
+                    byte[] subnet = ipProps.Netmask.ipAddress.GetAddressBytes();
+                    byte[] bytes1 = ip1.GetAddressBytes();
+                    byte[] bytes2 = ip2.GetAddressBytes();
+                    
+                    for (int i = 0; i < 4; i++)
+                    {
+                        if ((bytes1[i] & subnet[i]) != (bytes2[i] & subnet[i]))
+                            return false;
+                    }
+                    return true;
+                }
+            }
+            
+            // Fallback to default /24 subnet if we can't get the actual mask
+            byte[] defaultSubnet = new byte[] { 255, 255, 255, 0 };
+            byte[] addr1 = ip1.GetAddressBytes();
+            byte[] addr2 = ip2.GetAddressBytes();
             
             for (int i = 0; i < 4; i++)
             {
-                if ((bytes1[i] & subnet[i]) != (bytes2[i] & subnet[i]))
+                if ((addr1[i] & defaultSubnet[i]) != (addr2[i] & defaultSubnet[i]))
                     return false;
             }
             return true;
@@ -266,6 +312,172 @@ namespace Dorothy.Models
             // Placeholder for multicast attack implementation
             _logger.LogInfo($"Starting multicast attack (placeholder) - Target: {targetIp}:{targetPort}, Rate: {megabitsPerSecond}Mbps");
             await Task.CompletedTask;
+        }
+
+        public async Task AddRouteAsync(string targetNetwork, string gatewayIp)
+        {
+            try
+            {
+                // Always use the gateway IP provided by user for cross-subnet routing
+                string routerIp = gatewayIp;
+                
+                // Remove any existing route first
+                await RemoveRouteAsync(targetNetwork);
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "route",
+                    Arguments = $"add {targetNetwork} mask 255.255.255.0 {routerIp}",
+                    UseShellExecute = true,
+                    Verb = "runas",
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(startInfo);
+                if (process != null)
+                {
+                    await process.WaitForExitAsync();
+                    if (process.ExitCode == 0)
+                    {
+                        _logger.LogInfo($"Route added successfully: {targetNetwork} via {routerIp}");
+                    }
+                    else
+                    {
+                        _logger.LogError($"Failed to add route. Exit code: {process.ExitCode}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error adding route: {ex.Message}");
+                throw;
+            }
+        }
+
+        public async Task RemoveRouteAsync(string targetNetwork)
+        {
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "route",
+                    Arguments = $"delete {targetNetwork}",
+                    UseShellExecute = true,
+                    Verb = "runas",
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(startInfo);
+                if (process != null)
+                {
+                    await process.WaitForExitAsync();
+                    if (process.ExitCode == 0)
+                    {
+                        _logger.LogInfo($"Route removed successfully: {targetNetwork}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error removing route: {ex.Message}");
+            }
+        }
+
+        private string GetNetworkAddress(string ipAddress)
+        {
+            try
+            {
+                if (IPAddress.TryParse(ipAddress, out var ip))
+                {
+                    var bytes = ip.GetAddressBytes();
+                    return $"{bytes[0]}.{bytes[1]}.{bytes[2]}.0";
+                }
+            }
+            catch { }
+            return string.Empty;
+        }
+
+        public async Task<bool> CheckConnectivityAsync(string targetIp)
+        {
+            try
+            {
+                var ping = new Ping();
+                var reply = await ping.SendPingAsync(targetIp, 1000);
+                return reply.Status == IPStatus.Success;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<string> GetRoutingDiagnosticsAsync(string targetIp)
+        {
+            var diagnostics = new StringBuilder();
+            var sourceIpObj = IPAddress.Parse(SourceIp);
+            var targetIpObj = IPAddress.Parse(targetIp);
+            
+            diagnostics.AppendLine($"Source IP: {SourceIp}");
+            diagnostics.AppendLine($"Target IP: {targetIp}");
+            
+            if (!IsOnSameSubnet(sourceIpObj, targetIpObj))
+            {
+                diagnostics.AppendLine("Different subnets detected - Routing required");
+                diagnostics.AppendLine($"Gateway IP: {GatewayIp}");
+                if (GatewayMac.Length > 0)
+                {
+                    diagnostics.AppendLine($"Gateway MAC: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
+                }
+                else
+                {
+                    diagnostics.AppendLine("Warning: Gateway MAC not resolved");
+                }
+            }
+            
+            var pingResult = await CheckConnectivityAsync(targetIp);
+            diagnostics.AppendLine($"Ping test: {(pingResult ? "Success" : "Failed")}");
+            
+            return diagnostics.ToString();
+        }
+
+        private NetworkInterface? GetActiveNetworkInterface()
+        {
+            return NetworkInterface.GetAllNetworkInterfaces()
+                .FirstOrDefault(ni => 
+                    ni.OperationalStatus == OperationalStatus.Up && 
+                    ni.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
+                    ni.GetIPProperties().UnicastAddresses.Any(addr => 
+                        addr.Address.AddressFamily == AddressFamily.InterNetwork));
+        }
+
+        public async Task<string> GetGatewayMacAsync()
+        {
+            try
+            {
+                if (GatewayMac != null && GatewayMac.Length > 0)
+                {
+                    return BitConverter.ToString(GatewayMac).Replace("-", ":");
+                }
+                
+                if (string.IsNullOrEmpty(GatewayIp))
+                {
+                    return string.Empty;
+                }
+
+                var mac = await GetMacAddressAsync(GatewayIp);
+                if (mac.Length > 0)
+                {
+                    GatewayMac = mac;
+                    return BitConverter.ToString(mac).Replace("-", ":");
+                }
+                
+                return string.Empty;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error getting gateway MAC: {ex.Message}");
+                return string.Empty;
+            }
         }
     }
 }
