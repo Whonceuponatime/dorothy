@@ -222,7 +222,6 @@ namespace Dorothy.Models
                 {
                     throw new InvalidOperationException("Gateway MAC address is required for cross-subnet communication");
                 }
-                _logger.LogDebug($"Using gateway MAC for routed target: {targetIp}");
                 destinationMac = GatewayMac;
             }
             else
@@ -233,8 +232,14 @@ namespace Dorothy.Models
                 {
                     throw new InvalidOperationException("Could not resolve target MAC address for local subnet target");
                 }
-                _logger.LogDebug($"Using target MAC for local subnet target: {BitConverter.ToString(destinationMac).Replace("-", ":")}");
             }
+
+            // Calculate bytes per second: megabits -> bits -> bytes
+            // 1 Mbps = 1,000,000 bits per second
+            // 8 bits = 1 byte
+            // Add 20% overhead for headers (reduced from 40%)
+            // Use larger packet sizes for better throughput
+            long bytesPerSecond = (long)(megabitsPerSecond * 1_000_000L / 8.0 * 1.2);
 
             return new PacketParameters
             {
@@ -244,7 +249,7 @@ namespace Dorothy.Models
                 DestinationIp = targetIpObj,
                 SourcePort = Random.Shared.Next(49152, 65535),
                 DestinationPort = targetPort,
-                BytesPerSecond = megabitsPerSecond * 125_000,
+                BytesPerSecond = bytesPerSecond,
                 Ttl = 128
             };
         }
@@ -342,9 +347,9 @@ namespace Dorothy.Models
                 _cancellationSource?.Cancel();
                 _isAttackRunning = false;
                 
-                var message = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                             $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Status: Attack Stopped";
-                _logger.LogInfo(message);
+                var message = "━━━━━━━━━━━━━━━━━━━━━━━���━━━━━\n" +
+                              "Status: Attack Stopped";
+                Log(message);
             }
             catch (Exception ex)
             {
