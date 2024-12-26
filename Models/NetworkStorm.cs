@@ -147,51 +147,59 @@ namespace Dorothy.Models
                 var targetIp = IPAddress.Parse(ipAddress);
                 var sourceIp = IPAddress.Parse(SourceIp);
 
-                // Check if target is on a different subnet
+                // For targets on different subnets, return gateway MAC
                 if (!IsOnSameSubnet(sourceIp, targetIp))
                 {
-                    _logger.LogDebug($"Target {ipAddress} is on different subnet - Using gateway MAC");
                     if (GatewayMac.Length > 0)
                     {
                         return GatewayMac;
                     }
                     else if (!string.IsNullOrEmpty(GatewayIp))
                     {
-                        targetIp = IPAddress.Parse(GatewayIp);
-                        _logger.LogDebug($"Resolving gateway MAC address: {GatewayIp}");
+                        // Try to resolve gateway MAC if we don't have it
+                        var macAddr = new byte[6];
+                        var macAddrLen = (uint)macAddr.Length;
+                        var gatewayIpObj = IPAddress.Parse(GatewayIp);
+                        var gatewayIpInt = BitConverter.ToInt32(gatewayIpObj.GetAddressBytes(), 0);
+                        var sourceIpInt = BitConverter.ToInt32(sourceIp.GetAddressBytes(), 0);
+
+                        var result = await Task.Run(() => SendARP(gatewayIpInt, sourceIpInt, macAddr, ref macAddrLen));
+
+                        if (result != 0)
+                        {
+                            _logger.LogError($"Failed to resolve gateway MAC address - Required for routed target {ipAddress}");
+                            return Array.Empty<byte>();
+                        }
+
+                        GatewayMac = macAddr;
+                        return macAddr;
                     }
                     else
                     {
-                        _logger.LogError("Gateway IP not set");
+                        _logger.LogError($"Gateway IP not configured - Required for routed target {ipAddress}");
                         return Array.Empty<byte>();
                     }
                 }
 
-                var macAddr = new byte[6];
-                var macAddrLen = (uint)macAddr.Length;
+                // For targets on same subnet, resolve their MAC directly
+                var localMacAddr = new byte[6];
+                var localMacAddrLen = (uint)localMacAddr.Length;
+                var targetIpInt = BitConverter.ToInt32(targetIp.GetAddressBytes(), 0);
+                var localSourceIpInt = BitConverter.ToInt32(sourceIp.GetAddressBytes(), 0);
 
-                // Get source IP address bytes
-                var sourceIpBytes = sourceIp.GetAddressBytes();
-                var sourceIpInt = BitConverter.ToInt32(sourceIpBytes, 0);
+                var localResult = await Task.Run(() => SendARP(targetIpInt, localSourceIpInt, localMacAddr, ref localMacAddrLen));
 
-                // Get target IP address bytes
-                var targetIpBytes = targetIp.GetAddressBytes();
-                var targetIpInt = BitConverter.ToInt32(targetIpBytes, 0);
-
-                _logger.LogDebug($"Resolving MAC for IP: {targetIp} from source IP: {sourceIp}");
-                var result = await Task.Run(() => SendARP(targetIpInt, sourceIpInt, macAddr, ref macAddrLen));
-
-                if (result != 0)
+                if (localResult != 0)
                 {
-                    _logger.LogError($"SendARP failed with error code: {result}");
+                    _logger.LogError($"Failed to resolve MAC address for local target {ipAddress}");
                     return Array.Empty<byte>();
                 }
 
-                return macAddr;
+                return localMacAddr;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error getting MAC address: {ex.Message}");
+                _logger.LogError($"Error resolving MAC address: {ex.Message}");
                 return Array.Empty<byte>();
             }
         }
@@ -201,13 +209,53 @@ namespace Dorothy.Models
             _logger.LogInfo(message);
         }
 
+        private async Task<PacketParameters> CreatePacketParameters(string targetIp, int targetPort, long megabitsPerSecond)
+        {
+            var targetIpObj = IPAddress.Parse(targetIp);
+            var sourceIpObj = IPAddress.Parse(SourceIp);
+            
+            // For targets on different subnets, use gateway MAC as destination
+            byte[] destinationMac;
+            if (!IsOnSameSubnet(sourceIpObj, targetIpObj))
+            {
+                if (GatewayMac.Length == 0)
+                {
+                    throw new InvalidOperationException("Gateway MAC address is required for cross-subnet communication");
+                }
+                _logger.LogDebug($"Using gateway MAC for routed target: {targetIp}");
+                destinationMac = GatewayMac;
+            }
+            else
+            {
+                // For same subnet, try to get target's MAC
+                destinationMac = await GetMacAddressAsync(targetIp);
+                if (destinationMac.Length == 0)
+                {
+                    throw new InvalidOperationException("Could not resolve target MAC address for local subnet target");
+                }
+                _logger.LogDebug($"Using target MAC for local subnet target: {BitConverter.ToString(destinationMac).Replace("-", ":")}");
+            }
+
+            return new PacketParameters
+            {
+                SourceMac = SourceMac,
+                DestinationMac = destinationMac,
+                SourceIp = sourceIpObj,
+                DestinationIp = targetIpObj,
+                SourcePort = Random.Shared.Next(49152, 65535),
+                DestinationPort = targetPort,
+                BytesPerSecond = megabitsPerSecond * 125_000,
+                Ttl = 128
+            };
+        }
+
         public async Task StartAttackAsync(AttackType attackType, string targetIp, int targetPort, long megabitsPerSecond)
         {
             TargetIp = targetIp;
             
             if (_isAttackRunning)
             {
-                _logger.LogWarning("Attack already in progress.");
+                _logger.LogWarning("Attack already in progress");
                 return;
             }
 
@@ -220,40 +268,31 @@ namespace Dorothy.Models
                 var sourceIpObj = IPAddress.Parse(SourceIp);
                 var targetIpObj = IPAddress.Parse(targetIp);
                 
-                // Always get gateway MAC for proper routing
-                if (GatewayMac.Length == 0)
-                {
-                    _logger.LogError("Gateway MAC resolution failed - Length is 0");
-                    throw new Exception("Gateway MAC address is required for attacks");
-                }
-
-                // Determine destination MAC based on subnet
-                byte[] destinationMac;
-                string macDisplay;
+                // Only check gateway MAC for cross-subnet targets
                 if (!IsOnSameSubnet(sourceIpObj, targetIpObj))
                 {
-                    _logger.LogDebug("Cross-subnet routing detected - Using Gateway MAC");
-                    destinationMac = GatewayMac;
-                    macDisplay = $"{BitConverter.ToString(GatewayMac).Replace("-", ":")} (Gateway)";
-                }
-                else
-                {
-                    _logger.LogDebug("Same subnet communication detected - Using Target MAC");
-                    var targetMac = await GetMacAddressAsync(targetIp);
-                    if (targetMac.Length == 0)
+                    if (GatewayMac.Length == 0)
                     {
-                        _logger.LogError("Target MAC resolution failed");
-                        throw new Exception("Could not resolve target MAC address");
+                        _logger.LogError("Gateway MAC address not configured - Required for cross-subnet target");
+                        throw new Exception("Gateway MAC address is required for cross-subnet targets");
                     }
-                    destinationMac = targetMac;
-                    macDisplay = BitConverter.ToString(targetMac).Replace("-", ":");
                 }
-
-                _logger.LogInfo($"Using Destination MAC: {macDisplay}");
-                var bytesPerSecond = megabitsPerSecond * 125_000;
 
                 // Common packet parameters
-                var packetParams = CreatePacketParameters(targetIp, targetPort, megabitsPerSecond);
+                var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond);
+
+                // Log attack details in the specified format
+                var message = $"Attack Details\n" +
+                             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                             $"Protocol: {attackType}\n" +
+                             $"Source Host: {SourceIp}\n" +
+                             $"Source MAC: {BitConverter.ToString(SourceMac).Replace("-", ":")}\n" +
+                             $"Target Host: {targetIp}\n" +
+                             $"Target MAC: {BitConverter.ToString(packetParams.DestinationMac).Replace("-", ":")}\n" +
+                             $"Target Rate: {megabitsPerSecond:F2} Mbps\n" +
+                             $"Attack Type: {attackType}\n" +
+                             "Status: Attack Started";
+                _logger.LogInfo(message);
 
                 switch (attackType)
                 {
@@ -284,8 +323,8 @@ namespace Dorothy.Models
             }
             catch (Exception ex)
             {
+                _isAttackRunning = false;
                 _logger.LogError($"Attack failed: {ex.Message}");
-                _logger.LogDebug($"Stack trace: {ex.StackTrace}");
                 throw;
             }
         }
@@ -294,7 +333,7 @@ namespace Dorothy.Models
         {
             if (!_isAttackRunning)
             {
-                _logger.LogWarning("No attack is currently running.");
+                _logger.LogWarning("No attack is currently running");
                 return;
             }
 
@@ -302,7 +341,10 @@ namespace Dorothy.Models
             {
                 _cancellationSource?.Cancel();
                 _isAttackRunning = false;
-                _logger.LogInfo("Attack stopped.");
+                
+                var message = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                             $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Status: Attack Stopped";
+                _logger.LogInfo(message);
             }
             catch (Exception ex)
             {
@@ -533,21 +575,6 @@ namespace Dorothy.Models
                 _logger.LogError($"Error adding route: {ex.Message}");
                 throw;
             }
-        }
-
-        private PacketParameters CreatePacketParameters(string targetIp, int targetPort, long megabitsPerSecond)
-        {
-            return new PacketParameters
-            {
-                SourceMac = SourceMac,
-                DestinationMac = GatewayMac,
-                SourceIp = IPAddress.Parse(SourceIp),
-                DestinationIp = IPAddress.Parse(targetIp),
-                SourcePort = Random.Shared.Next(49152, 65535),
-                DestinationPort = targetPort,
-                BytesPerSecond = megabitsPerSecond * 125_000,
-                Ttl = 128
-            };
         }
     }
 }

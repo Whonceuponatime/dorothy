@@ -32,47 +32,63 @@ namespace Dorothy.Models
             _targetMac = BitConverter.ToString(targetMac).Replace("-", ":");
             _targetBytesPerSecond = megabitsPerSecond * 1_000_000 / 8;
 
-            var message = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] Attack Details\n" +
-                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                         $"Protocol: UDP\n" +
+            var message = $"Status: Attack Started\n" +
+                         $"Protocol: {attackType}\n" +
                          $"Source Host: {_sourceIp}\n" +
                          $"Source MAC: {_sourceMac}\n" +
                          $"Target Host: {_targetIp}\n" +
                          $"Target MAC: {_targetMac}\n" +
                          $"Target Rate: {_targetBytesPerSecond * 8.0 / 1_000_000:F2} Mbps\n" +
                          $"Attack Type: {_attackType}\n" +
-                         "Status: Attack Started";
-            Log(message, "INFO", true);
+                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+            Log(message, true);
+        }
+
+        public void LogPing(string targetIp, bool success, int? rtt = null)
+        {
+            var result = success ? (rtt.HasValue ? $"success (RTT: {rtt}ms)" : "success") : "failed";
+            Log($"Ping {targetIp}: {result}");
+        }
+
+        public void LogMacResolution(string ip, string mac, bool isGateway = false)
+        {
+            var target = isGateway ? "Gateway" : "Target";
+            Log($"Using {target.ToLower()} MAC for {ip}: {mac}");
+        }
+
+        public void LogAttackTypeChange(string newType)
+        {
+            Log($"Attack type changed to: {newType}");
         }
 
         public void LogInfo(string message)
         {
-            Log(message, "INFO");
+            Log(message);
         }
 
         public void LogError(string message)
         {
-            Log(message, "ERROR");
+            Log($"Error: {message}");
         }
 
         public void LogWarning(string message)
         {
-            Log(message, "WARNING");
+            Log($"Warning: {message}");
         }
 
         public void LogDebug(string message)
         {
-            Log(message, "DEBUG");
+            Log($"Debug: {message}");
         }
 
-        private void Log(string message, string level, bool isEvent = false)
+        private void Log(string message, bool isEvent = false)
         {
-            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-            var logMessage = isEvent ? message : $"[{timestamp}] [{level}] {message}";
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            var logMessage = isEvent ? message : $"[{timestamp}] {message}";
             
             _logArea.Dispatcher.Invoke(() =>
             {
-                _logArea.AppendText(logMessage + Environment.NewLine);
+                _logArea.AppendText($"{logMessage}{Environment.NewLine}");
                 _logArea.ScrollToEnd();
             });
         }
