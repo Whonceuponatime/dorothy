@@ -1,208 +1,287 @@
 using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using Dorothy.Controllers;
-using Dorothy.Models;
-using NLog;
-using System.Net;
-using System.Runtime.InteropServices;
-using System.Text;
-using Microsoft.Win32;
-using System.IO;
-using System.Windows.Media.Animation;
-using System.Collections.Generic;
-using System.Diagnostics;
+using System.Windows.Data;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Net.Sockets;
-using System.Threading;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+using Dorothy.Controllers;
+using Dorothy.Models;
+using Dorothy.Network;
+using Dorothy.Network.Headers;
+using Microsoft.Win32;
+using NLog;
 
 namespace Dorothy.Views
 {
     public partial class MainWindow : Window
     {
         private readonly MainController _mainController;
-        private readonly NetworkStorm _networkStorm;
         private readonly ILogger _logger = LogManager.GetCurrentClassLogger();
-        private string? _sourceIp;
-        private CancellationTokenSource? _routeUpdateCts;
+        private readonly NetworkStorm _networkStorm;
+        private readonly AttackLogger _attackLogger;
+        private bool _isAdvancedMode;
 
         public MainWindow()
         {
             InitializeComponent();
+            _attackLogger = new AttackLogger(LogTextBox);
             _networkStorm = new NetworkStorm(LogTextBox);
             _mainController = new MainController(_networkStorm, StartButton, StopButton, StatusLabel, LogTextBox, this);
-            NetworkInterfaceComboBox.SelectionChanged += NetworkInterfaceComboBox_SelectionChanged;
-            AttackTypeComboBox.SelectionChanged += AttackTypeComboBox_SelectionChanged;
-            
-            // Set default values for attack types
-            AttackTypeComboBox.SelectedIndex = 1;  // UDP Flood
-            AdvancedAttackTypeComboBox.SelectedIndex = 0;  // ARP Spoofing
-            
-            LogTextBox.Text = "DISCLAIMER:\n" +
-                  "======================\n" +
-                  "This is a DoS (Denial of Service) Testing Program for AUTHORIZED USE ONLY.\n" +
-                  "This tool is intended solely for authorized testing in controlled environments with explicit permission.\n" +
-                  "SeaNet and its affiliates assume no responsibility for any misuse, unauthorized access, or damages resulting from the use of this program.\n" +
-                  "By using this program, you acknowledge that you have the necessary authorization and accept full responsibility.\n" +
-                  "======================\n\n";
             PopulateNetworkInterfaces();
+            PopulateAttackTypes();
+
+            AttackTypeComboBox.SelectedIndex = 0;
+            AdvancedAttackTypeComboBox.SelectedIndex = 0;
+
+            _attackLogger.LogInfo("Application started.");
         }
 
-        private async void StartButton_Click(object sender, RoutedEventArgs e)
+        private void LogError(string message)
+        {
+            _attackLogger.LogError(message);
+        }
+
+        private void LogInfo(string message)
+        {
+            _attackLogger.LogInfo(message);
+        }
+
+        private void LogWarning(string message)
+        {
+            _attackLogger.LogWarning(message);
+        }
+
+        private void LogDebug(string message)
+        {
+            _attackLogger.LogDebug(message);
+        }
+
+        private void SaveLogButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                string targetIp = TargetIpTextBox.Text.Trim();
-                
-                // Add connectivity check
-                var diagnostics = await _networkStorm.GetRoutingDiagnosticsAsync(targetIp);
-                LogResult(diagnostics);
-                
-                string portText = TargetPortTextBox.Text.Trim();
-                string mbpsText = MegabitsPerSecondTextBox.Text.Trim();
-
-                if (string.IsNullOrEmpty(targetIp))
+                var saveFileDialog = new SaveFileDialog
                 {
-                    MessageBox.Show("Please enter a Target IP.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
+                    DefaultExt = ".txt",
+                    FileName = $"attack_log_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
+                };
+
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    File.WriteAllText(saveFileDialog.FileName, LogTextBox.Text);
+                    _attackLogger.LogInfo($"Log saved to {saveFileDialog.FileName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error saving log: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _attackLogger.LogError($"Error saving log: {ex.Message}");
+            }
+        }
+
+        private void ClearLogButton_Click(object sender, RoutedEventArgs e)
+        {
+            LogTextBox.Clear();
+            _attackLogger.LogInfo("Log cleared.");
+        }
+
+        private void TaskManagerButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Process.Start("taskmgr.exe");
+                _attackLogger.LogInfo("Task Manager opened.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error opening Task Manager: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _attackLogger.LogError($"Error opening Task Manager: {ex.Message}");
+            }
+        }
+
+        private void StartButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var targetIp = TargetIpTextBox.Text;
+                if (!int.TryParse(TargetPortTextBox.Text, out int targetPort))
+                {
+                    MessageBox.Show("Please enter a valid port number.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
-                if (!IPAddress.TryParse(targetIp, out IPAddress? ipAddress))
+                if (!long.TryParse(MegabitsPerSecondTextBox.Text, out long megabitsPerSecond))
                 {
-                    MessageBox.Show("Please enter a valid Target IP.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("Please enter a valid rate in Mbps.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
-                if (ipAddress.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+                var selectedAttackType = (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
+                if (string.IsNullOrEmpty(selectedAttackType))
                 {
-                    MessageBox.Show("Only IPv4 addresses are supported.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("Please select an attack type.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
-                if (!int.TryParse(portText, out int targetPort))
+                AttackType attackType = selectedAttackType switch
                 {
-                    MessageBox.Show("Please enter a valid Target Port.", "Invalid Port", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
+                    "TCP SYN Flood" => AttackType.SynFlood,
+                    "UDP Flood" => AttackType.UdpFlood,
+                    "ICMP Flood" => AttackType.IcmpFlood,
+                    _ => throw new ArgumentException($"Unsupported attack type: {selectedAttackType}")
+                };
 
-                if (!long.TryParse(mbpsText, out long mbps))
-                {
-                    MessageBox.Show("Please enter a valid Mbps value.", "Invalid Mbps", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                var selectedAttackTypeItem = AttackTypeComboBox.SelectedItem as ComboBoxItem;
-                if (selectedAttackTypeItem == null)
-                {
-                    MessageBox.Show("Please select an Attack Type.", "No Attack Type Selected", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                string attackTypeContent = selectedAttackTypeItem.Content?.ToString() ?? string.Empty;
-                AttackType attackType;
-                switch (attackTypeContent)
-                {
-                    case "TCP SYN Flood":
-                        attackType = AttackType.SynFlood;
-                        break;
-                    case "UDP Flood":
-                        attackType = AttackType.UdpFlood;
-                        break;
-                    case "ICMP Flood":
-                        attackType = AttackType.IcmpFlood;
-                        break;
-                    default:
-                        MessageBox.Show("Invalid Attack Type selected.", "Invalid Attack Type", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                }
-
-                LockBasicControls(true);
-                await _mainController.StartAttackAsync(attackType, targetIp, targetPort, mbps);
+                _mainController.StartAttackAsync(attackType, targetIp, targetPort, megabitsPerSecond);
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _attackLogger.LogError($"Attack failed: {ex}");
             }
         }
 
-        private async void StopButton_Click(object sender, RoutedEventArgs e)
+        private void StopButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                await _mainController.StopAttackAsync();
-                LockBasicControls(false);
+                _mainController.StopAttackAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error stopping attack: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                LockBasicControls(false);
+                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _attackLogger.LogError($"Error stopping attack: {ex}");
+            }
+        }
+
+        private void PopulateNetworkInterfaces()
+        {
+            try
+            {
+                var interfaces = NetworkInterface.GetAllNetworkInterfaces()
+                    .Where(n => n.OperationalStatus == OperationalStatus.Up)
+                    .Where(n => n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                    .Select(n => new
+                    {
+                        Interface = n,
+                        IpAddress = n.GetIPProperties().UnicastAddresses
+                            .FirstOrDefault(a => a.Address.AddressFamily == AddressFamily.InterNetwork)?.Address
+                    })
+                    .Where(x => x.IpAddress != null)
+                    .ToList();
+
+                NetworkInterfaceComboBox.ItemsSource = interfaces;
+                NetworkInterfaceComboBox.DisplayMemberPath = "Interface.Description";
+                NetworkInterfaceComboBox.SelectedIndex = 0;
+
+                if (interfaces.Any())
+                {
+                    var selectedInterface = interfaces.First();
+                    SourceIpTextBox.Text = selectedInterface.IpAddress?.ToString();
+                    var macBytes = selectedInterface.Interface.GetPhysicalAddress().GetAddressBytes();
+                    SourceMacTextBox.Text = BitConverter.ToString(macBytes).Replace("-", ":");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error populating network interfaces: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _attackLogger.LogError($"Error populating network interfaces: {ex}");
+            }
+        }
+
+        private void PopulateAttackTypes()
+        {
+            try
+            {
+                AttackTypeComboBox.Items.Clear();
+                AttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "TCP SYN Flood" });
+                AttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "UDP Flood" });
+                AttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "ICMP Flood" });
+
+                AdvancedAttackTypeComboBox.Items.Clear();
+                AdvancedAttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "ARP Spoofing" });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error populating attack types: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _attackLogger.LogError($"Error populating attack types: {ex}");
             }
         }
 
         private void NetworkInterfaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (NetworkInterfaceComboBox.SelectedItem is ComboBoxItem selectedItem && selectedItem.Tag is NetworkInterface selectedInterface)
-            {
-                var ipProperties = selectedInterface.GetIPProperties();
-                var unicastAddress = ipProperties.UnicastAddresses
-                                               .FirstOrDefault(ua => ua.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-
-                if (unicastAddress != null)
-                {
-                    _sourceIp = unicastAddress.Address.ToString();
-                    SourceIpTextBox.Text = _sourceIp;
-                    SetSourceMac(selectedInterface);
-                }
-                else
-                {
-                    _sourceIp = null;
-                    SourceIpTextBox.Text = "No IPv4 Address";
-                    SourceMacTextBox.Text = "N/A";
-                }
-            }
-
-            SyncNetworkInfo();
-        }
-
-        private void AttackTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            // Handle Attack Type selection changes if necessary
-        }
-
-        private async void LoadInformationButton_Click(object sender, RoutedEventArgs e)
-        {
             try
             {
-                string targetIp = TargetIpTextBox.Text.Trim();
-
-                if (string.IsNullOrEmpty(targetIp))
+                if (NetworkInterfaceComboBox.SelectedItem is { } selectedItem)
                 {
-                    MessageBox.Show("Please enter a Target IP to load information.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
+                    var selectedInterface = (dynamic)selectedItem;
+                    var ipAddress = selectedInterface.IpAddress.ToString();
+                    var macBytes = selectedInterface.Interface.GetPhysicalAddress().GetAddressBytes();
+                    var macAddress = BitConverter.ToString(macBytes).Replace("-", ":");
+
+                    SourceIpTextBox.Text = ipAddress;
+                    SourceMacTextBox.Text = macAddress;
+                    _networkStorm.SetSourceInfo(ipAddress, macBytes);
+
+                    _attackLogger.LogInfo($"Selected interface: {selectedInterface.Interface.Description}");
+                    _attackLogger.LogInfo($"Source IP: {ipAddress}");
+                    _attackLogger.LogInfo($"Source MAC: {macAddress}");
                 }
-
-                if (!IPAddress.TryParse(targetIp, out IPAddress? ipAddress))
-                {
-                    MessageBox.Show("Please enter a valid Target IP.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                // Show loading indicator
-                PingButton.IsEnabled = false;
-                PingButton.Content = "Pinging...";
-
-                // Perform the async operation
-                var pingResult = await _mainController.PingHostAsync(targetIp);
-                LogResult($"Ping result for {targetIp}: {(pingResult.Success ? "Success" : "Failed")}");
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error pinging host: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error selecting network interface: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _attackLogger.LogError($"Error selecting network interface: {ex}");
+            }
+        }
+
+        private async void PingButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                PingButton.IsEnabled = false;
+                PingButton.Content = "Pinging...";
+
+                var targetIp = TargetIpTextBox.Text;
+                if (string.IsNullOrWhiteSpace(targetIp))
+                {
+                    MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                var result = await _mainController.PingHostAsync(targetIp);
+                if (result.Success)
+                {
+                    _attackLogger.LogInfo($"Ping successful - RTT: {result.RoundtripTime}ms");
+                    MessageBox.Show($"Ping successful!\nRound-trip time: {result.RoundtripTime}ms", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    _attackLogger.LogWarning($"Ping failed to {targetIp}");
+                    MessageBox.Show("Ping failed. Host may be down or blocking ICMP.", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _attackLogger.LogError($"Ping error: {ex}");
             }
             finally
             {
@@ -211,159 +290,319 @@ namespace Dorothy.Views
             }
         }
 
-        private void PopulateNetworkInterfaces()
+        private void AdvancedTab_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
-            NetworkInterfaceComboBox.Items.Clear();
-            var interfaces = NetworkInterface.GetAllNetworkInterfaces()
-                                            .Where(ni => ni.NetworkInterfaceType != NetworkInterfaceType.Loopback && ni.OperationalStatus == OperationalStatus.Up);
-
-            foreach (var ni in interfaces)
+            if (!_isAdvancedMode)
             {
-                ComboBoxItem item = new ComboBoxItem
+                e.Handled = true;
+                var result = MessageBox.Show(
+                    "Advanced mode contains powerful features that could potentially harm network devices if misused. " +
+                    "Are you sure you want to enable advanced mode?",
+                    "Warning",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (result == MessageBoxResult.Yes)
                 {
-                    Content = ni.Name, // Display the interface name
-                    Tag = ni
-                };
-                NetworkInterfaceComboBox.Items.Add(item);
-            }
-
-            if (NetworkInterfaceComboBox.Items.Count > 0)
-                NetworkInterfaceComboBox.SelectedIndex = 0;
-        }
-
-        private void LogResult(string message)
-        {
-            string timestampedMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}{Environment.NewLine}";
-            LogTextBox.AppendText(timestampedMessage);
-            LogTextBox.ScrollToEnd();
-        }
-
-        private void SetSourceMac(NetworkInterface networkInterface)
-        {
-            byte[] macBytes = networkInterface.GetPhysicalAddress().GetAddressBytes();
-            string formattedMac = BytesToMacString(macBytes);
-            SourceMacTextBox.Text = formattedMac;
-            if (_sourceIp != null)
-            {
-                _networkStorm.SetSourceInfo(_sourceIp, macBytes);
-            }
-        }
-
-        private string BytesToMacString(byte[] macBytes)
-        {
-            return string.Join(":", macBytes.Select(b => b.ToString("X2")));
-        }
-
-        [DllImport("iphlpapi.dll", ExactSpelling = true)]
-        private static extern int SendARP(Int32 destIp, Int32 srcIp, ref Int64 macAddress, ref Int32 physicalAddrLen);
-
-        [DllImport("ws2_32.dll")]
-        private static extern Int32 inet_addr(string ipAddress);
-
-        private string GetMacAddress(string ipAddress)
-        {
-            try
-            {
-                Int32 destIp = inet_addr(ipAddress);
-                Int32 srcIp = 0;
-                long macAddr = 0;
-                Int32 macAddrLen = 6;
-
-                int result = SendARP(destIp, srcIp, ref macAddr, ref macAddrLen);
-
-                if (result != 0)
-                {
-                    throw new Exception($"SendARP failed with error code {result}.");
-                }
-
-                byte[] macBytes = BitConverter.GetBytes(macAddr);
-                // Ensure correct byte order
-                Array.Reverse(macBytes);
-                string mac = BitConverter.ToString(macBytes).Substring(0, macAddrLen * 3 - 1);
-                return mac;
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Failed to retrieve MAC address.");
-                return "Error Retrieving MAC Address";
-            }
-        }
-
-        private void ArpTargetIpTextBox_LostFocus(object sender, RoutedEventArgs e)
-        {
-            if (sender is TextBox textBox)
-            {
-                string ipAddress = textBox.Text.Trim();
-                if (!string.IsNullOrEmpty(ipAddress))
-                {
-                    try
-                    {
-                        IPAddress.Parse(ipAddress); // Validate IP address format
-                    }
-                    catch
-                    {
-                        MessageBox.Show("Invalid IP address format", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                        textBox.Text = string.Empty;
-                    }
+                    _isAdvancedMode = true;
+                    MainTabControl.SelectedItem = AdvancedTab;
+                    _attackLogger.LogWarning("Advanced mode enabled.");
                 }
             }
         }
 
-        private async void PingButton_Click(object sender, RoutedEventArgs e)
+        private void GatewayIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             try
             {
-                string targetIp = TargetIpTextBox.Text.Trim();
-                if (string.IsNullOrEmpty(targetIp))
+                if (string.IsNullOrWhiteSpace(GatewayIpTextBox.Text))
                 {
-                    MessageBox.Show("Please enter a Target IP.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    GatewayIpTextBox.Background = SystemColors.WindowBrush;
                     return;
                 }
 
-                PingButton.IsEnabled = false;
-                var result = await _mainController.PingHostAsync(targetIp);
-                
-                if (result.Success)
+                if (IPAddress.TryParse(GatewayIpTextBox.Text, out _))
                 {
-                    LogResult($"Ping successful! Round-trip time: {result.RoundtripTime}ms");
+                    GatewayIpTextBox.Background = SystemColors.WindowBrush;
+                    _networkStorm.SetGatewayIp(GatewayIpTextBox.Text);
                 }
                 else
                 {
-                    LogResult("Ping failed!");
+                    GatewayIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
                 }
             }
             catch (Exception ex)
             {
-                LogResult($"Error during ping: {ex.Message}");
-            }
-            finally
-            {
-                PingButton.IsEnabled = true;
+                _attackLogger.LogError($"Error updating gateway IP: {ex.Message}");
             }
         }
 
-        private void SyncNetworkInfo()
+        private void AddRouteButton_Click(object sender, RoutedEventArgs e)
         {
-            // Sync Source Information
-            AdvSourceIpTextBox.Text = SourceIpTextBox.Text;
-            AdvSourceMacTextBox.Text = SourceMacTextBox.Text;
-            
-            // Sync Target Information
-            AdvTargetIpTextBox.Text = TargetIpTextBox.Text;
-            AdvTargetMacTextBox.Text = TargetMacTextBox.Text;
+            try
+            {
+                if (string.IsNullOrWhiteSpace(GatewayIpTextBox.Text))
+                {
+                    MessageBox.Show("Please enter a gateway IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                var gatewayIp = GatewayIpTextBox.Text;
+                var sourceIp = SourceIpTextBox.Text;
+                var targetIp = TargetIpTextBox.Text;
+
+                if (!IPAddress.TryParse(gatewayIp, out _))
+                {
+                    MessageBox.Show("Please enter a valid gateway IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                if (!IPAddress.TryParse(sourceIp, out _))
+                {
+                    MessageBox.Show("Please enter a valid source IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                if (!IPAddress.TryParse(targetIp, out _))
+                {
+                    MessageBox.Show("Please enter a valid target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "route",
+                        Arguments = $"add {targetIp} mask 255.255.255.255 {gatewayIp}",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true,
+                        Verb = "runas"
+                    }
+                };
+
+                process.Start();
+                var output = process.StandardOutput.ReadToEnd();
+                var error = process.StandardError.ReadToEnd();
+                process.WaitForExit();
+
+                if (process.ExitCode == 0)
+                {
+                    _attackLogger.LogInfo($"Route added successfully: {targetIp} via {gatewayIp}");
+                    MessageBox.Show("Route added successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    var errorMessage = !string.IsNullOrEmpty(error) ? error : output;
+                    _attackLogger.LogError($"Failed to add route: {errorMessage}");
+                    MessageBox.Show($"Failed to add route: {errorMessage}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _attackLogger.LogError($"Error adding route: {ex}");
+            }
+        }
+
+        private async void ResolveMacButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                ResolveMacButton.IsEnabled = false;
+                ResolveMacButton.Content = "Resolving...";
+
+                var sourceIp = SourceIpTextBox.Text;
+                var gatewayIp = GatewayIpTextBox.Text;
+                var targetIp = TargetIpTextBox.Text;
+
+                if (string.IsNullOrWhiteSpace(targetIp))
+                {
+                    MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                if (!IPAddress.TryParse(targetIp, out _))
+                {
+                    MessageBox.Show("Please enter a valid target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                if (!IPAddress.TryParse(sourceIp, out _))
+                {
+                    MessageBox.Show("Please enter a valid source IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                if (!IPAddress.TryParse(gatewayIp, out _))
+                {
+                    MessageBox.Show("Please enter a valid gateway IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                var macBytes = await _networkStorm.GetMacAddressAsync(targetIp);
+                if (macBytes.Length > 0)
+                {
+                    var macAddress = BitConverter.ToString(macBytes).Replace("-", ":");
+                    TargetMacTextBox.Text = macAddress;
+                    _attackLogger.LogInfo($"MAC address resolved: {macAddress}");
+                }
+                else
+                {
+                    _attackLogger.LogError("Failed to resolve MAC address");
+                    MessageBox.Show("Failed to resolve MAC address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _attackLogger.LogError($"Error resolving MAC address: {ex}");
+            }
+            finally
+            {
+                ResolveMacButton.IsEnabled = true;
+                ResolveMacButton.Content = "Resolve MAC";
+            }
+        }
+
+        private void TargetIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(TargetIpTextBox.Text))
+                {
+                    TargetIpTextBox.Background = SystemColors.WindowBrush;
+                    return;
+                }
+
+                if (IPAddress.TryParse(TargetIpTextBox.Text, out _))
+                {
+                    TargetIpTextBox.Background = SystemColors.WindowBrush;
+                }
+                else
+                {
+                    TargetIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                }
+            }
+            catch (Exception ex)
+            {
+                _attackLogger.LogError($"Error validating target IP: {ex.Message}");
+            }
+        }
+
+        private void AttackTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            try
+            {
+                if (AttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem)
+                {
+                    var attackType = selectedItem.Content.ToString();
+                    _attackLogger.LogInfo($"Attack type changed to: {attackType}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _attackLogger.LogError($"Error changing attack type: {ex.Message}");
+            }
+        }
+
+        private void AdvTargetIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                if (sender is TextBox textBox)
+                {
+                    if (string.IsNullOrWhiteSpace(textBox.Text))
+                    {
+                        textBox.Background = SystemColors.WindowBrush;
+                        return;
+                    }
+
+                    if (IPAddress.TryParse(textBox.Text, out _))
+                    {
+                        textBox.Background = SystemColors.WindowBrush;
+                    }
+                    else
+                    {
+                        textBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _attackLogger.LogError($"Error validating advanced target IP: {ex.Message}");
+            }
+        }
+
+        private void AdvancedAttackTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            try
+            {
+                if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem)
+                {
+                    var attackType = selectedItem.Content.ToString();
+                    _attackLogger.LogInfo($"Advanced attack type changed to: {attackType}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _attackLogger.LogError($"Error changing advanced attack type: {ex.Message}");
+            }
+        }
+
+        private void SpoofedMacTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                if (sender is TextBox textBox)
+                {
+                    if (string.IsNullOrWhiteSpace(textBox.Text))
+                    {
+                        textBox.Background = SystemColors.WindowBrush;
+                        return;
+                    }
+
+                    var macRegex = new Regex("^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$");
+                    if (macRegex.IsMatch(textBox.Text))
+                    {
+                        textBox.Background = SystemColors.WindowBrush;
+                    }
+                    else
+                    {
+                        textBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _attackLogger.LogError($"Error validating spoofed MAC address: {ex.Message}");
+            }
         }
 
         private async void StartAdvancedAttack_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                LockAdvancedControls(true);
-                await StartArpSpoofing();
+                if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem)
+                {
+                    var attackType = selectedItem.Content.ToString();
+                    switch (attackType)
+                    {
+                        case "ARP Spoofing":
+                            await StartArpSpoofingAttack();
+                            break;
+                        default:
+                            MessageBox.Show($"Unsupported attack type: {attackType}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            break;
+                    }
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error starting attack: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                LockAdvancedControls(false);
+                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _attackLogger.LogError($"Error starting advanced attack: {ex}");
             }
         }
 
@@ -371,449 +610,57 @@ namespace Dorothy.Views
         {
             try
             {
-                await _mainController.StopArpSpoofingAsync();
-                LockAdvancedControls(false);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error stopping attack: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                LockAdvancedControls(false);
-            }
-        }
-
-        private async Task StartArpSpoofing()
-        {
-            if (string.IsNullOrEmpty(AdvTargetIpTextBox.Text) || 
-                string.IsNullOrEmpty(AdvTargetMacTextBox.Text))
-            {
-                throw new InvalidOperationException("Target information is required for ARP spoofing");
-            }
-
-            StartAdvancedAttackButton.IsEnabled = false;
-            StopAdvancedAttackButton.IsEnabled = true;  // Enable immediately
-
-            await _mainController.StartArpSpoofingAsync(
-                AdvSourceIpTextBox.Text,
-                AdvSourceMacTextBox.Text,
-                AdvTargetIpTextBox.Text,
-                AdvTargetMacTextBox.Text.Replace('-', ':'),
-                SpoofedMacTextBox.Text.Replace('-', ':')
-            );
-        }
-
-        private void AdvancedAttackTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            var selectedItem = AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem;
-            if (selectedItem != null)
-            {
-                bool isArpSpoof = selectedItem.Content.ToString() == "ARP Spoofing";
-                
-                // Show/hide fields based on attack type
-                AdvTargetPortTextBox.IsEnabled = !isArpSpoof;
-                AdvMegabitsPerSecondTextBox.IsEnabled = !isArpSpoof;
-                SpoofedMacTextBox.IsEnabled = isArpSpoof;
-            }
-        }
-
-        private async void AdvTargetIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            try
-            {
-                string targetIp = AdvTargetIpTextBox.Text.Trim();
-                if (string.IsNullOrEmpty(targetIp) || !IPAddress.TryParse(targetIp, out _))
+                if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem)
                 {
-                    AdvTargetMacTextBox.Text = string.Empty;
-                    return;
-                }
-
-                // Use existing ping functionality
-                var pingResult = await _mainController.PingHostAsync(targetIp);
-                if (pingResult.Success)
-                {
-                    string macAddress = await _mainController.GetMacAddressAsync(targetIp);
-                    if (!string.IsNullOrEmpty(macAddress))
+                    var attackType = selectedItem.Content.ToString();
+                    switch (attackType)
                     {
-                        AdvTargetMacTextBox.Text = macAddress;
+                        case "ARP Spoofing":
+                            await _mainController.StopArpSpoofingAsync();
+                            break;
+                        default:
+                            MessageBox.Show($"Unsupported attack type: {attackType}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            break;
                     }
                 }
             }
             catch (Exception ex)
             {
-                LogResult($"Failed to get MAC address: {ex.Message}");
+                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _attackLogger.LogError($"Error stopping advanced attack: {ex}");
             }
         }
 
-        private void SpoofedMacTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private async Task StartArpSpoofingAttack()
         {
-            var textBox = (TextBox)sender;
-            string text = textBox.Text.Replace(":", "").Replace("-", "");
-            
-            if (text.Length > 12)
+            var sourceIp = SourceIpTextBox.Text;
+            var sourceMac = SourceMacTextBox.Text;
+            var targetIp = TargetIpTextBox.Text;
+            var targetMac = TargetMacTextBox.Text;
+            var spoofedMac = SpoofedMacTextBox.Text;
+
+            if (string.IsNullOrWhiteSpace(sourceIp) || string.IsNullOrWhiteSpace(sourceMac) ||
+                string.IsNullOrWhiteSpace(targetIp) || string.IsNullOrWhiteSpace(targetMac) ||
+                string.IsNullOrWhiteSpace(spoofedMac))
             {
-                text = text.Substring(0, 12);
-            }
-
-            // Format with colons
-            string formattedText = string.Empty;
-            for (int i = 0; i < text.Length; i++)
-            {
-                if (i > 0 && i % 2 == 0 && i < text.Length)
-                {
-                    formattedText += ":";
-                }
-                formattedText += text[i];
-            }
-
-            textBox.Text = formattedText;
-            textBox.CaretIndex = formattedText.Length;
-        }
-
-        private async void SaveLogButton_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new SaveFileDialog
-            {
-                Filter = "Log files (*.log)|*.log|Text files (*.txt)|*.txt|All files (*.*)|*.*",
-                DefaultExt = "log",
-                FileName = $"Dorothy_Log_{DateTime.Now.ToLocalTime():yyyyMMdd_HHmmss}.log"
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                await File.WriteAllTextAsync(dialog.FileName, LogTextBox.Text);
-                LogResult("Log file saved successfully");
-            }
-        }
-
-        private void ClearLogButton_Click(object sender, RoutedEventArgs e)
-        {
-            LogTextBox.Clear();
-            LogResult("Log cleared");
-        }
-        private bool CheckAdvancedPassword()
-        {
-            var passwordDialog = new PasswordBox
-            {
-                Width = 200,
-                Margin = new Thickness(10)
-            };
-
-            var dialog = new Window
-            {
-                Title = "Advanced Settings Authentication",
-                Width = 300,
-                Height = 160,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Owner = this,
-                ResizeMode = ResizeMode.NoResize
-            };
-
-            var panel = new StackPanel { Margin = new Thickness(10) };
-            panel.Children.Add(new Label { Content = "Enter password:" });
-            panel.Children.Add(passwordDialog);
-
-            var buttonPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 10, 0, 0)
-            };
-
-            bool? dialogResult = null;
-            
-            var okButton = new Button
-            {
-                Content = "OK",
-                Width = 60,
-                Height = 25,
-                Margin = new Thickness(0, 0, 10, 0)
-            };
-            okButton.Click += (s, e) => { dialogResult = true; dialog.Close(); };
-
-            var cancelButton = new Button
-            {
-                Content = "Cancel",
-                Width = 60,
-                Height = 25
-            };
-            cancelButton.Click += (s, e) => { dialogResult = false; dialog.Close(); };
-
-            buttonPanel.Children.Add(okButton);
-            buttonPanel.Children.Add(cancelButton);
-            panel.Children.Add(buttonPanel);
-            dialog.Content = panel;
-
-            passwordDialog.Focus();
-            dialog.ShowDialog();
-
-            if (!dialogResult.HasValue || !dialogResult.Value) return false;
-            return passwordDialog.Password == "sadder";
-        }
-
-        private void AdvancedTab_PreviewMouseDown(object sender, MouseButtonEventArgs e)
-        {
-            if (MainTabControl.SelectedItem != AdvancedTab)
-            {
-                e.Handled = true;
-                
-                if (CheckAdvancedPassword())
-                {
-                    MainTabControl.SelectedIndex = 1;  // Switch to Advanced tab
-                }
-                else
-                {
-                    MessageBox.Show("Invalid password!", "Authentication Failed", 
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    MainTabControl.SelectedIndex = 0;  // Stay on Basic tab
-                }
-            }
-        }
-
-        private async void TargetIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            // Only update gateway field availability
-            UpdateGatewayIpField();
-        }
-
-        private async void GatewayIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            if (string.IsNullOrEmpty(GatewayIpTextBox.Text))
-            {
-                GatewayIpTextBox.Background = Brushes.White;
+                MessageBox.Show("Please fill in all required fields.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            // Only proceed if we have a complete, valid IP address
-            if (IPAddress.TryParse(GatewayIpTextBox.Text, out _) && 
-                GatewayIpTextBox.Text.Count(c => c == '.') == 3 && 
-                !GatewayIpTextBox.Text.EndsWith("."))
+            if (!IPAddress.TryParse(sourceIp, out _) || !IPAddress.TryParse(targetIp, out _))
             {
-                try
-                {
-                    _routeUpdateCts?.Cancel();
-                    _routeUpdateCts = new CancellationTokenSource();
-                    
-                    // Wait for typing to finish
-                    await Task.Delay(500, _routeUpdateCts.Token);
-                    
-                    string targetIp = TargetIpTextBox.Text;
-                    if (!string.IsNullOrEmpty(targetIp) && IPAddress.TryParse(targetIp, out _))
-                    {
-                        var sourceNetwork = GetNetworkAddress(SourceIpTextBox.Text);
-                        var targetNetwork = GetNetworkAddress(targetIp);
-                        
-                        if (!string.IsNullOrEmpty(targetNetwork) && targetNetwork != sourceNetwork)
-                        {
-                            await _networkStorm.AddRouteAsync(targetNetwork, GatewayIpTextBox.Text);
-                            
-                            // Update Target MAC with Gateway MAC
-                            var gatewayMac = await _networkStorm.GetGatewayMacAsync();
-                            if (!string.IsNullOrEmpty(gatewayMac))
-                            {
-                                TargetMacTextBox.Text = $"{gatewayMac} (Gateway MAC)";
-                            }
-                        }
-                    }
-                    
-                    await _networkStorm.SetGatewayIp(GatewayIpTextBox.Text);
-                    GatewayIpTextBox.Background = Brushes.White;
-                }
-                catch (OperationCanceledException)
-                {
-                    // Ignore cancellation
-                }
-                catch (Exception ex)
-                {
-                    LogResult($"Failed to set route: {ex.Message}");
-                    GatewayIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
-                }
-                finally
-                {
-                    _routeUpdateCts?.Dispose();
-                    _routeUpdateCts = null;
-                }
+                MessageBox.Show("Please enter valid IP addresses.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
             }
-            else
+
+            var macRegex = new Regex("^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$");
+            if (!macRegex.IsMatch(sourceMac) || !macRegex.IsMatch(targetMac) || !macRegex.IsMatch(spoofedMac))
             {
-                GatewayIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                MessageBox.Show("Please enter valid MAC addresses in the format XX:XX:XX:XX:XX:XX", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
             }
+
+            await _mainController.StartArpSpoofingAsync(sourceIp, sourceMac, targetIp, targetMac, spoofedMac);
         }
-
-        private string GetNetworkAddress(string ipAddress)
-        {
-            try
-            {
-                if (IPAddress.TryParse(ipAddress, out var ip))
-                {
-                    var bytes = ip.GetAddressBytes();
-                    return $"{bytes[0]}.{bytes[1]}.{bytes[2]}.0";
-                }
-            }
-            catch { }
-            return string.Empty;
-        }
-
-        private async void UpdateGatewayIpField()
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(TargetIpTextBox.Text) || string.IsNullOrEmpty(SourceIpTextBox.Text))
-                {
-                    GatewayIpTextBox.IsEnabled = false;
-                    GatewayIpTextBox.Background = Brushes.LightGray;
-                    return;
-                }
-
-                var sourceIp = IPAddress.Parse(SourceIpTextBox.Text);
-                var targetIp = IPAddress.Parse(TargetIpTextBox.Text);
-
-                if (IsOnSameSubnet(sourceIp, targetIp))
-                {
-                    GatewayIpTextBox.IsEnabled = false;
-                    GatewayIpTextBox.Background = Brushes.LightGray;
-                    GatewayIpTextBox.Text = string.Empty;
-                    await _networkStorm.SetGatewayIp(string.Empty);
-                }
-                else
-                {
-                    GatewayIpTextBox.IsEnabled = true;
-                    GatewayIpTextBox.Background = Brushes.White;
-                    
-                    // Set default gateway if empty
-                    if (string.IsNullOrEmpty(GatewayIpTextBox.Text))
-                    {
-                        var sourceOctets = SourceIpTextBox.Text.Split('.');
-                        GatewayIpTextBox.Text = $"{sourceOctets[0]}.{sourceOctets[1]}.{sourceOctets[2]}.1";
-                        await _networkStorm.SetGatewayIp(GatewayIpTextBox.Text);
-                    }
-                }
-            }
-            catch
-            {
-                GatewayIpTextBox.IsEnabled = false;
-                GatewayIpTextBox.Background = Brushes.LightGray;
-            }
-        }
-
-        private bool IsOnSameSubnet(IPAddress ip1, IPAddress ip2)
-        {
-            // Get subnet mask from the selected network interface
-            var selectedItem = NetworkInterfaceComboBox.SelectedItem as ComboBoxItem;
-            if (selectedItem?.Tag is NetworkInterface networkInterface)
-            {
-                var ipProps = networkInterface.GetIPProperties();
-                var ipv4Address = ipProps.UnicastAddresses
-                    .FirstOrDefault(ua => ua.Address.AddressFamily == AddressFamily.InterNetwork);
-
-                if (ipv4Address != null)
-                {
-                    byte[] subnetMask = ipv4Address.IPv4Mask.GetAddressBytes();
-                    byte[] ip1Bytes = ip1.GetAddressBytes();
-                    byte[] ip2Bytes = ip2.GetAddressBytes();
-
-                    for (int i = 0; i < 4; i++)
-                    {
-                        if ((ip1Bytes[i] & subnetMask[i]) != (ip2Bytes[i] & subnetMask[i]))
-                        {
-                            return false;
-                        }
-                    }
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        private void LockBasicControls(bool isLocked)
-        {
-            // Lock/unlock input fields
-            TargetIpTextBox.IsEnabled = !isLocked;
-            TargetPortTextBox.IsEnabled = !isLocked;
-            TargetMacTextBox.IsEnabled = !isLocked;
-            MegabitsPerSecondTextBox.IsEnabled = !isLocked;
-            NetworkInterfaceComboBox.IsEnabled = !isLocked;
-            AttackTypeComboBox.IsEnabled = !isLocked;
-            
-            // Lock/unlock buttons
-            StartButton.IsEnabled = !isLocked;
-            StopButton.IsEnabled = isLocked;
-        }
-
-        private void LockAdvancedControls(bool isLocked)
-        {
-            // Lock/unlock input fields
-            AdvTargetIpTextBox.IsEnabled = !isLocked;
-            AdvTargetPortTextBox.IsEnabled = !isLocked;
-            AdvTargetMacTextBox.IsEnabled = !isLocked;
-            AdvMegabitsPerSecondTextBox.IsEnabled = !isLocked;
-            AdvancedAttackTypeComboBox.IsEnabled = !isLocked;
-            SpoofedMacTextBox.IsEnabled = !isLocked;
-            
-            // Lock/unlock buttons
-            StartAdvancedAttackButton.IsEnabled = !isLocked;
-            StopAdvancedAttackButton.IsEnabled = isLocked;
-        }
-
-        private void TaskManagerButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                Process.Start("taskmgr.exe");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error opening Task Manager: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private async void InitializeNetworkInfo()
-        {
-            try
-            {
-                var networkInterface = GetActiveNetworkInterface();
-                if (networkInterface != null)
-                {
-                    var ipProperties = networkInterface.GetIPProperties();
-                    var ipv4Address = ipProperties.UnicastAddresses
-                        .FirstOrDefault(addr => addr.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-
-                    if (ipv4Address != null)
-                    {
-                        _sourceIp = ipv4Address.Address.ToString();
-                        SourceIpTextBox.Text = _sourceIp;
-                        UpdateMacAddress(networkInterface);
-                        
-                        // Get and set default gateway
-                        var gateway = ipProperties.GatewayAddresses
-                            .FirstOrDefault(g => g.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-                        var defaultGateway = gateway?.Address.ToString() ?? string.Empty;
-                        
-                        GatewayIpTextBox.Text = defaultGateway;
-                        await _networkStorm.SetGatewayIp(defaultGateway);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error initializing network info: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private NetworkInterface? GetActiveNetworkInterface()
-        {
-            var selectedInterface = NetworkInterfaceComboBox.SelectedItem as NetworkInterface;
-            return selectedInterface;
-        }
-
-        private void UpdateMacAddress(NetworkInterface networkInterface)
-        {
-            byte[] macBytes = networkInterface.GetPhysicalAddress().GetAddressBytes();
-            string formattedMac = string.Join(":", macBytes.Select(b => b.ToString("X2")));
-            SourceMacTextBox.Text = formattedMac;
-            if (_sourceIp != null)
-            {
-                _networkStorm.SetSourceInfo(_sourceIp, macBytes);
-            }
-        }
-
-    } 
+    }
 } 

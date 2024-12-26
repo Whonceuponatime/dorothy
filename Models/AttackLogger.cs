@@ -15,7 +15,6 @@ namespace Dorothy.Models
         private string _targetIp = string.Empty;
         private string _targetMac = string.Empty;
         private long _targetBytesPerSecond;
-        private int _messageCount = 0;
 
         public AttackLogger(TextBox logArea)
         {
@@ -43,45 +42,39 @@ namespace Dorothy.Models
                          $"Target Rate: {_targetBytesPerSecond * 8.0 / 1_000_000:F2} Mbps\n" +
                          $"Attack Type: {_attackType}\n" +
                          "Status: Attack Started";
-            LogEvent(message, true);
+            Log(message, "INFO", true);
         }
 
         public void LogInfo(string message)
         {
-            var formattedMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
-            LogEvent(formattedMessage, false);
+            Log(message, "INFO");
         }
 
         public void LogError(string message)
         {
-            var formattedMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ERROR: {message}";
-            LogEvent(formattedMessage, false);
+            Log(message, "ERROR");
         }
 
         public void LogWarning(string message)
         {
-            var formattedMessage = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] WARNING: {message}";
-            LogEvent(formattedMessage, false);
+            Log(message, "WARNING");
         }
 
-        private void LogEvent(string message, bool isAttackDetails)
+        public void LogDebug(string message)
         {
-            if (isAttackDetails)
+            Log(message, "DEBUG");
+        }
+
+        private void Log(string message, string level, bool isEvent = false)
+        {
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
+            var logMessage = isEvent ? message : $"[{timestamp}] [{level}] {message}";
+            
+            _logArea.Dispatcher.Invoke(() =>
             {
-                _logArea.Dispatcher.Invoke(() =>
-                {
-                    _logArea.AppendText($"{message}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
-                    _logArea.ScrollToEnd();
-                });
-            }
-            else
-            {
-                _logArea.Dispatcher.Invoke(() =>
-                {
-                    _logArea.AppendText($"{message}{Environment.NewLine}");
-                    _logArea.ScrollToEnd();
-                });
-            }
+                _logArea.AppendText(logMessage + Environment.NewLine);
+                _logArea.ScrollToEnd();
+            });
         }
     }
 } 

@@ -23,6 +23,7 @@ namespace Dorothy.Controllers
         private readonly TextBox _logTextBox;
         private readonly Window _mainWindow;
         private readonly ILogger _logger;
+        private readonly AttackLogger _attackLogger;
         private ArpSpoof? _arpSpoofer;
 
         [DllImport("iphlpapi.dll", ExactSpelling = true)]
@@ -37,6 +38,7 @@ namespace Dorothy.Controllers
             _logTextBox = logTextBox;
             _mainWindow = mainWindow;
             _logger = LogManager.GetCurrentClassLogger();
+            _attackLogger = new AttackLogger(logTextBox);
         }
 
         public async Task StartAttackAsync(AttackType attackType, string targetIp, int targetPort, long megabitsPerSecond)
@@ -52,7 +54,7 @@ namespace Dorothy.Controllers
             catch (Exception ex)
             {
                 _logger.Error(ex, "Attack failed.");
-                Log($"Attack failed: {ex.Message}");
+                _attackLogger.LogError($"Attack failed: {ex.Message}");
                 _startButton.IsEnabled = true;
                 _stopButton.IsEnabled = false;
                 _statusLabel.Content = "Status: Error";
@@ -71,17 +73,14 @@ namespace Dorothy.Controllers
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error stopping attack");
+                _attackLogger.LogError($"Error stopping attack: {ex.Message}");
                 throw;
             }
         }
 
         public void Log(string message)
         {
-            _logTextBox.Dispatcher.Invoke(() =>
-            {
-                _logTextBox.AppendText(message + Environment.NewLine);
-                _logTextBox.ScrollToEnd();
-            });
+            _attackLogger.LogInfo(message);
         }
 
         public async Task<string> GetMacAddressAsync(string ipAddress)

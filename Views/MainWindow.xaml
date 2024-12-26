@@ -109,22 +109,32 @@
                                     Content="Ping" Margin="5,0,0,0"
                                     Click="PingButton_Click"/>
 
-                            <Label Grid.Row="8" Grid.Column="0" Content="Target Port:" 
+                            <Label Grid.Row="8" Grid.Column="0" Content="Gateway IP:" 
                                    Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="TargetPortTextBox" Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2"
-                                     Style="{StaticResource DefaultTextBox}"/>
-
-                            <Label Grid.Row="10" Grid.Column="0" Content="Gateway IP:" 
-                                   Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="GatewayIpTextBox" Grid.Row="10" Grid.Column="1" Grid.ColumnSpan="2"
+                            <TextBox x:Name="GatewayIpTextBox" Grid.Row="8" Grid.Column="1"
                                      Style="{StaticResource DefaultTextBox}"
                                      TextChanged="GatewayIpTextBox_TextChanged"/>
+                            <Button x:Name="AddRouteButton" Grid.Row="8" Grid.Column="2"
+                                    Content="Add Route"
+                                    Width="80"
+                                    Margin="5,0,0,0"
+                                    Click="AddRouteButton_Click"/>
 
-                            <Label Grid.Row="12" Grid.Column="0" Content="Target MAC:" 
+                            <Label Grid.Row="10" Grid.Column="0" Content="Target MAC:" 
                                    Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="TargetMacTextBox" Grid.Row="12" Grid.Column="1" Grid.ColumnSpan="2"
+                            <TextBox x:Name="TargetMacTextBox" Grid.Row="10" Grid.Column="1"
                                      Style="{StaticResource DefaultTextBox}"
                                      IsReadOnly="True"/>
+                            <Button x:Name="ResolveMacButton" Grid.Row="10" Grid.Column="2"
+                                    Content="Resolve MAC"
+                                    Width="80"
+                                    Margin="5,0,0,0"
+                                    Click="ResolveMacButton_Click"/>
+
+                            <Label Grid.Row="12" Grid.Column="0" Content="Target Port:" 
+                                   Style="{StaticResource DefaultLabel}"/>
+                            <TextBox x:Name="TargetPortTextBox" Grid.Row="12" Grid.Column="1" Grid.ColumnSpan="2"
+                                     Style="{StaticResource DefaultTextBox}"/>
                         </Grid>
                     </GroupBox>
 
