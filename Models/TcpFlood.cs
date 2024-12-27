@@ -76,13 +76,14 @@ namespace Dorothy.Models
                 ethernetPacket.PayloadPacket = ipPacket;
 
                 int totalPacketSize = ethernetPacket.Bytes.Length;
-                int batchSize = 32; // Send packets in batches for better throughput
+                int batchSize = 64; // Moderate batch size
                 long packetsPerSecond = _params.BytesPerSecond / totalPacketSize;
                 double microsecondsPerBatch = (1_000_000.0 * batchSize) / packetsPerSecond;
 
                 await Task.Run(() =>
                 {
                     var stopwatch = new Stopwatch();
+                    var bytes = new byte[4];
 
                     while (!_cancellationToken.IsCancellationRequested)
                     {
@@ -92,12 +93,9 @@ namespace Dorothy.Models
 
                             for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
                             {
-                                // Update sequence number and window size for each packet
-                                tcpPacket.SequenceNumber = (uint)random.Next();
-                                tcpPacket.WindowSize = (ushort)(4096 + random.Next(0, 8192));
-                                random.NextBytes(tcpPacket.PayloadData);
-
-                                // Recalculate checksums
+                                // Update sequence number for each packet
+                                random.NextBytes(bytes);
+                                tcpPacket.SequenceNumber = BitConverter.ToUInt32(bytes, 0);
                                 tcpPacket.UpdateCalculatedValues();
                                 ipPacket.UpdateCalculatedValues();
 

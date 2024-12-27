@@ -347,7 +347,7 @@ namespace Dorothy.Models
                 _cancellationSource?.Cancel();
                 _isAttackRunning = false;
                 
-                var message = "━━━━━━━━━━━━━━━━━━━━━━━���━━━━━\n" +
+                var message = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
                               "Status: Attack Stopped";
                 Log(message);
             }
