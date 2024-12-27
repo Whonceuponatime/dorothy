@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Net.Sockets;
+using System.Diagnostics;
 using NLog;
 using PacketDotNet;
 using SharpPcap;
@@ -40,34 +41,57 @@ namespace Dorothy.Models
                 byte[] payload = new byte[1400]; // Payload size
 
                 var random = new Random();
-                int packetSize = udpHeader.Length + payload.Length;
-                int packetsPerSecond = (int)Math.Ceiling(_params.BytesPerSecond / (double)packetSize);
+                // Account for IP header (20 bytes) + UDP header (8 bytes) + payload
+                int totalPacketSize = 20 + udpHeader.Length + payload.Length;
+                int batchSize = 32; // Send packets in batches for better throughput
+                long packetsPerSecond = _params.BytesPerSecond / totalPacketSize;
+                double microsecondsPerBatch = (1_000_000.0 * batchSize) / packetsPerSecond;
 
                 await Task.Run(() =>
                 {
+                    var stopwatch = new Stopwatch();
+                    var endpoint = new IPEndPoint(_params.DestinationIp, 0);
+                    byte[] fullPacket = new byte[udpHeader.Length + payload.Length];
+
                     while (!_cancellationToken.IsCancellationRequested)
                     {
                         try
                         {
-                            // Create UDP header
-                            BitConverter.GetBytes((ushort)_params.SourcePort).CopyTo(udpHeader, 0);
-                            BitConverter.GetBytes((ushort)_params.DestinationPort).CopyTo(udpHeader, 2);
-                            BitConverter.GetBytes((ushort)(8 + payload.Length)).CopyTo(udpHeader, 4); // Length
-                            BitConverter.GetBytes((ushort)0).CopyTo(udpHeader, 6); // Checksum
+                            stopwatch.Restart();
 
-                            // Generate random payload
-                            random.NextBytes(payload);
+                            for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
+                            {
+                                // Create UDP header
+                                BitConverter.GetBytes((ushort)_params.SourcePort).CopyTo(udpHeader, 0);
+                                BitConverter.GetBytes((ushort)_params.DestinationPort).CopyTo(udpHeader, 2);
+                                BitConverter.GetBytes((ushort)(8 + payload.Length)).CopyTo(udpHeader, 4); // Length
+                                BitConverter.GetBytes((ushort)0).CopyTo(udpHeader, 6); // Checksum
 
-                            // Combine header and payload
-                            byte[] fullPacket = new byte[udpHeader.Length + payload.Length];
-                            Buffer.BlockCopy(udpHeader, 0, fullPacket, 0, udpHeader.Length);
-                            Buffer.BlockCopy(payload, 0, fullPacket, udpHeader.Length, payload.Length);
+                                // Generate random payload
+                                random.NextBytes(payload);
 
-                            var endpoint = new IPEndPoint(_params.DestinationIp, 0);
-                            _socket.SendTo(fullPacket, endpoint);
+                                // Combine header and payload
+                                Buffer.BlockCopy(udpHeader, 0, fullPacket, 0, udpHeader.Length);
+                                Buffer.BlockCopy(payload, 0, fullPacket, udpHeader.Length, payload.Length);
 
-                            if (packetsPerSecond > 0)
-                                Thread.Sleep(1000 / packetsPerSecond);
+                                _socket.SendTo(fullPacket, endpoint);
+                            }
+
+                            // High precision rate limiting
+                            long elapsedMicroseconds = stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency;
+                            if (elapsedMicroseconds < microsecondsPerBatch)
+                            {
+                                int remainingMicroseconds = (int)(microsecondsPerBatch - elapsedMicroseconds);
+                                if (remainingMicroseconds > 1000) // Only sleep for delays > 1ms
+                                {
+                                    Thread.Sleep(remainingMicroseconds / 1000);
+                                }
+                                // Spin wait for sub-millisecond precision
+                                while (stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency < microsecondsPerBatch)
+                                {
+                                    Thread.SpinWait(1);
+                                }
+                            }
                         }
                         catch (Exception ex)
                         {

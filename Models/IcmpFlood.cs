@@ -5,12 +5,13 @@ using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Net.Sockets;
+using System.Diagnostics;
 using NLog;
 using PacketDotNet;
 using SharpPcap;
 using SharpPcap.LibPcap;
 using Dorothy.Models;
-using System.Net.Sockets;
 
 namespace Dorothy.Models
 {
@@ -40,27 +41,50 @@ namespace Dorothy.Models
                 byte[] payload = new byte[1400];
 
                 var random = new Random();
-                int packetSize = icmpHeader.Length + payload.Length;
-                int packetsPerSecond = (int)Math.Ceiling(_params.BytesPerSecond / (double)packetSize);
+                // Account for IP header (20 bytes) + ICMP header (8 bytes) + payload
+                int totalPacketSize = 20 + icmpHeader.Length + payload.Length;
+                int batchSize = 32; // Send packets in batches for better throughput
+                long packetsPerSecond = _params.BytesPerSecond / totalPacketSize;
+                double microsecondsPerBatch = (1_000_000.0 * batchSize) / packetsPerSecond;
 
                 await Task.Run(() =>
                 {
+                    var stopwatch = new Stopwatch();
+                    var endpoint = new IPEndPoint(_params.DestinationIp, 0);
+                    byte[] fullPacket = new byte[icmpHeader.Length + payload.Length];
+
                     while (!_cancellationToken.IsCancellationRequested)
                     {
                         try
                         {
-                            icmpHeader[0] = 8;  // Echo Request
-                            random.NextBytes(payload);
+                            stopwatch.Restart();
 
-                            byte[] fullPacket = new byte[icmpHeader.Length + payload.Length];
-                            Buffer.BlockCopy(icmpHeader, 0, fullPacket, 0, icmpHeader.Length);
-                            Buffer.BlockCopy(payload, 0, fullPacket, icmpHeader.Length, payload.Length);
+                            for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
+                            {
+                                icmpHeader[0] = 8;  // Echo Request
+                                random.NextBytes(payload);
 
-                            var endpoint = new IPEndPoint(_params.DestinationIp, 0);
-                            _socket.SendTo(fullPacket, endpoint);
+                                Buffer.BlockCopy(icmpHeader, 0, fullPacket, 0, icmpHeader.Length);
+                                Buffer.BlockCopy(payload, 0, fullPacket, icmpHeader.Length, payload.Length);
 
-                            if (packetsPerSecond > 0)
-                                Thread.Sleep(1000 / packetsPerSecond);
+                                _socket.SendTo(fullPacket, endpoint);
+                            }
+
+                            // High precision rate limiting
+                            long elapsedMicroseconds = stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency;
+                            if (elapsedMicroseconds < microsecondsPerBatch)
+                            {
+                                int remainingMicroseconds = (int)(microsecondsPerBatch - elapsedMicroseconds);
+                                if (remainingMicroseconds > 1000) // Only sleep for delays > 1ms
+                                {
+                                    Thread.Sleep(remainingMicroseconds / 1000);
+                                }
+                                // Spin wait for sub-millisecond precision
+                                while (stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency < microsecondsPerBatch)
+                                {
+                                    Thread.SpinWait(1);
+                                }
+                            }
                         }
                         catch (Exception ex)
                         {
