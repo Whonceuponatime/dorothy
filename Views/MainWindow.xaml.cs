@@ -735,5 +735,30 @@ namespace Dorothy.Views
 
             await _mainController.StartArpSpoofingAsync(sourceIp, sourceMac, targetIp, targetMac, spoofedMac);
         }
+
+        private void SourceIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(SourceIpTextBox.Text))
+                {
+                    SourceIpTextBox.Background = SystemColors.WindowBrush;
+                    return;
+                }
+
+                if (IPAddress.TryParse(SourceIpTextBox.Text, out _))
+                {
+                    SourceIpTextBox.Background = SystemColors.WindowBrush;
+                }
+                else
+                {
+                    SourceIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                }
+            }
+            catch (Exception ex)
+            {
+                _attackLogger.LogError($"Error validating source IP: {ex.Message}");
+            }
+        }
     }
 } 

@@ -34,9 +34,9 @@ namespace Dorothy.Models
         public string TargetIp { get; private set; } = string.Empty;
         public event EventHandler<PacketEventArgs>? PacketSent;
 
-        protected virtual void OnPacketSent(PacketEventArgs e)
+        protected virtual void OnPacketSent(byte[] packet, IPAddress sourceIp, IPAddress destinationIp, int port)
         {
-            PacketSent?.Invoke(this, e);
+            PacketSent?.Invoke(this, new PacketEventArgs(packet, sourceIp, destinationIp, port));
         }
 
         public NetworkStorm(TextBox logArea)
@@ -68,7 +68,12 @@ namespace Dorothy.Models
             try
             {
                 _socket?.Send(packet);
-                OnPacketSent(new PacketEventArgs(ipHeader, tcpHeader, icmpHeader));
+                OnPacketSent(
+                    packet,
+                    IPAddress.Parse(ipHeader.SourceAddress.ToString()),
+                    IPAddress.Parse(ipHeader.DestinationAddress.ToString()),
+                    tcpHeader?.DestinationPort ?? 0
+                );
             }
             catch (Exception ex)
             {
@@ -269,68 +274,91 @@ namespace Dorothy.Models
                 _cancellationSource = new CancellationTokenSource();
                 _isAttackRunning = true;
 
-                // Validate and resolve MAC addresses
-                var sourceIpObj = IPAddress.Parse(SourceIp);
-                var targetIpObj = IPAddress.Parse(targetIp);
-                
-                // Only check gateway MAC for cross-subnet targets
-                if (!IsOnSameSubnet(sourceIpObj, targetIpObj))
-                {
-                    if (GatewayMac.Length == 0)
+                // Run the attack in a background task to prevent UI freezing
+                await Task.Run(async () => {
+                    try
                     {
-                        _logger.LogError("Gateway MAC address not configured - Required for cross-subnet target");
-                        throw new Exception("Gateway MAC address is required for cross-subnet targets");
+                        // Validate and resolve MAC addresses
+                        var sourceIpObj = IPAddress.Parse(SourceIp);
+                        var targetIpObj = IPAddress.Parse(targetIp);
+                        
+                        // Only check gateway MAC for cross-subnet targets
+                        if (!IsOnSameSubnet(sourceIpObj, targetIpObj))
+                        {
+                            if (GatewayMac.Length == 0)
+                            {
+                                _logger.LogError("Gateway MAC address not configured - Required for cross-subnet target");
+                                throw new Exception("Gateway MAC address is required for cross-subnet targets");
+                            }
+                        }
+
+                        // Common packet parameters
+                        var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond);
+
+                        // Log attack details in the specified format
+                        var message = $"Attack Details\n" +
+                                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                                    $"Protocol: {attackType}\n" +
+                                    $"Source Host: {SourceIp}\n" +
+                                    $"Source MAC: {BitConverter.ToString(SourceMac).Replace("-", ":")}\n" +
+                                    $"Target Host: {targetIp}\n" +
+                                    $"Target MAC: {BitConverter.ToString(packetParams.DestinationMac).Replace("-", ":")}\n" +
+                                    $"Target Rate: {megabitsPerSecond:F2} Mbps\n" +
+                                    $"Attack Type: {attackType}\n" +
+                                    "Status: Attack Started";
+                        _logger.LogInfo(message);
+
+                        switch (attackType)
+                        {
+                            case AttackType.UdpFlood:
+                                using (var udpFlood = new UdpFlood(packetParams, _cancellationSource.Token))
+                                {
+                                    await udpFlood.StartAsync();
+                                }
+                                break;
+
+                            case AttackType.IcmpFlood:
+                                using (var icmpFlood = new IcmpFlood(packetParams, _cancellationSource.Token))
+                                {
+                                    await icmpFlood.StartAsync();
+                                }
+                                break;
+
+                            case AttackType.SynFlood:
+                                if (!IsOnSameSubnet(sourceIpObj, targetIpObj))
+                                {
+                                    _logger.LogInfo("Target is on different subnet - Using routed TCP flood attack");
+                                    using (var tcpFlood = new TcpFloodRouted(packetParams, _cancellationSource.Token))
+                                    {
+                                        await tcpFlood.StartAsync();
+                                    }
+                                }
+                                else
+                                {
+                                    using (var tcpFlood = new TcpFlood(packetParams, _cancellationSource.Token))
+                                    {
+                                        await tcpFlood.StartAsync();
+                                    }
+                                }
+                                break;
+
+                            default:
+                                throw new ArgumentException($"Unsupported attack type: {attackType}");
+                        }
                     }
-                }
-
-                // Common packet parameters
-                var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond);
-
-                // Log attack details in the specified format
-                var message = $"Attack Details\n" +
-                             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                             $"Protocol: {attackType}\n" +
-                             $"Source Host: {SourceIp}\n" +
-                             $"Source MAC: {BitConverter.ToString(SourceMac).Replace("-", ":")}\n" +
-                             $"Target Host: {targetIp}\n" +
-                             $"Target MAC: {BitConverter.ToString(packetParams.DestinationMac).Replace("-", ":")}\n" +
-                             $"Target Rate: {megabitsPerSecond:F2} Mbps\n" +
-                             $"Attack Type: {attackType}\n" +
-                             "Status: Attack Started";
-                _logger.LogInfo(message);
-
-                switch (attackType)
-                {
-                    case AttackType.UdpFlood:
-                        using (var udpFlood = new UdpFlood(packetParams, _cancellationSource.Token))
-                        {
-                            await udpFlood.StartAsync();
-                        }
-                        break;
-
-                    case AttackType.IcmpFlood:
-                        using (var icmpFlood = new IcmpFlood(packetParams, _cancellationSource.Token))
-                        {
-                            await icmpFlood.StartAsync();
-                        }
-                        break;
-
-                    case AttackType.SynFlood:
-                        using (var tcpFlood = new TcpFlood(packetParams, _cancellationSource.Token))
-                        {
-                            await tcpFlood.StartAsync();
-                        }
-                        break;
-
-                    default:
-                        throw new ArgumentException($"Unsupported attack type: {attackType}");
-                }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Attack task failed: {ex.Message}");
+                        throw;
+                    }
+                }, _cancellationSource.Token);
             }
             catch (Exception ex)
             {
                 _isAttackRunning = false;
                 _logger.LogError($"Attack failed: {ex.Message}");
-                throw;
+                // Don't rethrow to prevent UI freeze
+                await StopAttackAsync();
             }
         }
 
@@ -344,22 +372,56 @@ namespace Dorothy.Models
 
             try
             {
-                _cancellationSource?.Cancel();
+                // Set flag first to prevent new packets from being sent
                 _isAttackRunning = false;
+
+                // Cancel any ongoing operations
+                if (_cancellationSource != null && !_cancellationSource.IsCancellationRequested)
+                {
+                    await Task.Run(() => {
+                        _cancellationSource.Cancel();
+                        // Give a small window for cleanup
+                        Task.Delay(100).Wait();
+                    });
+                }
                 
                 var message = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                              "Status: Attack Stopped";
+                             "Status: Attack Stopped";
                 Log(message);
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Error stopping attack: {ex.Message}");
-                throw;
             }
             finally
             {
-                _cancellationSource?.Dispose();
-                _cancellationSource = null;
+                try
+                {
+                    // Cleanup resources
+                    if (_socket != null)
+                    {
+                        if (_socket.Connected)
+                        {
+                            _socket.Shutdown(SocketShutdown.Both);
+                        }
+                        _socket.Close();
+                        _socket.Dispose();
+                        _socket = null;
+                    }
+
+                    if (_cancellationSource != null)
+                    {
+                        _cancellationSource.Dispose();
+                        _cancellationSource = null;
+                    }
+
+                    // Reinitialize socket for future use
+                    InitializeSocket();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Error cleaning up resources: {ex.Message}");
+                }
             }
         }
 
@@ -411,91 +473,6 @@ namespace Dorothy.Models
             _logger.LogInfo($"Starting multicast attack (placeholder) - Target: {targetIp}:{targetPort}, Rate: {megabitsPerSecond}Mbps");
             await Task.CompletedTask;
         }
-        public async Task RemoveRouteAsync(string targetNetwork)
-        {
-            try
-            {
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "route",
-                    Arguments = $"delete {targetNetwork}",
-                    UseShellExecute = true,
-                    Verb = "runas",
-                    CreateNoWindow = true
-                };
-
-                using var process = Process.Start(startInfo);
-                if (process != null)
-                {
-                    await process.WaitForExitAsync();
-                    if (process.ExitCode == 0)
-                    {
-                        _logger.LogInfo($"Route removed successfully: {targetNetwork}");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Error removing route: {ex.Message}");
-            }
-        }
-
-        private string GetNetworkAddress(string ipAddress)
-        {
-            try
-            {
-                if (IPAddress.TryParse(ipAddress, out var ip))
-                {
-                    var bytes = ip.GetAddressBytes();
-                    return $"{bytes[0]}.{bytes[1]}.{bytes[2]}.0";
-                }
-            }
-            catch { }
-            return string.Empty;
-        }
-
-        public async Task<bool> CheckConnectivityAsync(string targetIp)
-        {
-            try
-            {
-                var ping = new Ping();
-                var reply = await ping.SendPingAsync(targetIp, 1000);
-                return reply.Status == IPStatus.Success;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        public async Task<string> GetRoutingDiagnosticsAsync(string targetIp)
-        {
-            var diagnostics = new StringBuilder();
-            var sourceIpObj = IPAddress.Parse(SourceIp);
-            var targetIpObj = IPAddress.Parse(targetIp);
-            
-            diagnostics.AppendLine($"Source IP: {SourceIp}");
-            diagnostics.AppendLine($"Target IP: {targetIp}");
-            
-            if (!IsOnSameSubnet(sourceIpObj, targetIpObj))
-            {
-                diagnostics.AppendLine("Different subnets detected - Routing required");
-                diagnostics.AppendLine($"Gateway IP: {GatewayIp}");
-                if (GatewayMac.Length > 0)
-                {
-                    diagnostics.AppendLine($"Gateway MAC: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
-                }
-                else
-                {
-                    diagnostics.AppendLine("Warning: Gateway MAC not resolved");
-                }
-            }
-            
-            var pingResult = await CheckConnectivityAsync(targetIp);
-            diagnostics.AppendLine($"Ping test: {(pingResult ? "Success" : "Failed")}");
-            
-            return diagnostics.ToString();
-        }
 
         private NetworkInterface? GetActiveNetworkInterface()
         {
@@ -534,51 +511,6 @@ namespace Dorothy.Models
             {
                 _logger.LogError($"Error getting gateway MAC: {ex.Message}");
                 return string.Empty;
-            }
-        }
-
-        public async Task AddRouteAsync(string targetNetwork, string gatewayIp)
-        {
-            try
-            {
-                if (string.IsNullOrEmpty(targetNetwork) || string.IsNullOrEmpty(gatewayIp))
-                {
-                    throw new ArgumentException("Target network and gateway IP are required");
-                }
-
-                _logger.LogDebug($"Adding route: {targetNetwork} via {gatewayIp}");
-
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = "route",
-                    Arguments = $"add {targetNetwork} mask 255.255.255.0 {gatewayIp}",
-                    UseShellExecute = true,
-                    Verb = "runas",
-                    CreateNoWindow = true
-                };
-
-                using var process = Process.Start(startInfo);
-                if (process != null)
-                {
-                    await process.WaitForExitAsync();
-                    if (process.ExitCode == 0)
-                    {
-                        _logger.LogInfo($"Route added successfully: {targetNetwork} via {gatewayIp}");
-                    }
-                    else
-                    {
-                        throw new Exception($"Route command failed with exit code: {process.ExitCode}");
-                    }
-                }
-                else
-                {
-                    throw new Exception("Failed to start route command");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError($"Error adding route: {ex.Message}");
-                throw;
             }
         }
     }

@@ -5,11 +5,12 @@ namespace Dorothy.Models
         UdpFlood,
         SynFlood,
         IcmpFlood,
-        BroadcastUdp
+        BroadcastUdp,
+        SynFloodRouted
     }
     public enum AdvancedAttackType
     {
         ArpSpoof,
         MacFlood
     }
-} 
+}
