@@ -76,7 +76,7 @@ namespace Dorothy.Models
                 ethernetPacket.PayloadPacket = ipPacket;
 
                 int totalPacketSize = ethernetPacket.Bytes.Length;
-                int batchSize = 64; // Moderate batch size
+                int batchSize = 1000; // Increased batch size
                 long packetsPerSecond = _params.BytesPerSecond / totalPacketSize;
                 double microsecondsPerBatch = (1_000_000.0 * batchSize) / packetsPerSecond;
 
@@ -84,6 +84,23 @@ namespace Dorothy.Models
                 {
                     var stopwatch = new Stopwatch();
                     var bytes = new byte[4];
+                    var packetPool = new byte[batchSize][];
+
+                    // Pre-generate packet pool
+                    for (int i = 0; i < batchSize; i++)
+                    {
+                        random.NextBytes(bytes);
+                        tcpPacket.SequenceNumber = BitConverter.ToUInt32(bytes, 0);
+                        tcpPacket.UpdateCalculatedValues();
+                        ipPacket.UpdateCalculatedValues();
+                        packetPool[i] = ethernetPacket.Bytes;
+                    }
+
+                    var packetSize = totalPacketSize;
+                    var packetsPerSecond = _params.BytesPerSecond / packetSize;
+                    var microBatchSize = 100;
+                    var microBatchDelay = TimeSpan.FromSeconds(1.0 * microBatchSize / packetsPerSecond);
+                    var currentBatch = 0;
 
                     while (!_cancellationToken.IsCancellationRequested)
                     {
@@ -91,28 +108,41 @@ namespace Dorothy.Models
                         {
                             stopwatch.Restart();
 
-                            for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
+                            // Send micro-batch of packets
+                            for (int i = 0; i < microBatchSize && !_cancellationToken.IsCancellationRequested; i++)
                             {
-                                // Update sequence number for each packet
-                                random.NextBytes(bytes);
-                                tcpPacket.SequenceNumber = BitConverter.ToUInt32(bytes, 0);
-                                tcpPacket.UpdateCalculatedValues();
-                                ipPacket.UpdateCalculatedValues();
+                                injectionDevice.SendPacket(packetPool[currentBatch * microBatchSize + i]);
+                            }
 
-                                injectionDevice.SendPacket(ethernetPacket);
+                            currentBatch++;
+                            
+                            // Regenerate packet pool when needed
+                            if (currentBatch >= batchSize / microBatchSize)
+                            {
+                                for (int i = 0; i < batchSize; i++)
+                                {
+                                    random.NextBytes(bytes);
+                                    tcpPacket.SequenceNumber = BitConverter.ToUInt32(bytes, 0);
+                                    tcpPacket.UpdateCalculatedValues();
+                                    ipPacket.UpdateCalculatedValues();
+                                    packetPool[i] = ethernetPacket.Bytes;
+                                }
+                                currentBatch = 0;
                             }
 
                             // High precision rate limiting
-                            long elapsedMicroseconds = stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency;
-                            if (elapsedMicroseconds < microsecondsPerBatch)
+                            var elapsedMicros = stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency;
+                            var targetMicros = (long)(microBatchDelay.TotalSeconds * 1_000_000);
+                            
+                            if (elapsedMicros < targetMicros)
                             {
-                                int remainingMicroseconds = (int)(microsecondsPerBatch - elapsedMicroseconds);
-                                if (remainingMicroseconds > 1000) // Only sleep for delays > 1ms
+                                var remainingMicros = targetMicros - elapsedMicros;
+                                if (remainingMicros > 1000)
                                 {
-                                    Thread.Sleep(remainingMicroseconds / 1000);
+                                    Thread.Sleep((int)(remainingMicros / 1000));
                                 }
                                 // Spin wait for sub-millisecond precision
-                                while (stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency < microsecondsPerBatch)
+                                while (stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency < targetMicros)
                                 {
                                     Thread.SpinWait(1);
                                 }

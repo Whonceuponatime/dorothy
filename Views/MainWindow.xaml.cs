@@ -262,7 +262,7 @@ namespace Dorothy.Views
             finally
             {
                 ResolveMacButton.IsEnabled = true;
-                ResolveMacButton.Content = "Resolve MAC";
+                ResolveMacButton.Content = "Resolved";
             }
         }
 

