@@ -28,19 +28,34 @@ namespace Dorothy.Models
             _cancellationToken = cancellationToken;
         }
 
+        private LibPcapLiveDevice GetDeviceBySourceIp()
+        {
+            var device = LibPcapLiveDeviceList.Instance
+                .FirstOrDefault(d => d.Addresses != null &&
+                    d.Addresses.Any(a => a.Addr?.ipAddress != null &&
+                        a.Addr.ipAddress.ToString() == _parameters.SourceIp.ToString()));
+
+            if (device == null)
+            {
+                throw new InvalidOperationException($"No network interface found with IP {_parameters.SourceIp}");
+            }
+
+            return device;
+        }
+
         public override async Task StartAsync()
         {
             try
             {
-                using var device = GetDevice();
-                device.Open(DeviceModes.Promiscuous, 1000);
+                using var device = GetDeviceBySourceIp();
+                device.Open(DeviceModes.Promiscuous);
 
-                // Pre-generate a large pool of packets for better variety
-                var packetPool = new byte[PACKET_POOL_SIZE][];
-                Parallel.For(0, PACKET_POOL_SIZE, i =>
+                // Pre-generate a pool of packets for reuse
+                var packetPool = new byte[MICRO_BATCH_SIZE][];
+                for (int i = 0; i < MICRO_BATCH_SIZE; i++)
                 {
                     packetPool[i] = CreateTcpSynPacket();
-                });
+                }
 
                 // Calculate packets needed per second to achieve target rate
                 var packetSize = 54 + 14 + 20; // Ethernet + IP + TCP headers
@@ -48,10 +63,9 @@ namespace Dorothy.Models
                 var microBatchDelay = TimeSpan.FromSeconds(1.0 * MICRO_BATCH_SIZE / packetsPerSecond);
 
                 var stopwatch = new Stopwatch();
-                var packetsSent = 0L;
+                var packetsSent = 0;
                 var lastRateCheck = DateTime.UtcNow;
                 var currentBatch = 0;
-                var poolIndex = 0;
 
                 while (!_cancellationToken.IsCancellationRequested)
                 {
@@ -60,38 +74,40 @@ namespace Dorothy.Models
                     // Send a micro-batch of packets
                     for (int i = 0; i < MICRO_BATCH_SIZE && !_cancellationToken.IsCancellationRequested; i++)
                     {
-                        device.SendPacket(packetPool[poolIndex]);
-                        poolIndex = (poolIndex + 1) % PACKET_POOL_SIZE;
+                        device.SendPacket(packetPool[i]);
                         packetsSent++;
+                        
+                        // Every 1000 packets, update one packet in the pool
+                        if (packetsSent % 1000 == 0)
+                        {
+                            packetPool[i] = CreateTcpSynPacket();
+                        }
                     }
 
                     currentBatch++;
                     
-                    // After sending BATCH_SIZE packets, regenerate part of the pool
+                    // After sending BATCH_SIZE packets, regenerate the packet pool
                     if (currentBatch >= (BATCH_SIZE / MICRO_BATCH_SIZE))
                     {
-                        // Regenerate 20% of the pool in parallel for variety
-                        var updateSize = PACKET_POOL_SIZE / 5;
-                        var startIdx = _random.Next(0, PACKET_POOL_SIZE - updateSize);
-                        Parallel.For(startIdx, startIdx + updateSize, i =>
+                        for (int i = 0; i < MICRO_BATCH_SIZE; i++)
                         {
                             packetPool[i] = CreateTcpSynPacket();
-                        });
+                        }
                         currentBatch = 0;
                     }
 
-                    // Precise rate control with reduced delays
+                    // Precise rate control
                     var elapsedMicros = stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency;
                     var targetMicros = (long)(microBatchDelay.TotalSeconds * 1_000_000);
                     
                     if (elapsedMicros < targetMicros)
                     {
                         var remainingMicros = targetMicros - elapsedMicros;
-                        if (remainingMicros > 500)
+                        if (remainingMicros > 1000)
                         {
-                            await Task.Delay(TimeSpan.FromMicroseconds(remainingMicros - 250));
+                            await Task.Delay(TimeSpan.FromMicroseconds(remainingMicros - 500));
                         }
-                        // Shorter spin wait
+                        // Spin wait for fine-grained control
                         while (stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency < targetMicros)
                         {
                             Thread.SpinWait(1);

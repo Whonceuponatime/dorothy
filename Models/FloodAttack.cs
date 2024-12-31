@@ -19,9 +19,10 @@ namespace Dorothy.Models
 
         protected LibPcapLiveDevice GetDevice()
         {
+            // Get all devices that have an IP address
             var device = LibPcapLiveDeviceList.Instance
-                .FirstOrDefault(d => d.Interface.FriendlyName?.Contains("Ethernet") == true 
-                                   && d.Interface.Addresses.Any(a => a.Addr?.ipAddress != null));
+                .FirstOrDefault(d => d.Addresses != null && 
+                    d.Addresses.Any(a => a.Addr?.ipAddress != null));
 
             if (device == null)
             {
