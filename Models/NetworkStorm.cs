@@ -366,62 +366,27 @@ namespace Dorothy.Models
         {
             if (!_isAttackRunning)
             {
-                _logger.LogWarning("No attack is currently running");
                 return;
             }
 
             try
             {
-                // Set flag first to prevent new packets from being sent
+                _cancellationSource?.Cancel();
                 _isAttackRunning = false;
-
-                // Cancel any ongoing operations
-                if (_cancellationSource != null && !_cancellationSource.IsCancellationRequested)
-                {
-                    await Task.Run(() => {
-                        _cancellationSource.Cancel();
-                        // Give a small window for cleanup
-                        Task.Delay(100).Wait();
-                    });
-                }
                 
-                var message = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                             "Status: Attack Stopped";
-                Log(message);
+                // First log the stop status
+                _logger.StopAttack();
+                
+                // Then log the specific attack stop message
+                if (_attackType != null)
+                {
+                    _logger.LogInfo($"Stopped {_attackType} attack");
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error stopping attack: {ex.Message}");
-            }
-            finally
-            {
-                try
-                {
-                    // Cleanup resources
-                    if (_socket != null)
-                    {
-                        if (_socket.Connected)
-                        {
-                            _socket.Shutdown(SocketShutdown.Both);
-                        }
-                        _socket.Close();
-                        _socket.Dispose();
-                        _socket = null;
-                    }
-
-                    if (_cancellationSource != null)
-                    {
-                        _cancellationSource.Dispose();
-                        _cancellationSource = null;
-                    }
-
-                    // Reinitialize socket for future use
-                    InitializeSocket();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"Error cleaning up resources: {ex.Message}");
-                }
+                _logger.LogError($"Failed to stop attack: {ex.Message}");
+                throw;
             }
         }
 

@@ -32,7 +32,8 @@ namespace Dorothy.Models
             _targetMac = BitConverter.ToString(targetMac).Replace("-", ":");
             _targetBytesPerSecond = megabitsPerSecond * 1_000_000 / 8;
 
-            var message = $"Status: Attack Started\n" +
+            var message = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                         $"Status: Attack Started\n" +
                          $"Protocol: {attackType}\n" +
                          $"Source Host: {_sourceIp}\n" +
                          $"Source MAC: {_sourceMac}\n" +
@@ -40,6 +41,37 @@ namespace Dorothy.Models
                          $"Target MAC: {_targetMac}\n" +
                          $"Target Rate: {_targetBytesPerSecond * 8.0 / 1_000_000:F2} Mbps\n" +
                          $"Attack Type: {_attackType}\n" +
+                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+            Log(message, true);
+        }
+
+        public void StartEthernetAttack(EthernetFlood.EthernetPacketType packetType, string sourceIp, byte[] sourceMac, 
+                          string targetIp, byte[] targetMac, long megabitsPerSecond)
+        {
+            _attackStartTime = DateTime.Now;
+            _attackType = $"Ethernet {packetType}";
+            _sourceIp = sourceIp;
+            _sourceMac = BitConverter.ToString(sourceMac).Replace("-", ":");
+            _targetIp = targetIp;
+            _targetMac = BitConverter.ToString(targetMac).Replace("-", ":");
+            _targetBytesPerSecond = megabitsPerSecond * 1_000_000 / 8;
+
+            var message = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                         $"Status: Attack Started\n" +
+                         $"Protocol: Ethernet\n" +
+                         $"Source Host: {_sourceIp}\n" +
+                         $"Source MAC: {_sourceMac}\n" +
+                         $"Target Host: {_targetIp}\n" +
+                         $"Target MAC: {_targetMac}\n" +
+                         $"Target Rate: {_targetBytesPerSecond * 8.0 / 1_000_000:F2} Mbps\n" +
+                         $"Attack Type: {_attackType}\n" +
+                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+            Log(message, true);
+        }
+
+        public void StopAttack()
+        {
+            var message = "Status: Attack Stopped\n" +
                          "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
             Log(message, true);
         }

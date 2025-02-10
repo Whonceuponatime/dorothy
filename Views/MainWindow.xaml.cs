@@ -928,11 +928,36 @@ namespace Dorothy.Views
                     return;
                 }
 
+                StartAdvancedAttackButton.IsEnabled = false;
+                StopAdvancedAttackButton.IsEnabled = true;
+
+                var sourceMac = await _mainController.GetLocalMacAddressAsync();
+                var sourceIp = await _mainController.GetLocalIpAddressAsync();
+                byte[] targetMac;
+
+                targetMac = packetType switch
+                {
+                    EthernetFlood.EthernetPacketType.Unicast => await _mainController.GetMacAddressAsync(targetIp),
+                    EthernetFlood.EthernetPacketType.Multicast => new byte[] { 0x01, 0x00, 0x5E, 0x00, 0x00, 0x01 },
+                    EthernetFlood.EthernetPacketType.Broadcast => new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF },
+                    _ => throw new ArgumentException("Invalid Ethernet packet type")
+                };
+
+                _attackLogger.StartEthernetAttack(
+                    packetType,
+                    sourceIp,
+                    sourceMac,
+                    targetIp,
+                    targetMac,
+                    megabitsPerSecond
+                );
+
                 await _networkStorm.StartEthernetAttackAsync(targetIp, targetPort, megabitsPerSecond, packetType);
-                _attackLogger.LogInfo($"Started Ethernet {packetType} attack against {targetIp}:{targetPort} at {megabitsPerSecond} Mbps");
             }
             catch (Exception ex)
             {
+                StartAdvancedAttackButton.IsEnabled = true;
+                StopAdvancedAttackButton.IsEnabled = false;
                 _attackLogger.LogError($"Failed to start Ethernet {packetType} attack: {ex.Message}");
                 throw;
             }
@@ -955,6 +980,9 @@ namespace Dorothy.Views
                         case "Ethernet Broadcast":
                             await _networkStorm.StopAttackAsync();
                             _attackLogger.LogInfo($"Stopped {attackType} attack");
+                            // Reset button states after stopping attack
+                            StartAdvancedAttackButton.IsEnabled = true;
+                            StopAdvancedAttackButton.IsEnabled = false;
                             break;
                         default:
                             MessageBox.Show($"Unsupported attack type: {attackType}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -966,6 +994,9 @@ namespace Dorothy.Views
             {
                 MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 _attackLogger.LogError($"Error stopping advanced attack: {ex}");
+                // Reset button states on error
+                StartAdvancedAttackButton.IsEnabled = true;
+                StopAdvancedAttackButton.IsEnabled = false;
             }
         }
 

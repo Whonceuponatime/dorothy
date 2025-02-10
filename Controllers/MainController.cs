@@ -12,6 +12,9 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Media;
 using System.Collections.Generic;
+using System.Net.Sockets;  // For AddressFamily
+using System.Net.NetworkInformation;
+using System.Diagnostics;
 
 namespace Dorothy.Controllers
 {
@@ -85,62 +88,95 @@ namespace Dorothy.Controllers
             _attackLogger.LogInfo(message);
         }
 
-        public async Task<string> GetMacAddressAsync(string ipAddress)
+        public async Task<byte[]> GetMacAddressAsync(string ipAddress)
         {
-            return await Task.Run(() => {
-                try
+            try
+            {
+                var arpEntry = await GetArpEntryAsync(ipAddress);
+                if (arpEntry != null)
                 {
-                    IPAddress targetIP = IPAddress.Parse(ipAddress);
-                    // Check if it's a broadcast address
-                    if (targetIP.GetAddressBytes()[3] == 255)
-                    {
-                        return "FF:FF:FF:FF:FF:FF";
-                    }
-                    
-                    IPAddress sourceIP = IPAddress.Parse(_networkStorm.SourceIp);
-                    
-                    // Check if target is on different subnet
-                    if (!IsOnSameSubnet(sourceIP, targetIP))
-                    {
-                        var gateway = GetDefaultGateway();
-                        if (gateway == null)
-                        {
-                            throw new Exception("Could not determine default gateway");
-                        }
-                        
-                        var gatewayIp = BitConverter.ToInt32(gateway.GetAddressBytes(), 0);
-                        var gatewayMacAddr = new byte[6];
-                        var gatewayMacAddrLen = (uint)gatewayMacAddr.Length;
-                        
-                        var gatewayResult = SendARP(gatewayIp, 0, gatewayMacAddr, ref gatewayMacAddrLen);
-                        if (gatewayResult != 0)
-                        {
-                            throw new Exception($"Failed to get gateway MAC address. Error code: {gatewayResult}");
-                        }
-                        
-                        return BitConverter.ToString(gatewayMacAddr, 0, (int)gatewayMacAddrLen).Replace("-", ":");
-                    }
-                    
-                    var destIp = BitConverter.ToInt32(targetIP.GetAddressBytes(), 0);
-                    var srcIp = 0;
-                    var macAddr = new byte[6];
-                    var macAddrLen = (uint)macAddr.Length;
-                    
-                    var result = SendARP(destIp, srcIp, macAddr, ref macAddrLen);
-                    if (result != 0)
-                    {
-                        throw new Exception($"Failed to get MAC address. Error code: {result}");
-                    }
-                    
-                    return BitConverter.ToString(macAddr, 0, (int)macAddrLen).Replace("-", ":");
+                    return ParseMacAddress(arpEntry);
                 }
-                catch (Exception ex)
+
+                // If no ARP entry found, try to ping the IP to populate ARP cache
+                await SendPingAsync(ipAddress);
+                arpEntry = await GetArpEntryAsync(ipAddress);
+                
+                if (arpEntry != null)
                 {
-                    Log($"Error retrieving MAC address: {ex.Message}");
-                    _logger.Error(ex, "Error retrieving MAC address.");
-                    return "Error";
+                    return ParseMacAddress(arpEntry);
                 }
-            });
+
+                throw new Exception($"Could not resolve MAC address for {ipAddress}");
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, $"Failed to get MAC address for {ipAddress}");
+                throw;
+            }
+        }
+
+        private byte[] ParseMacAddress(string macAddress)
+        {
+            // Remove any colons or hyphens and ensure uppercase
+            string cleanMac = macAddress.Replace(":", "").Replace("-", "").ToUpper();
+            
+            if (cleanMac.Length != 12)
+            {
+                throw new FormatException("Invalid MAC address length");
+            }
+
+            byte[] bytes = new byte[6];
+            for (int i = 0; i < 6; i++)
+            {
+                string byteStr = cleanMac.Substring(i * 2, 2);
+                bytes[i] = Convert.ToByte(byteStr, 16);
+            }
+            
+            return bytes;
+        }
+
+        private async Task<string> GetArpEntryAsync(string ipAddress)
+        {
+            try
+            {
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "arp",
+                        Arguments = $"-a {ipAddress}",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    }
+                };
+
+                process.Start();
+                string output = await process.StandardOutput.ReadToEndAsync();
+                await process.WaitForExitAsync();
+
+                var match = Regex.Match(output, @"([0-9A-F]{2}[:-]){5}([0-9A-F]{2})", RegexOptions.IgnoreCase);
+                return match.Success ? match.Value : null;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to get ARP entry");
+                return null;
+            }
+        }
+
+        private async Task SendPingAsync(string ipAddress)
+        {
+            try
+            {
+                using var ping = new Ping();
+                await ping.SendPingAsync(ipAddress, 1000);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to send ping");
+            }
         }
 
         private bool IsOnSameSubnet(IPAddress ip1, IPAddress ip2)
@@ -297,26 +333,6 @@ namespace Dorothy.Controllers
             });
         }
 
-        private byte[] ParseMacAddress(string macAddress)
-        {
-            // Remove any colons or hyphens and ensure uppercase
-            string cleanMac = macAddress.Replace(":", "").Replace("-", "").ToUpper();
-            
-            if (cleanMac.Length != 12)
-            {
-                throw new FormatException("Invalid MAC address length");
-            }
-
-            byte[] bytes = new byte[6];
-            for (int i = 0; i < 6; i++)
-            {
-                string byteStr = cleanMac.Substring(i * 2, 2);
-                bytes[i] = Convert.ToByte(byteStr, 16);
-            }
-            
-            return bytes;
-        }
-
         public async Task StartBroadcastAttackAsync(string targetIp, int targetPort, long megabitsPerSecond)
         {
             try
@@ -344,6 +360,54 @@ namespace Dorothy.Controllers
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to stop broadcast attack");
+                throw;
+            }
+        }
+
+        public async Task<byte[]> GetLocalMacAddressAsync()
+        {
+            try
+            {
+                var networkInterface = NetworkInterface.GetAllNetworkInterfaces()
+                    .FirstOrDefault(ni => ni.OperationalStatus == OperationalStatus.Up && 
+                        ni.NetworkInterfaceType != NetworkInterfaceType.Loopback);
+
+                if (networkInterface == null)
+                {
+                    throw new Exception("No active network interface found");
+                }
+
+                return networkInterface.GetPhysicalAddress().GetAddressBytes();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to get local MAC address");
+                throw;
+            }
+        }
+
+        public async Task<string> GetLocalIpAddressAsync()
+        {
+            try
+            {
+                var networkInterface = NetworkInterface.GetAllNetworkInterfaces()
+                    .FirstOrDefault(ni => ni.OperationalStatus == OperationalStatus.Up && 
+                        ni.NetworkInterfaceType != NetworkInterfaceType.Loopback);
+
+                if (networkInterface == null)
+                {
+                    throw new Exception("No active network interface found");
+                }
+
+                var ipProperties = networkInterface.GetIPProperties();
+                var ipAddress = ipProperties.UnicastAddresses
+                    .FirstOrDefault(addr => addr.Address.AddressFamily == AddressFamily.InterNetwork);
+
+                return ipAddress?.Address.ToString() ?? throw new Exception("No IPv4 address found");
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to get local IP address");
                 throw;
             }
         }

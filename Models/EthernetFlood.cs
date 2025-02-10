@@ -7,6 +7,7 @@ using PacketDotNet;
 using SharpPcap;
 using SharpPcap.LibPcap;
 using NLog;
+using System.Diagnostics;
 
 namespace Dorothy.Models
 {
