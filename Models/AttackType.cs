@@ -16,6 +16,9 @@ namespace Dorothy.Models
         UdpFlood,
         TcpSynFlood,
         IcmpFlood,
-        TcpRoutedFlood
+        TcpRoutedFlood,
+        EthernetUnicast,
+        EthernetMulticast,
+        EthernetBroadcast
     }
 }

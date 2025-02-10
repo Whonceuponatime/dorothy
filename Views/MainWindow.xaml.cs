@@ -349,13 +349,13 @@ namespace Dorothy.Views
                     if (!int.TryParse(AdvTargetPortTextBox.Text, out targetPort))
                     {
                         MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
+                    return;
+                }
                     if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out megabitsPerSecond))
-                    {
+                {
                         MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
+                    return;
+                }
                 }
                 else
                 {
@@ -363,8 +363,8 @@ namespace Dorothy.Views
                     if (!int.TryParse(TargetPortTextBox.Text, out targetPort))
                     {
                         MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        return;
-                    }
+                    return;
+                }
                     if (!long.TryParse(MegabitsPerSecondTextBox.Text, out megabitsPerSecond))
                     {
                         MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -447,6 +447,9 @@ namespace Dorothy.Views
 
                 AdvancedAttackTypeComboBox.Items.Clear();
                 AdvancedAttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "ARP Spoofing" });
+                AdvancedAttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "Ethernet Unicast" });
+                AdvancedAttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "Ethernet Multicast" });
+                AdvancedAttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "Ethernet Broadcast" });
             }
             catch (Exception ex)
             {
@@ -690,11 +693,11 @@ namespace Dorothy.Views
                         else
                             TargetMacTextBox.Text = textBox.Text;
                     }
-                }
-                else
-                {
+                            }
+                            else
+                            {
                     textBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
-                }
+                            }
             }
             catch (Exception ex)
             {
@@ -747,15 +750,32 @@ namespace Dorothy.Views
                         case "ARP Spoofing":
                             AdvTargetPortTextBox.IsEnabled = false;
                             AdvMegabitsPerSecondTextBox.IsEnabled = false;
+                            AdvTargetMacTextBox.IsEnabled = true;
+                            SpoofedMacTextBox.IsEnabled = true;  // Enable spoofed MAC only for ARP Spoofing
                             // Sync all target information with basic settings
                             AdvTargetIpTextBox.Text = TargetIpTextBox.Text;
                             AdvTargetMacTextBox.Text = TargetMacTextBox.Text;
                             AdvSourceIpTextBox.Text = SourceIpTextBox.Text;
                             AdvSourceMacTextBox.Text = SourceMacTextBox.Text;
                             break;
+                        case "Ethernet Unicast":
+                            AdvTargetPortTextBox.IsEnabled = true;
+                            AdvMegabitsPerSecondTextBox.IsEnabled = true;
+                            AdvTargetMacTextBox.IsEnabled = false;
+                            SpoofedMacTextBox.IsEnabled = false;  // Disable spoofed MAC for Ethernet attacks
+                            break;
+                        case "Ethernet Multicast":
+                        case "Ethernet Broadcast":
+                            AdvTargetPortTextBox.IsEnabled = true;
+                            AdvMegabitsPerSecondTextBox.IsEnabled = true;
+                            AdvTargetMacTextBox.IsEnabled = false;
+                            SpoofedMacTextBox.IsEnabled = false;  // Disable spoofed MAC for Ethernet attacks
+                            break;
                         default:
                             AdvTargetPortTextBox.IsEnabled = true;
                             AdvMegabitsPerSecondTextBox.IsEnabled = true;
+                            AdvTargetMacTextBox.IsEnabled = false;
+                            SpoofedMacTextBox.IsEnabled = false;  // Disable spoofed MAC by default
                             break;
                     }
                 }
@@ -870,6 +890,15 @@ namespace Dorothy.Views
                         case "ARP Spoofing":
                             await StartArpSpoofingAttack();
                             break;
+                        case "Ethernet Unicast":
+                            await StartEthernetAttack(EthernetFlood.EthernetPacketType.Unicast);
+                            break;
+                        case "Ethernet Multicast":
+                            await StartEthernetAttack(EthernetFlood.EthernetPacketType.Multicast);
+                            break;
+                        case "Ethernet Broadcast":
+                            await StartEthernetAttack(EthernetFlood.EthernetPacketType.Broadcast);
+                            break;
                         default:
                             MessageBox.Show($"Unsupported attack type: {attackType}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                             break;
@@ -880,6 +909,32 @@ namespace Dorothy.Views
             {
                 MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 _attackLogger.LogError($"Error starting advanced attack: {ex}");
+            }
+        }
+
+        private async Task StartEthernetAttack(EthernetFlood.EthernetPacketType packetType)
+        {
+            try
+            {
+                string targetIp = AdvTargetIpTextBox.Text.Trim();
+                if (!int.TryParse(AdvTargetPortTextBox.Text, out int targetPort))
+                {
+                    MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out long megabitsPerSecond))
+                {
+                    MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                await _networkStorm.StartEthernetAttackAsync(targetIp, targetPort, megabitsPerSecond, packetType);
+                _attackLogger.LogInfo($"Started Ethernet {packetType} attack against {targetIp}:{targetPort} at {megabitsPerSecond} Mbps");
+            }
+            catch (Exception ex)
+            {
+                _attackLogger.LogError($"Failed to start Ethernet {packetType} attack: {ex.Message}");
+                throw;
             }
         }
 
@@ -894,6 +949,12 @@ namespace Dorothy.Views
                     {
                         case "ARP Spoofing":
                             await _mainController.StopArpSpoofingAsync();
+                            break;
+                        case "Ethernet Unicast":
+                        case "Ethernet Multicast":
+                        case "Ethernet Broadcast":
+                            await _networkStorm.StopAttackAsync();
+                            _attackLogger.LogInfo($"Stopped {attackType} attack");
                             break;
                         default:
                             MessageBox.Show($"Unsupported attack type: {attackType}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -947,8 +1008,8 @@ namespace Dorothy.Views
                         "Missing Fields", 
                         MessageBoxButton.OK, 
                         MessageBoxImage.Warning);
-                    return;
-                }
+                return;
+            }
 
                 // Check network interface status
                 var selectedInterface = MainTabControl.SelectedItem == AdvancedTab ? 
@@ -960,15 +1021,15 @@ namespace Dorothy.Views
                     MessageBox.Show(
                         "Selected network interface is not active.\nPlease check your network connection.", 
                         "Network Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
+                return;
+            }
 
                 _attackLogger.LogInfo($"Starting ARP spoofing attack with parameters:");
                 _attackLogger.LogInfo($"Source IP: {sourceIp}, Source MAC: {sourceMac}");
                 _attackLogger.LogInfo($"Target IP: {targetIp}, Target MAC: {targetMac}");
                 _attackLogger.LogInfo($"Spoofed MAC: {spoofedMac}");
 
-                await _mainController.StartArpSpoofingAsync(sourceIp, sourceMac, targetIp, targetMac, spoofedMac);
+            await _mainController.StartArpSpoofingAsync(sourceIp, sourceMac, targetIp, targetMac, spoofedMac);
             }
             catch (Exception ex)
             {
@@ -1031,9 +1092,9 @@ namespace Dorothy.Views
                             if (sameSubnet)
                             {
                                 _attackLogger.LogInfo("Source and target are on the same subnet. Gateway not required.");
-                            }
-                            else
-                            {
+                }
+                else
+                {
                                 _attackLogger.LogInfo("Source and target are on different subnets. Gateway required.");
                             }
                         }
