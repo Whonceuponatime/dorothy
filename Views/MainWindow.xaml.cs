@@ -40,6 +40,7 @@ namespace Dorothy.Views
         private bool _isAdvancedMode;
         private bool? _lastSubnetStatus;
         private CancellationTokenSource? _targetIpDebounceTokenSource;
+        private const string NOTE_PLACEHOLDER = "Enter your notes here...";
 
         public MainWindow()
         {
@@ -1100,6 +1101,78 @@ namespace Dorothy.Views
             catch (Exception ex)
             {
                 _attackLogger.LogError($"Error syncing settings between tabs: {ex}");
+            }
+        }
+
+        private void NoteTextBox_GotFocus(object sender, RoutedEventArgs e)
+        {
+            var textBox = (TextBox)sender;
+            if (textBox.Text == NOTE_PLACEHOLDER)
+            {
+                textBox.Text = string.Empty;
+                textBox.Foreground = SystemColors.WindowTextBrush;
+            }
+        }
+
+        private void NoteTextBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            var textBox = (TextBox)sender;
+            if (string.IsNullOrWhiteSpace(textBox.Text))
+            {
+                textBox.Text = NOTE_PLACEHOLDER;
+                textBox.Foreground = SystemColors.GrayTextBrush;
+            }
+        }
+
+        protected override void OnSourceInitialized(EventArgs e)
+        {
+            base.OnSourceInitialized(e);
+            // Initialize placeholder text
+            NoteTextBox.Text = NOTE_PLACEHOLDER;
+            NoteTextBox.Foreground = SystemColors.GrayTextBrush;
+        }
+
+        private void AddNoteButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(NoteTextBox.Text) || NoteTextBox.Text == NOTE_PLACEHOLDER)
+                {
+                    MessageBox.Show("Please enter a note before adding.", "Empty Note", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                var note = NoteTextBox.Text.Trim();
+                
+                var formattedNote = $"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                                   $"Note Added: {timestamp}\n" +
+                                   $"{note}\n" +
+                                   $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+
+                _attackLogger.LogNote(formattedNote);
+                NoteTextBox.Text = NOTE_PLACEHOLDER;
+                NoteTextBox.Foreground = SystemColors.GrayTextBrush;
+            }
+            catch (Exception ex)
+            {
+                _attackLogger.LogError($"Error adding note: {ex.Message}");
+                MessageBox.Show($"Error adding note: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Add keyboard shortcut for adding notes
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            
+            if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            {
+                if (NoteTextBox.IsFocused)
+                {
+                    AddNoteButton_Click(this, new RoutedEventArgs());
+                    e.Handled = true;
+                }
             }
         }
     }

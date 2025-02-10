@@ -81,6 +81,22 @@ namespace Dorothy.Models
             Log($"Debug: {message}");
         }
 
+        public void LogNote(string note)
+        {
+            try
+            {
+                _logArea.Dispatcher.Invoke(() =>
+                {
+                    _logArea.AppendText(note);
+                    _logArea.ScrollToEnd();
+                });
+            }
+            catch (Exception ex)
+            {
+                LogError($"Failed to log note: {ex.Message}");
+            }
+        }
+
         private void Log(string message, bool isEvent = false)
         {
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");

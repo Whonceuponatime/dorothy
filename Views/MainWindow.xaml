@@ -458,12 +458,45 @@
                             Style="{StaticResource DefaultButton}"
                             Click="TaskManagerButton_Click"/>
 
-                    <TextBox x:Name="LogTextBox" 
-                             Grid.Row="1"
-                             IsReadOnly="True" 
-                             TextWrapping="Wrap"
-                             VerticalScrollBarVisibility="Auto"
-                             Style="{StaticResource DefaultTextBox}"/>
+                    <Grid Grid.Row="1" Margin="0,5">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        
+                        <Grid Grid.Row="0" Margin="0,0,0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="NoteTextBox" 
+                                     Grid.Column="0"
+                                     Height="50"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto"
+                                     Style="{StaticResource DefaultTextBox}"
+                                     Text=""
+                                     GotFocus="NoteTextBox_GotFocus"
+                                     LostFocus="NoteTextBox_LostFocus"
+                                     Margin="0,0,5,0"
+                                     Foreground="Gray"/>
+                            <Button x:Name="AddNoteButton"
+                                    Grid.Column="1"
+                                    Content="Add Note"
+                                    Width="80"
+                                    Height="50"
+                                    Style="{StaticResource DefaultButton}"
+                                    Click="AddNoteButton_Click"/>
+                        </Grid>
+                        
+                        <TextBox x:Name="LogTextBox" 
+                                 Grid.Row="1"
+                                 IsReadOnly="True" 
+                                 TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 Style="{StaticResource DefaultTextBox}"/>
+                    </Grid>
 
                     <StackPanel Grid.Row="2" 
                                 Orientation="Horizontal" 
