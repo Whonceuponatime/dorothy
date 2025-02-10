@@ -1,9 +1,2 @@
-C:\Users\SAMSUNG\Desktop\Dorothy\bin\Release\net8.0-windows\win-x64\publish\Dorothy.exe
-C:\Users\SAMSUNG\Desktop\Dorothy\bin\Release\net8.0-windows\win-x64\publish\Resources\wpcap.dll
-C:\Users\SAMSUNG\Desktop\Dorothy\bin\Release\net8.0-windows\win-x64\publish\Dorothy.dll
-C:\Users\SAMSUNG\Desktop\Dorothy\bin\Release\net8.0-windows\win-x64\publish\Dorothy.deps.json
-C:\Users\SAMSUNG\Desktop\Dorothy\bin\Release\net8.0-windows\win-x64\publish\Dorothy.runtimeconfig.json
 C:\Users\SAMSUNG\Desktop\Dorothy\bin\Release\net8.0-windows\win-x64\publish\Dorothy.pdb
-C:\Users\SAMSUNG\Desktop\Dorothy\bin\Release\net8.0-windows\win-x64\publish\NLog.dll
-C:\Users\SAMSUNG\Desktop\Dorothy\bin\Release\net8.0-windows\win-x64\publish\PacketDotNet.dll
-C:\Users\SAMSUNG\Desktop\Dorothy\bin\Release\net8.0-windows\win-x64\publish\SharpPcap.dll
+C:\Users\SAMSUNG\Desktop\Dorothy\bin\Release\net8.0-windows\win-x64\publish\Dorothy.exe

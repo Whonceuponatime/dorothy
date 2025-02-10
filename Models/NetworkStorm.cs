@@ -324,7 +324,7 @@ namespace Dorothy.Models
                                 }
                                 break;
 
-                            case AttackType.SynFlood:
+                            case AttackType.TcpSynFlood:
                                 if (!IsOnSameSubnet(sourceIpObj, targetIpObj))
                                 {
                                     _logger.LogInfo("Target is on different subnet - Using routed TCP flood attack");

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net7.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -11,24 +11,39 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Platforms>x64</Platforms>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Disable trimming since WPF doesn't support it -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Resources\**\*.*" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="NLog" Version="4.7.10" />
-    <PackageReference Include="PacketDotNet" Version="1.2.0" />
-    <PackageReference Include="SharpPcap" Version="6.0.0" />
+    <PackageReference Include="NLog" Version="5.2.8" />
+    <PackageReference Include="PacketDotNet" Version="1.4.7" />
+    <PackageReference Include="SharpPcap" Version="6.2.5" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Resources\wpcap.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-  <Target Name="CreateDistribution" AfterTargets="Build">
+  <Target Name="CreateDistribution" AfterTargets="Publish">
+    <PropertyGroup>
+      <DistDir>$(ProjectDir)dist</DistDir>
+    </PropertyGroup>
+    
+    <RemoveDir Directories="$(DistDir)" />
+    <MakeDir Directories="$(DistDir)" />
+    
     <ItemGroup>
-      <DistFiles Include="$(OutputPath)\**\*.*" />
+      <DistFiles Include="$(PublishDir)\**\*.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(DistFiles)" DestinationFolder="$(ProjectDir)distribution\%(RecursiveDir)" />
+    
+    <Copy SourceFiles="@(DistFiles)" 
+          DestinationFolder="$(DistDir)\%(RecursiveDir)" />
   </Target>
 </Project>

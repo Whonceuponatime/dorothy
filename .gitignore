@@ -88,3 +88,6 @@ src/main/resources/native/
 
 # Logs and temp files
 *.tmp
+
+# Distribution
+dist/

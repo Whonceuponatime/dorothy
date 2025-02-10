@@ -57,7 +57,7 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         
-        <TabControl x:Name="MainTabControl" Grid.Row="0" Grid.Column="0" Margin="5,20,0,20">
+        <TabControl x:Name="MainTabControl" Grid.Row="0" Grid.Column="0" Margin="5,20,0,20" SelectionChanged="MainTabControl_SelectionChanged">
             <TabItem Header="Basic Settings">
                 <StackPanel Margin="5">
                     <GroupBox Header="Network Configuration" Margin="5">
@@ -79,10 +79,11 @@
                                    HorizontalAlignment="Right"
                                    VerticalAlignment="Center"
                                    Margin="0,5,10,0"/>
-                            <ComboBox x:Name="NetworkInterfaceComboBox" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
-                                     Height="30"
-                                     Margin="0,5,0,0"
-                                     SelectionChanged="NetworkInterfaceComboBox_SelectionChanged"/>
+                            <ComboBox x:Name="NetworkInterfaceComboBox" 
+                                      Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                                      Height="30"
+                                      Margin="0,5,0,0"
+                                      SelectionChanged="NetworkInterfaceComboBox_SelectionChanged"/>
 
                             <Label Grid.Row="1" Grid.Column="0" Content="Source IP:" 
                                    Style="{StaticResource DefaultLabel}"
@@ -157,7 +158,8 @@
                                     Style="{StaticResource DefaultTextBox}"
                                     Height="30"
                                     Margin="0,5,10,0"
-                                    IsReadOnly="True"/>
+                                    IsReadOnly="True"
+                                    TextChanged="TargetMacTextBox_TextChanged"/>
                             <Button x:Name="ResolveMacButton" Grid.Row="1" Grid.Column="2"
                                     Content="Resolve" Width="80" Height="30"
                                     Style="{StaticResource DefaultButton}"
@@ -227,55 +229,115 @@
 
             <TabItem x:Name="AdvancedTab" Header="Advanced Settings" PreviewMouseDown="AdvancedTab_PreviewMouseDown">
                 <StackPanel Margin="5">
-                    <GroupBox Header="Network Information" Margin="5">
-                        <Grid Margin="5">
+                    <GroupBox Header="Network Configuration" Margin="5">
+                        <Grid Margin="5,10,5,5">
                             <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="100"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
-                            <Label Grid.Row="0" Grid.Column="0" Content="Source IP:" 
-                                   Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="AdvSourceIpTextBox" Grid.Row="0" Grid.Column="1" 
-                                     IsReadOnly="True" Style="{StaticResource DefaultTextBox}" />
+                            <Label Grid.Row="0" Grid.Column="0" Content="NIC:" 
+                                   Style="{StaticResource DefaultLabel}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="0,5,10,0"/>
+                            <ComboBox x:Name="AdvNetworkInterfaceComboBox" 
+                                      Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                                      Height="30"
+                                      Margin="0,5,0,0"
+                                      SelectionChanged="NetworkInterfaceComboBox_SelectionChanged"/>
 
-                            <Label Grid.Row="1" Grid.Column="0" Content="Source MAC:" 
-                                   Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="AdvSourceMacTextBox" Grid.Row="1" Grid.Column="1" 
-                                     IsReadOnly="True" Style="{StaticResource DefaultTextBox}" />
+                            <Label Grid.Row="1" Grid.Column="0" Content="Source IP:" 
+                                   Style="{StaticResource DefaultLabel}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="0,5,10,0"/>
+                            <TextBox x:Name="AdvSourceIpTextBox" Grid.Row="1" Grid.Column="1"
+                                    Style="{StaticResource DefaultTextBox}"
+                                    Height="30"
+                                    Margin="0,5,0,0"
+                                    IsReadOnly="True"/>
+
+                            <Label Grid.Row="2" Grid.Column="0" Content="Source MAC:" 
+                                   Style="{StaticResource DefaultLabel}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="0,5,10,0"/>
+                            <TextBox x:Name="AdvSourceMacTextBox" Grid.Row="2" Grid.Column="1"
+                                    Style="{StaticResource DefaultTextBox}"
+                                    Height="30"
+                                    Margin="0,5,0,0"
+                                    IsReadOnly="True"/>
+
+                            <Label Grid.Row="3" Grid.Column="0" Content="Gateway IP:" 
+                                   Style="{StaticResource DefaultLabel}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="0,5,10,0"/>
+                            <TextBox x:Name="AdvGatewayIpTextBox" Grid.Row="3" Grid.Column="1"
+                                    Style="{StaticResource DefaultTextBox}"
+                                    Height="30"
+                                    Margin="0,5,0,0"
+                                    IsReadOnly="True"/>
                         </Grid>
                     </GroupBox>
 
-                    <GroupBox Header="Target Information" Margin="5">
-                        <Grid Margin="5">
+                    <GroupBox Header="Target Configuration" Margin="5">
+                        <Grid Margin="5,10,5,5">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="100"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
                             <Label Grid.Row="0" Grid.Column="0" Content="Target IP:" 
-                                   Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="AdvTargetIpTextBox" Grid.Row="0" Grid.Column="1" 
-                                     Style="{StaticResource DefaultTextBox}"
-                                     TextChanged="AdvTargetIpTextBox_TextChanged"/>
+                                   Style="{StaticResource DefaultLabel}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="0,5,10,0"/>
+                            <TextBox x:Name="AdvTargetIpTextBox" Grid.Row="0" Grid.Column="1"
+                                    Style="{StaticResource DefaultTextBox}"
+                                    Height="30"
+                                    Margin="0,5,10,0"
+                                    TextChanged="TargetIpTextBox_TextChanged"/>
+                            <Button x:Name="AdvPingButton" Grid.Row="0" Grid.Column="2"
+                                    Content="Ping" Width="80" Height="30"
+                                    Style="{StaticResource DefaultButton}"
+                                    Margin="0,5,0,0"
+                                    Click="PingButton_Click"/>
 
                             <Label Grid.Row="1" Grid.Column="0" Content="Target MAC:" 
-                                   Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="AdvTargetMacTextBox" Grid.Row="1" Grid.Column="1" 
-                                     Style="{StaticResource DefaultTextBox}" IsReadOnly="True"/>
+                                   Style="{StaticResource DefaultLabel}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="0,5,10,0"/>
+                            <TextBox x:Name="AdvTargetMacTextBox" Grid.Row="1" Grid.Column="1"
+                                    Style="{StaticResource DefaultTextBox}"
+                                    Height="30"
+                                    Margin="0,5,10,0"
+                                    IsReadOnly="True"
+                                    TextChanged="TargetMacTextBox_TextChanged"/>
+                            <Button x:Name="AdvResolveMacButton" Grid.Row="1" Grid.Column="2"
+                                    Content="Resolve" Width="80" Height="30"
+                                    Style="{StaticResource DefaultButton}"
+                                    Margin="0,5,0,0"
+                                    Click="ResolveMacButton_Click"/>
                         </Grid>
                     </GroupBox>
 
                     <GroupBox Header="Attack Configuration" Margin="5">
-                        <Grid Margin="5">
+                        <Grid Margin="5,10,5,5">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
@@ -283,35 +345,55 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="100"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
                             <Label Grid.Row="0" Grid.Column="0" Content="Attack Type:" 
-                                   Style="{StaticResource DefaultLabel}"/>
+                                   Style="{StaticResource DefaultLabel}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="0,5,10,0"/>
                             <ComboBox x:Name="AdvancedAttackTypeComboBox" Grid.Row="0" Grid.Column="1"
-                                      Height="25" Margin="0,5"
+                                      Height="30"
+                                      Margin="0,5,0,0"
                                       SelectionChanged="AdvancedAttackTypeComboBox_SelectionChanged">
                                 <ComboBoxItem Content="ARP Spoofing"/>
                             </ComboBox>
 
                             <Label Grid.Row="1" Grid.Column="0" Content="Target Port:" 
-                                   Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="AdvTargetPortTextBox" Grid.Row="1" Grid.Column="1" 
-                                     Style="{StaticResource DefaultTextBox}"/>
+                                   Style="{StaticResource DefaultLabel}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="0,5,10,0"/>
+                            <TextBox x:Name="AdvTargetPortTextBox" Grid.Row="1" Grid.Column="1"
+                                    Style="{StaticResource DefaultTextBox}"
+                                    Height="30"
+                                    Margin="0,5,0,0"/>
 
-                            <Label Grid.Row="2" Grid.Column="0" Content="Megabits Per Second:" 
-                                   Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="AdvMegabitsPerSecondTextBox" Grid.Row="2" Grid.Column="1" 
-                                     Style="{StaticResource DefaultTextBox}"/>
+                            <Label Grid.Row="2" Grid.Column="0" Content="Mbps:" 
+                                   Style="{StaticResource DefaultLabel}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="0,5,10,0"/>
+                            <TextBox x:Name="AdvMegabitsPerSecondTextBox" Grid.Row="2" Grid.Column="1"
+                                    Style="{StaticResource DefaultTextBox}"
+                                    Height="30"
+                                    Margin="0,5,0,0"
+                                    Text="100"/>
 
                             <Label Grid.Row="3" Grid.Column="0" Content="Spoofed MAC:" 
-                                   Style="{StaticResource DefaultLabel}"/>
-                            <TextBox x:Name="SpoofedMacTextBox" Grid.Row="4" Grid.Column="1" 
-                                     Style="{StaticResource DefaultTextBox}"
-                                     TextChanged="SpoofedMacTextBox_TextChanged"
-                                     MaxLength="17"
-                                     Text="12:34:56:78:90:AB"/>
+                                   Style="{StaticResource DefaultLabel}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   Margin="0,5,10,0"/>
+                            <TextBox x:Name="SpoofedMacTextBox" Grid.Row="3" Grid.Column="1"
+                                    Style="{StaticResource DefaultTextBox}"
+                                    Height="30"
+                                    Margin="0,5,0,0"
+                                    TextChanged="SpoofedMacTextBox_TextChanged"
+                                    MaxLength="17"
+                                    Text="12:34:56:78:90:AB"/>
                         </Grid>
                     </GroupBox>
 

@@ -11,6 +11,7 @@ using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Media;
+using System.Collections.Generic;
 
 namespace Dorothy.Controllers
 {
@@ -25,6 +26,7 @@ namespace Dorothy.Controllers
         private readonly ILogger _logger;
         private readonly AttackLogger _attackLogger;
         private ArpSpoof? _arpSpoofer;
+        private CancellationTokenSource? _arpSpoofingCts;
 
         [DllImport("iphlpapi.dll", ExactSpelling = true)]
         private static extern int SendARP(Int32 destIp, Int32 srcIp, byte[] macAddr, ref uint macAddrLen);
@@ -206,22 +208,53 @@ namespace Dorothy.Controllers
         {
             try
             {
-                _logger.Info($"Starting ARP spoofing attack: {sourceIp} -> {targetIp}");
-                
+                _logger.Info("=== Starting ARP Spoofing Attack ===");
+                _logger.Info($"Validating inputs:");
+                _logger.Info($"Source IP: {sourceIp}, Source MAC: {sourceMac}");
+                _logger.Info($"Target IP: {targetIp}, Target MAC: {targetMac}");
+                _logger.Info($"SpoofedMAC: {spoofedMac}");
+
+                // Validate all inputs
+                if (string.IsNullOrWhiteSpace(sourceIp) || string.IsNullOrWhiteSpace(sourceMac) ||
+                    string.IsNullOrWhiteSpace(targetIp) || string.IsNullOrWhiteSpace(targetMac) ||
+                    string.IsNullOrWhiteSpace(spoofedMac))
+                {
+                    var missingFields = new List<string>();
+                    if (string.IsNullOrWhiteSpace(sourceIp)) missingFields.Add("Source IP");
+                    if (string.IsNullOrWhiteSpace(sourceMac)) missingFields.Add("Source MAC");
+                    if (string.IsNullOrWhiteSpace(targetIp)) missingFields.Add("Target IP");
+                    if (string.IsNullOrWhiteSpace(targetMac)) missingFields.Add("Target MAC");
+                    if (string.IsNullOrWhiteSpace(spoofedMac)) missingFields.Add("Spoofed MAC");
+
+                    var errorMessage = $"Missing required fields: {string.Join(", ", missingFields)}";
+                    _logger.Error(errorMessage);
+                    LogMessage(errorMessage);
+                    throw new ArgumentException(errorMessage);
+                }
+
                 byte[] sourceMacBytes = ParseMacAddress(sourceMac);
                 byte[] targetMacBytes = ParseMacAddress(targetMac);
                 byte[] spoofedMacBytes = ParseMacAddress(spoofedMac);
 
-                var cancellationTokenSource = new CancellationTokenSource();
-                _arpSpoofer = new ArpSpoof(sourceIp, sourceMacBytes, targetIp, targetMacBytes, spoofedMacBytes, cancellationTokenSource.Token);
-                await Task.Run(() => _arpSpoofer.StartAsync());
+                _arpSpoofer = new ArpSpoof(sourceIp, sourceMacBytes, targetIp, targetMacBytes, spoofedMacBytes, CancellationToken.None);
                 
-                _statusLabel.Content = "Status: ARP Spoofing Active";
-                LogMessage("ARP spoofing attack started successfully");
+                _statusLabel.Content = "Status: Starting ARP Spoofing...";
+                LogMessage("Initializing ARP spoofing attack...");
+                
+                await _arpSpoofer.StartAsync();
+                
+                _startButton.IsEnabled = true;
+                _stopButton.IsEnabled = false;
+                _statusLabel.Content = "Status: ARP Spoofing Complete";
+                LogMessage("ARP spoofing attack completed successfully");
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to start ARP spoofing");
+                _statusLabel.Content = "Status: Error";
+                LogMessage($"Failed to start ARP spoofing: {ex.Message}");
+                _startButton.IsEnabled = true;
+                _stopButton.IsEnabled = false;
                 throw;
             }
         }
@@ -231,18 +264,26 @@ namespace Dorothy.Controllers
             try
             {
                 _statusLabel.Content = "Status: Stopping...";
-                
-                _arpSpoofer?.Dispose();
-                _arpSpoofer = null;
-                
+                LogMessage("Stopping ARP spoofing attack...");
+
+                if (_arpSpoofer != null)
+                {
+                    await Task.Run(() => {
+                        _arpSpoofer.Dispose();
+                        _arpSpoofer = null;
+                    });
+                }
+
+                _startButton.IsEnabled = true;
+                _stopButton.IsEnabled = false;
                 _statusLabel.Content = "Status: Ready";
                 LogMessage("ARP spoofing attack stopped");
-                
-                await Task.CompletedTask;
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, "Failed to stop ARP spoofing");
+                _statusLabel.Content = "Status: Error";
+                LogMessage($"Failed to stop ARP spoofing: {ex.Message}");
                 throw;
             }
         }
