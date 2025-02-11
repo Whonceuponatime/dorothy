@@ -1375,10 +1375,10 @@ namespace Dorothy.Views
                 var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                 var note = NoteTextBox.Text.Trim();
                 
-                var formattedNote = $"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                                   $"Note Added: {timestamp}\n" +
-                                   $"{note}\n" +
-                                   $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n";
+                var formattedNote = $"\n📝 USER NOTE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                                   $"Time: {timestamp}\n" +
+                                   $"Note: {note}\n" +
+                                   $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━ END NOTE 📝\n";
 
                 _attackLogger.LogNote(formattedNote);
                 NoteTextBox.Text = NOTE_PLACEHOLDER;
