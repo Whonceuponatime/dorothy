@@ -36,14 +36,14 @@ namespace Dorothy.Controllers
 
         public MainController(NetworkStorm networkStorm, Button startButton, Button stopButton, Label statusLabel, TextBox logTextBox, Window mainWindow)
         {
-            _networkStorm = networkStorm;
-            _startButton = startButton;
-            _stopButton = stopButton;
-            _statusLabel = statusLabel;
-            _logTextBox = logTextBox;
-            _mainWindow = mainWindow;
+            _networkStorm = networkStorm ?? throw new ArgumentNullException(nameof(networkStorm));
+            _startButton = startButton ?? throw new ArgumentNullException(nameof(startButton));
+            _stopButton = stopButton ?? throw new ArgumentNullException(nameof(stopButton));
+            _statusLabel = statusLabel ?? throw new ArgumentNullException(nameof(statusLabel));
+            _logTextBox = logTextBox ?? throw new ArgumentNullException(nameof(logTextBox));
+            _mainWindow = mainWindow ?? throw new ArgumentNullException(nameof(mainWindow));
             _logger = LogManager.GetCurrentClassLogger();
-            _attackLogger = new AttackLogger(logTextBox);
+            _attackLogger = networkStorm.Logger;
         }
 
         public async Task StartAttackAsync(AttackType attackType, string targetIp, int targetPort, long megabitsPerSecond)
@@ -118,22 +118,19 @@ namespace Dorothy.Controllers
 
         private byte[] ParseMacAddress(string macAddress)
         {
-            // Remove any colons or hyphens and ensure uppercase
-            string cleanMac = macAddress.Replace(":", "").Replace("-", "").ToUpper();
-            
+            // Remove any colons or hyphens and convert to bytes
+            string cleanMac = macAddress.Replace(":", "").Replace("-", "");
             if (cleanMac.Length != 12)
             {
-                throw new FormatException("Invalid MAC address length");
+                throw new ArgumentException("Invalid MAC address format");
             }
 
-            byte[] bytes = new byte[6];
+            byte[] macBytes = new byte[6];
             for (int i = 0; i < 6; i++)
             {
-                string byteStr = cleanMac.Substring(i * 2, 2);
-                bytes[i] = Convert.ToByte(byteStr, 16);
+                macBytes[i] = Convert.ToByte(cleanMac.Substring(i * 2, 2), 16);
             }
-            
-            return bytes;
+            return macBytes;
         }
 
         private async Task<string> GetArpEntryAsync(string ipAddress)
@@ -244,53 +241,26 @@ namespace Dorothy.Controllers
         {
             try
             {
-                _logger.Info("=== Starting ARP Spoofing Attack ===");
-                _logger.Info($"Validating inputs:");
-                _logger.Info($"Source IP: {sourceIp}, Source MAC: {sourceMac}");
-                _logger.Info($"Target IP: {targetIp}, Target MAC: {targetMac}");
-                _logger.Info($"SpoofedMAC: {spoofedMac}");
+                _startButton.IsEnabled = false;
+                _stopButton.IsEnabled = true;
+                _statusLabel.Content = "Status: ARP Spoofing";
 
-                // Validate all inputs
-                if (string.IsNullOrWhiteSpace(sourceIp) || string.IsNullOrWhiteSpace(sourceMac) ||
-                    string.IsNullOrWhiteSpace(targetIp) || string.IsNullOrWhiteSpace(targetMac) ||
-                    string.IsNullOrWhiteSpace(spoofedMac))
-                {
-                    var missingFields = new List<string>();
-                    if (string.IsNullOrWhiteSpace(sourceIp)) missingFields.Add("Source IP");
-                    if (string.IsNullOrWhiteSpace(sourceMac)) missingFields.Add("Source MAC");
-                    if (string.IsNullOrWhiteSpace(targetIp)) missingFields.Add("Target IP");
-                    if (string.IsNullOrWhiteSpace(targetMac)) missingFields.Add("Target MAC");
-                    if (string.IsNullOrWhiteSpace(spoofedMac)) missingFields.Add("Spoofed MAC");
-
-                    var errorMessage = $"Missing required fields: {string.Join(", ", missingFields)}";
-                    _logger.Error(errorMessage);
-                    LogMessage(errorMessage);
-                    throw new ArgumentException(errorMessage);
-                }
-
+                // Convert MAC addresses from string format (XX:XX:XX:XX:XX:XX) to byte arrays
                 byte[] sourceMacBytes = ParseMacAddress(sourceMac);
                 byte[] targetMacBytes = ParseMacAddress(targetMac);
                 byte[] spoofedMacBytes = ParseMacAddress(spoofedMac);
 
-                _arpSpoofer = new ArpSpoof(sourceIp, sourceMacBytes, targetIp, targetMacBytes, spoofedMacBytes, CancellationToken.None);
-                
-                _statusLabel.Content = "Status: Starting ARP Spoofing...";
-                LogMessage("Initializing ARP spoofing attack...");
-                
+                _arpSpoofingCts = new CancellationTokenSource();
+                _arpSpoofer = new ArpSpoof(sourceIp, sourceMacBytes, targetIp, targetMacBytes, spoofedMacBytes, _arpSpoofingCts.Token);
                 await _arpSpoofer.StartAsync();
-                
-                _startButton.IsEnabled = true;
-                _stopButton.IsEnabled = false;
-                _statusLabel.Content = "Status: ARP Spoofing Complete";
-                LogMessage("ARP spoofing attack completed successfully");
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed to start ARP spoofing");
-                _statusLabel.Content = "Status: Error";
-                LogMessage($"Failed to start ARP spoofing: {ex.Message}");
+                _logger.Error(ex, "ARP Spoofing failed.");
+                _attackLogger.LogError($"ARP Spoofing failed: {ex.Message}");
                 _startButton.IsEnabled = true;
                 _stopButton.IsEnabled = false;
+                _statusLabel.Content = "Status: Error";
                 throw;
             }
         }
@@ -299,27 +269,20 @@ namespace Dorothy.Controllers
         {
             try
             {
-                _statusLabel.Content = "Status: Stopping...";
-                LogMessage("Stopping ARP spoofing attack...");
-
                 if (_arpSpoofer != null)
                 {
-                    await Task.Run(() => {
-                        _arpSpoofer.Dispose();
-                        _arpSpoofer = null;
-                    });
+                    _arpSpoofingCts?.Cancel();
+                    _arpSpoofer.Dispose();
+                    _arpSpoofer = null;
                 }
-
                 _startButton.IsEnabled = true;
                 _stopButton.IsEnabled = false;
                 _statusLabel.Content = "Status: Ready";
-                LogMessage("ARP spoofing attack stopped");
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Failed to stop ARP spoofing");
-                _statusLabel.Content = "Status: Error";
-                LogMessage($"Failed to stop ARP spoofing: {ex.Message}");
+                _logger.Error(ex, "Error stopping ARP Spoofing");
+                _attackLogger.LogError($"Error stopping ARP Spoofing: {ex.Message}");
                 throw;
             }
         }

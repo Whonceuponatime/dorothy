@@ -125,6 +125,7 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="100"/>
@@ -166,13 +167,38 @@
                                     Margin="0,5,0,0"
                                     VerticalAlignment="Center"
                                     Click="ResolveMacButton_Click"/>
+
+                            <Label Grid.Row="2" Grid.Column="0" Content="Target Port:" 
+                                   Style="{StaticResource DefaultLabel}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Top"
+                                   Margin="0,5,10,0"/>
+                            <Grid Grid.Row="2" Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBox x:Name="TargetPortTextBox"
+                                        Style="{StaticResource DefaultTextBox}"
+                                        Height="30"
+                                        Margin="0,5,10,0"
+                                        Text="0"/>
+                                <ProgressBar x:Name="ScanProgressBar" Grid.Row="1"
+                                           Height="5" Margin="0,2,10,0"
+                                           Visibility="Collapsed"/>
+                            </Grid>
+                            <Button x:Name="ScanButton" Grid.Row="2" Grid.Column="2"
+                                    Content="Scan" Width="80" Height="30"
+                                    Style="{StaticResource DefaultButton}"
+                                    Margin="0,5,0,0"
+                                    VerticalAlignment="Top"
+                                    Click="ScanButton_Click"/>
                         </Grid>
                     </GroupBox>
 
                     <GroupBox Header="Attack Configuration" Margin="5">
                         <Grid Margin="5,10,5,5">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
@@ -191,23 +217,12 @@
                                      Margin="0,5,0,0"
                                      SelectionChanged="AttackTypeComboBox_SelectionChanged"/>
 
-                            <Label Grid.Row="1" Grid.Column="0" Content="Target Port:" 
+                            <Label Grid.Row="1" Grid.Column="0" Content="Mbps:" 
                                    Style="{StaticResource DefaultLabel}"
                                    HorizontalAlignment="Right"
                                    VerticalAlignment="Center"
                                    Margin="0,5,10,0"/>
-                            <TextBox x:Name="TargetPortTextBox" Grid.Row="1" Grid.Column="1" 
-                                    Style="{StaticResource DefaultTextBox}"
-                                    Height="30"
-                                    Margin="0,5,0,0"
-                                    Text="0"/>
-
-                            <Label Grid.Row="2" Grid.Column="0" Content="Mbps:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   HorizontalAlignment="Right"
-                                   VerticalAlignment="Center"
-                                   Margin="0,5,10,0"/>
-                            <TextBox x:Name="MegabitsPerSecondTextBox" Grid.Row="2" Grid.Column="1" 
+                            <TextBox x:Name="MegabitsPerSecondTextBox" Grid.Row="1" Grid.Column="1" 
                                     Style="{StaticResource DefaultTextBox}"
                                     Height="30"
                                     Margin="0,5,0,0"
@@ -223,6 +238,10 @@
                                 Margin="10,0,0,0" IsEnabled="False"
                                 Style="{StaticResource DefaultButton}"
                                 Click="StopButton_Click"/>
+                        <Button x:Name="TraceRouteButton" Content="Trace Route" Width="120" Height="35"
+                                Margin="10,0,0,0"
+                                Style="{StaticResource DefaultButton}"
+                                Click="TraceRouteButton_Click"/>
                     </StackPanel>
                 </StackPanel>
             </TabItem>
@@ -294,6 +313,7 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="100"/>
@@ -333,13 +353,38 @@
                                     Style="{StaticResource DefaultButton}"
                                     Margin="0,5,0,0"
                                     Click="ResolveMacButton_Click"/>
+
+                            <Label Grid.Row="2" Grid.Column="0" Content="Target Port:" 
+                                   Style="{StaticResource DefaultLabel}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Top"
+                                   Margin="0,5,10,0"/>
+                            <Grid Grid.Row="2" Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBox x:Name="AdvTargetPortTextBox"
+                                        Style="{StaticResource DefaultTextBox}"
+                                        Height="30"
+                                        Margin="0,5,10,0"
+                                        Text="0"/>
+                                <ProgressBar x:Name="AdvScanProgressBar" Grid.Row="1"
+                                           Height="5" Margin="0,2,10,0"
+                                           Visibility="Collapsed"/>
+                            </Grid>
+                            <Button x:Name="AdvScanButton" Grid.Row="2" Grid.Column="2"
+                                    Content="Scan" Width="80" Height="30"
+                                    Style="{StaticResource DefaultButton}"
+                                    Margin="0,5,0,0"
+                                    VerticalAlignment="Top"
+                                    Click="ScanButton_Click"/>
                         </Grid>
                     </GroupBox>
 
                     <GroupBox Header="Attack Configuration" Margin="5">
                         <Grid Margin="5,10,5,5">
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
@@ -361,33 +406,23 @@
                                 <ComboBoxItem Content="ARP Spoofing"/>
                             </ComboBox>
 
-                            <Label Grid.Row="1" Grid.Column="0" Content="Target Port:" 
+                            <Label Grid.Row="1" Grid.Column="0" Content="Mbps:" 
                                    Style="{StaticResource DefaultLabel}"
                                    HorizontalAlignment="Right"
                                    VerticalAlignment="Center"
                                    Margin="0,5,10,0"/>
-                            <TextBox x:Name="AdvTargetPortTextBox" Grid.Row="1" Grid.Column="1"
-                                    Style="{StaticResource DefaultTextBox}"
-                                    Height="30"
-                                    Margin="0,5,0,0"/>
-
-                            <Label Grid.Row="2" Grid.Column="0" Content="Mbps:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   HorizontalAlignment="Right"
-                                   VerticalAlignment="Center"
-                                   Margin="0,5,10,0"/>
-                            <TextBox x:Name="AdvMegabitsPerSecondTextBox" Grid.Row="2" Grid.Column="1"
+                            <TextBox x:Name="AdvMegabitsPerSecondTextBox" Grid.Row="1" Grid.Column="1"
                                     Style="{StaticResource DefaultTextBox}"
                                     Height="30"
                                     Margin="0,5,0,0"
                                     Text="100"/>
 
-                            <Label Grid.Row="3" Grid.Column="0" Content="Spoofed MAC:" 
+                            <Label Grid.Row="2" Grid.Column="0" Content="Spoofed MAC:" 
                                    Style="{StaticResource DefaultLabel}"
                                    HorizontalAlignment="Right"
                                    VerticalAlignment="Center"
                                    Margin="0,5,10,0"/>
-                            <TextBox x:Name="SpoofedMacTextBox" Grid.Row="3" Grid.Column="1"
+                            <TextBox x:Name="SpoofedMacTextBox" Grid.Row="2" Grid.Column="1"
                                     Style="{StaticResource DefaultTextBox}"
                                     Height="30"
                                     Margin="0,5,0,0"
@@ -405,6 +440,10 @@
                                 Width="120" Height="35" Margin="10,0,0,0" IsEnabled="False"
                                 Style="{StaticResource DefaultButton}"
                                 Click="StopAdvancedAttack_Click"/>
+                        <Button x:Name="TraceRouteAdvancedButton" Content="Trace Route" 
+                                Width="120" Height="35" Margin="10,0,0,0"
+                                Style="{StaticResource DefaultButton}"
+                                Click="TraceRouteButton_Click"/>
                     </StackPanel>
                 </StackPanel>
             </TabItem>
@@ -459,10 +498,10 @@
                             Click="TaskManagerButton_Click"/>
 
                     <Grid Grid.Row="1" Margin="0,5">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
                         
                         <Grid Grid.Row="0" Margin="0,0,0,5">
                             <Grid.ColumnDefinitions>

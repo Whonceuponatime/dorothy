@@ -31,24 +31,37 @@ using SharpPcap;
 
 namespace Dorothy.Views
 {
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
     public partial class MainWindow : Window
     {
         private readonly MainController _mainController;
         private readonly ILogger _logger = LogManager.GetCurrentClassLogger();
         private readonly NetworkStorm _networkStorm;
         private readonly AttackLogger _attackLogger;
+        private readonly TraceRoute _traceRoute;
         private bool _isAdvancedMode;
         private bool? _lastSubnetStatus;
+        private string? _lastSubnetMessage;
+        private DateTime _lastSubnetLogTime = DateTime.MinValue;
+        private const int SUBNET_LOG_THROTTLE_MS = 1000; // Throttle duplicate messages within 1 second
         private CancellationTokenSource? _targetIpDebounceTokenSource;
-        private const string NOTE_PLACEHOLDER = "Enter your notes here...";
+        private const string NOTE_PLACEHOLDER = "Add a note to the attack log... (Ctrl+Enter to save)";
 
         public MainWindow()
         {
             InitializeComponent();
+            
+            // Initialize logger first
             _attackLogger = new AttackLogger(LogTextBox);
-            _networkStorm = new NetworkStorm(LogTextBox);
+            
+            // Then initialize components that depend on logger
+            _networkStorm = new NetworkStorm(_attackLogger);
+            _traceRoute = new TraceRoute(_attackLogger);
             _mainController = new MainController(_networkStorm, StartButton, StopButton, StatusLabel, LogTextBox, this);
 
+            // Show disclaimer
             var result = MessageBox.Show(
                 "DISCLAIMER:\n" +
                 "======================\n" +
@@ -68,11 +81,16 @@ namespace Dorothy.Views
                 return;
             }
 
+            // Initialize UI components
             PopulateNetworkInterfaces();
             PopulateAttackTypes();
 
             AttackTypeComboBox.SelectedIndex = 0;
             AdvancedAttackTypeComboBox.SelectedIndex = 0;
+
+            // Set placeholder text
+            NoteTextBox.Text = NOTE_PLACEHOLDER;
+            NoteTextBox.Foreground = SystemColors.GrayTextBrush;
         }
 
         private void LogError(string message)
@@ -127,12 +145,12 @@ namespace Dorothy.Views
         }
 
         private async void PingButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
             {
                 var button = sender as Button;
                 if (button == null) return;
                 
+            try
+            {
                 button.IsEnabled = false;
                 button.Content = "Pinging...";
 
@@ -141,15 +159,22 @@ namespace Dorothy.Views
 
                 if (string.IsNullOrWhiteSpace(targetIp))
                 {
-                    targetTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                    MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // Check subnet and gateway requirement before pinging
+                if (!CheckSubnetAndGatewayRequirement(targetIp))
+                {
+                    MessageBox.Show("Gateway IP is required for targets on different subnets.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
                 var result = await _mainController.PingHostAsync(targetIp);
                 if (result.Success)
                 {
-                    _attackLogger.LogInfo($"Ping to {targetIp} successful. Roundtrip time: {result.RoundtripTime}ms");
                     targetTextBox.Background = new SolidColorBrush(Color.FromRgb(200, 255, 200));
+                    _attackLogger.LogInfo($"Ping to {targetIp} successful. Roundtrip time: {result.RoundtripTime}ms");
                     
                     // If ARP Spoofing is selected, sync the other tab's IP field color
                     if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem && 
@@ -161,8 +186,8 @@ namespace Dorothy.Views
                 }
                 else
                 {
-                    _attackLogger.LogPing(targetIp, false);
                     targetTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                    _attackLogger.LogInfo($"Ping {targetIp}: failed");
                 }
             }
             catch (Exception ex)
@@ -175,20 +200,103 @@ namespace Dorothy.Views
             }
             finally
             {
-                var button = sender as Button;
                 button.IsEnabled = true;
                 button.Content = "Ping";
             }
         }
 
-        private async void ResolveMacButton_Click(object sender, RoutedEventArgs e)
+        private bool CheckSubnetAndGatewayRequirement(string targetIp, bool isResolvingMac = false)
         {
             try
             {
-                var button = sender as Button;
-                if (button == null) return;
-                
-                button.IsEnabled = false;
+                var sourceIp = SourceIpTextBox.Text;
+
+                if (string.IsNullOrWhiteSpace(sourceIp) || string.IsNullOrWhiteSpace(targetIp))
+                {
+                    return false;
+                }
+
+                if (!IPAddress.TryParse(sourceIp, out var sourceIpAddress) ||
+                    !IPAddress.TryParse(targetIp, out var targetIpAddress))
+                {
+                    return false;
+                }
+
+                // Get the network interface for the source IP
+                var selectedInterface = NetworkInterfaceComboBox.SelectedItem as dynamic;
+                if (selectedInterface?.Interface is NetworkInterface nic)
+                {
+                    var ipProps = nic.GetIPProperties();
+                    var unicastInfo = ipProps.UnicastAddresses
+                        .FirstOrDefault(x => x.Address.AddressFamily == AddressFamily.InterNetwork);
+
+                    if (unicastInfo != null)
+                    {
+                        // Convert subnet mask to uint32
+                        var maskBytes = unicastInfo.IPv4Mask.GetAddressBytes();
+                        Array.Reverse(maskBytes);
+                        var mask = BitConverter.ToUInt32(maskBytes, 0);
+
+                        // Convert IPs to uint32
+                        var sourceBytes = sourceIpAddress.GetAddressBytes();
+                        var targetBytes = targetIpAddress.GetAddressBytes();
+                        Array.Reverse(sourceBytes);
+                        Array.Reverse(targetBytes);
+                        var sourceInt = BitConverter.ToUInt32(sourceBytes, 0);
+                        var targetInt = BitConverter.ToUInt32(targetBytes, 0);
+
+                        // Compare network portions
+                        var sameSubnet = (sourceInt & mask) == (targetInt & mask);
+                        
+                        if (!sameSubnet)
+                        {
+                            if (isResolvingMac)
+                            {
+                                // For MAC resolution, we can't resolve MACs for IPs outside our local network
+                                _attackLogger.LogInfo($"Cannot resolve MAC address for {targetIp} - Not on local network");
+                                return false;
+                            }
+                            else
+                            {
+                                _attackLogger.LogInfo("Source and target are on different subnets. Gateway required.");
+                                if (string.IsNullOrWhiteSpace(GatewayIpTextBox.Text))
+                                {
+                                    return false;
+                                }
+                            }
+                        }
+
+                        // Update gateway field
+                        GatewayIpTextBox.IsEnabled = !sameSubnet;
+                        if (sameSubnet)
+                        {
+                            GatewayIpTextBox.Text = string.Empty;
+                            GatewayIpTextBox.Background = SystemColors.ControlBrush;
+                        }
+                        else
+                        {
+                            GatewayIpTextBox.Background = SystemColors.WindowBrush;
+                        }
+
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _attackLogger.LogError($"Error checking subnet: {ex.Message}");
+                return false;
+            }
+        }
+
+        private async void ResolveMacButton_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            try
+            {
+                if (button != null)
                 button.Content = "Resolving...";
 
                 var targetIp = (sender == ResolveMacButton) ? TargetIpTextBox.Text : AdvTargetIpTextBox.Text;
@@ -196,17 +304,46 @@ namespace Dorothy.Views
 
                 if (string.IsNullOrWhiteSpace(targetIp))
                 {
-                    targetMacTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                    MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
-                var macBytes = await _networkStorm.GetMacAddressAsync(targetIp);
+                // Check if target is on different subnet
+                if (!CheckSubnetAndGatewayRequirement(targetIp, true))
+                {
+                    // For external IPs, use the gateway MAC without showing a warning
+                    var gatewayMac = await _mainController.GetMacAddressAsync(_networkStorm.GatewayIp);
+                    if (gatewayMac.Length > 0)
+                    {
+                        var macAddress = BitConverter.ToString(gatewayMac).Replace("-", ":");
+                        targetMacTextBox.Text = macAddress;
+                        targetMacTextBox.Background = new SolidColorBrush(Color.FromRgb(200, 255, 200));
+                        _attackLogger.LogInfo($"Using gateway MAC for external target: {macAddress}");
+
+                        // If ARP Spoofing is selected, sync the other tab's MAC field
+                        if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem && 
+                            selectedItem.Content.ToString() == "ARP Spoofing")
+                        {
+                            var otherMacTextBox = (sender == ResolveMacButton) ? AdvTargetMacTextBox : TargetMacTextBox;
+                            otherMacTextBox.Text = macAddress;
+                            otherMacTextBox.Background = new SolidColorBrush(Color.FromRgb(200, 255, 200));
+                        }
+                    }
+                    else
+                    {
+                        _attackLogger.LogError("Failed to resolve gateway MAC address");
+                        targetMacTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                    }
+                }
+                else
+                {
+                    // For local IPs, resolve the actual MAC
+                    var macBytes = await _mainController.GetMacAddressAsync(targetIp);
                 if (macBytes.Length > 0)
                 {
                     var macAddress = BitConverter.ToString(macBytes).Replace("-", ":");
                     targetMacTextBox.Text = macAddress;
                     targetMacTextBox.Background = new SolidColorBrush(Color.FromRgb(200, 255, 200));
-                    _attackLogger.LogMacResolution(targetIp, macAddress);
 
                     // If ARP Spoofing is selected, sync the other tab's MAC field
                     if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem && 
@@ -220,7 +357,7 @@ namespace Dorothy.Views
                 else
                 {
                     targetMacTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
-                    _attackLogger.LogError($"Failed to resolve MAC address for {targetIp}");
+                    }
                 }
             }
             catch (Exception ex)
@@ -233,9 +370,8 @@ namespace Dorothy.Views
             }
             finally
             {
-                var button = sender as Button;
-                button.IsEnabled = true;
-                button.Content = "Resolve MAC";
+                if (button != null)
+                    button.Content = "Resolve";
             }
         }
 
@@ -660,12 +796,10 @@ namespace Dorothy.Views
                 {
                     TargetIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
                 }
-
-                CheckSubnetAndUpdateGatewayField();
             }
             catch (Exception ex)
             {
-                _attackLogger.LogError($"Error validating target IP: {ex.Message}");
+                _logger.Error(ex, "Error in TargetIpTextBox_TextChanged");
             }
         }
 
@@ -1079,6 +1213,7 @@ namespace Dorothy.Views
                 {
                     GatewayIpTextBox.IsEnabled = true;
                     _lastSubnetStatus = null;
+                    _lastSubnetMessage = null;
                     return;
                 }
 
@@ -1087,6 +1222,7 @@ namespace Dorothy.Views
                 {
                     GatewayIpTextBox.IsEnabled = true;
                     _lastSubnetStatus = null;
+                    _lastSubnetMessage = null;
                     return;
                 }
 
@@ -1115,19 +1251,20 @@ namespace Dorothy.Views
 
                         // Compare network portions
                         var sameSubnet = (sourceInt & mask) == (targetInt & mask);
+                        var currentMessage = sameSubnet ? 
+                            "Source and target are on the same subnet. Gateway not required." :
+                            "Source and target are on different subnets. Gateway required.";
 
-                        // Only log if the subnet status has changed
-                        if (_lastSubnetStatus != sameSubnet)
+                        // Only log if the subnet status has changed or enough time has passed
+                        var now = DateTime.Now;
+                        if (_lastSubnetStatus != sameSubnet || 
+                            _lastSubnetMessage != currentMessage ||
+                            (now - _lastSubnetLogTime).TotalMilliseconds > SUBNET_LOG_THROTTLE_MS)
                         {
                             _lastSubnetStatus = sameSubnet;
-                            if (sameSubnet)
-                            {
-                                _attackLogger.LogInfo("Source and target are on the same subnet. Gateway not required.");
-                }
-                else
-                {
-                                _attackLogger.LogInfo("Source and target are on different subnets. Gateway required.");
-                            }
+                            _lastSubnetMessage = currentMessage;
+                            _lastSubnetLogTime = now;
+                            _attackLogger.LogInfo(currentMessage);
                         }
 
                         // Update gateway field
@@ -1149,6 +1286,7 @@ namespace Dorothy.Views
                 _attackLogger.LogError($"Error checking subnet: {ex.Message}");
                 GatewayIpTextBox.IsEnabled = true;
                 _lastSubnetStatus = null;
+                _lastSubnetMessage = null;
             }
         }
 
@@ -1265,6 +1403,251 @@ namespace Dorothy.Views
                     AddNoteButton_Click(this, new RoutedEventArgs());
                     e.Handled = true;
                 }
+            }
+        }
+
+        private async void TraceRouteButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                string targetIp;
+                if (MainTabControl.SelectedItem == AdvancedTab)
+                {
+                    targetIp = AdvTargetIpTextBox.Text.Trim();
+                }
+                else
+                {
+                    targetIp = TargetIpTextBox.Text.Trim();
+                }
+
+                if (string.IsNullOrWhiteSpace(targetIp))
+                {
+                    MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                if (!IPAddress.TryParse(targetIp, out _))
+                {
+                    MessageBox.Show("Please enter a valid IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // Disable the button while trace route is running
+                var button = sender as Button;
+                if (button != null)
+                {
+                    button.IsEnabled = false;
+                }
+
+                StatusLabel.Content = "Status: Running Trace Route";
+                await _traceRoute.ExecuteTraceRouteAsync(targetIp);
+                StatusLabel.Content = "Status: Ready";
+
+                // Re-enable the button
+                if (button != null)
+                {
+                    button.IsEnabled = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error executing trace route: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _attackLogger.LogError($"Trace route failed: {ex}");
+                StatusLabel.Content = "Status: Error";
+            }
+        }
+
+        private async void ScanButton_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            var progressBar = button == ScanButton ? ScanProgressBar : AdvScanProgressBar;
+            try
+            {
+                // Get target IP based on which tab is active
+                string targetIp = MainTabControl.SelectedItem == AdvancedTab ? 
+                    AdvTargetIpTextBox.Text.Trim() : 
+                    TargetIpTextBox.Text.Trim();
+
+                if (string.IsNullOrWhiteSpace(targetIp))
+                {
+                    MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                if (!IPAddress.TryParse(targetIp, out _))
+                {
+                    MessageBox.Show("Please enter a valid IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // Show warning message
+                var result = MessageBox.Show(
+                    "Port scanning may take several minutes to complete and could be detected by security systems.\n\n" +
+                    "The scan will check all TCP ports (1-65535).\n\n" +
+                    "Do you want to continue?",
+                    "Port Scan Warning",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning
+                );
+
+                if (result != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+
+                if (button != null)
+                {
+                    button.IsEnabled = false;
+                    button.Content = "Scanning...";
+                }
+
+                // Show progress bar and status
+                if (progressBar != null)
+                {
+                    progressBar.Value = 0;
+                    progressBar.IsIndeterminate = true;
+                    progressBar.Visibility = Visibility.Visible;
+                }
+
+                _attackLogger.LogInfo($"Starting port scan on {targetIp}...");
+                _attackLogger.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+                // Run nmap scan
+                await Task.Run(() =>
+                {
+                    try
+                    {
+                        var process = new Process
+                        {
+                            StartInfo = new ProcessStartInfo
+                            {
+                                FileName = "nmap",
+                                Arguments = $"-sS -T4 -p- -v -oN - {targetIp}",  // Added -oN - to output to stdout instead of file
+                                UseShellExecute = false,
+                                RedirectStandardOutput = true,
+                                RedirectStandardError = true,
+                                CreateNoWindow = true
+                            }
+                        };
+
+                        process.OutputDataReceived += (s, args) =>
+                        {
+                            if (!string.IsNullOrEmpty(args.Data))
+                            {
+                                _attackLogger.LogInfo(args.Data);
+                                
+                                Application.Current.Dispatcher.Invoke(() =>
+                                {
+                                    if (progressBar != null)
+                                    {
+                                        // Update status based on nmap output
+                                        if (args.Data.Contains("Initiating"))
+                                        {
+                                            progressBar.IsIndeterminate = true;
+                                        }
+                                        else if (args.Data.Contains("Stats:"))
+                                        {
+                                            progressBar.IsIndeterminate = true;
+                                            
+                                            // Try to parse progress percentage
+                                            if (args.Data.Contains("%"))
+                                            {
+                                                var percentStr = args.Data.Split('%')[0];
+                                                percentStr = new string(percentStr.Reverse()
+                                                    .TakeWhile(c => char.IsDigit(c) || c == '.')
+                                                    .Reverse().ToArray());
+                                                
+                                                if (double.TryParse(percentStr, out double percent) && progressBar != null)
+                                                {
+                                                    progressBar.IsIndeterminate = false;
+                                                    progressBar.Value = percent;
+                                                }
+                                            }
+                                        }
+                                        else if (args.Data.Contains("Completed"))
+                                        {
+                                            progressBar.IsIndeterminate = true;
+                                        }
+                                    }
+                                });
+                            }
+                        };
+
+                        process.ErrorDataReceived += (s, args) =>
+                        {
+                            if (!string.IsNullOrEmpty(args.Data))
+                            {
+                                _attackLogger.LogError(args.Data);
+                                Application.Current.Dispatcher.Invoke(() =>
+                                {
+                                    if (progressBar != null)
+                                    {
+                                        progressBar.IsIndeterminate = true;
+                                    }
+                                });
+                            }
+                        };
+
+                        process.Start();
+                        process.BeginOutputReadLine();
+                        process.BeginErrorReadLine();
+                        process.WaitForExit();
+
+                        if (process.ExitCode != 0)
+                        {
+                            throw new Exception($"nmap exited with code {process.ExitCode}");
+                        }
+                    }
+                    catch (Exception ex) when (ex.Message.Contains("nmap"))
+                    {
+                        _attackLogger.LogError("nmap is not installed. Please install nmap to use the port scanning feature.");
+                        _attackLogger.LogInfo("You can download nmap from: https://nmap.org/download.html");
+                        throw;
+                    }
+                });
+
+                _attackLogger.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                _attackLogger.LogInfo("Port scan completed.");
+                
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    if (progressBar != null)
+                    {
+                        progressBar.Value = 0;
+                        progressBar.Visibility = Visibility.Collapsed;
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _attackLogger.LogError($"Port scan failed: {ex.Message}");
+                MessageBox.Show($"Error during port scan: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    if (progressBar != null)
+                    {
+                        progressBar.Value = 0;
+                        progressBar.Visibility = Visibility.Collapsed;
+                    }
+                });
+            }
+            finally
+            {
+                if (button != null)
+                {
+                    button.IsEnabled = true;
+                    button.Content = "Scan";
+                }
+                
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    if (progressBar != null)
+                    {
+                        progressBar.Value = 0;
+                        progressBar.Visibility = Visibility.Collapsed;
+                    }
+                });
             }
         }
     }

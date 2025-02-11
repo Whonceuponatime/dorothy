@@ -21,11 +21,11 @@ namespace Dorothy.Models
     public class NetworkStorm
     {
         private readonly AttackLogger _logger;
-        private readonly TextBox _logArea;
         private bool _isAttackRunning;
         private CancellationTokenSource? _cancellationSource;
         private CancellationTokenSource? _gatewayResolutionCts;
         private Socket? _socket;
+        private string? _attackType;
         public string SourceIp { get; private set; }
         public byte[] SourceMac { get; private set; }
         public string GatewayIp { get; private set; }
@@ -33,16 +33,16 @@ namespace Dorothy.Models
         public bool EnableLogging { get; set; }
         public string TargetIp { get; private set; } = string.Empty;
         public event EventHandler<PacketEventArgs>? PacketSent;
+        public AttackLogger Logger => _logger;
 
         protected virtual void OnPacketSent(byte[] packet, IPAddress sourceIp, IPAddress destinationIp, int port)
         {
             PacketSent?.Invoke(this, new PacketEventArgs(packet, sourceIp, destinationIp, port));
         }
 
-        public NetworkStorm(TextBox logArea)
+        public NetworkStorm(AttackLogger logger)
         {
-            _logArea = logArea ?? throw new ArgumentNullException(nameof(logArea));
-            _logger = new AttackLogger(logArea);
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             SourceIp = string.Empty;
             SourceMac = Array.Empty<byte>();
             GatewayIp = string.Empty;
@@ -157,6 +157,7 @@ namespace Dorothy.Models
                 {
                     if (GatewayMac.Length > 0)
                     {
+                        _logger.LogInfo($"Using gateway MAC for routed target {ipAddress}: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
                         return GatewayMac;
                     }
                     else if (!string.IsNullOrEmpty(GatewayIp))
@@ -177,6 +178,7 @@ namespace Dorothy.Models
                         }
 
                         GatewayMac = macAddr;
+                        _logger.LogInfo($"Resolved and using gateway MAC for routed target {ipAddress}: {BitConverter.ToString(macAddr).Replace("-", ":")}");
                         return macAddr;
                     }
                     else
@@ -225,8 +227,10 @@ namespace Dorothy.Models
             {
                 if (GatewayMac.Length == 0)
                 {
+                    _logger.LogError("Gateway MAC address is required for cross-subnet communication");
                     throw new InvalidOperationException("Gateway MAC address is required for cross-subnet communication");
                 }
+                _logger.LogInfo($"Using gateway MAC as destination for external target: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
                 destinationMac = GatewayMac;
             }
             else
@@ -235,8 +239,10 @@ namespace Dorothy.Models
                 destinationMac = await GetMacAddressAsync(targetIp);
                 if (destinationMac.Length == 0)
                 {
+                    _logger.LogError("Could not resolve target MAC address for local subnet target");
                     throw new InvalidOperationException("Could not resolve target MAC address for local subnet target");
                 }
+                _logger.LogInfo($"Using target MAC for local target: {BitConverter.ToString(destinationMac).Replace("-", ":")}");
             }
 
             // Calculate bytes per second: megabits -> bits -> bytes
@@ -378,7 +384,7 @@ namespace Dorothy.Models
                 _logger.StopAttack();
                 
                 // Then log the specific attack stop message
-                if (_attackType != null)
+                if (!string.IsNullOrEmpty(_attackType))
                 {
                     _logger.LogInfo($"Stopped {_attackType} attack");
                 }
