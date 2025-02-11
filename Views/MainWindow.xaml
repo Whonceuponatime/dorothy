@@ -498,11 +498,12 @@
                             Click="TaskManagerButton_Click"/>
 
                     <Grid Grid.Row="1" Margin="0,5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Note input section -->
                         <Grid Grid.Row="0" Margin="0,0,0,5">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -529,6 +530,7 @@
                                     Click="AddNoteButton_Click"/>
                         </Grid>
                         
+                        <!-- Log output section -->
                         <TextBox x:Name="LogTextBox" 
                                  Grid.Row="1"
                                  IsReadOnly="True" 
