@@ -90,4 +90,12 @@ src/main/resources/native/
 *.tmp
 
 # Distribution
-dist/
+# Note: dist/ is NOT ignored - distributables should be committed per project rules
+
+# Cursor IDE files
+.cursor/
+*.cursor
+
+# Zip files (already covered by *.zip above, but being explicit)
+*.zip
+*.7z
