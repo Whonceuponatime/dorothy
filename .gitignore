@@ -7,6 +7,12 @@ gradle-app.setting
 # Compiled class files
 *.class
 
+#cursor
+# Cursor IDE/editor files
+.cursor
+*.cursor
+*.cursor.*
+*.cur
 # Log files
 *.log
 
@@ -57,8 +63,11 @@ target/
 
 # Large files and installers
 installers/
+installer/
 Downloads/
 dorothy-*.zip
+*.exe
+!dist/**/*.exe
 
 # Build directories
 build/

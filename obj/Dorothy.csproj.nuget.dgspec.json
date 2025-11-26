@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\SAMSUNG\\Desktop\\Dorothy\\Dorothy.csproj": {}
+    "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\DoSNetworkStorm-seacure\\Dorothy.csproj": {}
   },
   "projects": {
-    "C:\\Users\\SAMSUNG\\Desktop\\Dorothy\\Dorothy.csproj": {
-      "version": "1.0.0",
+    "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\DoSNetworkStorm-seacure\\Dorothy.csproj": {
+      "version": "2.0.1",
       "restore": {
-        "projectUniqueName": "C:\\Users\\SAMSUNG\\Desktop\\Dorothy\\Dorothy.csproj",
+        "projectUniqueName": "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\DoSNetworkStorm-seacure\\Dorothy.csproj",
         "projectName": "Dorothy",
-        "projectPath": "C:\\Users\\SAMSUNG\\Desktop\\Dorothy\\Dorothy.csproj",
+        "projectPath": "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\DoSNetworkStorm-seacure\\Dorothy.csproj",
         "packagesPath": "C:\\Users\\SAMSUNG\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\SAMSUNG\\Desktop\\Dorothy\\obj\\",
+        "outputPath": "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\DoSNetworkStorm-seacure\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\SAMSUNG\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -20,6 +20,7 @@
           "net8.0-windows"
         ],
         "sources": {
+          "C:\\Program Files\\dotnet\\library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -61,6 +62,10 @@
             "SharpPcap": {
               "target": "Package",
               "version": "[6.2.5, )"
+            },
+            "System.Drawing.Common": {
+              "target": "Package",
+              "version": "[8.0.0, )"
             }
           },
           "imports": [

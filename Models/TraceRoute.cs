@@ -24,8 +24,8 @@ namespace Dorothy.Models
             try
             {
                 var hops = new List<(int Hop, long RoundTripTime, string Address, string? HostName)>();
-                _logger.LogInfo($"Starting traceroute to {targetIp}...");
-                _logger.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                _logger.LogInfo($"🔍 Starting traceroute to {targetIp}...");
+                _logger.LogNote("━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
                 for (int ttl = 1; ttl <= MaxHops; ttl++)
                 {
@@ -33,7 +33,7 @@ namespace Dorothy.Models
                     
                     if (address == null)
                     {
-                        _logger.LogInfo($"{ttl,2} *  Request timed out.");
+                        _logger.LogWarning($"{ttl,2} *  Request timed out.");
                         continue;
                     }
 
@@ -42,26 +42,26 @@ namespace Dorothy.Models
                     {
                         var hostEntry = await Dns.GetHostEntryAsync(address);
                         hostName = hostEntry.HostName;
-                        _logger.LogInfo($"{ttl,2} {roundTripTime,4} ms  {address} [{hostName}]");
+                        _logger.LogInfo($"  {ttl,2} {roundTripTime,4} ms  {address} [{hostName}]");
                     }
                     catch
                     {
-                        _logger.LogInfo($"{ttl,2} {roundTripTime,4} ms  {address}");
+                        _logger.LogInfo($"  {ttl,2} {roundTripTime,4} ms  {address}");
                     }
 
                     hops.Add((ttl, roundTripTime, address.ToString(), hostName));
 
                     if (address.ToString() == targetIp)
                     {
-                        _logger.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                        _logger.LogInfo("Trace complete.");
+                        _logger.LogNote("━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+                        _logger.LogSuccess("✅ Trace complete.");
 
                         // Generate and log summary
                         var summary = GenerateTraceSummary(targetIp, hops);
-                        _logger.LogInfo("\nTrace Route Summary:");
-                        _logger.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                        _logger.LogInfo(summary);
-                        _logger.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                        _logger.LogNote("\n📊 Trace Route Summary:\n");
+                        _logger.LogNote("━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+                        _logger.LogNote(summary);
+                        _logger.LogNote("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
                         break;
                     }
                 }

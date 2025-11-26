@@ -30,6 +30,7 @@ namespace Dorothy.Models
         public byte[] SourceMac { get; private set; }
         public string GatewayIp { get; private set; }
         public byte[] GatewayMac { get; private set; }
+        public byte[] SubnetMask { get; private set; }
         public bool EnableLogging { get; set; }
         public string TargetIp { get; private set; } = string.Empty;
         public event EventHandler<PacketEventArgs>? PacketSent;
@@ -47,6 +48,7 @@ namespace Dorothy.Models
             SourceMac = Array.Empty<byte>();
             GatewayIp = string.Empty;
             GatewayMac = Array.Empty<byte>();
+            SubnetMask = new byte[] { 255, 255, 255, 0 }; // Default /24 subnet mask
             InitializeSocket();
         }
 
@@ -93,6 +95,13 @@ namespace Dorothy.Models
             SourceMac = sourceMac;
         }
 
+        public void SetSourceInfo(string sourceIp, byte[] sourceMac, byte[] subnetMask)
+        {
+            SourceIp = sourceIp;
+            SourceMac = sourceMac;
+            SubnetMask = subnetMask ?? new byte[] { 255, 255, 255, 0 };
+        }
+
         public async Task SetGatewayIp(string gatewayIp)
         {
             GatewayIp = gatewayIp;
@@ -110,14 +119,38 @@ namespace Dorothy.Models
                     await Task.Delay(500, _gatewayResolutionCts.Token);
                     
                     // Validate IP format before attempting resolution
-                    if (IPAddress.TryParse(gatewayIp, out _))
+                    // Only attempt resolution if SourceIp is set (NIC selected)
+                    if (IPAddress.TryParse(gatewayIp, out var gatewayIpObj) && 
+                        !string.IsNullOrEmpty(SourceIp) && 
+                        IPAddress.TryParse(SourceIp, out var sourceIpObj))
+                    {
+                        // Only try to resolve gateway MAC if gateway is on the same subnet as source IP
+                        // If it's on a different subnet, we can't resolve it via ARP anyway
+                        if (IsOnSameSubnet(sourceIpObj, gatewayIpObj))
                     {
                         var gatewayMac = await GetMacAddressAsync(gatewayIp);
                         if (gatewayMac.Length > 0)
                         {
                             GatewayMac = gatewayMac;
-                            _logger.LogInfo($"Gateway MAC resolved: {BitConverter.ToString(gatewayMac).Replace("-", ":")}");
+                                _logger.LogInfo($"✅ Gateway MAC resolved: {BitConverter.ToString(gatewayMac).Replace("-", ":")}");
                         }
+                            else
+                            {
+                                // Don't log as error - MAC resolution will be attempted when needed
+                                _logger.LogInfo($"Gateway MAC not yet resolved for {gatewayIp}. Will attempt resolution when needed.");
+                            }
+                        }
+                        else
+                        {
+                            // Gateway is on different subnet - can't resolve via ARP from this source IP
+                            // This is normal for multi-NIC setups, will be resolved when actually needed
+                            _logger.LogInfo($"Gateway {gatewayIp} is on different subnet from source {SourceIp}. MAC will be resolved when needed for attacks.");
+                        }
+                    }
+                    else if (string.IsNullOrEmpty(SourceIp))
+                    {
+                        // Source IP not set yet - defer resolution
+                        _logger.LogInfo($"Gateway {gatewayIp} set. MAC resolution will be attempted after NIC selection.");
                     }
                 }
                 catch (OperationCanceledException)
@@ -126,7 +159,8 @@ namespace Dorothy.Models
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"Error resolving Gateway MAC: {ex.Message}");
+                    // Don't log as error - this is expected in multi-NIC scenarios
+                    _logger.LogInfo($"Gateway MAC resolution deferred: {ex.Message}");
                 }
                 finally
                 {
@@ -173,12 +207,15 @@ namespace Dorothy.Models
 
                         if (result != 0)
                         {
-                            _logger.LogError($"Failed to resolve gateway MAC address - Required for routed target {ipAddress}");
+                            // Don't log as error - this might be normal in multi-NIC scenarios
+                            // The gateway might not be reachable from the current source IP
+                            _logger.LogWarning($"Could not resolve gateway MAC address for {GatewayIp} from source {SourceIp}. " +
+                                              $"This may be normal if using multiple NICs. MAC will be resolved when needed or use fallback mode.");
                             return Array.Empty<byte>();
                         }
 
                         GatewayMac = macAddr;
-                        _logger.LogInfo($"Resolved and using gateway MAC for routed target {ipAddress}: {BitConverter.ToString(macAddr).Replace("-", ":")}");
+                        _logger.LogInfo($"✅ Using gateway MAC for routed target {ipAddress}: {BitConverter.ToString(macAddr).Replace("-", ":")}");
                         return macAddr;
                     }
                     else
@@ -206,7 +243,7 @@ namespace Dorothy.Models
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error resolving MAC address: {ex.Message}");
+                _logger.LogError($"Failed to resolve MAC address: {ex.Message}");
                 return Array.Empty<byte>();
             }
         }
@@ -230,7 +267,7 @@ namespace Dorothy.Models
                     _logger.LogError("Gateway MAC address is required for cross-subnet communication");
                     throw new InvalidOperationException("Gateway MAC address is required for cross-subnet communication");
                 }
-                _logger.LogInfo($"Using gateway MAC as destination for external target: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
+                        _logger.LogInfo($"🌐 Using gateway MAC for external target: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
                 destinationMac = GatewayMac;
             }
             else
@@ -242,15 +279,15 @@ namespace Dorothy.Models
                     _logger.LogError("Could not resolve target MAC address for local subnet target");
                     throw new InvalidOperationException("Could not resolve target MAC address for local subnet target");
                 }
-                _logger.LogInfo($"Using target MAC for local target: {BitConverter.ToString(destinationMac).Replace("-", ":")}");
+                _logger.LogInfo($"📍 Using target MAC for local target: {BitConverter.ToString(destinationMac).Replace("-", ":")}");
             }
 
             // Calculate bytes per second: megabits -> bits -> bytes
             // 1 Mbps = 1,000,000 bits per second
             // 8 bits = 1 byte
-            // Add 20% overhead for headers (reduced from 40%)
-            // Use larger packet sizes for better throughput
-            long bytesPerSecond = (long)(megabitsPerSecond * 1_000_000L / 8.0 * 1.2);
+            // Calculate exact bytes per second without overhead multiplication
+            // The packet size calculation will account for headers separately
+            long bytesPerSecond = (long)(megabitsPerSecond * 1_000_000L / 8.0);
 
             return new PacketParameters
             {
@@ -301,18 +338,8 @@ namespace Dorothy.Models
                         // Common packet parameters
                         var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond);
 
-                        // Log attack details in the specified format
-                        var message = $"Attack Details\n" +
-                                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                                    $"Protocol: {attackType}\n" +
-                                    $"Source Host: {SourceIp}\n" +
-                                    $"Source MAC: {BitConverter.ToString(SourceMac).Replace("-", ":")}\n" +
-                                    $"Target Host: {targetIp}\n" +
-                                    $"Target MAC: {BitConverter.ToString(packetParams.DestinationMac).Replace("-", ":")}\n" +
-                                    $"Target Rate: {megabitsPerSecond:F2} Mbps\n" +
-                                    $"Attack Type: {attackType}\n" +
-                                    "Status: Attack Started";
-                        _logger.LogInfo(message);
+                        // Attack details are logged by AttackLogger.StartAttack() in MainWindow.xaml.cs
+                        // No need to duplicate the logging here
 
                         switch (attackType)
                         {
@@ -368,7 +395,7 @@ namespace Dorothy.Models
             }
         }
 
-        public async Task StopAttackAsync()
+        public async Task StopAttackAsync(long packetsSent = 0)
         {
             if (!_isAttackRunning)
             {
@@ -380,8 +407,8 @@ namespace Dorothy.Models
                 _cancellationSource?.Cancel();
                 _isAttackRunning = false;
                 
-                // First log the stop status
-                _logger.StopAttack();
+                // Log comprehensive stop information
+                _logger.StopAttack(packetsSent);
                 
                 // Then log the specific attack stop message
                 if (!string.IsNullOrEmpty(_attackType))
@@ -400,7 +427,7 @@ namespace Dorothy.Models
         {
             try
             {
-                byte[] subnet = new byte[] { 255, 255, 255, 0 }; // Default subnet mask
+                byte[] subnet = SubnetMask;
                 byte[] bytes1 = ip1.GetAddressBytes();
                 byte[] bytes2 = ip2.GetAddressBytes();
                 
@@ -426,6 +453,38 @@ namespace Dorothy.Models
                 .SelectMany(n => n.GetIPProperties()?.GatewayAddresses)
                 .Select(g => g?.Address)
                 .FirstOrDefault(a => a != null && a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+        }
+
+        private IPAddress? CalculateDefaultGateway(string sourceIp)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(sourceIp) || !IPAddress.TryParse(sourceIp, out var sourceIpAddress))
+                {
+                    return null;
+                }
+
+                var bytes = sourceIpAddress.GetAddressBytes();
+                bytes[3] = 1; // Set last octet to 1 (x.x.x.x.1)
+                return new IPAddress(bytes);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public IPAddress? GetDefaultGatewayWithFallback(string sourceIp)
+        {
+            // Try to get system default gateway first
+            var systemGateway = GetDefaultGateway();
+            if (systemGateway != null)
+            {
+                return systemGateway;
+            }
+
+            // Fallback to calculated default (x.x.x.x.1)
+            return CalculateDefaultGateway(sourceIp);
         }
 
         [DllImport("iphlpapi.dll", ExactSpelling = true)]
@@ -485,7 +544,7 @@ namespace Dorothy.Models
             }
         }
 
-        public async Task StartEthernetAttackAsync(string targetIp, int targetPort, long megabitsPerSecond, EthernetFlood.EthernetPacketType packetType)
+        public async Task StartEthernetAttackAsync(string targetIp, int targetPort, long megabitsPerSecond, EthernetFlood.EthernetPacketType packetType, bool useIPv6 = false)
         {
             if (_isAttackRunning)
             {
@@ -503,7 +562,7 @@ namespace Dorothy.Models
                     try
                     {
                         var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond);
-                        using var flood = new EthernetFlood(packetParams, packetType, _cancellationSource.Token);
+                        using var flood = new EthernetFlood(packetParams, packetType, _cancellationSource.Token, useIPv6);
                         await flood.StartAsync();
                     }
                     catch (Exception ex)

@@ -4,17 +4,17 @@
 winexe
 C#
 .cs
-C:\Users\SAMSUNG\Desktop\Dorothy\obj\Release\net8.0-windows\win-x64\
+C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\obj\Release\net8.0-windows\win-x64\
 Dorothy
 none
 false
 TRACE;RELEASE;NET;NET8_0;NETCOREAPP
-C:\Users\SAMSUNG\Desktop\Dorothy\App.xaml
-2-733531562
+C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\App.xaml
+31213792738
 
-24-1187510771
-201-1999574439
-Views\CustomGatewayDialog.xaml;Views\MainWindow.xaml;
+25-1410048333
+2031922937538
+Views\CustomGatewayDialog.xaml;Views\MainWindow.xaml;Views\SettingsWindow.xaml;
 
 False
 
