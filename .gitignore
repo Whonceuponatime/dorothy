@@ -99,7 +99,8 @@ src/main/resources/native/
 *.tmp
 
 # Distribution
-# Note: dist/ is NOT ignored - distributables should be committed per project rules
+# Note: dist/ is ignored - distributables are too large for GitHub (use releases instead)
+dist/
 
 # Cursor IDE files
 .cursor/
