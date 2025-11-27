@@ -1,0 +1,76 @@
+<Window x:Class="Dorothy.Views.NetworkScanWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Dorothy.Views"
+        Title="Network Scan - Asset Inventory" Height="600" Width="1000"
+        WindowStartupLocation="CenterOwner"
+        Background="#F3F4F6">
+    <Window.Resources>
+        <local:NullableLongConverter x:Key="NullableLongConverter"/>
+    </Window.Resources>
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="Network Scan Results" 
+                       FontSize="20" 
+                       FontWeight="Bold" 
+                       Foreground="#111827"
+                       Margin="0,0,0,8"/>
+            <TextBlock x:Name="StatusTextBlock"
+                       Text="Scanning network..."
+                       FontSize="12"
+                       Foreground="#6B7280"/>
+        </StackPanel>
+
+        <!-- Results Grid -->
+        <Border Grid.Row="1" 
+                BorderBrush="#E5E7EB" 
+                BorderThickness="1" 
+                CornerRadius="8"
+                Background="White">
+            <DataGrid x:Name="ResultsDataGrid"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      GridLinesVisibility="All"
+                      HeadersVisibility="Column"
+                      SelectionMode="Single"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="IP Address" Binding="{Binding IpAddress}" Width="120"/>
+                    <DataGridTextColumn Header="MAC Address" Binding="{Binding MacAddress}" Width="130"/>
+                    <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="200"/>
+                    <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="120"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
+                    <DataGridTextColumn Header="RTT (ms)" Binding="{Binding RoundTripTime, Converter={StaticResource NullableLongConverter}}" Width="80"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+
+        <!-- Footer Actions -->
+        <StackPanel Grid.Row="2" 
+                    Orientation="Horizontal" 
+                    HorizontalAlignment="Right"
+                    Margin="0,16,0,0">
+            <Button x:Name="ExportExcelButton"
+                    Content="Export to Excel"
+                    Width="140"
+                    Height="36"
+                    Margin="0,0,12,0"
+                    Click="ExportExcelButton_Click"
+                    IsEnabled="False"/>
+            <Button x:Name="CloseButton"
+                    Content="Close"
+                    Width="100"
+                    Height="36"
+                    Click="CloseButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
+

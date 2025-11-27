@@ -346,6 +346,7 @@ namespace Dorothy.Models
                             case AttackType.UdpFlood:
                                 using (var udpFlood = new UdpFlood(packetParams, _cancellationSource.Token))
                                 {
+                                    udpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
                                     await udpFlood.StartAsync();
                                 }
                                 break;
@@ -353,6 +354,7 @@ namespace Dorothy.Models
                             case AttackType.IcmpFlood:
                                 using (var icmpFlood = new IcmpFlood(packetParams, _cancellationSource.Token))
                                 {
+                                    icmpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
                                     await icmpFlood.StartAsync();
                                 }
                                 break;
@@ -363,6 +365,7 @@ namespace Dorothy.Models
                                     _logger.LogInfo("Target is on different subnet - Using routed TCP flood attack");
                                     using (var tcpFlood = new TcpFloodRouted(packetParams, _cancellationSource.Token))
                                     {
+                                        tcpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
                                         await tcpFlood.StartAsync();
                                     }
                                 }
@@ -370,6 +373,7 @@ namespace Dorothy.Models
                                 {
                                     using (var tcpFlood = new TcpFlood(packetParams, _cancellationSource.Token))
                                     {
+                                        tcpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
                                         await tcpFlood.StartAsync();
                                     }
                                 }
@@ -563,6 +567,7 @@ namespace Dorothy.Models
                     {
                         var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond);
                         using var flood = new EthernetFlood(packetParams, packetType, _cancellationSource.Token, useIPv6);
+                        flood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
                         await flood.StartAsync();
                     }
                     catch (Exception ex)

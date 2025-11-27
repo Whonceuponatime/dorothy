@@ -562,13 +562,13 @@
                                     Margin="12,0,0,0"
                                 Style="{StaticResource DefaultButton}"
                                 Click="TraceRouteButton_Click"/>
-                            <Button x:Name="FullPortScanButton" 
-                                    Content="Full Port Scan" 
+                            <Button x:Name="NetworkScanButton" 
+                                    Content="Network Scan" 
                                     Width="140" 
                                     Height="40"
                                     Margin="12,0,0,0"
                                 Style="{StaticResource DefaultButton}"
-                                Click="FullPortScanButton_Click"/>
+                                Click="NetworkScanButton_Click"/>
                     </StackPanel>
                 </StackPanel>
                 </ScrollViewer>
@@ -824,20 +824,20 @@
                                     Margin="12,0,0,0"
                                 Style="{StaticResource DefaultButton}"
                                 Click="TraceRouteButton_Click"/>
-                            <Button x:Name="FullPortScanAdvancedButton" 
-                                    Content="Full Port Scan" 
+                            <Button x:Name="NetworkScanAdvancedButton" 
+                                    Content="Network Scan" 
                                     Width="140" 
-                                    Height="40" 
+                                    Height="40"
                                     Margin="12,0,0,0"
                                 Style="{StaticResource DefaultButton}"
-                                Click="FullPortScanButton_Click"/>
+                                Click="NetworkScanButton_Click"/>
                     </StackPanel>
                 </StackPanel>
                 </ScrollViewer>
             </TabItem>
         </TabControl>
         
-        <!-- Right Panel: Attack Log -->
+        <!-- Right Panel: Security Logs -->
         <Grid Grid.Row="0" Grid.Column="1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -845,16 +845,21 @@
             </Grid.RowDefinitions>
 
             <!-- Log Header -->
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                <TextBlock Text="Attack Log" 
+            <StackPanel Grid.Row="0" 
+                        Orientation="Horizontal" 
+                        Margin="12,0,12,12"
+                        VerticalAlignment="Center">
+                <TextBlock Text="Security Logs" 
                            FontWeight="SemiBold" 
                            FontSize="16" 
                            Margin="0,0,16,0"
+                           VerticalAlignment="Center"
                            Foreground="#111827"/>
                 <Button x:Name="TaskManagerButton"
                         Content="Task Manager"
                         Width="120"
                         Height="32"
+                        VerticalAlignment="Center"
                         Style="{StaticResource DefaultButton}"
                         Click="TaskManagerButton_Click"/>
             </StackPanel>

@@ -59,60 +59,54 @@ namespace Dorothy.Models
 
                 // Calculate packets needed per second to achieve target rate
                 var packetSize = 54 + 14 + 20; // Ethernet + IP + TCP headers
-                var packetsPerSecond = _parameters.BytesPerSecond / packetSize;
-                var microBatchDelay = TimeSpan.FromSeconds(1.0 * MICRO_BATCH_SIZE / packetsPerSecond);
+                double packetsPerSecond = (double)_parameters.BytesPerSecond / packetSize;
+                double microsecondsPerPacket = 1_000_000.0 / packetsPerSecond;
+                long ticksPerPacket = (long)(microsecondsPerPacket * Stopwatch.Frequency / 1_000_000.0);
 
-                var stopwatch = new Stopwatch();
+                var stopwatch = Stopwatch.StartNew();
                 var packetsSent = 0;
                 var lastRateCheck = DateTime.UtcNow;
-                var currentBatch = 0;
+                var poolIndex = 0;
+                long nextPacketTime = 0; // Track when next packet should be sent
 
                 while (!_cancellationToken.IsCancellationRequested)
                 {
-                    stopwatch.Restart();
-
-                    // Send a micro-batch of packets
-                    for (int i = 0; i < MICRO_BATCH_SIZE && !_cancellationToken.IsCancellationRequested; i++)
+                    long currentTicks = stopwatch.ElapsedTicks;
+                    
+                    // Wait until it's time to send the next packet
+                    if (currentTicks < nextPacketTime)
                     {
-                        device.SendPacket(packetPool[i]);
-                        packetsSent++;
+                        long waitTicks = nextPacketTime - currentTicks;
+                        long waitMicroseconds = (waitTicks * 1_000_000L) / Stopwatch.Frequency;
                         
-                        // Every 1000 packets, update one packet in the pool
-                        if (packetsSent % 1000 == 0)
+                        if (waitMicroseconds > 1000)
                         {
-                            packetPool[i] = CreateTcpSynPacket();
+                            await Task.Delay(TimeSpan.FromMicroseconds(waitMicroseconds - 500));
+                        }
+                        
+                        // Fine-grained spin wait
+                        while (stopwatch.ElapsedTicks < nextPacketTime)
+                        {
+                            Thread.SpinWait(10);
                         }
                     }
 
-                    currentBatch++;
+                    // Send single packet
+                    var packet = packetPool[poolIndex];
+                    device.SendPacket(packet);
+                    OnPacketSent(packet, _parameters.SourceIp, _parameters.DestinationIp, _parameters.DestinationPort);
+                    packetsSent++;
                     
-                    // After sending BATCH_SIZE packets, regenerate the packet pool
-                    if (currentBatch >= (BATCH_SIZE / MICRO_BATCH_SIZE))
+                    // Regenerate packet periodically for randomization
+                    if (packetsSent % 1000 == 0)
                     {
-                        for (int i = 0; i < MICRO_BATCH_SIZE; i++)
-                        {
-                            packetPool[i] = CreateTcpSynPacket();
-                        }
-                        currentBatch = 0;
+                        packetPool[poolIndex] = CreateTcpSynPacket();
                     }
+                    
+                    poolIndex = (poolIndex + 1) % MICRO_BATCH_SIZE;
 
-                    // Precise rate control
-                    var elapsedMicros = stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency;
-                    var targetMicros = (long)(microBatchDelay.TotalSeconds * 1_000_000);
-                    
-                    if (elapsedMicros < targetMicros)
-                    {
-                        var remainingMicros = targetMicros - elapsedMicros;
-                        if (remainingMicros > 1000)
-                        {
-                            await Task.Delay(TimeSpan.FromMicroseconds(remainingMicros - 500));
-                        }
-                        // Spin wait for fine-grained control
-                        while (stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency < targetMicros)
-                        {
-                            Thread.SpinWait(1);
-                        }
-                    }
+                    // Schedule next packet
+                    nextPacketTime = stopwatch.ElapsedTicks + ticksPerPacket;
 
                     // Log rate every second
                     var now = DateTime.UtcNow;

@@ -109,3 +109,34 @@ dist/
 # Zip files (already covered by *.zip above, but being explicit)
 *.zip
 *.7z
+
+# .NET build artifacts
+obj/
+bin/
+*.user
+*.suo
+*.cache
+*.pdb
+*.dll
+*.exe
+!dist/**/*.exe
+
+# WPF temporary files
+*_wpftmp.*
+*.baml
+*.g.cs
+*.g.resources
+*.sourcelink.json
+*.assets.cache
+*.AssemblyInfo.cs
+*.AssemblyInfoInputs.cache
+*.GeneratedMSBuildEditorConfig.editorconfig
+*.GlobalUsings.g.cs
+*.csproj.nuget.*
+*.csproj.AssemblyReference.cache
+*.csproj.CoreCompileInputs.cache
+*.csproj.FileListAbsolute.txt
+*.MarkupCompile.cache
+*.MarkupCompile.lref
+project.assets.json
+project.nuget.cache

@@ -21,11 +21,17 @@ namespace Dorothy.Models
         private readonly PacketParameters _params;
         private readonly CancellationToken _cancellationToken;
         private Socket? _socket;
+        public event EventHandler<PacketEventArgs>? PacketSent;
 
         public IcmpFlood(PacketParameters parameters, CancellationToken cancellationToken)
         {
             _params = parameters;
             _cancellationToken = cancellationToken;
+        }
+
+        protected virtual void OnPacketSent(byte[] packet, IPAddress sourceIp, IPAddress destinationIp, int port)
+        {
+            PacketSent?.Invoke(this, new PacketEventArgs(packet, sourceIp, destinationIp, port));
         }
 
         public async Task StartAsync()
@@ -41,50 +47,55 @@ namespace Dorothy.Models
                 byte[] payload = new byte[1400];
 
                 var random = new Random();
-                // Account for IP header (20 bytes) + ICMP header (8 bytes) + payload
-                int totalPacketSize = 20 + icmpHeader.Length + payload.Length;
-                int batchSize = 32; // Send packets in batches for better throughput
-                long packetsPerSecond = _params.BytesPerSecond / totalPacketSize;
-                double microsecondsPerBatch = (1_000_000.0 * batchSize) / packetsPerSecond;
+                // Account for full Ethernet frame: Ethernet header (14) + IP header (20) + ICMP header (8) + payload (1400) + FCS (4)
+                // Raw sockets send at Layer 3, OS adds Ethernet frame
+                int totalPacketSize = 14 + 20 + icmpHeader.Length + payload.Length + 4; // Ethernet (14) + IP (20) + ICMP (8) + payload (1400) + FCS (4) = 1446 bytes
+                double packetsPerSecond = (double)_params.BytesPerSecond / totalPacketSize;
+                double microsecondsPerPacket = 1_000_000.0 / packetsPerSecond;
+                long ticksPerPacket = (long)(microsecondsPerPacket * Stopwatch.Frequency / 1_000_000.0);
 
                 await Task.Run(() =>
                 {
-                    var stopwatch = new Stopwatch();
+                    var stopwatch = Stopwatch.StartNew();
                     var endpoint = new IPEndPoint(_params.DestinationIp, 0);
                     byte[] fullPacket = new byte[icmpHeader.Length + payload.Length];
+                    long nextPacketTime = 0; // Track when next packet should be sent
 
                     while (!_cancellationToken.IsCancellationRequested)
                     {
                         try
                         {
-                            stopwatch.Restart();
-
-                            for (int i = 0; i < batchSize && !_cancellationToken.IsCancellationRequested; i++)
+                            long currentTicks = stopwatch.ElapsedTicks;
+                            
+                            // Wait until it's time to send the next packet
+                            if (currentTicks < nextPacketTime)
                             {
-                                icmpHeader[0] = 8;  // Echo Request
-                                random.NextBytes(payload);
-
-                                Buffer.BlockCopy(icmpHeader, 0, fullPacket, 0, icmpHeader.Length);
-                                Buffer.BlockCopy(payload, 0, fullPacket, icmpHeader.Length, payload.Length);
-
-                                _socket.SendTo(fullPacket, endpoint);
-                            }
-
-                            // High precision rate limiting
-                            long elapsedMicroseconds = stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency;
-                            if (elapsedMicroseconds < microsecondsPerBatch)
-                            {
-                                int remainingMicroseconds = (int)(microsecondsPerBatch - elapsedMicroseconds);
-                                if (remainingMicroseconds > 1000) // Only sleep for delays > 1ms
+                                long waitTicks = nextPacketTime - currentTicks;
+                                long waitMicroseconds = (waitTicks * 1_000_000L) / Stopwatch.Frequency;
+                                
+                                if (waitMicroseconds > 1000)
                                 {
-                                    Thread.Sleep(remainingMicroseconds / 1000);
+                                    Thread.Sleep((int)(waitMicroseconds / 1000));
                                 }
-                                // Spin wait for sub-millisecond precision
-                                while (stopwatch.ElapsedTicks * 1_000_000 / Stopwatch.Frequency < microsecondsPerBatch)
+                                
+                                // Fine-grained spin wait
+                                while (stopwatch.ElapsedTicks < nextPacketTime)
                                 {
-                                    Thread.SpinWait(1);
+                                    Thread.SpinWait(10);
                                 }
                             }
+
+                            icmpHeader[0] = 8;  // Echo Request
+                            random.NextBytes(payload);
+
+                            Buffer.BlockCopy(icmpHeader, 0, fullPacket, 0, icmpHeader.Length);
+                            Buffer.BlockCopy(payload, 0, fullPacket, icmpHeader.Length, payload.Length);
+
+                            _socket.SendTo(fullPacket, endpoint);
+                            OnPacketSent(fullPacket, _params.SourceIp, _params.DestinationIp, 0);
+
+                            // Schedule next packet
+                            nextPacketTime = stopwatch.ElapsedTicks + ticksPerPacket;
                         }
                         catch (Exception ex)
                         {

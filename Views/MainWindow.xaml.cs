@@ -48,12 +48,17 @@ namespace Dorothy.Views
         private const int SUBNET_LOG_THROTTLE_MS = 1000; // Throttle duplicate messages within 1 second
         private CancellationTokenSource? _targetIpDebounceTokenSource;
         private const string NOTE_PLACEHOLDER = "Add a note to the attack log... (Ctrl+Enter to save)";
+        private bool _isSyncingComboBoxes = false; // Flag to prevent duplicate logging when syncing comboboxes
 
         // Statistics tracking
         private long _totalPacketsSent = 0;
+        private long _totalBytesSent = 0; // Track actual bytes sent for accurate Mbps calculation
         private DateTime _attackStartTime;
+        private DateTime _lastStatsUpdateTime;
+        private long _lastBytesSent = 0; // Track bytes sent at last stats update for current rate calculation
         private System.Windows.Threading.DispatcherTimer? _statsTimer;
         private long _targetMbps = 0;
+        private string? _currentRunningAttackType = null; // Track the currently running attack type
 
         // Settings
         private string _logFileLocation = string.Empty;
@@ -160,6 +165,7 @@ namespace Dorothy.Views
         private void NetworkStorm_PacketSent(object? sender, Models.PacketEventArgs e)
         {
             _totalPacketsSent++;
+            _totalBytesSent += e.Packet.Length; // Track actual bytes sent
             _attackLogger.IncrementPacketCount();
         }
 
@@ -170,15 +176,33 @@ namespace Dorothy.Views
                 var elapsed = DateTime.Now - _attackStartTime;
                 ElapsedTimeText.Text = elapsed.ToString(@"hh\:mm\:ss");
                 
-                // Calculate Mbps sent (approximate based on packets and elapsed time)
-                if (elapsed.TotalSeconds > 0)
+                // Calculate Mbps sent using current rate (bytes sent in last second)
+                // This matches Task Manager's instantaneous rate display
+                var now = DateTime.Now;
+                if (_lastStatsUpdateTime != default)
                 {
-                    // Rough estimate: assume average packet size ~64 bytes (minimum Ethernet frame)
-                    // This is a simplified calculation - actual Mbps depends on packet size
-                    var bytesSent = _totalPacketsSent * 64; // Approximate
-                    var mbpsSent = (bytesSent * 8.0) / (elapsed.TotalSeconds * 1_000_000);
-                    MbpsSentText.Text = mbpsSent.ToString("F2");
+                    var timeSinceLastUpdate = (now - _lastStatsUpdateTime).TotalSeconds;
+                    if (timeSinceLastUpdate > 0)
+                    {
+                        // Calculate current rate: bytes sent since last update
+                        var bytesSentSinceLastUpdate = _totalBytesSent - _lastBytesSent;
+                        var mbpsSent = (bytesSentSinceLastUpdate * 8.0) / (timeSinceLastUpdate * 1_000_000);
+                        MbpsSentText.Text = mbpsSent.ToString("F2");
+                    }
                 }
+                else
+                {
+                    // First update - use average rate
+                    if (elapsed.TotalSeconds > 0)
+                    {
+                        var mbpsSent = (_totalBytesSent * 8.0) / (elapsed.TotalSeconds * 1_000_000);
+                        MbpsSentText.Text = mbpsSent.ToString("F2");
+                    }
+                }
+                
+                // Update tracking for next calculation
+                _lastBytesSent = _totalBytesSent;
+                _lastStatsUpdateTime = now;
                 
                 PacketsSentText.Text = _totalPacketsSent.ToString("N0");
             }
@@ -187,10 +211,14 @@ namespace Dorothy.Views
         private void ResetStatistics()
         {
             _totalPacketsSent = 0;
+            _totalBytesSent = 0;
             _attackStartTime = default;
+            _lastStatsUpdateTime = default;
+            _lastBytesSent = 0;
             PacketsSentText.Text = "0";
             ElapsedTimeText.Text = "00:00:00";
             MbpsSentText.Text = "0.00";
+            _currentRunningAttackType = null; // Clear attack type when resetting statistics
         }
 
         private void UpdateProfileSummary()
@@ -1050,7 +1078,10 @@ namespace Dorothy.Views
 
                 // Initialize statistics
                 _totalPacketsSent = 0;
+                _totalBytesSent = 0;
                 _attackStartTime = DateTime.Now;
+                _lastStatsUpdateTime = DateTime.Now; // Initialize for rate calculation
+                _lastBytesSent = 0;
                 _targetMbps = megabitsPerSecond;
                 _statsTimer?.Start();
 
@@ -1118,9 +1149,15 @@ namespace Dorothy.Views
                     return;
                 }
 
+                // Track the running attack type
+                _currentRunningAttackType = "Broadcast";
+
                 // Initialize statistics
                 _totalPacketsSent = 0;
+                _totalBytesSent = 0;
                 _attackStartTime = DateTime.Now;
+                _lastStatsUpdateTime = DateTime.Now; // Initialize for rate calculation
+                _lastBytesSent = 0;
                 _targetMbps = megabitsPerSecond;
                 _statsTimer?.Start();
 
@@ -1152,10 +1189,11 @@ namespace Dorothy.Views
             {
                 _statsTimer?.Stop();
                 
-                // Determine which stop method to call based on current attack
-                var attackType = MainTabControl.SelectedItem == AdvancedTab ?
-                    (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() :
-                    (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
+                // Use the tracked running attack type instead of combobox selection
+                var attackType = _currentRunningAttackType ?? 
+                    (MainTabControl.SelectedItem == AdvancedTab ?
+                        (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() :
+                        (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString());
                 
                 if (attackType == "Broadcast")
                 {
@@ -1165,17 +1203,24 @@ namespace Dorothy.Views
                 {
                     await _mainController.StopArpSpoofingAsync(_totalPacketsSent);
                 }
+                else if (attackType != null && attackType.StartsWith("Ethernet"))
+                {
+                    // Ethernet attacks use the same stop method as regular flood attacks
+                    await _mainController.StopAttackAsync(_totalPacketsSent);
+                }
                 else
                 {
                     await _mainController.StopAttackAsync(_totalPacketsSent);
                 }
                 
+                _currentRunningAttackType = null; // Clear the running attack type
                 ResetStatistics();
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 _attackLogger.LogError($"Error stopping attack: {ex}");
+                _currentRunningAttackType = null;
                 ResetStatistics();
             }
         }
@@ -1249,6 +1294,16 @@ namespace Dorothy.Views
 
         private void NetworkInterfaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            // Check if this call is from syncing (prevent duplicate processing) - CHECK FIRST!
+            // This must be the very first check to prevent any duplicate processing
+            if (_isSyncingComboBoxes)
+            {
+                return; // Skip processing if this was triggered by sync
+            }
+
+            // Set flag immediately to prevent recursive calls
+            _isSyncingComboBoxes = true;
+
             try
             {
                 var comboBox = sender as ComboBox;
@@ -1282,14 +1337,33 @@ namespace Dorothy.Views
                     AdvSourceIpTextBox.Text = ipAddress;
                     AdvSourceMacTextBox.Text = macAddress;
                     
-                    // Sync the other combobox selection
+                    // Sync the other combobox selection - temporarily unsubscribe to prevent recursive call
+                    ComboBox targetComboBox;
                     if (comboBox == NetworkInterfaceComboBox)
                     {
-                        AdvNetworkInterfaceComboBox.SelectedIndex = NetworkInterfaceComboBox.SelectedIndex;
+                        targetComboBox = AdvNetworkInterfaceComboBox;
+                        targetComboBox.SelectionChanged -= NetworkInterfaceComboBox_SelectionChanged;
+                        try
+                        {
+                            targetComboBox.SelectedIndex = NetworkInterfaceComboBox.SelectedIndex;
+                        }
+                        finally
+                        {
+                            targetComboBox.SelectionChanged += NetworkInterfaceComboBox_SelectionChanged;
+                        }
                     }
                     else
                     {
-                        NetworkInterfaceComboBox.SelectedIndex = AdvNetworkInterfaceComboBox.SelectedIndex;
+                        targetComboBox = NetworkInterfaceComboBox;
+                        targetComboBox.SelectionChanged -= NetworkInterfaceComboBox_SelectionChanged;
+                        try
+                        {
+                            targetComboBox.SelectedIndex = AdvNetworkInterfaceComboBox.SelectedIndex;
+                        }
+                        finally
+                        {
+                            targetComboBox.SelectionChanged += NetworkInterfaceComboBox_SelectionChanged;
+                        }
                     }
 
                     _networkStorm.SetSourceInfo(ipAddress, macBytes, subnetMask);
@@ -1308,18 +1382,37 @@ namespace Dorothy.Views
                     }
                     
                     // Always update gateway IP when NIC changes
+                    // Suppress TextChanged events to prevent duplicate processing
                     if (gatewayIp != null)
                     {
-                        GatewayIpTextBox.Text = gatewayIp.ToString();
-                        AdvGatewayIpTextBox.Text = gatewayIp.ToString();
+                        GatewayIpTextBox.TextChanged -= GatewayIpTextBox_TextChanged;
+                        try
+                        {
+                            GatewayIpTextBox.Text = gatewayIp.ToString();
+                            AdvGatewayIpTextBox.Text = gatewayIp.ToString();
+                        }
+                        finally
+                        {
+                            GatewayIpTextBox.TextChanged += GatewayIpTextBox_TextChanged;
+                        }
                         _networkStorm.SetGatewayIp(gatewayIp.ToString());
+                        // Log only once
                         _attackLogger.LogSuccess($"Gateway updated: {gatewayIp} (NIC: {nicDescription})");
                     }
                     else
                     {
-                        GatewayIpTextBox.Text = string.Empty;
-                        AdvGatewayIpTextBox.Text = string.Empty;
+                        GatewayIpTextBox.TextChanged -= GatewayIpTextBox_TextChanged;
+                        try
+                        {
+                            GatewayIpTextBox.Text = string.Empty;
+                            AdvGatewayIpTextBox.Text = string.Empty;
+                        }
+                        finally
+                        {
+                            GatewayIpTextBox.TextChanged += GatewayIpTextBox_TextChanged;
+                        }
                         _networkStorm.SetGatewayIp(string.Empty);
+                        // Log only once
                         _attackLogger.LogWarning($"No gateway found for NIC: {nicDescription}");
                     }
                     
@@ -1331,6 +1424,11 @@ namespace Dorothy.Views
             catch (Exception ex)
             {
                 _attackLogger.LogError($"Error selecting network interface: {ex}");
+            }
+            finally
+            {
+                // Always reset the flag when done
+                _isSyncingComboBoxes = false;
             }
         }
 
@@ -1746,6 +1844,9 @@ namespace Dorothy.Views
                     return;
                 }
 
+                // Track the running attack type
+                _currentRunningAttackType = attackType;
+
                 // Parse attack type to determine packet type and IP version
                 bool useIPv6 = attackType.Contains("IPv6");
                 EthernetFlood.EthernetPacketType packetType;
@@ -1762,12 +1863,16 @@ namespace Dorothy.Views
                 // Validate cross-subnet gateway requirement (only for Unicast IPv4)
                 if (packetType == EthernetFlood.EthernetPacketType.Unicast && !useIPv6 && !ValidateCrossSubnetGateway(targetIp, sourceIp))
                 {
+                    _currentRunningAttackType = null;
                     return;
                 }
 
                 // Initialize statistics
                 _totalPacketsSent = 0;
+                _totalBytesSent = 0;
                 _attackStartTime = DateTime.Now;
+                _lastStatsUpdateTime = DateTime.Now; // Initialize for rate calculation
+                _lastBytesSent = 0;
                 _targetMbps = megabitsPerSecond;
                 _statsTimer?.Start();
 
@@ -1803,17 +1908,21 @@ namespace Dorothy.Views
 
                 // Initialize statistics
                 _totalPacketsSent = 0;
+                _totalBytesSent = 0;
                 _attackStartTime = DateTime.Now;
+                _lastStatsUpdateTime = DateTime.Now; // Initialize for rate calculation
+                _lastBytesSent = 0;
                 _targetMbps = megabitsPerSecond;
                 _statsTimer?.Start();
 
-                _attackLogger.LogInfo($"Starting Ethernet {packetType} attack ({attackType})");
-                _attackLogger.LogInfo($"Source: {sourceIp} ({sourceMac}), Target: {targetIp}, Rate: {megabitsPerSecond} Mbps");
+                // Initialize attack logger with Ethernet attack details
+                _attackLogger.StartEthernetAttack(packetType, sourceIp, sourceMacBytes, targetIp, targetMac, megabitsPerSecond, targetPort);
 
                 await _networkStorm.StartEthernetAttackAsync(targetIp, targetPort, megabitsPerSecond, packetType, useIPv6);
             }
             catch (Exception ex)
             {
+                _currentRunningAttackType = null;
                 ResetStatistics();
                 _statsTimer?.Stop();
                 StartButton.IsEnabled = true;
@@ -1840,9 +1949,18 @@ namespace Dorothy.Views
                     return;
                 }
 
+                // Determine the attack type string from the combobox
+                var attackType = MainTabControl.SelectedItem == AdvancedTab ?
+                    (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() :
+                    (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
+                
+                // Track the running attack type
+                _currentRunningAttackType = attackType ?? $"Ethernet {packetType}";
+
                 // Validate cross-subnet gateway requirement (only for Unicast)
                 if (packetType == EthernetFlood.EthernetPacketType.Unicast && !ValidateCrossSubnetGateway(targetIp, sourceIp))
                 {
+                    _currentRunningAttackType = null;
                     return;
                 }
 
@@ -1875,6 +1993,7 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
+                _currentRunningAttackType = null;
                 StartAdvancedAttackButton.IsEnabled = true;
                 StopAdvancedAttackButton.IsEnabled = false;
                 _attackLogger.LogError($"Failed to start Ethernet {packetType} attack: {ex.Message}");
@@ -1887,19 +2006,26 @@ namespace Dorothy.Views
             try
             {
                 _statsTimer?.Stop();
-                if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem)
+                // Use the tracked running attack type instead of combobox selection
+                var attackType = _currentRunningAttackType ?? 
+                    (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
+                
+                if (attackType == "ARP Spoofing")
                 {
-                    var attackType = selectedItem.Content.ToString();
-                    switch (attackType)
-                    {
-                        case "ARP Spoofing":
-                            await _mainController.StopArpSpoofingAsync(_totalPacketsSent);
-                            break;
-                        default:
-                            MessageBox.Show($"Unsupported attack type: {attackType}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                            break;
-                    }
+                    await _mainController.StopArpSpoofingAsync(_totalPacketsSent);
                 }
+                else if (attackType != null && attackType.StartsWith("Ethernet"))
+                {
+                    // Ethernet attacks use the same stop method as regular flood attacks
+                    await _mainController.StopAttackAsync(_totalPacketsSent);
+                }
+                else
+                {
+                    MessageBox.Show($"Unsupported attack type: {attackType}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                
+                _currentRunningAttackType = null; // Clear the running attack type
+                ResetStatistics();
                 ResetStatistics();
             }
             catch (Exception ex)
@@ -1972,6 +2098,9 @@ namespace Dorothy.Views
                         "Network Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
+
+                // Track the running attack type
+                _currentRunningAttackType = "ARP Spoofing";
 
                 // Initialize statistics for ARP Spoofing
                 _totalPacketsSent = 0;
@@ -2076,7 +2205,15 @@ namespace Dorothy.Views
                         GatewayIpTextBox.IsEnabled = !sameSubnet;
                         if (sameSubnet)
                         {
-                            GatewayIpTextBox.Text = string.Empty;
+                            GatewayIpTextBox.TextChanged -= GatewayIpTextBox_TextChanged;
+                            try
+                            {
+                                GatewayIpTextBox.Text = string.Empty;
+                            }
+                            finally
+                            {
+                                GatewayIpTextBox.TextChanged += GatewayIpTextBox_TextChanged;
+                            }
                             GatewayIpTextBox.Background = SystemColors.ControlBrush;
                         }
                         else
@@ -2088,7 +2225,15 @@ namespace Dorothy.Views
                                 var defaultGateway = _mainController.GetDefaultGatewayWithFallback(sourceIp);
                                 if (defaultGateway != null)
                                 {
-                                    GatewayIpTextBox.Text = defaultGateway.ToString();
+                                    GatewayIpTextBox.TextChanged -= GatewayIpTextBox_TextChanged;
+                                    try
+                                    {
+                                        GatewayIpTextBox.Text = defaultGateway.ToString();
+                                    }
+                                    finally
+                                    {
+                                        GatewayIpTextBox.TextChanged += GatewayIpTextBox_TextChanged;
+                                    }
                                     _networkStorm.SetGatewayIp(defaultGateway.ToString());
                                     _attackLogger.LogSuccess($"Auto-populated gateway: {defaultGateway}");
                                 }
@@ -2579,275 +2724,71 @@ namespace Dorothy.Views
                             }
         }
 
-        private async void FullPortScanButton_Click(object sender, RoutedEventArgs e)
+        private async void NetworkScanButton_Click(object sender, RoutedEventArgs e)
         {
-            var button = sender as Button;
-            var progressBar = MainTabControl.SelectedItem == AdvancedTab ? AdvScanProgressBar : ScanProgressBar;
-            var portTextBox = MainTabControl.SelectedItem == AdvancedTab ? AdvTargetPortTextBox : TargetPortTextBox;
-            
             try
             {
-                // Get target IP based on which tab is active
-                string targetIp = MainTabControl.SelectedItem == AdvancedTab ? 
-                    AdvTargetIpTextBox.Text.Trim() : 
-                    TargetIpTextBox.Text.Trim();
+                // Get source IP to determine network
+                string sourceIp = MainTabControl.SelectedItem == AdvancedTab ? 
+                    AdvSourceIpTextBox.Text.Trim() : 
+                    SourceIpTextBox.Text.Trim();
 
-                if (string.IsNullOrWhiteSpace(targetIp))
+                if (string.IsNullOrWhiteSpace(sourceIp))
                 {
-                    MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show("Please select a network interface first to determine the network to scan.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
-                if (!IPAddress.TryParse(targetIp, out _))
+                if (!IPAddress.TryParse(sourceIp, out var sourceIpObj))
                 {
-                    MessageBox.Show("Please enter a valid IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show("Please enter a valid source IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
-                // Get selected attack type to determine protocol
-                string attackType = MainTabControl.SelectedItem == AdvancedTab ?
-                    (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() :
-                    (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
-
-                if (string.IsNullOrEmpty(attackType))
-                {
-                    MessageBox.Show("Please select an attack type first.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
-                // Determine protocol based on attack type
-                ProtocolType protocol;
-
-                if (attackType.Contains("TCP") || attackType == "TCP SYN Flood" || attackType == "TcpRoutedFlood")
-                {
-                    protocol = ProtocolType.Tcp;
-                }
-                else if (attackType.Contains("UDP") || attackType == "UDP Flood")
-                {
-                    protocol = ProtocolType.Udp;
-                }
-                else if (attackType.Contains("ICMP") || attackType == "ICMP Flood")
-                {
-                    MessageBox.Show("ICMP Flood does not use ports. Port scanning is not applicable.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-                else if (attackType.Contains("Ethernet") || attackType == "ARP Spoofing" || attackType == "Broadcast")
-                {
-                    MessageBox.Show($"{attackType} does not use ports. Port scanning is not applicable.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-                else
-                {
-                    protocol = ProtocolType.Tcp; // Default to TCP
-                }
-
-                // Show warning for full scan
-                var result = MessageBox.Show(
-                    $"Full port scan will check all {protocol} ports (1-65535).\n\n" +
-                    "This may take several minutes and could be detected by security systems.\n\n" +
-                    "Do you want to continue?",
-                    "Full Port Scan Warning",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning
-                );
-
-                if (result != MessageBoxResult.Yes)
-                {
-                    return;
-                }
-
-                if (button != null)
-                {
-                    button.IsEnabled = false;
-                    button.Content = "Scanning...";
-                }
-
-                // Show progress bar
-                if (progressBar != null)
-                {
-                    progressBar.Value = 0;
-                    progressBar.Maximum = 65535;
-                    progressBar.IsIndeterminate = false;
-                    progressBar.Visibility = Visibility.Visible;
-                }
-
-                _attackLogger.LogInfo($"🔍 Full {protocol} port scan on {targetIp}...");
-                _attackLogger.LogInfo($"Scanning all {protocol} ports (1-65535). This may take several minutes...");
-                _attackLogger.LogInfo("━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
-                // Full port scan - scan all ports
-                var openPorts = new List<int>();
-                var cts = new CancellationTokenSource();
+                // Get subnet mask from selected network interface
+                byte[] subnetMask = new byte[] { 255, 255, 255, 0 }; // Default
+                NetworkInterface? selectedNic = null;
                 
-                await Task.Run(async () =>
-                {
-                    try
-                    {
-                        const int batchSize = 100; // Scan in batches for better progress updates
-                        var semaphore = new SemaphoreSlim(50); // Limit concurrent connections
-                        var tasks = new List<Task>();
-
-                        for (int port = 1; port <= 65535; port++)
-                        {
-                            if (cts.Token.IsCancellationRequested)
-                                break;
-
-                            var currentPort = port;
-                            await semaphore.WaitAsync(cts.Token);
-
-                            tasks.Add(Task.Run(async () =>
-                            {
-                                try
-                                {
-                                    bool isOpen = false;
-
-                                    if (protocol == ProtocolType.Tcp)
-                                    {
-                                        using (var client = new TcpClient())
-                                        {
-                                            var connectTask = client.ConnectAsync(targetIp, currentPort);
-                                            var timeoutTask = Task.Delay(200, cts.Token); // 200ms timeout per port
-                                            var completedTask = await Task.WhenAny(connectTask, timeoutTask);
-
-                                            if (completedTask == connectTask && connectTask.IsCompletedSuccessfully)
-                                            {
-                                                isOpen = client.Connected;
-                                            }
-                                        }
-                                    }
-                                    else if (protocol == ProtocolType.Udp)
-                                    {
-                                        using (var client = new UdpClient())
-                                        {
-                                            try
-                                            {
-                                                client.Client.ReceiveTimeout = 200;
-                                                client.Client.SendTimeout = 200;
-                                                await client.SendAsync(new byte[] { 0 }, 1, targetIp, currentPort);
-                                                await Task.Delay(100, cts.Token);
-                                                isOpen = true; // UDP is harder to detect
-                                            }
-                                            catch (SocketException)
-                                            {
-                                                isOpen = false;
-                                            }
-                                            catch
-                                            {
-                                                isOpen = false;
-                                            }
-                                        }
-                                    }
-
-                                    if (isOpen)
-                                    {
-                                        lock (openPorts)
-                                        {
-                                            openPorts.Add(currentPort);
-                                        }
-                                        Application.Current.Dispatcher.Invoke(() =>
-                                        {
-                                            _attackLogger.LogSuccess($"✅ Found open {protocol} port: {currentPort}");
-                                        });
-                                    }
-                                }
-                                catch
-                                {
-                                    // Port is likely closed, continue
-                                }
-                                finally
-                                {
-                                    semaphore.Release();
+                var selectedInterface = MainTabControl.SelectedItem == AdvancedTab ? 
+                    AdvNetworkInterfaceComboBox.SelectedItem as dynamic : 
+                    NetworkInterfaceComboBox.SelectedItem as dynamic;
                 
-                Application.Current.Dispatcher.Invoke(() =>
+                if (selectedInterface?.Interface is NetworkInterface nic)
                 {
-                                        if (progressBar != null)
-                                        {
-                                            progressBar.Value = currentPort;
-                                        }
-                                    });
-                                }
-                            }, cts.Token));
-
-                            // Process completed tasks periodically to avoid memory buildup
-                            if (tasks.Count >= 500)
-                            {
-                                var completed = tasks.Where(t => t.IsCompleted).ToList();
-                                foreach (var task in completed)
-                                {
-                                    tasks.Remove(task);
-                                }
-                                await Task.Delay(10, cts.Token);
-                            }
-                        }
-
-                        // Wait for remaining tasks
-                        await Task.WhenAll(tasks);
-                    }
-                    catch (Exception ex)
+                    selectedNic = nic;
+                    var ipProps = nic.GetIPProperties();
+                    var unicastInfo = ipProps.UnicastAddresses
+                        .FirstOrDefault(x => x.Address.AddressFamily == AddressFamily.InterNetwork);
+                    if (unicastInfo?.IPv4Mask != null)
                     {
-                        _attackLogger.LogError($"Full port scan error: {ex.Message}");
+                        subnetMask = unicastInfo.IPv4Mask.GetAddressBytes();
                     }
-                });
+                }
 
-                Application.Current.Dispatcher.Invoke(() =>
+                string subnetMaskString = string.Join(".", subnetMask);
+                
+                // Calculate network address
+                var sourceBytes = sourceIpObj.GetAddressBytes();
+                var networkBytes = new byte[4];
+                for (int i = 0; i < 4; i++)
                 {
-                    if (openPorts.Any())
-                    {
-                        openPorts.Sort();
-                        var firstPort = openPorts.First();
-                        portTextBox.Text = firstPort.ToString();
-                        
-                        _attackLogger.LogSuccess($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                        _attackLogger.LogSuccess($"✅ Full scan complete! Found {openPorts.Count} open {protocol} port(s):");
-                        foreach (var port in openPorts)
-                        {
-                            _attackLogger.LogInfo($"   • Port {port}");
-                        }
-                        _attackLogger.LogSuccess($"✅ Port {firstPort} set in Target Port field");
-                        _attackLogger.LogSuccess($"━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                    }
-                    else
-                    {
-                        _attackLogger.LogWarning($"⚠️ No open {protocol} ports found in full scan (1-65535).");
-                    }
+                    networkBytes[i] = (byte)(sourceBytes[i] & subnetMask[i]);
+                }
+                string networkAddress = string.Join(".", networkBytes);
 
-                    if (progressBar != null)
-                    {
-                        progressBar.Value = 0;
-                        progressBar.Visibility = Visibility.Collapsed;
-                    }
-                });
+                // Open network scan window
+                var networkScan = new NetworkScan(_attackLogger);
+                var scanWindow = new NetworkScanWindow(networkScan, _attackLogger);
+                scanWindow.Owner = this;
+                scanWindow.Show();
+
+                // Start scan in background
+                await scanWindow.StartScanAsync(networkAddress, subnetMaskString);
             }
             catch (Exception ex)
             {
-                _attackLogger.LogError($"Full port scan failed: {ex.Message}");
-                MessageBox.Show($"Error during full port scan: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    if (progressBar != null)
-                    {
-                        progressBar.Value = 0;
-                        progressBar.Visibility = Visibility.Collapsed;
-                    }
-                });
-            }
-            finally
-            {
-                if (button != null)
-                {
-                    button.IsEnabled = true;
-                    button.Content = "Full Port Scan";
-                }
-                
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    if (progressBar != null)
-                    {
-                        progressBar.Value = 0;
-                        progressBar.Visibility = Visibility.Collapsed;
-                    }
-                });
+                _attackLogger.LogError($"Network scan failed: {ex.Message}");
+                MessageBox.Show($"Error during network scan: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

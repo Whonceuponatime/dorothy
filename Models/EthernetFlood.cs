@@ -22,6 +22,7 @@ namespace Dorothy.Models
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
         private const int PacketSize = 1400; // Standard size for good throughput
         private const int MICRO_BATCH_SIZE = 10; // Send packets in small batches for better rate control
+        public event EventHandler<PacketEventArgs>? PacketSent;
 
         public enum EthernetPacketType
         {
@@ -36,6 +37,11 @@ namespace Dorothy.Models
             _packetType = packetType;
             _cancellationToken = cancellationToken;
             _useIPv6 = useIPv6 || parameters.SourceIp.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6;
+        }
+
+        protected virtual void OnPacketSent(byte[] packet, IPAddress sourceIp, IPAddress destinationIp, int port)
+        {
+            PacketSent?.Invoke(this, new PacketEventArgs(packet, sourceIp, destinationIp, port));
         }
 
         public async Task StartAsync()
@@ -55,18 +61,16 @@ namespace Dorothy.Models
                 _device.Open();
                 Logger.Info($"Started Ethernet {_packetType} flood attack ({(_useIPv6 ? "IPv6" : "IPv4")})");
 
-                // Calculate packet overhead based on IP version
-                int packetOverhead = _useIPv6 ? 58 : 38; // Ethernet (14) + IPv6 (40) or IPv4 (20) + minimal headers
-                int totalPacketSize = PacketSize + packetOverhead;
+                // Create a sample packet to get actual size
+                var samplePacket = CreatePacket();
+                int totalPacketSize = samplePacket.Bytes.Length;
                 
                 // Calculate precise rate: Mbps -> bytes per second (accounting for actual packet size)
-                // Target Mbps is for payload + headers, so we calculate packets needed
+                // Use actual packet size from the created packet
                 long targetBytesPerSecond = _parameters.BytesPerSecond;
                 double packetsPerSecond = (double)targetBytesPerSecond / totalPacketSize;
-                
-                // Use micro-batching for better rate control
-                double microBatchDelaySeconds = MICRO_BATCH_SIZE / packetsPerSecond;
-                long microBatchDelayTicks = (long)(microBatchDelaySeconds * Stopwatch.Frequency);
+                double microsecondsPerPacket = 1_000_000.0 / packetsPerSecond;
+                long ticksPerPacket = (long)(microsecondsPerPacket * Stopwatch.Frequency / 1_000_000.0);
                 
                 var stopwatch = new Stopwatch();
                 var packetsSent = 0L;
@@ -83,46 +87,49 @@ namespace Dorothy.Models
                 {
                     stopwatch.Start();
                     int poolIndex = 0;
+                    long nextPacketTime = 0; // Track when next packet should be sent
                     
                     while (!_cancellationToken.IsCancellationRequested)
                     {
                         try
                         {
-                            var batchStartTicks = stopwatch.ElapsedTicks;
+                            long currentTicks = stopwatch.ElapsedTicks;
                             
-                            // Send micro-batch
-                            for (int i = 0; i < MICRO_BATCH_SIZE && !_cancellationToken.IsCancellationRequested; i++)
+                            // Wait until it's time to send the next packet
+                            if (currentTicks < nextPacketTime)
                             {
-                                // Regenerate packet periodically for randomization
-                                if (poolIndex % 100 == 0)
-                                {
-                                    packetPool[i] = CreatePacket();
-                                }
+                                long waitTicks = nextPacketTime - currentTicks;
+                                long waitMicroseconds = (waitTicks * 1_000_000L) / Stopwatch.Frequency;
                                 
-                                _device.SendPacket(packetPool[i]);
-                                packetsSent++;
-                                poolIndex++;
-                            }
-
-                            // Precise rate limiting
-                            var elapsedTicks = stopwatch.ElapsedTicks - batchStartTicks;
-                            if (elapsedTicks < microBatchDelayTicks)
-                            {
-                                var remainingTicks = microBatchDelayTicks - elapsedTicks;
-                                var remainingMicroseconds = (remainingTicks * 1_000_000L) / Stopwatch.Frequency;
-                                
-                                if (remainingMicroseconds > 1000)
+                                if (waitMicroseconds > 1000)
                                 {
-                                    Thread.Sleep((int)(remainingMicroseconds / 1000));
+                                    Thread.Sleep((int)(waitMicroseconds / 1000));
                                 }
                                 
                                 // Fine-grained spin wait
-                                while (stopwatch.ElapsedTicks - batchStartTicks < microBatchDelayTicks)
+                                while (stopwatch.ElapsedTicks < nextPacketTime)
                                 {
                                     if (_cancellationToken.IsCancellationRequested) return;
                                     Thread.SpinWait(10);
                                 }
                             }
+
+                            // Regenerate packet periodically for randomization
+                            if (poolIndex % 100 == 0)
+                            {
+                                packetPool[poolIndex] = CreatePacket();
+                            }
+                            
+                            // Send single packet
+                            var packet = packetPool[poolIndex];
+                            _device.SendPacket(packet);
+                            var packetBytes = packet.Bytes;
+                            OnPacketSent(packetBytes, _parameters.SourceIp, _parameters.DestinationIp, _parameters.DestinationPort);
+                            packetsSent++;
+                            poolIndex = (poolIndex + 1) % MICRO_BATCH_SIZE;
+
+                            // Schedule next packet
+                            nextPacketTime = stopwatch.ElapsedTicks + ticksPerPacket;
 
                             // Log rate every second
                             var now = DateTime.UtcNow;
