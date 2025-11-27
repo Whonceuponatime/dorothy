@@ -117,8 +117,9 @@ namespace Dorothy.Models
                     int packetsSent = 0;
                     var rateMeasurementStartTime = DateTime.UtcNow;
                     double rateMultiplier = 1.8; // Start with higher multiplier for faster ramp-up
-                    const int measurementInterval = 250; // Measure rate more frequently for faster response (every 250 packets)
                     double targetMbps = _params.BytesPerSecond * 8.0 / 1_000_000;
+                    // Measure more frequently for high rates to adjust faster
+                    int measurementInterval = targetMbps > 64 ? 150 : (targetMbps > 32 ? 200 : 250);
                     double actualMbps = 0; // Track actual Mbps for delay logic
                     bool isBehindTarget = true; // Start by sending aggressively
                     double lastActualMbps = 0; // Track previous measurement for stability
@@ -187,8 +188,9 @@ namespace Dorothy.Models
                                         else if (isBehindTarget)
                                         {
                                             // When behind target, allow much faster adjustment to ramp up quickly
-                                            // Use 50/50 split for rapid convergence when behind
-                                            rateMultiplier = (rateMultiplier * 0.5) + (newMultiplier * 0.5);
+                                            // For high rates, use more aggressive 40/60 split; for low rates, use 50/50
+                                            double smoothingFactor = targetMbps > 32 ? 0.4 : 0.5; // More aggressive for high rates
+                                            rateMultiplier = (rateMultiplier * smoothingFactor) + (newMultiplier * (1.0 - smoothingFactor));
                                             stableMeasurements++;
                                         }
                                         else
@@ -198,9 +200,10 @@ namespace Dorothy.Models
                                             stableMeasurements++;
                                         }
                                         
-                                        // Clamp multiplier to reasonable range to prevent wild swings
-                                        // Increased max to 3.0 to allow more aggressive compensation
-                                        rateMultiplier = Math.Max(0.8, Math.Min(3.0, rateMultiplier));
+                                        // Clamp multiplier to reasonable range based on target rate
+                                        // Increased max based on target rate: 8.0x for very high rates (>100), 6.0x for high (>64), 5.0x for medium (>32), 3.0x for low (>10), 1.5x for very low
+                                        double maxMultiplierClamp = targetMbps > 100 ? 8.0 : (targetMbps > 64 ? 6.0 : (targetMbps > 32 ? 5.0 : (targetMbps > 10 ? 3.0 : 1.5)));
+                                        rateMultiplier = Math.Max(0.8, Math.Min(maxMultiplierClamp, rateMultiplier));
                                         
                                         // Check if we're behind target - use wider tolerance to reduce oscillation
                                         // Only consider "behind" if significantly below target to avoid rapid switching
@@ -222,33 +225,51 @@ namespace Dorothy.Models
                                 }
                             }
 
-                            // Only add delay if we're significantly ahead AND stable to prevent oscillation
-                            // Use hysteresis to avoid rapid switching between delay/no-delay states
-                            if (!isBehindTarget && actualMbps > targetMbps * 1.05 && stableMeasurements > 2)
+                            // Always apply delay based on target rate, but adjust multiplier based on feedback
+                            // This ensures we respect low Mbps settings (like 1 Mbps) from the start
+                            // But also allows reaching high Mbps (like 100 Mbps) by using aggressive multipliers
+                            double adjustedPacketsPerSecond = targetPacketsPerSecond;
+                            
+                            // If we have measurements and are significantly ahead, use target rate directly
+                            // Otherwise, apply multiplier to compensate for overhead
+                            if (actualMbps > 0 && actualMbps > targetMbps * 1.05 && stableMeasurements >= 2)
                             {
-                                // We're ahead (5%+) AND stable - add delay to prevent overshooting
-                                // Use target rate directly (not multiplied) to maintain exact target
-                                double microsecondsPerPacket = 1_000_000.0 / targetPacketsPerSecond;
-                                long ticksPerPacket = (long)(microsecondsPerPacket * Stopwatch.Frequency / 1_000_000.0);
+                                // We're ahead and stable - use target rate directly to maintain exact target
+                                adjustedPacketsPerSecond = targetPacketsPerSecond;
+                            }
+                            else if (packetsSent >= measurementInterval && rateMultiplier > 0)
+                            {
+                                // Apply multiplier to compensate for overhead
+                                // For very high rates, allow up to 8.0x multiplier; for high rates 6.0x; for low rates, cap lower to respect target
+                                double maxMultiplier = targetMbps > 100 ? 8.0 : (targetMbps > 64 ? 6.0 : (targetMbps > 32 ? 5.0 : (targetMbps > 10 ? 3.0 : 1.5))); // More aggressive for high rates
+                                adjustedPacketsPerSecond = targetPacketsPerSecond * Math.Min(rateMultiplier, maxMultiplier);
+                            }
+                            else
+                            {
+                                // Initial phase - use multiplier based on target rate
+                                // Low rates: use 1.0x (no overshoot), Medium: 1.8x, High rates: 3.5x, Very high: 4.0x for faster ramp-up
+                                double initialMultiplier = targetMbps > 100 ? 4.0 : (targetMbps > 64 ? 3.5 : (targetMbps > 32 ? 2.5 : (targetMbps > 10 ? 1.8 : 1.0)));
+                                adjustedPacketsPerSecond = targetPacketsPerSecond * initialMultiplier;
+                            }
+                            
+                            // Always apply delay based on adjusted rate to respect target Mbps
+                            double microsecondsPerPacket = 1_000_000.0 / adjustedPacketsPerSecond;
+                            long ticksPerPacket = (long)(microsecondsPerPacket * Stopwatch.Frequency / 1_000_000.0);
+                            
+                            if (ticksPerPacket > 0)
+                            {
+                                long currentTicks = stopwatch.ElapsedTicks;
+                                long nextPacketTime = currentTicks + ticksPerPacket;
                                 
-                                if (ticksPerPacket > 0)
+                                // Wait until it's time to send the next packet
+                                if (nextPacketTime > currentTicks)
                                 {
-                                    long currentTicks = stopwatch.ElapsedTicks;
-                                    // Use 90% of interval to maintain rate smoothly
-                                    long nextPacketTime = currentTicks + (long)(ticksPerPacket * 0.9);
-                                    
-                                    // Only wait if ahead
-                                    if (nextPacketTime > currentTicks)
+                                    while (stopwatch.ElapsedTicks < nextPacketTime)
                                     {
-                                        while (stopwatch.ElapsedTicks < nextPacketTime)
-                                        {
-                                            Thread.SpinWait(1);
-                                        }
+                                        Thread.SpinWait(1);
                                     }
                                 }
                             }
-                            // If behind target, close to target, or unstable, continue sending immediately (no delay)
-                            // This prevents oscillation by avoiding rapid rate changes
                         }
                         catch (Exception ex)
                         {
