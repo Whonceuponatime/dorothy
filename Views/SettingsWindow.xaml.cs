@@ -2,9 +2,13 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
+using Dorothy.Models.Database;
 using Microsoft.Win32;
+using Supabase;
 
 namespace Dorothy.Views
 {
@@ -13,19 +17,26 @@ namespace Dorothy.Views
         public string LogLocation { get; private set; } = string.Empty;
         public int FontSizeIndex { get; private set; } = 1;
         public int ThemeIndex { get; private set; } = 0;
+        public string SupabaseUrl { get; private set; } = string.Empty;
+        public string SupabaseAnonKey { get; private set; } = string.Empty;
 
-        public SettingsWindow(string currentLogLocation, int currentFontSizeIndex, int currentThemeIndex)
+        public SettingsWindow(string currentLogLocation, int currentFontSizeIndex, int currentThemeIndex, 
+                             string currentSupabaseUrl, string currentSupabaseAnonKey)
         {
             InitializeComponent();
             LogLocation = currentLogLocation;
             FontSizeIndex = currentFontSizeIndex;
             ThemeIndex = currentThemeIndex;
+            SupabaseUrl = currentSupabaseUrl;
+            SupabaseAnonKey = currentSupabaseAnonKey;
 
             LogLocationTextBox.Text = string.IsNullOrEmpty(LogLocation) 
                 ? AppDomain.CurrentDomain.BaseDirectory 
                 : LogLocation;
             FontSizeComboBox.SelectedIndex = FontSizeIndex;
             ThemeComboBox.SelectedIndex = ThemeIndex;
+            SupabaseUrlTextBox.Text = SupabaseUrl;
+            SupabaseAnonKeyTextBox.Password = SupabaseAnonKey;
         }
 
         private void BrowseLogLocationButton_Click(object sender, RoutedEventArgs e)
@@ -48,6 +59,8 @@ namespace Dorothy.Views
             LogLocation = LogLocationTextBox.Text;
             FontSizeIndex = FontSizeComboBox.SelectedIndex;
             ThemeIndex = ThemeComboBox.SelectedIndex;
+            SupabaseUrl = SupabaseUrlTextBox.Text.Trim();
+            SupabaseAnonKey = SupabaseAnonKeyTextBox.Password.Trim();
 
             // Validate log location
             if (!Directory.Exists(LogLocation))
@@ -67,6 +80,21 @@ namespace Dorothy.Views
                 }
             }
 
+            // Validate Supabase URL format if provided
+            if (!string.IsNullOrWhiteSpace(SupabaseUrl))
+            {
+                if (!Uri.TryCreate(SupabaseUrl, UriKind.Absolute, out var uri) || 
+                    (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+                {
+                    MessageBox.Show(
+                        "Invalid Supabase URL format. Please enter a valid URL (e.g., https://your-project.supabase.co)",
+                        "Invalid URL",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
             DialogResult = true;
             Close();
         }
@@ -75,6 +103,123 @@ namespace Dorothy.Views
         {
             DialogResult = false;
             Close();
+        }
+
+        private void SupabaseUrlTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        {
+            // Update property as user types
+            SupabaseUrl = SupabaseUrlTextBox.Text.Trim();
+        }
+
+        private void SupabaseAnonKeyTextBox_PasswordChanged(object sender, RoutedEventArgs e)
+        {
+            // Update property as user types
+            if (sender is System.Windows.Controls.PasswordBox passwordBox)
+            {
+                SupabaseAnonKey = passwordBox.Password.Trim();
+            }
+        }
+
+        private async void TestConnectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            var url = SupabaseUrlTextBox.Text.Trim();
+            var anonKey = SupabaseAnonKeyTextBox.Password.Trim();
+
+            if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(anonKey))
+            {
+                MessageBox.Show(
+                    "Please enter both Supabase URL and Anon Key",
+                    "Missing Information",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            // Validate URL format
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || 
+                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            {
+                MessageBox.Show(
+                    "Invalid URL format. Please enter a valid URL (e.g., https://your-project.supabase.co)",
+                    "Invalid URL",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            TestConnectionButton.IsEnabled = false;
+            TestConnectionButton.Content = "Testing...";
+            TestConnectionResultText.Visibility = Visibility.Collapsed;
+
+            try
+            {
+                var options = new SupabaseOptions
+                {
+                    AutoConnectRealtime = false,
+                    AutoRefreshToken = false
+                };
+
+                var testClient = new Client(url, anonKey, options);
+                
+                // Try to query a simple table to test connection
+                // We'll try to query attack_logs table (it's okay if it doesn't exist yet)
+                try
+                {
+                    var testResponse = await testClient
+                        .From<AttackLogEntry>()
+                        .Select("id")
+                        .Limit(1)
+                        .Get();
+
+                    MessageBox.Show(
+                        "Connection successful! ✓\n\nYour Supabase credentials are valid and the connection is working.",
+                        "Connection Successful",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    // If table doesn't exist, that's okay - connection works
+                    if (ex.Message.Contains("relation") && ex.Message.Contains("does not exist"))
+                    {
+                        MessageBox.Show(
+                            "Connection successful! ✓\n\nYour Supabase credentials are valid.\nNote: The attack_logs table hasn't been created yet. Please run the SQL schema script in your Supabase dashboard.",
+                            "Connection Successful",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show(
+                            $"Connection test failed:\n\n{ex.Message}\n\nPlease check your Supabase URL and Anon Key.",
+                            "Connection Failed",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Error);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Connection failed:\n\n{ex.Message}\n\nPlease check your Supabase URL and Anon Key.",
+                    "Connection Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                TestConnectionButton.IsEnabled = true;
+                TestConnectionButton.Content = "Test Connection";
+            }
+        }
+
+        private void ShowTestResult(string message, bool isSuccess)
+        {
+            TestConnectionResultText.Text = message;
+            TestConnectionResultText.Foreground = isSuccess 
+                ? new SolidColorBrush(Color.FromRgb(5, 150, 105)) // Green
+                : new SolidColorBrush(Color.FromRgb(220, 38, 38)); // Red
+            TestConnectionResultText.Visibility = Visibility.Visible;
         }
     }
 

@@ -10,11 +10,11 @@ none
 false
 TRACE;RELEASE;NET;NET8_0;NETCOREAPP
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\App.xaml
-31213792738
+5-10838012
 
-25-1410048333
-2031922937538
-Views\CustomGatewayDialog.xaml;Views\MainWindow.xaml;Views\SettingsWindow.xaml;
+31-2096949223
+231816554195
+Views\CustomGatewayDialog.xaml;Views\MainWindow.xaml;Views\NetworkScanWindow.xaml;Views\SettingsWindow.xaml;Views\SyncWindow.xaml;
 
 False
 

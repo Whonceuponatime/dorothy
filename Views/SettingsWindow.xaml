@@ -113,6 +113,105 @@
                     </StackPanel>
                 </StackPanel>
             </Border>
+
+            <!-- Cloud Sync Settings -->
+            <Border Background="White"
+                    BorderBrush="#E5E7EB"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16"
+                    Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="Cloud Sync (Supabase)"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="#111827"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Text="Configure Supabase to enable cloud sync of attack logs. Leave empty to use offline mode only."
+                               FontSize="11"
+                               Foreground="#6B7280"
+                               Margin="0,0,0,12"
+                               TextWrapping="Wrap"/>
+                    
+                    <!-- Supabase URL -->
+                    <StackPanel Margin="0,0,0,12">
+                        <TextBlock Text="Supabase URL"
+                                   FontSize="12"
+                                   Foreground="#374151"
+                                   Margin="0,0,0,4"/>
+                        <TextBox x:Name="SupabaseUrlTextBox"
+                                 Height="32"
+                                 Padding="8,6"
+                                 BorderBrush="#D1D5DB"
+                                 BorderThickness="1"
+                                 Background="White"
+                                 TextChanged="SupabaseUrlTextBox_TextChanged"/>
+                        <TextBlock Text="Example: https://your-project.supabase.co"
+                                   FontSize="10"
+                                   Foreground="#9CA3AF"
+                                   Margin="0,2,0,0"/>
+                    </StackPanel>
+
+                    <!-- Supabase Anon Key -->
+                    <StackPanel Margin="0,0,0,12">
+                        <TextBlock Text="Supabase Anon Key"
+                                   FontSize="12"
+                                   Foreground="#374151"
+                                   Margin="0,0,0,4"/>
+                        <PasswordBox x:Name="SupabaseAnonKeyTextBox"
+                                     Height="32"
+                                     Padding="8,6"
+                                     BorderBrush="#D1D5DB"
+                                     BorderThickness="1"
+                                     Background="White"
+                                     PasswordChanged="SupabaseAnonKeyTextBox_PasswordChanged"/>
+                        <TextBlock Text="Your Supabase project's anonymous key"
+                                   FontSize="10"
+                                   Foreground="#9CA3AF"
+                                   Margin="0,2,0,0"/>
+                    </StackPanel>
+
+                    <!-- Test Connection Button -->
+                    <Button x:Name="TestConnectionButton"
+                            Content="Test Connection"
+                            Width="140"
+                            Height="36"
+                            HorizontalAlignment="Left"
+                            Click="TestConnectionButton_Click"
+                            Background="#2563EB"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    CornerRadius="6"
+                                                    Padding="12,8">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter Property="Background" Value="#9CA3AF"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <TextBlock x:Name="TestConnectionResultText"
+                               Text=""
+                               FontSize="11"
+                               Foreground="#059669"
+                               Margin="0,8,0,0"
+                               Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
             </StackPanel>
         </ScrollViewer>
 

@@ -64,13 +64,24 @@ namespace Dorothy.Views
         private string _logFileLocation = string.Empty;
         private int _fontSizeIndex = 1;
         private int _themeIndex = 0;
+        private string _supabaseUrl = string.Empty;
+        private string _supabaseAnonKey = string.Empty;
+
+        // Database and Sync Services
+        private readonly Services.DatabaseService _databaseService;
+        private readonly Services.SupabaseSyncService _supabaseSyncService;
+        private System.Windows.Threading.DispatcherTimer? _syncCheckTimer;
 
         public MainWindow()
         {
             InitializeComponent();
             
-            // Initialize logger first
-            _attackLogger = new AttackLogger(LogTextBox);
+            // Initialize database and sync services first
+            _databaseService = new Services.DatabaseService();
+            _supabaseSyncService = new Services.SupabaseSyncService(_databaseService);
+            
+            // Initialize logger with database service
+            _attackLogger = new AttackLogger(LogTextBox, _databaseService);
             
             // Then initialize components that depend on logger
             _networkStorm = new NetworkStorm(_attackLogger);
@@ -84,6 +95,12 @@ namespace Dorothy.Views
             _statsTimer = new System.Windows.Threading.DispatcherTimer();
             _statsTimer.Interval = TimeSpan.FromMilliseconds(100); // Update every 100ms
             _statsTimer.Tick += StatsTimer_Tick;
+
+            // Initialize sync check timer (check every 30 seconds)
+            _syncCheckTimer = new System.Windows.Threading.DispatcherTimer();
+            _syncCheckTimer.Interval = TimeSpan.FromSeconds(30);
+            _syncCheckTimer.Tick += SyncCheckTimer_Tick;
+            _syncCheckTimer.Start();
 
             // Show disclaimer
             var result = MessageBox.Show(
@@ -105,11 +122,13 @@ namespace Dorothy.Views
                 return;
             }
 
+
             // Initialize UI components
             PopulateNetworkInterfaces();
             PopulateAttackTypes();
             UpdateProfileSummary();
             LoadSettings();
+            _ = Task.Run(async () => await UpdateSyncStatus());
 
             AttackTypeComboBox.SelectedIndex = 0;
             AdvancedAttackTypeComboBox.SelectedIndex = 0;
@@ -193,10 +212,10 @@ namespace Dorothy.Views
                 else
                 {
                     // First update - use average rate
-                    if (elapsed.TotalSeconds > 0)
-                    {
+                if (elapsed.TotalSeconds > 0)
+                {
                         var mbpsSent = (_totalBytesSent * 8.0) / (elapsed.TotalSeconds * 1_000_000);
-                        MbpsSentText.Text = mbpsSent.ToString("F2");
+                    MbpsSentText.Text = mbpsSent.ToString("F2");
                     }
                 }
                 
@@ -313,7 +332,7 @@ namespace Dorothy.Views
 
         private void SettingsButton_Click(object sender, RoutedEventArgs e)
         {
-            var settingsWindow = new SettingsWindow(_logFileLocation, _fontSizeIndex, _themeIndex)
+            var settingsWindow = new SettingsWindow(_logFileLocation, _fontSizeIndex, _themeIndex, _supabaseUrl, _supabaseAnonKey)
             {
                 Owner = this
             };
@@ -323,8 +342,18 @@ namespace Dorothy.Views
                 _logFileLocation = settingsWindow.LogLocation;
                 _fontSizeIndex = settingsWindow.FontSizeIndex;
                 _themeIndex = settingsWindow.ThemeIndex;
+                _supabaseUrl = settingsWindow.SupabaseUrl;
+                _supabaseAnonKey = settingsWindow.SupabaseAnonKey;
+                
+                // Reinitialize Supabase if settings changed
+                if (!string.IsNullOrWhiteSpace(_supabaseUrl) && !string.IsNullOrWhiteSpace(_supabaseAnonKey))
+                {
+                    _supabaseSyncService.Initialize(_supabaseUrl, _supabaseAnonKey);
+                }
+                
                 SaveSettings();
                 ApplyUISettings();
+                _ = UpdateSyncStatus();
             }
         }
 
@@ -349,6 +378,16 @@ namespace Dorothy.Views
                             int.TryParse(line.Substring("FontSizeIndex=".Length), out _fontSizeIndex);
                         else if (line.StartsWith("ThemeIndex="))
                             int.TryParse(line.Substring("ThemeIndex=".Length), out _themeIndex);
+                        else if (line.StartsWith("SupabaseUrl="))
+                            _supabaseUrl = line.Substring("SupabaseUrl=".Length);
+                        else if (line.StartsWith("SupabaseAnonKey="))
+                            _supabaseAnonKey = line.Substring("SupabaseAnonKey=".Length);
+                    }
+                    
+                    // Initialize Supabase if configured
+                    if (!string.IsNullOrWhiteSpace(_supabaseUrl) && !string.IsNullOrWhiteSpace(_supabaseAnonKey))
+                    {
+                        _supabaseSyncService.Initialize(_supabaseUrl, _supabaseAnonKey);
                     }
                 }
                 else
@@ -384,7 +423,9 @@ namespace Dorothy.Views
                 {
                     $"LogLocation={_logFileLocation}",
                     $"FontSizeIndex={_fontSizeIndex}",
-                    $"ThemeIndex={_themeIndex}"
+                    $"ThemeIndex={_themeIndex}",
+                    $"SupabaseUrl={_supabaseUrl}",
+                    $"SupabaseAnonKey={_supabaseAnonKey}"
                 };
 
                 System.IO.File.WriteAllLines(settingsFile, lines);
@@ -609,6 +650,131 @@ namespace Dorothy.Views
             {
                 MessageBox.Show($"Error opening Task Manager: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 _attackLogger.LogError($"Error opening Task Manager: {ex.Message}");
+            }
+        }
+
+        private async void SyncButton_Click(object sender, RoutedEventArgs e)
+        {
+            await OpenSyncDialogAsync();
+        }
+
+        private async void CloudSyncButton_Click(object sender, RoutedEventArgs e)
+        {
+            await OpenSyncDialogAsync();
+        }
+
+        private async Task OpenSyncDialogAsync()
+        {
+            try
+            {
+                if (!_supabaseSyncService.IsConfigured)
+                {
+                    MessageBox.Show(
+                        "Supabase is not configured. Please configure it in Settings first.",
+                        "Sync Not Configured",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
+                var unsyncedLogs = await _databaseService.GetUnsyncedLogsAsync();
+                if (unsyncedLogs.Count == 0)
+                {
+                    MessageBox.Show(
+                        "No pending logs to sync.",
+                        "No Pending Syncs",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                    return;
+                }
+
+                var syncWindow = new SyncWindow(unsyncedLogs)
+                {
+                    Owner = this
+                };
+
+                if (syncWindow.ShowDialog() == true && syncWindow.ShouldSync)
+                {
+                    // Delete selected logs if any
+                    if (syncWindow.DeletedIds.Count > 0)
+                    {
+                        await _databaseService.DeleteLogsAsync(syncWindow.DeletedIds);
+                        _attackLogger.LogInfo($"Deleted {syncWindow.DeletedIds.Count} log(s).");
+                    }
+
+                    // Sync selected logs
+                    if (syncWindow.SelectedIds.Count > 0)
+                    {
+                        SyncButton.IsEnabled = false;
+                        SyncButton.Content = "Syncing...";
+
+                        var result = await _supabaseSyncService.SyncAsync(syncWindow.ProjectName, syncWindow.SelectedIds);
+
+                        if (result.Success)
+                        {
+                            _attackLogger.LogSuccess(result.Message);
+                            if (result.SyncedCount > 0)
+                            {
+                                _ = Task.Run(async () => await UpdateSyncStatus());
+                            }
+                        }
+                        else
+                        {
+                            _attackLogger.LogWarning(result.Message);
+                        }
+
+                        SyncButton.IsEnabled = true;
+                        SyncButton.Content = "Sync";
+                    }
+                    else
+                    {
+                        _attackLogger.LogInfo("No logs selected for sync.");
+                    }
+
+                    // Update sync status
+                    _ = Task.Run(async () => await UpdateSyncStatus());
+                }
+            }
+            catch (Exception ex)
+            {
+                _attackLogger.LogError($"Sync failed: {ex.Message}");
+                MessageBox.Show($"Sync failed: {ex.Message}", "Sync Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void SyncCheckTimer_Tick(object? sender, EventArgs e)
+        {
+            await UpdateSyncStatus();
+        }
+
+        private async Task UpdateSyncStatus()
+        {
+            try
+            {
+                var pendingCount = await _supabaseSyncService.GetPendingSyncCountAsync();
+                
+                Dispatcher.Invoke(() =>
+                {
+                    if (pendingCount > 0)
+                    {
+                        SyncNotificationBadge.Visibility = Visibility.Visible;
+                        SyncNotificationText.Text = pendingCount > 99 ? "99+" : pendingCount.ToString();
+                        SyncButton.ToolTip = $"{pendingCount} log(s) pending sync";
+                        CloudSyncNotificationBadge.Visibility = Visibility.Visible;
+                        CloudSyncButton.ToolTip = $"{pendingCount} log(s) pending sync - Click to sync";
+                    }
+                    else
+                    {
+                        SyncNotificationBadge.Visibility = Visibility.Collapsed;
+                        SyncButton.ToolTip = "Sync attack logs to cloud";
+                        CloudSyncNotificationBadge.Visibility = Visibility.Collapsed;
+                        CloudSyncButton.ToolTip = "Cloud Sync";
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to update sync status");
             }
         }
 
@@ -1192,7 +1358,7 @@ namespace Dorothy.Views
                 // Use the tracked running attack type instead of combobox selection
                 var attackType = _currentRunningAttackType ?? 
                     (MainTabControl.SelectedItem == AdvancedTab ?
-                        (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() :
+                    (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() :
                         (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString());
                 
                 if (attackType == "Broadcast")
@@ -1387,9 +1553,9 @@ namespace Dorothy.Views
                     {
                         GatewayIpTextBox.TextChanged -= GatewayIpTextBox_TextChanged;
                         try
-                        {
-                            GatewayIpTextBox.Text = gatewayIp.ToString();
-                            AdvGatewayIpTextBox.Text = gatewayIp.ToString();
+                    {
+                        GatewayIpTextBox.Text = gatewayIp.ToString();
+                        AdvGatewayIpTextBox.Text = gatewayIp.ToString();
                         }
                         finally
                         {
@@ -1403,9 +1569,9 @@ namespace Dorothy.Views
                     {
                         GatewayIpTextBox.TextChanged -= GatewayIpTextBox_TextChanged;
                         try
-                        {
-                            GatewayIpTextBox.Text = string.Empty;
-                            AdvGatewayIpTextBox.Text = string.Empty;
+                    {
+                        GatewayIpTextBox.Text = string.Empty;
+                        AdvGatewayIpTextBox.Text = string.Empty;
                         }
                         finally
                         {
@@ -2012,7 +2178,7 @@ namespace Dorothy.Views
                 
                 if (attackType == "ARP Spoofing")
                 {
-                    await _mainController.StopArpSpoofingAsync(_totalPacketsSent);
+                            await _mainController.StopArpSpoofingAsync(_totalPacketsSent);
                 }
                 else if (attackType != null && attackType.StartsWith("Ethernet"))
                 {
@@ -2207,8 +2373,8 @@ namespace Dorothy.Views
                         {
                             GatewayIpTextBox.TextChanged -= GatewayIpTextBox_TextChanged;
                             try
-                            {
-                                GatewayIpTextBox.Text = string.Empty;
+                        {
+                            GatewayIpTextBox.Text = string.Empty;
                             }
                             finally
                             {
@@ -2227,8 +2393,8 @@ namespace Dorothy.Views
                                 {
                                     GatewayIpTextBox.TextChanged -= GatewayIpTextBox_TextChanged;
                                     try
-                                    {
-                                        GatewayIpTextBox.Text = defaultGateway.ToString();
+                                {
+                                    GatewayIpTextBox.Text = defaultGateway.ToString();
                                     }
                                     finally
                                     {
@@ -2784,9 +2950,9 @@ namespace Dorothy.Views
 
                 // Start scan in background
                 await scanWindow.StartScanAsync(networkAddress, subnetMaskString);
-            }
-            catch (Exception ex)
-            {
+                    }
+                    catch (Exception ex)
+                    {
                 _attackLogger.LogError($"Network scan failed: {ex.Message}");
                 MessageBox.Show($"Error during network scan: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }

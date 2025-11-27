@@ -1,0 +1,161 @@
+<Window x:Class="Dorothy.Views.SyncWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Sync to Cloud"
+        WindowStyle="SingleBorderWindow" 
+        Height="600" 
+        Width="900"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        MinHeight="500"
+        MinWidth="700"
+        Background="#F3F4F6">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="Sync Attack Logs to Cloud"
+                       FontSize="20"
+                       FontWeight="Bold"
+                       Foreground="#111827"
+                       Margin="0,0,0,8"/>
+            <TextBlock Text="Select logs to sync, delete, or skip. Enter a project name to organize your logs."
+                       FontSize="12"
+                       Foreground="#6B7280"/>
+        </StackPanel>
+
+        <!-- Project Name Input -->
+        <Border Grid.Row="0"
+                Grid.RowSpan="2"
+                Background="White"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="16"
+                Margin="0,60,0,12"
+                VerticalAlignment="Top"
+                Height="Auto">
+            <StackPanel>
+                <TextBlock Text="Project Name (Optional)"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="#111827"
+                           Margin="0,0,0,8"/>
+                <TextBox x:Name="ProjectNameTextBox"
+                         Height="32"
+                         Padding="8,6"
+                         BorderBrush="#D1D5DB"
+                         BorderThickness="1"
+                         Background="White"
+                         FontSize="14"
+                         TextChanged="ProjectNameTextBox_TextChanged"/>
+                <TextBlock Text="Leave empty to use existing project names from logs"
+                           FontSize="11"
+                           Foreground="#9CA3AF"
+                           Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Logs List -->
+        <Border Grid.Row="1"
+                Background="White"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="16"
+                Margin="0,140,0,12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Header with Select All -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+                    <CheckBox x:Name="SelectAllCheckBox"
+                              Content="Select All"
+                              FontSize="14"
+                              FontWeight="SemiBold"
+                              Foreground="#111827"
+                              Checked="SelectAllCheckBox_Checked"
+                              Unchecked="SelectAllCheckBox_Unchecked"
+                              Margin="0,0,16,0"/>
+                    <TextBlock x:Name="SelectedCountText"
+                               Text="0 selected"
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- DataGrid -->
+                <DataGrid x:Name="LogsDataGrid"
+                          Grid.Row="1"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          SelectionMode="Extended"
+                          SelectionUnit="FullRow"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="None"
+                          BorderThickness="0"
+                          Background="White">
+                    <DataGrid.Columns>
+                        <DataGridCheckBoxColumn Header="Sync" Binding="{Binding IsSelected}" Width="50"/>
+                        <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Attack Type" Binding="{Binding AttackType}" Width="120" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Protocol" Binding="{Binding Protocol}" Width="80" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Target IP" Binding="{Binding TargetIp}" Width="120" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Packets" Binding="{Binding PacketsSent, StringFormat=N0}" Width="80" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Start Time" Binding="{Binding StartTime, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="150" IsReadOnly="True"/>
+                        <DataGridTextColumn Header="Project" Binding="{Binding ProjectName}" Width="100" IsReadOnly="True"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Action Buttons -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                    <Button x:Name="DeleteSelectedButton"
+                            Content="Delete Selected"
+                            Width="120"
+                            Height="32"
+                            Margin="0,0,8,0"
+                            Style="{StaticResource DefaultButton}"
+                            Click="DeleteSelectedButton_Click"/>
+                    <Button x:Name="SkipSelectedButton"
+                            Content="Skip Selected"
+                            Width="120"
+                            Height="32"
+                            Margin="0,0,8,0"
+                            Style="{StaticResource DefaultButton}"
+                            Click="SkipSelectedButton_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button x:Name="CancelButton"
+                    Content="Cancel"
+                    Width="100"
+                    Height="36"
+                    Margin="0,0,8,0"
+                    Click="CancelButton_Click"/>
+            <Button x:Name="SyncButton"
+                    Content="Sync Selected"
+                    Width="120"
+                    Height="36"
+                    Click="SyncButton_Click"
+                    Background="#111827"
+                    Foreground="White"
+                    BorderThickness="0"/>
+        </StackPanel>
+    </Grid>
+</Window>
+

@@ -1,6 +1,9 @@
 using System;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using Dorothy.Models.Database;
+using Dorothy.Services;
 using NLog;
 
 namespace Dorothy.Models
@@ -8,8 +11,10 @@ namespace Dorothy.Models
     public class AttackLogger
     {
         private readonly TextBox _logArea;
+        private readonly DatabaseService? _databaseService;
         private DateTime _attackStartTime;
         private string _attackType = string.Empty;
+        private string _protocol = string.Empty;
         private string _sourceIp = string.Empty;
         private string _sourceMac = string.Empty;
         private string _targetIp = string.Empty;
@@ -17,10 +22,13 @@ namespace Dorothy.Models
         private int _targetPort = 0;
         private long _targetBytesPerSecond;
         private long _packetsSent = 0;
+        private string _currentLogContent = string.Empty;
+        private long? _currentLogId = null;
 
-        public AttackLogger(TextBox logArea)
+        public AttackLogger(TextBox logArea, DatabaseService? databaseService = null)
         {
             _logArea = logArea;
+            _databaseService = databaseService;
         }
 
         public void StartAttack(AttackType attackType, string sourceIp, byte[] sourceMac, 
@@ -28,6 +36,7 @@ namespace Dorothy.Models
         {
             _attackStartTime = DateTime.Now;
             _attackType = attackType.ToString();
+            _protocol = attackType.ToString(); // Protocol same as attack type
             _sourceIp = sourceIp;
             _sourceMac = BitConverter.ToString(sourceMac).Replace("-", ":");
             _targetIp = targetIp;
@@ -63,6 +72,9 @@ namespace Dorothy.Models
             _targetPort = targetPort;
             _targetBytesPerSecond = megabitsPerSecond * 1_000_000 / 8;
             _packetsSent = 0;
+            
+            // Store protocol for database
+            _protocol = $"Ethernet {packetType}";
 
             var targetPortStr = targetPort > 0 ? $":{targetPort}" : "";
             var message = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
@@ -104,6 +116,49 @@ namespace Dorothy.Models
                          $"🕐 Stop Time: {stopTime:yyyy-MM-dd HH:mm:ss}\n" +
                          "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
             Log(message, LogLevel.Info, true);
+
+            // Save to database if available
+            if (_databaseService != null)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        // Get current log content
+                        _logArea.Dispatcher.Invoke(() =>
+                        {
+                            _currentLogContent = _logArea.Text;
+                        });
+
+                        var logEntry = new AttackLogEntry
+                        {
+                            AttackType = _attackType,
+                            Protocol = string.IsNullOrEmpty(_protocol) ? _attackType : _protocol,
+                            SourceIp = _sourceIp,
+                            SourceMac = _sourceMac,
+                            TargetIp = _targetIp,
+                            TargetMac = _targetMac,
+                            TargetPort = _targetPort,
+                            TargetRateMbps = (float)(_targetBytesPerSecond * 8.0 / 1_000_000),
+                            PacketsSent = _packetsSent,
+                            DurationSeconds = (int)duration.TotalSeconds,
+                            StartTime = _attackStartTime,
+                            StopTime = stopTime,
+                            LogContent = _currentLogContent,
+                            CreatedAt = DateTime.Now,
+                            IsSynced = false,
+                            Synced = false
+                        };
+
+                        await _databaseService.SaveAttackLogAsync(logEntry);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log error but don't block UI
+                        System.Diagnostics.Debug.WriteLine($"Failed to save attack log to database: {ex.Message}");
+                    }
+                });
+            }
         }
 
         public void IncrementPacketCount()
