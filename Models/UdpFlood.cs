@@ -50,7 +50,7 @@ namespace Dorothy.Models
                 // Account for full Ethernet frame: Ethernet header (14) + IP header (20) + UDP header (8) + payload (1400) + FCS (4)
                 // Raw sockets send at Layer 3, OS adds Ethernet frame
                 int totalPacketSize = 14 + 20 + udpHeader.Length + payload.Length + 4; // Ethernet (14) + IP (20) + UDP (8) + payload (1400) + FCS (4) = 1446 bytes
-                
+
                 await Task.Run(() =>
                 {
                     var stopwatch = Stopwatch.StartNew();
@@ -78,21 +78,21 @@ namespace Dorothy.Models
                         try
                         {
                             // Send packet immediately - no waiting when trying to achieve target rate
-                            
-                            // Create UDP header
-                            BitConverter.GetBytes((ushort)_params.SourcePort).CopyTo(udpHeader, 0);
-                            BitConverter.GetBytes((ushort)_params.DestinationPort).CopyTo(udpHeader, 2);
-                            BitConverter.GetBytes((ushort)(8 + payload.Length)).CopyTo(udpHeader, 4); // Length
-                            BitConverter.GetBytes((ushort)0).CopyTo(udpHeader, 6); // Checksum
 
-                            // Generate random payload
-                            random.NextBytes(payload);
+                                // Create UDP header
+                                BitConverter.GetBytes((ushort)_params.SourcePort).CopyTo(udpHeader, 0);
+                                BitConverter.GetBytes((ushort)_params.DestinationPort).CopyTo(udpHeader, 2);
+                                BitConverter.GetBytes((ushort)(8 + payload.Length)).CopyTo(udpHeader, 4); // Length
+                                BitConverter.GetBytes((ushort)0).CopyTo(udpHeader, 6); // Checksum
 
-                            // Combine header and payload
-                            Buffer.BlockCopy(udpHeader, 0, fullPacket, 0, udpHeader.Length);
-                            Buffer.BlockCopy(payload, 0, fullPacket, udpHeader.Length, payload.Length);
+                                // Generate random payload
+                                random.NextBytes(payload);
 
-                            _socket.SendTo(fullPacket, endpoint);
+                                // Combine header and payload
+                                Buffer.BlockCopy(udpHeader, 0, fullPacket, 0, udpHeader.Length);
+                                Buffer.BlockCopy(payload, 0, fullPacket, udpHeader.Length, payload.Length);
+
+                                _socket.SendTo(fullPacket, endpoint);
                             OnPacketSent(fullPacket, _params.SourceIp, _params.DestinationIp, _params.DestinationPort);
 
                             packetsSent++;
@@ -134,7 +134,7 @@ namespace Dorothy.Models
                                             rateMultiplier = (rateMultiplier * 0.85) + (newMultiplier * 0.15); // Heavy smoothing
                                         }
                                         else if (isBehindTarget)
-                                        {
+                            {
                                             // When behind target, allow faster adjustment to ramp up quickly
                                             // For high rates, use more aggressive 40/60 split; for low rates, use 50/50
                                             double smoothingFactor = targetMbps > 32 ? 0.4 : 0.5; // More aggressive for high rates
@@ -204,8 +204,8 @@ namespace Dorothy.Models
                                 if (nextPacketTime > currentTicks)
                                 {
                                     while (stopwatch.ElapsedTicks < nextPacketTime)
-                                    {
-                                        Thread.SpinWait(1);
+                                {
+                                    Thread.SpinWait(1);
                                     }
                                 }
                             }

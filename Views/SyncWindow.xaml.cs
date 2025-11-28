@@ -11,18 +11,20 @@ namespace Dorothy.Views
     public partial class SyncWindow : Window
     {
         public string? ProjectName { get; private set; }
-        public List<long> SelectedIds { get; private set; } = new();
-        public List<long> DeletedIds { get; private set; } = new();
-        public List<long> SkippedIds { get; private set; } = new();
+        public List<long> SelectedLogIds { get; private set; } = new();
+        public List<long> SelectedAssetIds { get; private set; } = new();
+        public List<long> DeletedLogIds { get; private set; } = new();
+        public List<long> DeletedAssetIds { get; private set; } = new();
         public bool ShouldSync { get; private set; }
 
         private List<LogItem> _logItems = new();
+        private List<AssetItem> _assetItems = new();
 
-        public SyncWindow(List<AttackLogEntry> logs)
+        public SyncWindow(List<AttackLogEntry> logs, List<AssetEntry> assets)
         {
             InitializeComponent();
             
-            // Convert to LogItem for binding
+            // Convert logs to LogItem for binding
             _logItems = logs.Select(log => new LogItem
             {
                 Id = log.Id,
@@ -35,8 +37,49 @@ namespace Dorothy.Views
                 IsSelected = true // Default to selected
             }).ToList();
 
+            // Convert assets to AssetItem for binding
+            _assetItems = assets.Select(asset => new AssetItem
+            {
+                Id = asset.Id,
+                HostIp = asset.HostIp,
+                HostName = asset.HostName ?? "Unknown",
+                MacAddress = asset.MacAddress ?? "Unknown",
+                Vendor = asset.Vendor ?? "Unknown",
+                IsOnline = asset.IsOnline,
+                ScanTime = asset.ScanTime,
+                IsSelected = true // Default to selected
+            }).ToList();
+
             LogsDataGrid.ItemsSource = _logItems;
-            UpdateSelectedCount();
+            AssetsDataGrid.ItemsSource = _assetItems;
+            
+            LogsCountText.Text = $"{logs.Count} pending log(s)";
+            AssetsCountText.Text = $"{assets.Count} pending asset(s)";
+            
+            UpdateSelectedCounts();
+            
+            // Hide tabs if empty
+            if (logs.Count == 0)
+            {
+                LogsTab.Visibility = Visibility.Collapsed;
+            }
+            if (assets.Count == 0)
+            {
+                AssetsTab.Visibility = Visibility.Collapsed;
+            }
+
+            // Handle window closing to persist deletions
+            this.Closing += SyncWindow_Closing;
+        }
+
+        private void SyncWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        {
+            // If user closes window (X button) and there are deletions, persist them
+            // Set DialogResult to true so MainWindow processes deletions
+            if (DeletedLogIds.Count > 0 || DeletedAssetIds.Count > 0)
+            {
+                DialogResult = true;
+            }
         }
 
         private void ProjectNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -44,33 +87,58 @@ namespace Dorothy.Views
             ProjectName = ProjectNameTextBox.Text.Trim();
         }
 
-        private void SelectAllCheckBox_Checked(object sender, RoutedEventArgs e)
+        private void SelectAllLogsCheckBox_Checked(object sender, RoutedEventArgs e)
         {
             foreach (var item in _logItems)
             {
                 item.IsSelected = true;
             }
             LogsDataGrid.Items.Refresh();
-            UpdateSelectedCount();
+            UpdateSelectedCounts();
         }
 
-        private void SelectAllCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        private void SelectAllLogsCheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
             foreach (var item in _logItems)
             {
                 item.IsSelected = false;
             }
             LogsDataGrid.Items.Refresh();
-            UpdateSelectedCount();
+            UpdateSelectedCounts();
         }
 
-        private void UpdateSelectedCount()
+        private void SelectAllAssetsCheckBox_Checked(object sender, RoutedEventArgs e)
         {
-            var selectedCount = _logItems.Count(item => item.IsSelected);
-            SelectedCountText.Text = $"{selectedCount} of {_logItems.Count} selected";
+            foreach (var item in _assetItems)
+            {
+                item.IsSelected = true;
+            }
+            AssetsDataGrid.Items.Refresh();
+            UpdateSelectedCounts();
         }
 
-        private void DeleteSelectedButton_Click(object sender, RoutedEventArgs e)
+        private void SelectAllAssetsCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            foreach (var item in _assetItems)
+            {
+                item.IsSelected = false;
+            }
+            AssetsDataGrid.Items.Refresh();
+            UpdateSelectedCounts();
+        }
+
+        private void UpdateSelectedCounts()
+        {
+            var selectedLogsCount = _logItems.Count(item => item.IsSelected);
+            var selectedAssetsCount = _assetItems.Count(item => item.IsSelected);
+            
+            SelectedLogsCountText.Text = $"{selectedLogsCount} of {_logItems.Count} selected";
+            SelectedAssetsCountText.Text = $"{selectedAssetsCount} of {_assetItems.Count} selected";
+            
+            TotalSelectedText.Text = $"{selectedLogsCount} log(s), {selectedAssetsCount} asset(s) selected";
+        }
+
+        private void DeleteSelectedLogsButton_Click(object sender, RoutedEventArgs e)
         {
             var selectedItems = _logItems.Where(item => item.IsSelected).ToList();
             if (selectedItems.Count == 0)
@@ -89,16 +157,17 @@ namespace Dorothy.Views
             {
                 foreach (var item in selectedItems)
                 {
-                    DeletedIds.Add(item.Id);
+                    DeletedLogIds.Add(item.Id);
                     _logItems.Remove(item);
                 }
                 LogsDataGrid.ItemsSource = null;
                 LogsDataGrid.ItemsSource = _logItems;
-                UpdateSelectedCount();
+                LogsCountText.Text = $"{_logItems.Count} pending log(s)";
+                UpdateSelectedCounts();
             }
         }
 
-        private void SkipSelectedButton_Click(object sender, RoutedEventArgs e)
+        private void SkipSelectedLogsButton_Click(object sender, RoutedEventArgs e)
         {
             var selectedItems = _logItems.Where(item => item.IsSelected).ToList();
             if (selectedItems.Count == 0)
@@ -109,20 +178,66 @@ namespace Dorothy.Views
 
             foreach (var item in selectedItems)
             {
-                SkippedIds.Add(item.Id);
                 item.IsSelected = false;
             }
             LogsDataGrid.Items.Refresh();
-            UpdateSelectedCount();
+            UpdateSelectedCounts();
+        }
+
+        private void DeleteSelectedAssetsButton_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedItems = _assetItems.Where(item => item.IsSelected).ToList();
+            if (selectedItems.Count == 0)
+            {
+                MessageBox.Show("No assets selected for deletion.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var result = MessageBox.Show(
+                $"Are you sure you want to delete {selectedItems.Count} asset(s)? This action cannot be undone.",
+                "Confirm Deletion",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                foreach (var item in selectedItems)
+                {
+                    DeletedAssetIds.Add(item.Id);
+                    _assetItems.Remove(item);
+                }
+                AssetsDataGrid.ItemsSource = null;
+                AssetsDataGrid.ItemsSource = _assetItems;
+                AssetsCountText.Text = $"{_assetItems.Count} pending asset(s)";
+                UpdateSelectedCounts();
+            }
+        }
+
+        private void SkipSelectedAssetsButton_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedItems = _assetItems.Where(item => item.IsSelected).ToList();
+            if (selectedItems.Count == 0)
+            {
+                MessageBox.Show("No assets selected to skip.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            foreach (var item in selectedItems)
+            {
+                item.IsSelected = false;
+            }
+            AssetsDataGrid.Items.Refresh();
+            UpdateSelectedCounts();
         }
 
         private void SyncButton_Click(object sender, RoutedEventArgs e)
         {
-            SelectedIds = _logItems.Where(item => item.IsSelected).Select(item => item.Id).ToList();
+            SelectedLogIds = _logItems.Where(item => item.IsSelected).Select(item => item.Id).ToList();
+            SelectedAssetIds = _assetItems.Where(item => item.IsSelected).Select(item => item.Id).ToList();
             
-            if (SelectedIds.Count == 0)
+            if (SelectedLogIds.Count == 0 && SelectedAssetIds.Count == 0)
             {
-                MessageBox.Show("Please select at least one log to sync.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Please select at least one log or asset to sync.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -133,8 +248,9 @@ namespace Dorothy.Views
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
+            // Even if canceling, we should persist deletions
             ShouldSync = false;
-            DialogResult = false;
+            DialogResult = true; // Changed to true so deletions are processed
             Close();
         }
     }
@@ -168,5 +284,6 @@ namespace Dorothy.Views
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
+
 }
 

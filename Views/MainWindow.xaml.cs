@@ -70,6 +70,7 @@ namespace Dorothy.Views
         // Database and Sync Services
         private readonly Services.DatabaseService _databaseService;
         private readonly Services.SupabaseSyncService _supabaseSyncService;
+        private readonly Services.ToastNotificationService _toastService;
         private System.Windows.Threading.DispatcherTimer? _syncCheckTimer;
 
         public MainWindow()
@@ -79,6 +80,7 @@ namespace Dorothy.Views
             // Initialize database and sync services first
             _databaseService = new Services.DatabaseService();
             _supabaseSyncService = new Services.SupabaseSyncService(_databaseService);
+            _toastService = new Services.ToastNotificationService(this);
             
             // Initialize logger with database service
             _attackLogger = new AttackLogger(LogTextBox, _databaseService);
@@ -102,33 +104,14 @@ namespace Dorothy.Views
             _syncCheckTimer.Tick += SyncCheckTimer_Tick;
             _syncCheckTimer.Start();
 
-            // Show disclaimer
-            var result = MessageBox.Show(
-                "DISCLAIMER:\n" +
-                "======================\n" +
-                "This is a DoS (Denial of Service) Testing Program for AUTHORIZED USE ONLY.\n" +
-                "This tool is intended solely for authorized testing in controlled environments with explicit permission.\n" +
-                "SeaNet and its affiliates assume no responsibility for any misuse, unauthorized access, or damages resulting from the use of this program.\n" +
-                "By using this program, you acknowledge that you have the necessary authorization and accept full responsibility.\n" +
-                "======================\n\n" +
-                "Do you accept these terms?",
-                "Warning",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (result == MessageBoxResult.No)
-            {
-                Close();
-                return;
-            }
-
-
-            // Initialize UI components
+            // Initialize UI components first
             PopulateNetworkInterfaces();
             PopulateAttackTypes();
             UpdateProfileSummary();
             LoadSettings();
-            _ = Task.Run(async () => await UpdateSyncStatus());
+
+            // Initialize toast notification service after UI is ready
+            Loaded += MainWindow_Loaded;
 
             AttackTypeComboBox.SelectedIndex = 0;
             AdvancedAttackTypeComboBox.SelectedIndex = 0;
@@ -136,6 +119,82 @@ namespace Dorothy.Views
             // Set placeholder text
             NoteTextBox.Text = NOTE_PLACEHOLDER;
             NoteTextBox.Foreground = SystemColors.GrayTextBrush;
+        }
+
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Initialize toast notification service after window is fully loaded
+                if (ToastContainer != null)
+                {
+                    _toastService.Initialize(ToastContainer);
+                }
+
+                // Show disclaimer after window is loaded
+                if (ShouldShowDisclaimer())
+                {
+                    var disclaimerWindow = new DisclaimerWindow
+                    {
+                        Owner = this
+                    };
+
+                    if (disclaimerWindow.ShowDialog() != true)
+                    {
+                        Close();
+                        return;
+                    }
+
+                    // Save "don't show again" preference
+                    if (disclaimerWindow.DontShowAgain)
+                    {
+                        SaveDisclaimerPreference();
+                    }
+                }
+
+                // Start sync status check
+                _ = Task.Run(async () => await UpdateSyncStatus());
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error during initialization: {ex.Message}\n\n{ex.StackTrace}", 
+                    "Initialization Error", 
+                    MessageBoxButton.OK, 
+                    MessageBoxImage.Error);
+            }
+        }
+
+        private bool ShouldShowDisclaimer()
+        {
+            try
+            {
+                var settingsDir = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "DoS SeaCure");
+                var disclaimerFile = System.IO.Path.Combine(settingsDir, "disclaimer_accepted.txt");
+                return !System.IO.File.Exists(disclaimerFile);
+            }
+            catch
+            {
+                return true; // Show disclaimer if we can't check
+            }
+        }
+
+        private void SaveDisclaimerPreference()
+        {
+            try
+            {
+                var settingsDir = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "DoS SeaCure");
+                System.IO.Directory.CreateDirectory(settingsDir);
+                var disclaimerFile = System.IO.Path.Combine(settingsDir, "disclaimer_accepted.txt");
+                System.IO.File.WriteAllText(disclaimerFile, DateTime.Now.ToString("O"));
+            }
+            catch
+            {
+                // Ignore errors saving preference
+            }
         }
 
         private void LogError(string message)
@@ -653,11 +712,6 @@ namespace Dorothy.Views
             }
         }
 
-        private async void SyncButton_Click(object sender, RoutedEventArgs e)
-        {
-            await OpenSyncDialogAsync();
-        }
-
         private async void CloudSyncButton_Click(object sender, RoutedEventArgs e)
         {
             await OpenSyncDialogAsync();
@@ -669,76 +723,125 @@ namespace Dorothy.Views
             {
                 if (!_supabaseSyncService.IsConfigured)
                 {
-                    MessageBox.Show(
-                        "Supabase is not configured. Please configure it in Settings first.",
-                        "Sync Not Configured",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
+                    _toastService.ShowWarning("Supabase is not configured. Please configure it in Settings first.");
                     return;
                 }
 
                 var unsyncedLogs = await _databaseService.GetUnsyncedLogsAsync();
-                if (unsyncedLogs.Count == 0)
+                var unsyncedAssets = await _databaseService.GetUnsyncedAssetsAsync();
+                
+                if (unsyncedLogs.Count == 0 && unsyncedAssets.Count == 0)
                 {
-                    MessageBox.Show(
-                        "No pending logs to sync.",
-                        "No Pending Syncs",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
+                    _toastService.ShowInfo("No pending logs or assets to sync.");
                     return;
                 }
 
-                var syncWindow = new SyncWindow(unsyncedLogs)
+                var syncWindow = new SyncWindow(unsyncedLogs, unsyncedAssets)
                 {
                     Owner = this
                 };
 
-                if (syncWindow.ShowDialog() == true && syncWindow.ShouldSync)
+                if (syncWindow.ShowDialog() == true)
                 {
-                    // Delete selected logs if any
-                    if (syncWindow.DeletedIds.Count > 0)
+                    CloudSyncButton.IsEnabled = false;
+                    var originalTooltip = CloudSyncButton.ToolTip;
+
+                    int syncedLogsCount = 0;
+                    int syncedAssetsCount = 0;
+                    bool hasDeletions = syncWindow.DeletedLogIds.Count > 0 || syncWindow.DeletedAssetIds.Count > 0;
+
+                    // Delete selected logs if any (always process deletions, even if not syncing)
+                    if (syncWindow.DeletedLogIds.Count > 0)
                     {
-                        await _databaseService.DeleteLogsAsync(syncWindow.DeletedIds);
-                        _attackLogger.LogInfo($"Deleted {syncWindow.DeletedIds.Count} log(s).");
+                        await _databaseService.DeleteLogsAsync(syncWindow.DeletedLogIds);
+                        _attackLogger.LogInfo($"Deleted {syncWindow.DeletedLogIds.Count} log(s).");
                     }
 
-                    // Sync selected logs
-                    if (syncWindow.SelectedIds.Count > 0)
+                    // Delete selected assets if any (always process deletions, even if not syncing)
+                    if (syncWindow.DeletedAssetIds.Count > 0)
                     {
-                        SyncButton.IsEnabled = false;
-                        SyncButton.Content = "Syncing...";
+                        await _databaseService.DeleteAssetsAsync(syncWindow.DeletedAssetIds);
+                        _attackLogger.LogInfo($"Deleted {syncWindow.DeletedAssetIds.Count} asset(s).");
+                    }
 
-                        var result = await _supabaseSyncService.SyncAsync(syncWindow.ProjectName, syncWindow.SelectedIds);
-
-                        if (result.Success)
+                    // Only sync if user clicked "Sync Selected" button
+                    if (syncWindow.ShouldSync)
+                    {
+                        // Sync selected logs
+                        if (syncWindow.SelectedLogIds.Count > 0)
                         {
-                            _attackLogger.LogSuccess(result.Message);
-                            if (result.SyncedCount > 0)
+                            var result = await _supabaseSyncService.SyncAsync(syncWindow.ProjectName, syncWindow.SelectedLogIds);
+
+                            if (result.Success)
                             {
-                                _ = Task.Run(async () => await UpdateSyncStatus());
+                                syncedLogsCount = result.SyncedCount;
+                                _attackLogger.LogSuccess(result.Message);
                             }
+                            else
+                            {
+                                _attackLogger.LogWarning(result.Message);
+                                _toastService.ShowWarning($"Log sync failed: {result.Message}");
+                            }
+                        }
+
+                        // Sync selected assets
+                        if (syncWindow.SelectedAssetIds.Count > 0)
+                        {
+                            var result = await _supabaseSyncService.SyncAssetsAsync(syncWindow.ProjectName, syncWindow.SelectedAssetIds);
+
+                            if (result.Success)
+                            {
+                                syncedAssetsCount = result.SyncedCount;
+                                _attackLogger.LogSuccess(result.Message);
+                            }
+                            else
+                            {
+                                _attackLogger.LogWarning(result.Message);
+                                _toastService.ShowWarning($"Asset sync failed: {result.Message}");
+                            }
+                        }
+
+                        // Show success message
+                        if (syncedLogsCount > 0 || syncedAssetsCount > 0)
+                        {
+                            var message = "";
+                            if (syncedLogsCount > 0 && syncedAssetsCount > 0)
+                            {
+                                message = $"Sync complete – {syncedLogsCount} log(s) and {syncedAssetsCount} asset(s) synced successfully.";
+                            }
+                            else if (syncedLogsCount > 0)
+                            {
+                                message = $"Sync complete – {syncedLogsCount} log(s) synced successfully.";
+                            }
+                            else if (syncedAssetsCount > 0)
+                            {
+                                message = $"Sync complete – {syncedAssetsCount} asset(s) synced successfully.";
+                            }
+                            _toastService.ShowSuccess(message);
                         }
                         else
                         {
-                            _attackLogger.LogWarning(result.Message);
+                            _attackLogger.LogInfo("No items selected for sync.");
                         }
-
-                        SyncButton.IsEnabled = true;
-                        SyncButton.Content = "Sync";
                     }
-                    else
+                    else if (hasDeletions)
                     {
-                        _attackLogger.LogInfo("No logs selected for sync.");
+                        // User deleted items but didn't sync - just show deletion confirmation
+                        var deletedCount = syncWindow.DeletedLogIds.Count + syncWindow.DeletedAssetIds.Count;
+                        _toastService.ShowInfo($"Deleted {deletedCount} item(s).");
                     }
 
-                    // Update sync status
+                    CloudSyncButton.IsEnabled = true;
+                    CloudSyncButton.ToolTip = originalTooltip;
+
+                    // Always update sync status after window closes (deletions or sync)
                     _ = Task.Run(async () => await UpdateSyncStatus());
                 }
             }
             catch (Exception ex)
             {
                 _attackLogger.LogError($"Sync failed: {ex.Message}");
-                MessageBox.Show($"Sync failed: {ex.Message}", "Sync Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _toastService.ShowError($"Sync failed: {ex.Message}");
             }
         }
 
@@ -751,24 +854,36 @@ namespace Dorothy.Views
         {
             try
             {
-                var pendingCount = await _supabaseSyncService.GetPendingSyncCountAsync();
+                if (!_supabaseSyncService.IsConfigured)
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        CloudSyncNotificationBadge.Visibility = Visibility.Collapsed;
+                        CloudSyncButton.ToolTip = "Cloud Sync (Not Configured)";
+                    });
+                    return;
+                }
+
+                var pendingLogsCount = await _supabaseSyncService.GetPendingSyncCountAsync();
+                var pendingAssetsCount = await _supabaseSyncService.GetPendingAssetsCountAsync();
+                var totalPending = pendingLogsCount + pendingAssetsCount;
                 
                 Dispatcher.Invoke(() =>
                 {
-                    if (pendingCount > 0)
+                    if (totalPending > 0)
                     {
-                        SyncNotificationBadge.Visibility = Visibility.Visible;
-                        SyncNotificationText.Text = pendingCount > 99 ? "99+" : pendingCount.ToString();
-                        SyncButton.ToolTip = $"{pendingCount} log(s) pending sync";
                         CloudSyncNotificationBadge.Visibility = Visibility.Visible;
-                        CloudSyncButton.ToolTip = $"{pendingCount} log(s) pending sync - Click to sync";
+                        CloudSyncNotificationText.Text = totalPending > 99 ? "99+" : totalPending.ToString();
+                        
+                        var tooltipParts = new List<string>();
+                        if (pendingLogsCount > 0) tooltipParts.Add($"{pendingLogsCount} log(s)");
+                        if (pendingAssetsCount > 0) tooltipParts.Add($"{pendingAssetsCount} asset(s)");
+                        CloudSyncButton.ToolTip = $"{string.Join(", ", tooltipParts)} pending sync - Click to sync";
                     }
                     else
                     {
-                        SyncNotificationBadge.Visibility = Visibility.Collapsed;
-                        SyncButton.ToolTip = "Sync attack logs to cloud";
                         CloudSyncNotificationBadge.Visibility = Visibility.Collapsed;
-                        CloudSyncButton.ToolTip = "Cloud Sync";
+                        CloudSyncButton.ToolTip = "Cloud Sync (No pending items)";
                     }
                 });
             }
@@ -2944,7 +3059,7 @@ namespace Dorothy.Views
 
                 // Open network scan window
                 var networkScan = new NetworkScan(_attackLogger);
-                var scanWindow = new NetworkScanWindow(networkScan, _attackLogger);
+                var scanWindow = new NetworkScanWindow(networkScan, _attackLogger, _databaseService, _supabaseSyncService);
                 scanWindow.Owner = this;
                 scanWindow.Show();
 

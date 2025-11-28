@@ -58,6 +58,21 @@ namespace Dorothy.Services
                         SyncedAt TEXT,
                         IsSynced INTEGER NOT NULL DEFAULT 0
                     );
+                    
+                    CREATE TABLE IF NOT EXISTS Assets (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        HostIp TEXT NOT NULL,
+                        HostName TEXT,
+                        MacAddress TEXT,
+                        Vendor TEXT,
+                        IsOnline INTEGER NOT NULL DEFAULT 0,
+                        PingTime INTEGER,
+                        ScanTime TEXT NOT NULL,
+                        ProjectName TEXT,
+                        Synced INTEGER NOT NULL DEFAULT 0,
+                        CreatedAt TEXT NOT NULL,
+                        SyncedAt TEXT
+                    );
                 ";
                 command.ExecuteNonQuery();
                 Logger.Info("Database initialized successfully");
@@ -244,6 +259,184 @@ namespace Dorothy.Services
                 Logger.Error(ex, "Failed to get unsynced count");
                 return 0;
             }
+        }
+
+        public async Task<long> SaveAssetAsync(AssetEntry asset)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    INSERT INTO Assets 
+                    (HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, CreatedAt, Synced)
+                    VALUES 
+                    (@HostIp, @HostName, @MacAddress, @Vendor, @IsOnline, @PingTime, @ScanTime, @ProjectName, @CreatedAt, 0);
+                    SELECT last_insert_rowid();
+                ";
+
+                command.Parameters.AddWithValue("@HostIp", asset.HostIp);
+                command.Parameters.AddWithValue("@HostName", asset.HostName ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@MacAddress", asset.MacAddress ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@Vendor", asset.Vendor ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@IsOnline", asset.IsOnline ? 1 : 0);
+                command.Parameters.AddWithValue("@PingTime", asset.PingTime ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@ScanTime", asset.ScanTime.ToString("O"));
+                command.Parameters.AddWithValue("@ProjectName", asset.ProjectName ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@CreatedAt", asset.CreatedAt.ToString("O"));
+
+                var result = await command.ExecuteScalarAsync();
+                return Convert.ToInt64(result);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to save asset");
+                throw;
+            }
+        }
+
+        public async Task<List<AssetEntry>> GetUnsyncedAssetsAsync(List<long>? selectedIds = null)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                string query = @"
+                    SELECT Id, HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, Synced, CreatedAt, SyncedAt
+                    FROM Assets
+                    WHERE Synced = 0";
+                
+                if (selectedIds != null && selectedIds.Count > 0)
+                {
+                    var ids = string.Join(",", selectedIds);
+                    query += $" AND Id IN ({ids})";
+                }
+                
+                query += " ORDER BY CreatedAt ASC";
+                
+                command.CommandText = query;
+
+                var assets = new List<AssetEntry>();
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    assets.Add(MapReaderToAsset(reader));
+                }
+
+                return assets;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to get unsynced assets");
+                throw;
+            }
+        }
+
+        public async Task MarkAssetsAsSyncedAsync(IEnumerable<long> ids, DateTime syncedAt)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var idsList = ids.ToList();
+                if (idsList.Count == 0) return;
+
+                var placeholders = string.Join(",", idsList.Select((_, i) => $"@Id{i}"));
+                var command = connection.CreateCommand();
+                command.CommandText = $@"
+                    UPDATE Assets
+                    SET Synced = 1, SyncedAt = @SyncedAt
+                    WHERE Id IN ({placeholders})
+                ";
+
+                command.Parameters.AddWithValue("@SyncedAt", syncedAt.ToString("O"));
+                for (int i = 0; i < idsList.Count; i++)
+                {
+                    command.Parameters.AddWithValue($"@Id{i}", idsList[i]);
+                }
+
+                await command.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to mark assets as synced");
+                throw;
+            }
+        }
+
+        public async Task DeleteAssetsAsync(IEnumerable<long> ids)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var idsList = ids.ToList();
+                if (idsList.Count == 0) return;
+
+                var placeholders = string.Join(",", idsList.Select((_, i) => $"@Id{i}"));
+                var command = connection.CreateCommand();
+                command.CommandText = $@"
+                    DELETE FROM Assets
+                    WHERE Id IN ({placeholders})
+                ";
+
+                for (int i = 0; i < idsList.Count; i++)
+                {
+                    command.Parameters.AddWithValue($"@Id{i}", idsList[i]);
+                }
+
+                await command.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to delete assets");
+                throw;
+            }
+        }
+
+        public async Task<int> GetUnsyncedAssetsCountAsync()
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = "SELECT COUNT(*) FROM Assets WHERE Synced = 0";
+
+                var result = await command.ExecuteScalarAsync();
+                return Convert.ToInt32(result);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to get unsynced assets count");
+                return 0;
+            }
+        }
+
+        private AssetEntry MapReaderToAsset(DbDataReader reader)
+        {
+            return new AssetEntry
+            {
+                Id = reader.GetInt64(0),
+                HostIp = reader.GetString(1),
+                HostName = reader.IsDBNull(2) ? null : reader.GetString(2),
+                MacAddress = reader.IsDBNull(3) ? null : reader.GetString(3),
+                Vendor = reader.IsDBNull(4) ? null : reader.GetString(4),
+                IsOnline = reader.GetInt32(5) == 1,
+                PingTime = reader.IsDBNull(6) ? null : reader.GetInt32(6),
+                ScanTime = DateTime.Parse(reader.GetString(7)),
+                ProjectName = reader.IsDBNull(8) ? null : reader.GetString(8),
+                Synced = reader.GetInt32(9) == 1,
+                CreatedAt = DateTime.Parse(reader.GetString(10)),
+                SyncedAt = reader.IsDBNull(11) ? null : DateTime.Parse(reader.GetString(11))
+            };
         }
 
         private AttackLogEntry MapReaderToEntry(DbDataReader reader)

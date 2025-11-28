@@ -72,7 +72,7 @@ namespace Dorothy.Models
                 while (!_cancellationToken.IsCancellationRequested)
                 {
                     long currentTicks = stopwatch.ElapsedTicks;
-                    
+                        
                     // Wait until it's time to send the next packet
                     if (currentTicks < nextPacketTime)
                     {
@@ -99,9 +99,9 @@ namespace Dorothy.Models
                     
                     // Regenerate packet periodically for randomization
                     if (packetsSent % 1000 == 0)
-                    {
+                        {
                         packetPool[poolIndex] = CreateTcpSynPacket();
-                    }
+                        }
                     
                     poolIndex = (poolIndex + 1) % MICRO_BATCH_SIZE;
 

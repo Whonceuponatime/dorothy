@@ -43,7 +43,7 @@
     </PropertyGroup>
     
     <!-- Publish to get self-contained executable (all DLLs must be in same folder as exe for WPF apps) -->
-    <Exec Command="dotnet publish -c Release --no-build -r win-x64 --self-contained true -p:PublishSingleFile=false" 
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release --no-build -r win-x64 --self-contained true -p:PublishSingleFile=false" 
           ContinueOnError="false" />
     
     <!-- Create directory -->

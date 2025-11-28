@@ -65,7 +65,8 @@
                     </Grid>
                     <TextBlock Text="Default: Application installation directory"
                                FontSize="11"
-                               Foreground="#6B7280"
+                               FontStyle="Italic"
+                               Foreground="#9CA3AF"
                                Margin="0,4,0,0"/>
                 </StackPanel>
             </Border>
@@ -130,11 +131,11 @@
                     <TextBlock Text="Configure Supabase to enable cloud sync of attack logs. Leave empty to use offline mode only."
                                FontSize="11"
                                Foreground="#6B7280"
-                               Margin="0,0,0,12"
+                               Margin="0,0,0,16"
                                TextWrapping="Wrap"/>
                     
                     <!-- Supabase URL -->
-                    <StackPanel Margin="0,0,0,12">
+                    <StackPanel Margin="0,0,0,16">
                         <TextBlock Text="Supabase URL"
                                    FontSize="12"
                                    Foreground="#374151"
@@ -148,25 +149,59 @@
                                  TextChanged="SupabaseUrlTextBox_TextChanged"/>
                         <TextBlock Text="Example: https://your-project.supabase.co"
                                    FontSize="10"
+                                   FontStyle="Italic"
                                    Foreground="#9CA3AF"
                                    Margin="0,2,0,0"/>
                     </StackPanel>
 
                     <!-- Supabase Anon Key -->
-                    <StackPanel Margin="0,0,0,12">
+                    <StackPanel Margin="0,0,0,16">
                         <TextBlock Text="Supabase Anon Key"
                                    FontSize="12"
                                    Foreground="#374151"
                                    Margin="0,0,0,4"/>
-                        <PasswordBox x:Name="SupabaseAnonKeyTextBox"
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <PasswordBox x:Name="SupabaseAnonKeyPasswordBox"
+                                         Grid.Column="0"
+                                         Height="32"
+                                         Padding="8,6"
+                                         BorderBrush="#D1D5DB"
+                                         BorderThickness="1"
+                                         Background="White"
+                                         PasswordChanged="SupabaseAnonKeyTextBox_PasswordChanged"
+                                         Margin="0,0,8,0"/>
+                            <TextBox x:Name="SupabaseAnonKeyTextBox"
+                                     Grid.Column="0"
                                      Height="32"
                                      Padding="8,6"
                                      BorderBrush="#D1D5DB"
                                      BorderThickness="1"
                                      Background="White"
-                                     PasswordChanged="SupabaseAnonKeyTextBox_PasswordChanged"/>
+                                     TextChanged="SupabaseAnonKeyTextBox_TextChanged"
+                                     Margin="0,0,8,0"
+                                     Visibility="Collapsed"/>
+                            <Button x:Name="TogglePasswordVisibilityButton"
+                                    Grid.Column="1"
+                                    Width="32"
+                                    Height="32"
+                                    Padding="0"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    Click="TogglePasswordVisibilityButton_Click"
+                                    ToolTip="Show/Hide API Key">
+                                <TextBlock Text="👁"
+                                           FontSize="14"
+                                           Foreground="#6B7280"/>
+                            </Button>
+                        </Grid>
                         <TextBlock Text="Your Supabase project's anonymous key"
                                    FontSize="10"
+                                   FontStyle="Italic"
                                    Foreground="#9CA3AF"
                                    Margin="0,2,0,0"/>
                     </StackPanel>
@@ -175,21 +210,31 @@
                     <Button x:Name="TestConnectionButton"
                             Content="Test Connection"
                             Width="140"
-                            Height="36"
+                            Height="32"
                             HorizontalAlignment="Left"
                             Click="TestConnectionButton_Click"
-                            Background="#2563EB"
-                            Foreground="White"
-                            BorderThickness="0"
+                            BorderBrush="#D1D5DB"
+                            BorderThickness="1"
+                            Background="White"
+                            Foreground="#374151"
                             Cursor="Hand">
                         <Button.Style>
                             <Style TargetType="Button">
+                                <Setter Property="FontSize" Value="14"/>
+                                <Setter Property="Padding" Value="12,6"/>
+                                <Setter Property="Background" Value="White"/>
+                                <Setter Property="Foreground" Value="#374151"/>
+                                <Setter Property="BorderBrush" Value="#D1D5DB"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                                <Setter Property="Cursor" Value="Hand"/>
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="Button">
                                             <Border Background="{TemplateBinding Background}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
                                                     CornerRadius="6"
-                                                    Padding="12,8">
+                                                    Padding="12,6">
                                                 <ContentPresenter HorizontalAlignment="Center"
                                                                   VerticalAlignment="Center"/>
                                             </Border>
@@ -198,7 +243,8 @@
                                 </Setter>
                                 <Style.Triggers>
                                     <Trigger Property="IsEnabled" Value="False">
-                                        <Setter Property="Background" Value="#9CA3AF"/>
+                                        <Setter Property="Background" Value="#F3F4F6"/>
+                                        <Setter Property="Foreground" Value="#9CA3AF"/>
                                     </Trigger>
                                 </Style.Triggers>
                             </Style>

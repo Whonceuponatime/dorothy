@@ -50,13 +50,30 @@ CREATE INDEX IF NOT EXISTS idx_attack_logs_start_time ON public.attack_logs USIN
 ALTER TABLE public.assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attack_logs ENABLE ROW LEVEL SECURITY;
 
--- Example policy: Allow anonymous inserts (adjust based on your security requirements)
+-- Drop existing policies if they exist, then create new ones
+DROP POLICY IF EXISTS "Allow anonymous inserts to assets" ON public.assets;
+DROP POLICY IF EXISTS "Allow anonymous selects from assets" ON public.assets;
+DROP POLICY IF EXISTS "Allow anonymous inserts to attack_logs" ON public.attack_logs;
+DROP POLICY IF EXISTS "Allow anonymous selects from attack_logs" ON public.attack_logs;
+
+-- Policies for assets table: Allow anonymous inserts and selects
 CREATE POLICY "Allow anonymous inserts to assets" ON public.assets
     FOR INSERT
     TO anon
     WITH CHECK (true);
 
+CREATE POLICY "Allow anonymous selects from assets" ON public.assets
+    FOR SELECT
+    TO anon
+    USING (true);
+
+-- Policies for attack_logs table: Allow anonymous inserts and selects
 CREATE POLICY "Allow anonymous inserts to attack_logs" ON public.attack_logs
     FOR INSERT
     TO anon
     WITH CHECK (true);
+
+CREATE POLICY "Allow anonymous selects from attack_logs" ON public.attack_logs
+    FOR SELECT
+    TO anon
+    USING (true);

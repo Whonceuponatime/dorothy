@@ -143,6 +143,12 @@
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        
+        <!-- Main Content -->
+        <Grid Grid.Row="0">
+        <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>  <!-- Header -->
             <RowDefinition Height="*"/>     <!-- Main content -->
         </Grid.RowDefinitions>
@@ -268,20 +274,30 @@
                             ToolTip="Cloud Sync"
                             Click="CloudSyncButton_Click"
                             Margin="0,0,4,0">
-                        <StackPanel>
+                        <Grid>
                             <TextBlock Text="☁"
                                        FontSize="20"
                                        Foreground="#6B7280"/>
                             <Border x:Name="CloudSyncNotificationBadge"
                                     Background="#EF4444"
-                                    CornerRadius="6"
-                                    Width="10"
-                                    Height="10"
+                                    CornerRadius="10"
+                                    MinWidth="18"
+                                    Height="18"
                                     HorizontalAlignment="Right"
                                     VerticalAlignment="Top"
-                                    Margin="0,-4,0,0"
-                                    Visibility="Collapsed"/>
-                        </StackPanel>
+                                    Margin="0,-6,-6,0"
+                                    Padding="4,2"
+                                    Visibility="Collapsed">
+                                <TextBlock x:Name="CloudSyncNotificationText"
+                                           Text="0"
+                                           Foreground="White"
+                                           FontSize="10"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Margin="0"/>
+                            </Border>
+                        </Grid>
                     </Button>
                     <Button x:Name="SettingsButton"
                             Width="40"
@@ -879,31 +895,6 @@
                            Margin="0,0,16,0"
                            VerticalAlignment="Center"
                            Foreground="#111827"/>
-                <Button x:Name="SyncButton"
-                        Content="Sync"
-                        Width="80"
-                        Height="32"
-                        VerticalAlignment="Center"
-                        Margin="0,0,8,0"
-                        Style="{StaticResource DefaultButton}"
-                        Click="SyncButton_Click"
-                        ToolTip="Sync attack logs to cloud"/>
-                <Border x:Name="SyncNotificationBadge"
-                        Background="#EF4444"
-                        CornerRadius="10"
-                        Width="20"
-                        Height="20"
-                        VerticalAlignment="Center"
-                        Margin="0,0,8,0"
-                        Visibility="Collapsed">
-                    <TextBlock x:Name="SyncNotificationText"
-                               Text="0"
-                               Foreground="White"
-                               FontSize="10"
-                               FontWeight="Bold"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
-                </Border>
                 <Button x:Name="TaskManagerButton"
                         Content="Task Manager"
                         Width="120"
@@ -994,5 +985,14 @@
             </Border>
         </Grid>
         </Grid>
+        </Grid>
+        
+        <!-- Toast Container -->
+        <StackPanel x:Name="ToastContainer"
+                    Grid.Row="0"
+                    VerticalAlignment="Top"
+                    HorizontalAlignment="Right"
+                    Margin="0,20,20,0"
+                    Panel.ZIndex="9999"/>
     </Grid>
 </Window> 

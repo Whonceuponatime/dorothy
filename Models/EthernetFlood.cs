@@ -98,18 +98,18 @@ namespace Dorothy.Models
                         {
                             // Send packet immediately - no waiting when trying to achieve target rate
                             
-                            // Regenerate packet periodically for randomization
-                            if (poolIndex % 100 == 0)
-                            {
+                                // Regenerate packet periodically for randomization
+                                if (poolIndex % 100 == 0)
+                                {
                                 packetPool[poolIndex] = CreatePacket();
-                            }
-                            
+                                }
+                                
                             // Send single packet
                             var packet = packetPool[poolIndex];
                             _device.SendPacket(packet);
                             var packetBytes = packet.Bytes;
                             OnPacketSent(packetBytes, _parameters.SourceIp, _parameters.DestinationIp, _parameters.DestinationPort);
-                            packetsSent++;
+                                packetsSent++;
                             poolIndex = (poolIndex + 1) % MICRO_BATCH_SIZE;
 
                             // Measure actual rate and adjust multiplier frequently
@@ -192,7 +192,7 @@ namespace Dorothy.Models
                                 adjustedPacketsPerSecond = basePacketsPerSecond;
                             }
                             else if (packetsSent >= measurementInterval && rateMultiplier > 0)
-                            {
+                                {
                                 // Apply multiplier to compensate for overhead
                                 // For very high rates, allow up to 8.0x multiplier; for high rates 6.0x; for low rates, cap lower to respect target
                                 double maxMultiplier = targetMbps > 100 ? 8.0 : (targetMbps > 64 ? 6.0 : (targetMbps > 32 ? 5.0 : (targetMbps > 10 ? 3.0 : 1.5))); // More aggressive for high rates
@@ -204,8 +204,8 @@ namespace Dorothy.Models
                                 // Low rates: use 1.0x (no overshoot), Medium: 1.8x, High rates: 3.5x, Very high: 4.0x for faster ramp-up
                                 double initialMultiplier = targetMbps > 100 ? 4.0 : (targetMbps > 64 ? 3.5 : (targetMbps > 32 ? 2.5 : (targetMbps > 10 ? 1.8 : 1.0)));
                                 adjustedPacketsPerSecond = basePacketsPerSecond * initialMultiplier;
-                            }
-                            
+                                }
+                                
                             // Always apply delay based on adjusted rate to respect target Mbps
                             double microsecondsPerPacket = 1_000_000.0 / adjustedPacketsPerSecond;
                             long ticksPerPacket = (long)(microsecondsPerPacket * Stopwatch.Frequency / 1_000_000.0);
@@ -219,11 +219,11 @@ namespace Dorothy.Models
                                 if (nextPacketTime > currentTicks)
                                 {
                                     while (stopwatch.ElapsedTicks < nextPacketTime)
-                                    {
-                                        if (_cancellationToken.IsCancellationRequested) return;
+                                {
+                                    if (_cancellationToken.IsCancellationRequested) return;
                                         Thread.SpinWait(1);
-                                    }
                                 }
+                            }
                             }
                         }
                         catch (Exception ex)

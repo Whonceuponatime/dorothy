@@ -162,7 +162,7 @@
       "code": "NU1903",
       "level": "Warning",
       "warningLevel": 1,
-      "message": "Package 'System.IO.Packaging' 6.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-f32c-w444-8ppv",
+      "message": "'System.IO.Packaging' 6.0.0 패키지에 알려진 높은 심각도 취약성인 https://github.com/advisories/GHSA-f32c-w444-8ppv이(가) 있습니다.",
       "libraryId": "System.IO.Packaging",
       "targetGraphs": [
         "net8.0-windows7.0",
@@ -173,7 +173,7 @@
       "code": "NU1903",
       "level": "Warning",
       "warningLevel": 1,
-      "message": "Package 'System.IO.Packaging' 6.0.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-qj66-m88j-hmgj",
+      "message": "'System.IO.Packaging' 6.0.0 패키지에 알려진 높은 심각도 취약성인 https://github.com/advisories/GHSA-qj66-m88j-hmgj이(가) 있습니다.",
       "libraryId": "System.IO.Packaging",
       "targetGraphs": [
         "net8.0-windows7.0",
@@ -184,7 +184,7 @@
       "code": "NU1903",
       "level": "Warning",
       "warningLevel": 1,
-      "message": "Package 'System.Private.Uri' 4.3.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-5f2m-466j-3848",
+      "message": "'System.Private.Uri' 4.3.0 패키지에 알려진 높은 심각도 취약성인 https://github.com/advisories/GHSA-5f2m-466j-3848이(가) 있습니다.",
       "libraryId": "System.Private.Uri",
       "targetGraphs": [
         "net8.0-windows7.0/win-x64"
@@ -194,7 +194,7 @@
       "code": "NU1902",
       "level": "Warning",
       "warningLevel": 1,
-      "message": "Package 'System.Private.Uri' 4.3.0 has a known moderate severity vulnerability, https://github.com/advisories/GHSA-x5qj-9vmx-7g6g",
+      "message": "'System.Private.Uri' 4.3.0 패키지에 알려진 보통 심각도 취약성인 https://github.com/advisories/GHSA-x5qj-9vmx-7g6g이(가) 있습니다.",
       "libraryId": "System.Private.Uri",
       "targetGraphs": [
         "net8.0-windows7.0/win-x64"
@@ -204,7 +204,7 @@
       "code": "NU1903",
       "level": "Warning",
       "warningLevel": 1,
-      "message": "Package 'System.Private.Uri' 4.3.0 has a known high severity vulnerability, https://github.com/advisories/GHSA-xhfc-gr8f-ffwc",
+      "message": "'System.Private.Uri' 4.3.0 패키지에 알려진 높은 심각도 취약성인 https://github.com/advisories/GHSA-xhfc-gr8f-ffwc이(가) 있습니다.",
       "libraryId": "System.Private.Uri",
       "targetGraphs": [
         "net8.0-windows7.0/win-x64"

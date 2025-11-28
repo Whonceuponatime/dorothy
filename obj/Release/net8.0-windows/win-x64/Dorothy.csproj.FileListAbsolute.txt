@@ -1011,3 +1011,7 @@ C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\bin\Release\net8.0-w
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\bin\Release\net8.0-windows\win-x64\System.Reactive.dll
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\bin\Release\net8.0-windows\win-x64\Websocket.Client.dll
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\bin\Release\net8.0-windows\win-x64\e_sqlite3.dll
+C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\obj\Release\net8.0-windows\win-x64\Views\DisclaimerWindow.baml
+C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\obj\Release\net8.0-windows\win-x64\Views\DisclaimerWindow.g.cs
+C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\obj\Release\net8.0-windows\win-x64\Views\AssetSyncWindow.g.cs
+C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\obj\Release\net8.0-windows\win-x64\Views\AssetSyncWindow.baml

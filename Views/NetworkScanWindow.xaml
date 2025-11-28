@@ -17,15 +17,285 @@
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,16">
-            <TextBlock Text="Network Scan Results" 
-                       FontSize="20" 
-                       FontWeight="Bold" 
-                       Foreground="#111827"
-                       Margin="0,0,0,8"/>
-            <TextBlock x:Name="StatusTextBlock"
-                       Text="Scanning network..."
-                       FontSize="12"
-                       Foreground="#6B7280"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBlock Text="Network Scan Results" 
+                           FontSize="20" 
+                           FontWeight="Bold" 
+                           Foreground="#111827"
+                           VerticalAlignment="Center"
+                           Margin="0,0,12,0"/>
+                <!-- Animated Loading Indicator -->
+                <Border x:Name="LoadingIndicator"
+                        Width="20"
+                        Height="20"
+                        Visibility="Collapsed">
+                    <Border.RenderTransform>
+                        <RotateTransform/>
+                    </Border.RenderTransform>
+                    <Ellipse Fill="#2563EB" Opacity="0.6">
+                        <Ellipse.Triggers>
+                            <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard RepeatBehavior="Forever">
+                                        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                         From="0" To="360" Duration="0:0:1"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </Ellipse.Triggers>
+                    </Ellipse>
+                </Border>
+            </StackPanel>
+            
+            <!-- Scan Range Configuration -->
+            <Border Background="White"
+                    BorderBrush="#E5E7EB"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16"
+                    Margin="0,0,0,12"
+                    x:Name="RangeConfigPanel">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Scan Range Configuration"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="#111827"
+                                   Grid.Column="0"/>
+                        
+                        <!-- Scan Mode Selection -->
+                        <StackPanel Orientation="Horizontal"
+                                    Grid.Column="1"
+                                    Margin="12,0,0,0">
+                            <TextBlock Text="Scan Mode:"
+                                       FontSize="12"
+                                       Foreground="#6B7280"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"/>
+                            <RadioButton x:Name="SimpleScanRadioButton"
+                                         Content="Simple"
+                                         IsChecked="True"
+                                         GroupName="ScanMode"
+                                         FontSize="12"
+                                         Foreground="#374151"
+                                         Margin="0,0,12,0"
+                                         VerticalAlignment="Center"/>
+                            <RadioButton x:Name="IntenseScanRadioButton"
+                                         Content="Intense (Ports + Banners)"
+                                         GroupName="ScanMode"
+                                         FontSize="12"
+                                         Foreground="#374151"
+                                         VerticalAlignment="Center"
+                                         ToolTip="Scans common ports and grabs service banners. Takes longer but provides detailed information."/>
+                        </StackPanel>
+                    </Grid>
+                    
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        
+                        <!-- Start IP -->
+                        <TextBlock Text="Start IP:"
+                                   FontSize="12"
+                                   Foreground="#374151"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"
+                                   Grid.Row="0" Grid.Column="0"/>
+                        <TextBox x:Name="StartIpTextBox"
+                                 Grid.Row="0" Grid.Column="1"
+                                 Height="32"
+                                 Padding="8,6"
+                                 BorderBrush="#D1D5DB"
+                                 BorderThickness="1"
+                                 Background="White"
+                                 FontSize="12"
+                                 Margin="0,0,12,0"/>
+                        
+                        <!-- End IP -->
+                        <TextBlock Text="End IP:"
+                                   FontSize="12"
+                                   Foreground="#374151"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"
+                                   Grid.Row="0" Grid.Column="2"/>
+                        <TextBox x:Name="EndIpTextBox"
+                                 Grid.Row="0" Grid.Column="3"
+                                 Height="32"
+                                 Padding="8,6"
+                                 BorderBrush="#D1D5DB"
+                                 BorderThickness="1"
+                                 Background="White"
+                                 FontSize="12"
+                                 Margin="0,0,12,0"/>
+                        
+                        <!-- Scan Button -->
+                        <Button x:Name="StartScanButton"
+                                Content="Start Scan"
+                                Grid.Row="0" Grid.Column="4"
+                                Width="100"
+                                Height="32"
+                                Click="StartScanButton_Click"
+                                Background="#111827"
+                                Foreground="White"
+                                BorderThickness="0"
+                                Cursor="Hand">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                                        CornerRadius="6"
+                                                        Padding="12,8">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        
+                        <!-- Quick Range Options -->
+                        <StackPanel Orientation="Horizontal"
+                                    Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5"
+                                    Margin="0,8,0,0">
+                            <TextBlock Text="Quick ranges:"
+                                       FontSize="11"
+                                       Foreground="#6B7280"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"/>
+                            <Button Content="Full Network"
+                                    Height="24"
+                                    Padding="8,4"
+                                    FontSize="11"
+                                    Click="QuickRangeButton_Click"
+                                    Tag="full"
+                                    Margin="0,0,4,0"
+                                    Background="White"
+                                    BorderBrush="#D1D5DB"
+                                    BorderThickness="1"
+                                    Foreground="#374151"
+                                    Cursor="Hand"/>
+                            <Button Content="192.168.1.1-254"
+                                    Height="24"
+                                    Padding="8,4"
+                                    FontSize="11"
+                                    Click="QuickRangeButton_Click"
+                                    Tag="192.168.1"
+                                    Margin="0,0,4,0"
+                                    Background="White"
+                                    BorderBrush="#D1D5DB"
+                                    BorderThickness="1"
+                                    Foreground="#374151"
+                                    Cursor="Hand"/>
+                            <Button Content="192.168.0.1-254"
+                                    Height="24"
+                                    Padding="8,4"
+                                    FontSize="11"
+                                    Click="QuickRangeButton_Click"
+                                    Tag="192.168.0"
+                                    Margin="0,0,4,0"
+                                    Background="White"
+                                    BorderBrush="#D1D5DB"
+                                    BorderThickness="1"
+                                    Foreground="#374151"
+                                    Cursor="Hand"/>
+                            <Button Content="10.0.0.1-254"
+                                    Height="24"
+                                    Padding="8,4"
+                                    FontSize="11"
+                                    Click="QuickRangeButton_Click"
+                                    Tag="10.0.0"
+                                    Margin="0,0,4,0"
+                                    Background="White"
+                                    BorderBrush="#D1D5DB"
+                                    BorderThickness="1"
+                                    Foreground="#374151"
+                                    Cursor="Hand"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+            
+            <!-- Progress Section -->
+            <Border Background="White"
+                    BorderBrush="#E5E7EB"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16"
+                    Margin="0,0,0,8">
+                <StackPanel>
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="StatusTextBlock"
+                                   Text="Initializing scan..."
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="#111827"
+                                   Grid.Column="0"/>
+                        <TextBlock x:Name="ProgressTextBlock"
+                                   Text="0 / 0"
+                                   FontSize="12"
+                                   Foreground="#6B7280"
+                                   Grid.Column="1"
+                                   Margin="12,0,0,0"/>
+                    </Grid>
+                    
+                    <!-- Progress Bar -->
+                    <ProgressBar x:Name="ScanProgressBar"
+                                 Height="8"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Value="0"
+                                 Foreground="#2563EB"
+                                 Background="#E5E7EB"
+                                 BorderThickness="0"
+                                 Margin="0,0,0,4"/>
+                    
+                    <!-- Current IP Being Scanned -->
+                    <TextBlock x:Name="CurrentIpTextBlock"
+                               Text=""
+                               FontSize="11"
+                               Foreground="#9CA3AF"
+                               FontStyle="Italic"
+                               Margin="0,4,0,0"/>
+                    
+                    <!-- Found Count -->
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <TextBlock Text="Found: "
+                                   FontSize="12"
+                                   Foreground="#6B7280"/>
+                        <TextBlock x:Name="FoundCountTextBlock"
+                                   Text="0"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="#059669"
+                                   Margin="4,0,0,0"/>
+                        <TextBlock Text=" devices"
+                                   FontSize="12"
+                                   Foreground="#6B7280"
+                                   Margin="4,0,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
         </StackPanel>
 
         <!-- Results Grid -->
@@ -49,6 +319,7 @@
                     <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="120"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
                     <DataGridTextColumn Header="RTT (ms)" Binding="{Binding RoundTripTime, Converter={StaticResource NullableLongConverter}}" Width="80"/>
+                    <DataGridTextColumn Header="Open Ports" Binding="{Binding OpenPortsDisplay}" Width="*"/>
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
@@ -58,6 +329,68 @@
                     Orientation="Horizontal" 
                     HorizontalAlignment="Right"
                     Margin="0,16,0,0">
+            <Button x:Name="CancelScanButton"
+                    Content="Cancel Scan"
+                    Width="120"
+                    Height="36"
+                    Margin="0,0,12,0"
+                    Click="CancelScanButton_Click"
+                    Visibility="Collapsed"
+                    Background="#DC2626"
+                    Foreground="White"
+                    BorderThickness="0">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="6"
+                                            Padding="12,8">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button x:Name="SyncAssetsButton"
+                    Width="120"
+                    Height="36"
+                    Margin="0,0,12,0"
+                    Click="SyncAssetsButton_Click"
+                    ToolTip="Sync assets to cloud"
+                    Visibility="Collapsed">
+                <Button.Content>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="☁" 
+                                   FontSize="14"
+                                   Margin="0,0,6,0"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="Sync Assets"
+                                   VerticalAlignment="Center"/>
+                        <Border x:Name="AssetsSyncBadge"
+                                Background="#EF4444"
+                                CornerRadius="10"
+                                MinWidth="18"
+                                Height="18"
+                                Margin="6,0,0,0"
+                                Padding="4,2"
+                                Visibility="Collapsed"
+                                VerticalAlignment="Center">
+                            <TextBlock x:Name="AssetsSyncBadgeText"
+                                       Text="0"
+                                       Foreground="White"
+                                       FontSize="10"
+                                       FontWeight="Bold"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                    </StackPanel>
+                </Button.Content>
+            </Button>
             <Button x:Name="ExportExcelButton"
                     Content="Export to Excel"
                     Width="140"

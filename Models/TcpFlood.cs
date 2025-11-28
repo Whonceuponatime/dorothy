@@ -154,8 +154,8 @@ namespace Dorothy.Models
                                 }
                                 if (currentBatch >= batchSize)
                                 {
-                                    currentBatch = 0;
-                                }
+                                currentBatch = 0;
+                            }
                             }
 
                             // Measure actual rate and adjust multiplier frequently
@@ -211,7 +211,7 @@ namespace Dorothy.Models
                                         
                                         // If we've been stable for a while and close to target, reduce multiplier slightly
                                         if (stableMeasurements > 3 && Math.Abs(actualMbps - targetMbps) < targetMbps * 0.03)
-                                        {
+                            {
                                             // We're stable and close - reduce multiplier slightly to prevent overshoot
                                             rateMultiplier *= 0.98;
                                         }
@@ -233,7 +233,7 @@ namespace Dorothy.Models
                             // If we have measurements and are significantly ahead, use target rate directly
                             // Otherwise, apply multiplier to compensate for overhead
                             if (actualMbps > 0 && actualMbps > targetMbps * 1.05 && stableMeasurements >= 2)
-                            {
+                                {
                                 // We're ahead and stable - use target rate directly to maintain exact target
                                 adjustedPacketsPerSecond = targetPacketsPerSecond;
                             }
@@ -265,8 +265,8 @@ namespace Dorothy.Models
                                 if (nextPacketTime > currentTicks)
                                 {
                                     while (stopwatch.ElapsedTicks < nextPacketTime)
-                                    {
-                                        Thread.SpinWait(1);
+                                {
+                                    Thread.SpinWait(1);
                                     }
                                 }
                             }

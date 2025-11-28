@@ -1,4 +1,6 @@
 using System;
+using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 using Supabase.Postgrest.Attributes;
 using Supabase.Postgrest.Models;
 
@@ -56,10 +58,23 @@ namespace Dorothy.Models.Database
         public DateTime CreatedAt { get; set; }
 
         // Local SQLite only fields (not in Supabase)
+        // These properties must be excluded from Supabase serialization
+        // Using both JsonIgnore and IgnoreDataMember to ensure exclusion
+        [JsonIgnore]
+        [IgnoreDataMember]
         public string? Note { get; set; }
+        
+        [JsonIgnore]
+        [IgnoreDataMember]
         public string LogContent { get; set; } = string.Empty;
+        
+        [JsonIgnore]
+        [IgnoreDataMember]
         public DateTime? SyncedAt { get; set; }
-        public bool IsSynced { get; set; } // Maps to Synced in Supabase
+        
+        [JsonIgnore]
+        [IgnoreDataMember]
+        public bool IsSynced { get; set; } // Local SQLite field - use 'Synced' for Supabase
 
         public object Clone()
         {
