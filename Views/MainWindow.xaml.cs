@@ -47,7 +47,7 @@ namespace Dorothy.Views
         private DateTime _lastSubnetLogTime = DateTime.MinValue;
         private const int SUBNET_LOG_THROTTLE_MS = 1000; // Throttle duplicate messages within 1 second
         private CancellationTokenSource? _targetIpDebounceTokenSource;
-        private const string NOTE_PLACEHOLDER = "Add a note to the attack log... (Ctrl+Enter to save)";
+        private const string NOTE_PLACEHOLDER = "Add a note to the security log... (Ctrl+Enter to save)";
         private bool _isSyncingComboBoxes = false; // Flag to prevent duplicate logging when syncing comboboxes
 
         // Statistics tracking
@@ -524,39 +524,11 @@ namespace Dorothy.Views
 
         private void HelpButton_Click(object sender, RoutedEventArgs e)
         {
-            var helpText = "SEACURE(TOOL) - Network Attack Simulator\n\n" +
-                "Version: 2.1.1\n\n" +
-                "WHAT IS THIS PROGRAM?\n" +
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-                "SEACURE(TOOL) is a professional network security testing tool designed " +
-                "for authorized penetration testing and security assessment.\n\n" +
-                "PURPOSE:\n" +
-                "• Simulate various DoS (Denial of Service) attack scenarios\n" +
-                "• Test network infrastructure resilience and security\n" +
-                "• Validate firewall and intrusion detection systems\n" +
-                "• Conduct authorized security assessments in controlled environments\n\n" +
-                "FEATURES:\n" +
-                "• Multiple attack types: TCP SYN Flood, UDP Flood, ICMP Flood, ARP Spoofing\n" +
-                "• Ethernet-level attacks (Unicast, Multicast, Broadcast)\n" +
-                "• Configurable attack rates and parameters\n" +
-                "• Real-time statistics and logging\n" +
-                "• Network interface selection and gateway routing\n\n" +
-                "⚠️ WARNING:\n" +
-                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                "This tool is for AUTHORIZED TESTING ONLY.\n" +
-                "• Use only in controlled lab/test environments\n" +
-                "• Never use against production systems without explicit permission\n" +
-                "• Unauthorized use may be illegal and result in criminal charges\n" +
-                "• Users are responsible for compliance with all applicable laws\n\n" +
-                "For more information, visit:\n" +
-                "https://www.sea-net.co.kr/seacure\n\n" +
-                "Copyright(C) SeaNet Co., Ltd. All right reserved";
-
-            MessageBox.Show(
-                helpText,
-                "Help - About SEACURE(TOOL)",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            var aboutWindow = new AboutWindow
+            {
+                Owner = this
+            };
+            aboutWindow.ShowDialog();
         }
 
         private void SaveLogButton_Click(object sender, RoutedEventArgs e)
@@ -1606,8 +1578,8 @@ namespace Dorothy.Views
                         return new
                         {
                             Description = $"{n.Description} ({n.Name}) - {bandwidthDisplay}",
-                            Interface = n,
-                            IpAddress = n.GetIPProperties().UnicastAddresses
+                        Interface = n,
+                        IpAddress = n.GetIPProperties().UnicastAddresses
                                 .FirstOrDefault(a => a.Address.AddressFamily == AddressFamily.InterNetwork)?.Address,
                             MaxMbps = maxMbps,
                             BandwidthDisplay = bandwidthDisplay

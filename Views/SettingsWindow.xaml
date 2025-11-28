@@ -65,8 +65,7 @@
                                 Click="BrowseLogLocationButton_Click"/>
                     </Grid>
                     <TextBlock Text="Default: Application installation directory"
-                               FontSize="11"
-                               FontStyle="Italic"
+                               FontSize="10"
                                Foreground="#9CA3AF"
                                Margin="0,4,0,0"/>
                 </StackPanel>
@@ -150,7 +149,6 @@
                                  TextChanged="SupabaseUrlTextBox_TextChanged"/>
                         <TextBlock Text="Example: https://your-project.supabase.co"
                                    FontSize="10"
-                                   FontStyle="Italic"
                                    Foreground="#9CA3AF"
                                    Margin="0,2,0,0"/>
                     </StackPanel>

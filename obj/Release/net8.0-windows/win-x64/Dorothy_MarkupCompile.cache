@@ -10,11 +10,11 @@ none
 false
 TRACE;RELEASE;NET;NET8_0;NETCOREAPP
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\App.xaml
-7-1567037913
+8-447033648
 
-35938856757
+36402185972
 231816554195
-Views\AssetSyncWindow.xaml;Views\CustomGatewayDialog.xaml;Views\DisclaimerWindow.xaml;Views\MainWindow.xaml;Views\NetworkScanWindow.xaml;Views\SettingsWindow.xaml;Views\SyncWindow.xaml;
+Views\AboutWindow.xaml;Views\AssetSyncWindow.xaml;Views\CustomGatewayDialog.xaml;Views\DisclaimerWindow.xaml;Views\MainWindow.xaml;Views\NetworkScanWindow.xaml;Views\SettingsWindow.xaml;Views\SyncWindow.xaml;
 
 False
 

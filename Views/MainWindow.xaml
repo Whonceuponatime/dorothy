@@ -150,7 +150,7 @@
         <!-- Main Content -->
         <Grid Grid.Row="0">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>  <!-- Header -->
+            <RowDefinition Height="Auto" MinHeight="60"/>  <!-- Header -->
             <RowDefinition Height="*"/>     <!-- Main content -->
         </Grid.RowDefinitions>
 
@@ -186,8 +186,9 @@
                     <TextBlock Text="Network Attack Simulator"
                                FontSize="18"
                                FontWeight="Bold"
-                               Foreground="#111827"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                               Foreground="#111827"
+                               Margin="0,0,0,2"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
                         <TextBlock Text="Cyber Security Solution by SEANET"
                                    FontSize="12"
                                    Foreground="#6B7280"
@@ -247,8 +248,14 @@
                                    FontWeight="SemiBold"
                                    Foreground="#111827"/>
                     </StackPanel>
+                    <!-- Separator between real-time stats and Profile -->
+                    <Border Width="1" 
+                            Height="32" 
+                            Background="#E5E7EB" 
+                            Margin="8,0,8,0"
+                            VerticalAlignment="Center"/>
                     <!-- PROFILE SUMMARY -->
-                    <StackPanel Orientation="Vertical" Margin="16,0,0,0">
+                    <StackPanel Orientation="Vertical" Margin="0,0,0,0">
                         <TextBlock Text="Profile"
                                    FontSize="10"
                                    Foreground="#6B7280"

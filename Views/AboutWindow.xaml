@@ -1,0 +1,146 @@
+<Window x:Class="Dorothy.Views.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="About SEACURE(TOOL)" 
+        Icon="pack://application:,,,/Resources/icon.ico"
+        Height="500" 
+        Width="600"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#F3F4F6"
+        ShowInTaskbar="False">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock Text="About SEACURE(TOOL)"
+                       FontSize="22"
+                       FontWeight="Bold"
+                       Foreground="#111827"
+                       Margin="0,0,0,8"/>
+        </StackPanel>
+
+        <!-- Content Card -->
+        <Border Grid.Row="1"
+                Background="White"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="20">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <!-- Product Name and Version -->
+                    <TextBlock x:Name="ProductVersionText"
+                               Text="SEACURE(TOOL) - Version 2.1.1"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#111827"
+                               Margin="0,0,0,12"/>
+
+                    <!-- Description -->
+                    <TextBlock Text="SEACURE(TOOL) is a professional network security testing tool designed for authorized penetration testing and security assessment."
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,20"
+                               LineHeight="20"/>
+
+                    <!-- Features -->
+                    <TextBlock Text="Features:"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#374151"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Text="• Multiple attack types: TCP SYN Flood, UDP Flood, ICMP Flood, ARP Spoofing&#x0a;• Ethernet-level attacks (Unicast, Multicast, Broadcast)&#x0a;• Configurable attack rates and parameters&#x0a;• Real-time statistics and logging&#x0a;• Network interface selection and gateway routing&#x0a;• Network scanning and asset inventory&#x0a;• Cloud sync with Supabase&#x0a;• Security logs with export capabilities"
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,20"
+                               LineHeight="20"/>
+
+                    <!-- Authorized Use Reminder -->
+                    <Border Background="#FEF3C7"
+                            BorderBrush="#FDE68A"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="0,8,0,0">
+                        <TextBlock Text="⚠️ Authorized Use Only&#x0a;This tool is for AUTHORIZED TESTING ONLY. Use only in controlled lab/test environments. Unauthorized use may be illegal and result in disciplinary or legal action."
+                                   FontSize="11"
+                                   Foreground="#92400E"
+                                   TextWrapping="Wrap"
+                                   LineHeight="18"/>
+                    </Border>
+
+                    <!-- Website Link -->
+                    <TextBlock Margin="0,20,0,0">
+                        <Run Text="For more information, visit: " 
+                             FontSize="12" 
+                             Foreground="#6B7280"/>
+                        <Hyperlink x:Name="WebsiteLink"
+                                   NavigateUri="https://www.sea-net.co.kr/seacure"
+                                   FontSize="12"
+                                   Foreground="#2563EB"
+                                   RequestNavigate="WebsiteLink_RequestNavigate">
+                            <Run Text="https://www.sea-net.co.kr/seacure"/>
+                        </Hyperlink>
+                    </TextBlock>
+
+                    <!-- Copyright -->
+                    <TextBlock Text="Copyright(C) SeaNet Co., Ltd. All right reserved"
+                               FontSize="11"
+                               Foreground="#9CA3AF"
+                               Margin="0,16,0,0"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Footer with Close Button -->
+        <StackPanel Grid.Row="2" Margin="0,20,0,0">
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <Button x:Name="CloseButton"
+                        Content="Close"
+                        Width="100"
+                        Height="36"
+                        Click="CloseButton_Click"
+                        Background="#111827"
+                        Foreground="White"
+                        BorderThickness="0"
+                        Cursor="Hand">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                CornerRadius="6"
+                                                Padding="12,8">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#1F2937"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter Property="Background" Value="#0F172A"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Window>
+

@@ -13,6 +13,14 @@
         MinWidth="900"
         Background="#F3F4F6">
     <Grid Margin="16">
+        <Grid.Resources>
+            <Style TargetType="DataGridColumnHeader">
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="#111827"/>
+                <Setter Property="Background" Value="#F9FAFB"/>
+                <Setter Property="Padding" Value="8,6"/>
+            </Style>
+        </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -124,13 +132,33 @@
                                       MaxHeight="400"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                                       ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                <DataGrid.ColumnHeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Foreground" Value="#111827"/>
+                                        <Setter Property="Background" Value="#F9FAFB"/>
+                                        <Setter Property="Padding" Value="8,6"/>
+                                    </Style>
+                                </DataGrid.ColumnHeaderStyle>
                                 <DataGrid.Columns>
                                     <DataGridCheckBoxColumn Header="Sync" Binding="{Binding IsSelected}" Width="50"/>
-                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Right"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
                                     <DataGridTextColumn Header="Attack Type" Binding="{Binding AttackType}" Width="120" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Protocol" Binding="{Binding Protocol}" Width="80" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Target IP" Binding="{Binding TargetIp}" Width="120" IsReadOnly="True"/>
-                                    <DataGridTextColumn Header="Packets" Binding="{Binding PacketsSent, StringFormat=N0}" Width="80" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Packets" Binding="{Binding PacketsSent, StringFormat=N0}" Width="80" IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Right"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
                                     <DataGridTextColumn Header="Start Time" Binding="{Binding StartTime, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="150" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Project" Binding="{Binding ProjectName}" Width="100" IsReadOnly="True"/>
                                 </DataGrid.Columns>
@@ -219,9 +247,23 @@
                                       MaxHeight="400"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                                       ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                <DataGrid.ColumnHeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Foreground" Value="#111827"/>
+                                        <Setter Property="Background" Value="#F9FAFB"/>
+                                        <Setter Property="Padding" Value="8,6"/>
+                                    </Style>
+                                </DataGrid.ColumnHeaderStyle>
                                 <DataGrid.Columns>
                                     <DataGridCheckBoxColumn Header="Sync" Binding="{Binding IsSelected}" Width="50"/>
-                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Right"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
                                     <DataGridTextColumn Header="IP Address" Binding="{Binding HostIp}" Width="120" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Hostname" Binding="{Binding HostName}" Width="150" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="MAC Address" Binding="{Binding MacAddress}" Width="130" IsReadOnly="True"/>
@@ -263,15 +305,21 @@
         </TabControl>
 
         <!-- Summary and Buttons -->
-        <StackPanel Grid.Row="3"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right">
+        <Grid Grid.Row="3" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
             <TextBlock x:Name="TotalSelectedText"
+                       Grid.Column="0"
                        Text="0 logs, 0 assets selected"
                        FontSize="12"
-                       Foreground="#6B7280"
+                       Foreground="#9CA3AF"
                        VerticalAlignment="Center"
-                       Margin="0,0,16,0"/>
+                       HorizontalAlignment="Left"/>
+            <StackPanel Grid.Column="1"
+                       Orientation="Horizontal"
+                       HorizontalAlignment="Right">
             <Button x:Name="CancelButton"
                     Content="Cancel"
                     Width="100"
@@ -285,8 +333,10 @@
                     Click="SyncButton_Click"
                     Background="#111827"
                     Foreground="White"
-                    BorderThickness="0"/>
-        </StackPanel>
+                    BorderThickness="0"
+                    Cursor="Hand"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>
 
