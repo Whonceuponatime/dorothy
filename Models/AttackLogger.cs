@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using Dorothy.Models.Database;
 using Dorothy.Services;
 using NLog;
@@ -219,11 +220,22 @@ namespace Dorothy.Models
         {
             try
             {
-                _logArea.Dispatcher.Invoke(() =>
+                _logArea.Dispatcher.BeginInvoke(new Action(() =>
                 {
                     _logArea.AppendText(note);
-                    _logArea.ScrollToEnd();
-                });
+                    
+                    // Scroll to end - find ScrollViewer parent if TextBox is inside one
+                    var scrollViewer = FindVisualParent<ScrollViewer>(_logArea);
+                    if (scrollViewer != null)
+                    {
+                        scrollViewer.ScrollToEnd();
+                    }
+                    else
+                    {
+                        // Fallback to TextBox scroll if no ScrollViewer found
+                        _logArea.ScrollToEnd();
+                    }
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
             }
             catch (Exception ex)
             {
@@ -255,11 +267,33 @@ namespace Dorothy.Models
                 logMessage = $"[{timestamp}] {message}";
             }
             
-            _logArea.Dispatcher.Invoke(() =>
+            _logArea.Dispatcher.BeginInvoke(new Action(() =>
             {
                 _logArea.AppendText($"{logMessage}{Environment.NewLine}");
-                _logArea.ScrollToEnd();
-            });
+                
+                // Scroll to end - find ScrollViewer parent if TextBox is inside one
+                var scrollViewer = FindVisualParent<ScrollViewer>(_logArea);
+                if (scrollViewer != null)
+                {
+                    scrollViewer.ScrollToEnd();
+                }
+                else
+                {
+                    // Fallback to TextBox scroll if no ScrollViewer found
+                    _logArea.ScrollToEnd();
+                }
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+        
+        private static T? FindVisualParent<T>(DependencyObject child) where T : DependencyObject
+        {
+            var parentObject = VisualTreeHelper.GetParent(child);
+            if (parentObject == null) return null;
+            
+            if (parentObject is T parent)
+                return parent;
+            else
+                return FindVisualParent<T>(parentObject);
         }
     }
 } 

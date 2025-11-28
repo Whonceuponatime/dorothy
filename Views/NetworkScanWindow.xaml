@@ -85,16 +85,125 @@
                                          FontSize="12"
                                          Foreground="#374151"
                                          Margin="0,0,12,0"
-                                         VerticalAlignment="Center"/>
+                                         VerticalAlignment="Center"
+                                         Checked="ScanMode_Changed"/>
                             <RadioButton x:Name="IntenseScanRadioButton"
                                          Content="Intense (Ports + Banners)"
                                          GroupName="ScanMode"
                                          FontSize="12"
                                          Foreground="#374151"
                                          VerticalAlignment="Center"
-                                         ToolTip="Scans common ports and grabs service banners. Takes longer but provides detailed information."/>
+                                         ToolTip="Scans ports and grabs service banners. Select port scan mode below."
+                                         Checked="ScanMode_Changed"/>
                         </StackPanel>
                     </Grid>
+                    
+                    <!-- Port Scan Mode Selection (only visible when Intense Scan is selected) -->
+                    <Border x:Name="PortScanModePanel"
+                            Background="#F9FAFB"
+                            BorderBrush="#E5E7EB"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12"
+                            Margin="0,12,0,0"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="Port Scan Mode:"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="#374151"
+                                       Margin="0,0,0,8"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <RadioButton x:Name="CommonPortsRadioButton"
+                                             Content="Common (Top 20 - Fastest)"
+                                             IsChecked="True"
+                                             GroupName="PortScanMode"
+                                             FontSize="11"
+                                             Foreground="#374151"
+                                             Margin="0,0,12,0"
+                                             VerticalAlignment="Center"/>
+                                <RadioButton x:Name="AllPortsRadioButton"
+                                             Content="All Common (50+ ports)"
+                                             GroupName="PortScanMode"
+                                             FontSize="11"
+                                             Foreground="#374151"
+                                             Margin="0,0,12,0"
+                                             VerticalAlignment="Center"/>
+                                <RadioButton x:Name="RangePortsRadioButton"
+                                             Content="Range"
+                                             GroupName="PortScanMode"
+                                             FontSize="11"
+                                             Foreground="#374151"
+                                             Margin="0,0,12,0"
+                                             VerticalAlignment="Center"/>
+                                <RadioButton x:Name="SelectedPortsRadioButton"
+                                             Content="Selected"
+                                             GroupName="PortScanMode"
+                                             FontSize="11"
+                                             Foreground="#374151"
+                                             VerticalAlignment="Center"/>
+                            </StackPanel>
+                            
+                            <!-- Port Range Input (visible when Range is selected) -->
+                            <StackPanel x:Name="PortRangePanel"
+                                        Orientation="Horizontal"
+                                        Visibility="Collapsed"
+                                        Margin="0,0,0,8">
+                                <TextBlock Text="Port Range:"
+                                           FontSize="11"
+                                           Foreground="#6B7280"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0"/>
+                                <TextBox x:Name="PortRangeStartTextBox"
+                                         Width="80"
+                                         Height="28"
+                                         Padding="6,4"
+                                         BorderBrush="#D1D5DB"
+                                         BorderThickness="1"
+                                         Background="White"
+                                         FontSize="11"
+                                         Margin="0,0,4,0"
+                                         Text="1"
+                                         ToolTip="Start port (1-65535)"/>
+                                <TextBlock Text="-"
+                                           FontSize="11"
+                                           Foreground="#6B7280"
+                                           VerticalAlignment="Center"
+                                           Margin="4,0"/>
+                                <TextBox x:Name="PortRangeEndTextBox"
+                                         Width="80"
+                                         Height="28"
+                                         Padding="6,4"
+                                         BorderBrush="#D1D5DB"
+                                         BorderThickness="1"
+                                         Background="White"
+                                         FontSize="11"
+                                         Margin="4,0,0,0"
+                                         Text="1024"
+                                         ToolTip="End port (1-65535)"/>
+                            </StackPanel>
+                            
+                            <!-- Selected Ports Input (visible when Selected is selected) -->
+                            <StackPanel x:Name="SelectedPortsPanel"
+                                        Orientation="Horizontal"
+                                        Visibility="Collapsed">
+                                <TextBlock Text="Ports (comma-separated):"
+                                           FontSize="11"
+                                           Foreground="#6B7280"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,8,0"/>
+                                <TextBox x:Name="SelectedPortsTextBox"
+                                         Height="28"
+                                         Padding="6,4"
+                                         BorderBrush="#D1D5DB"
+                                         BorderThickness="1"
+                                         Background="White"
+                                         FontSize="11"
+                                         Text="80,443,22,21,25"
+                                         ToolTip="Enter port numbers separated by commas (e.g., 80,443,22)"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                     
                     <Grid>
                         <Grid.ColumnDefinitions>

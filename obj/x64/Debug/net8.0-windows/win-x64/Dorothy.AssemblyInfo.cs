@@ -12,11 +12,11 @@ using System.Reflection;
 
 [assembly: System.Reflection.AssemblyCompanyAttribute("Dorothy")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
-[assembly: System.Reflection.AssemblyFileVersionAttribute("2.0.1.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("2.0.1+841ccb84ef07d587bd905586ea476bf39e9a28df")]
+[assembly: System.Reflection.AssemblyFileVersionAttribute("2.1.1.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("2.1.1+8f5f7a837339b3112b91167b6d9f5631199ca705")]
 [assembly: System.Reflection.AssemblyProductAttribute("Dorothy")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Dorothy")]
-[assembly: System.Reflection.AssemblyVersionAttribute("2.0.1.0")]
+[assembly: System.Reflection.AssemblyVersionAttribute("2.1.1.0")]
 [assembly: System.Runtime.Versioning.TargetPlatformAttribute("Windows7.0")]
 [assembly: System.Runtime.Versioning.SupportedOSPlatformAttribute("Windows7.0")]
 

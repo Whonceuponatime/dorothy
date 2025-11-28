@@ -170,7 +170,7 @@ namespace Dorothy.Views
             {
                 var settingsDir = System.IO.Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "DoS SeaCure");
+                    "SEACURE(TOOL)");
                 var disclaimerFile = System.IO.Path.Combine(settingsDir, "disclaimer_accepted.txt");
                 return !System.IO.File.Exists(disclaimerFile);
             }
@@ -186,7 +186,7 @@ namespace Dorothy.Views
             {
                 var settingsDir = System.IO.Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "DoS SeaCure");
+                    "SEACURE(TOOL)");
                 System.IO.Directory.CreateDirectory(settingsDir);
                 var disclaimerFile = System.IO.Path.Combine(settingsDir, "disclaimer_accepted.txt");
                 System.IO.File.WriteAllText(disclaimerFile, DateTime.Now.ToString("O"));
@@ -423,7 +423,7 @@ namespace Dorothy.Views
                 // Load from user settings or use defaults
                 var settingsFile = System.IO.Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "DoS SeaCure",
+                    "SEACURE(TOOL)",
                     "settings.txt");
 
                 if (System.IO.File.Exists(settingsFile))
@@ -470,7 +470,7 @@ namespace Dorothy.Views
             {
                 var settingsDir = System.IO.Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                    "DoS SeaCure");
+                    "SEACURE(TOOL)");
 
                 if (!System.IO.Directory.Exists(settingsDir))
                 {
@@ -524,11 +524,11 @@ namespace Dorothy.Views
 
         private void HelpButton_Click(object sender, RoutedEventArgs e)
         {
-            var helpText = "DoS SeaCure - Network Attack Simulator\n\n" +
-                "Version: 2.0.1\n\n" +
+            var helpText = "SEACURE(TOOL) - Network Attack Simulator\n\n" +
+                "Version: 2.1.1\n\n" +
                 "WHAT IS THIS PROGRAM?\n" +
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-                "DoS SeaCure is a professional network security testing tool designed " +
+                "SEACURE(TOOL) is a professional network security testing tool designed " +
                 "for authorized penetration testing and security assessment.\n\n" +
                 "PURPOSE:\n" +
                 "• Simulate various DoS (Denial of Service) attack scenarios\n" +
@@ -554,7 +554,7 @@ namespace Dorothy.Views
 
             MessageBox.Show(
                 helpText,
-                "Help - About DoS SeaCure",
+                "Help - About SEACURE(TOOL)",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }
@@ -644,20 +644,72 @@ namespace Dorothy.Views
         {
             try
             {
-                // Stop statistics timer
-                _statsTimer?.Stop();
+                _logger.Info("Application closing - starting cleanup...");
 
-                // Stop any running attacks
-                if (StartButton.IsEnabled == false)
+                // Stop all timers first
+                _statsTimer?.Stop();
+                _syncCheckTimer?.Stop();
+
+                // Cancel any pending cancellation tokens
+                _targetIpDebounceTokenSource?.Cancel();
+                _targetIpDebounceTokenSource?.Dispose();
+
+                // Stop any running attacks with timeout
+                if (StartButton.IsEnabled == false || StopButton.IsEnabled == true)
                 {
                     try
                     {
-                        _mainController.StopAttackAsync(_totalPacketsSent).Wait(TimeSpan.FromSeconds(2));
+                        _logger.Info("Stopping running attack...");
+                        var stopTask = _mainController.StopAttackAsync(_totalPacketsSent);
+                        if (!stopTask.Wait(TimeSpan.FromSeconds(3)))
+                        {
+                            _logger.Warn("Attack stop timed out, forcing termination");
+                        }
                     }
                     catch (Exception ex)
                     {
                         _logger.Warn(ex, "Error stopping attack on close");
                     }
+                }
+
+                // Stop advanced attacks
+                if (StartAdvancedAttackButton.IsEnabled == false || StopAdvancedAttackButton.IsEnabled == true)
+                {
+                    try
+                    {
+                        _logger.Info("Stopping advanced attack...");
+                        var stopTask = _mainController.StopAttackAsync(_totalPacketsSent);
+                        if (!stopTask.Wait(TimeSpan.FromSeconds(3)))
+                        {
+                            _logger.Warn("Advanced attack stop timed out");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Warn(ex, "Error stopping advanced attack on close");
+                    }
+                }
+
+                // Dispose network resources
+                try
+                {
+                    _logger.Info("Disposing network resources...");
+                    _networkStorm?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "Error disposing network storm");
+                }
+
+                // Close database connections
+                try
+                {
+                    _logger.Info("Closing database connections...");
+                    _databaseService?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "Error disposing database service");
                 }
 
                 // Auto-save log
@@ -687,6 +739,13 @@ namespace Dorothy.Views
                         // Don't prevent window from closing if save fails
                     }
                 }
+
+                // Force garbage collection to clean up any remaining resources
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+
+                _logger.Info("Cleanup completed");
             }
             catch (Exception ex)
             {
@@ -1513,12 +1572,46 @@ namespace Dorothy.Views
                 var interfaces = NetworkInterface.GetAllNetworkInterfaces()
                     .Where(n => n.OperationalStatus == OperationalStatus.Up)
                     .Where(n => n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
-                    .Select(n => new
+                    .Select(n =>
                     {
-                        Description = $"{n.Description} ({n.Name})",
-                        Interface = n,
-                        IpAddress = n.GetIPProperties().UnicastAddresses
-                            .FirstOrDefault(a => a.Address.AddressFamily == AddressFamily.InterNetwork)?.Address
+                        // Get bandwidth in bits per second, convert to Mbps or Gbps
+                        long speedBps = n.Speed; // Speed is in bits per second
+                        string bandwidthDisplay;
+                        double maxMbps;
+                        
+                        if (speedBps >= 1_000_000_000) // >= 1 Gbps
+                        {
+                            double gbps = speedBps / 1_000_000_000.0;
+                            bandwidthDisplay = $"{gbps:F1} Gbps";
+                            maxMbps = gbps * 1000;
+                        }
+                        else if (speedBps >= 1_000_000) // >= 1 Mbps
+                        {
+                            double mbps = speedBps / 1_000_000.0;
+                            bandwidthDisplay = $"{mbps:F0} Mbps";
+                            maxMbps = mbps;
+                        }
+                        else if (speedBps > 0)
+                        {
+                            double kbps = speedBps / 1_000.0;
+                            bandwidthDisplay = $"{kbps:F0} Kbps";
+                            maxMbps = kbps / 1000.0;
+                        }
+                        else
+                        {
+                            bandwidthDisplay = "Unknown";
+                            maxMbps = 1000; // Default to 1 Gbps if unknown
+                        }
+                        
+                        return new
+                        {
+                            Description = $"{n.Description} ({n.Name}) - {bandwidthDisplay}",
+                            Interface = n,
+                            IpAddress = n.GetIPProperties().UnicastAddresses
+                                .FirstOrDefault(a => a.Address.AddressFamily == AddressFamily.InterNetwork)?.Address,
+                            MaxMbps = maxMbps,
+                            BandwidthDisplay = bandwidthDisplay
+                        };
                     })
                     .Where(x => x.IpAddress != null)
                     .ToList();
@@ -1529,6 +1622,9 @@ namespace Dorothy.Views
                 AdvNetworkInterfaceComboBox.DisplayMemberPath = "Description";
                 NetworkInterfaceComboBox.SelectedIndex = 0;
                 AdvNetworkInterfaceComboBox.SelectedIndex = 0;
+                
+                // Update Mbps validation when interfaces are populated
+                UpdateMbpsValidation();
 
                 if (interfaces.Any())
                 {
@@ -1540,11 +1636,258 @@ namespace Dorothy.Views
                     SourceMacTextBox.Text = macAddress;
                     AdvSourceMacTextBox.Text = macAddress;
                 }
+                
+                // Update Mbps validation when interfaces are populated
+                UpdateMbpsValidation();
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 _attackLogger.LogError($"Error populating network interfaces: {ex}");
+            }
+        }
+        
+        private void UpdateMbpsValidation()
+        {
+            try
+            {
+                // Get selected NIC from current tab
+                var comboBox = MainTabControl.SelectedItem == AdvancedTab 
+                    ? AdvNetworkInterfaceComboBox 
+                    : NetworkInterfaceComboBox;
+                
+                if (comboBox?.SelectedItem is { } selectedItem)
+                {
+                    var selectedInterface = (dynamic)selectedItem;
+                    double maxMbps = selectedInterface.MaxMbps ?? 1000; // Default to 1 Gbps if unknown
+                    
+                    // Update tooltip to show bandwidth limit
+                    string tooltipText = $"Enter Mbps value (0 - {maxMbps:F0})";
+                    MegabitsPerSecondTextBox.ToolTip = tooltipText;
+                    AdvMegabitsPerSecondTextBox.ToolTip = tooltipText;
+                }
+            }
+            catch
+            {
+                // Ignore errors
+            }
+        }
+        
+        private void MegabitsPerSecondTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+        {
+            var textBox = sender as TextBox;
+            if (textBox == null)
+            {
+                e.Handled = true;
+                return;
+            }
+            
+            // Allow only digits and decimal point
+            if (!char.IsDigit(e.Text, 0) && e.Text != ".")
+            {
+                e.Handled = true;
+                return;
+            }
+            
+            // Prevent multiple decimal points
+            if (e.Text == "." && textBox.Text.Contains("."))
+            {
+                e.Handled = true;
+                return;
+            }
+            
+            // Build the new text that would result from this input
+            string currentText = textBox.Text ?? "";
+            int selectionStart = textBox.SelectionStart;
+            int selectionLength = textBox.SelectionLength;
+            
+            // Remove selected text and insert new text
+            string newText = currentText.Substring(0, selectionStart) + 
+                            e.Text + 
+                            currentText.Substring(selectionStart + selectionLength);
+            
+            // Allow empty text or just a decimal point (user might be typing)
+            if (string.IsNullOrWhiteSpace(newText) || newText == ".")
+            {
+                return; // Allow it
+            }
+            
+            // Try to parse as number
+            if (double.TryParse(newText, out double value))
+            {
+                // Get max Mbps from selected NIC
+                var comboBox = NetworkInterfaceComboBox;
+                if (comboBox?.SelectedItem is { } selectedItem)
+                {
+                    var selectedInterface = (dynamic)selectedItem;
+                    double maxMbps = selectedInterface.MaxMbps ?? 1000;
+                    
+                    // Only block if value is clearly out of range (negative or way over max)
+                    // Allow intermediate values during typing
+                    if (value < 0)
+                    {
+                        e.Handled = true;
+                        return;
+                    }
+                    
+                    // Only block if it's clearly exceeding max (with some tolerance for typing)
+                    // For example, if max is 1000, allow typing "1000" but block "10000"
+                    if (value > maxMbps * 1.1) // 10% tolerance for intermediate typing
+                    {
+                        e.Handled = true;
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                // Invalid format - block it
+                e.Handled = true;
+            }
+        }
+        
+        private void AdvMegabitsPerSecondTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+        {
+            var textBox = sender as TextBox;
+            if (textBox == null)
+            {
+                e.Handled = true;
+                return;
+            }
+            
+            // Allow only digits and decimal point
+            if (!char.IsDigit(e.Text, 0) && e.Text != ".")
+            {
+                e.Handled = true;
+                return;
+            }
+            
+            // Prevent multiple decimal points
+            if (e.Text == "." && textBox.Text.Contains("."))
+            {
+                e.Handled = true;
+                return;
+            }
+            
+            // Build the new text that would result from this input
+            string currentText = textBox.Text ?? "";
+            int selectionStart = textBox.SelectionStart;
+            int selectionLength = textBox.SelectionLength;
+            
+            // Remove selected text and insert new text
+            string newText = currentText.Substring(0, selectionStart) + 
+                            e.Text + 
+                            currentText.Substring(selectionStart + selectionLength);
+            
+            // Allow empty text or just a decimal point (user might be typing)
+            if (string.IsNullOrWhiteSpace(newText) || newText == ".")
+            {
+                return; // Allow it
+            }
+            
+            // Try to parse as number
+            if (double.TryParse(newText, out double value))
+            {
+                // Get max Mbps from selected NIC
+                var comboBox = AdvNetworkInterfaceComboBox;
+                if (comboBox?.SelectedItem is { } selectedItem)
+                {
+                    var selectedInterface = (dynamic)selectedItem;
+                    double maxMbps = selectedInterface.MaxMbps ?? 1000;
+                    
+                    // Only block if value is clearly out of range (negative or way over max)
+                    // Allow intermediate values during typing
+                    if (value < 0)
+                    {
+                        e.Handled = true;
+                        return;
+                    }
+                    
+                    // Only block if it's clearly exceeding max (with some tolerance for typing)
+                    // For example, if max is 1000, allow typing "1000" but block "10000"
+                    if (value > maxMbps * 1.1) // 10% tolerance for intermediate typing
+                    {
+                        e.Handled = true;
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                // Invalid format - block it
+                e.Handled = true;
+            }
+        }
+        
+        private void MegabitsPerSecondTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            var textBox = sender as TextBox;
+            if (textBox == null) return;
+            
+            // Allow empty text (user might be clearing it)
+            if (string.IsNullOrWhiteSpace(textBox.Text)) return;
+            
+            // Only validate when user finishes editing (lost focus) or when value is clearly invalid
+            // Don't interfere while typing
+            if (double.TryParse(textBox.Text, out double value))
+            {
+                // Get max Mbps from selected NIC
+                var comboBox = NetworkInterfaceComboBox;
+                if (comboBox?.SelectedItem is { } selectedItem)
+                {
+                    var selectedInterface = (dynamic)selectedItem;
+                    double maxMbps = selectedInterface.MaxMbps ?? 1000;
+                    
+                    // Only clamp if significantly over max (not during normal typing)
+                    if (value > maxMbps * 1.01) // 1% tolerance
+                    {
+                        int caretPos = textBox.CaretIndex;
+                        textBox.Text = maxMbps.ToString("F0");
+                        textBox.CaretIndex = Math.Min(caretPos, textBox.Text.Length);
+                    }
+                    else if (value < 0)
+                    {
+                        int caretPos = textBox.CaretIndex;
+                        textBox.Text = "0";
+                        textBox.CaretIndex = Math.Min(caretPos, textBox.Text.Length);
+                    }
+                }
+            }
+        }
+        
+        private void AdvMegabitsPerSecondTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            var textBox = sender as TextBox;
+            if (textBox == null) return;
+            
+            // Allow empty text (user might be clearing it)
+            if (string.IsNullOrWhiteSpace(textBox.Text)) return;
+            
+            // Only validate when user finishes editing (lost focus) or when value is clearly invalid
+            // Don't interfere while typing
+            if (double.TryParse(textBox.Text, out double value))
+            {
+                // Get max Mbps from selected NIC
+                var comboBox = AdvNetworkInterfaceComboBox;
+                if (comboBox?.SelectedItem is { } selectedItem)
+                {
+                    var selectedInterface = (dynamic)selectedItem;
+                    double maxMbps = selectedInterface.MaxMbps ?? 1000;
+                    
+                    // Only clamp if significantly over max (not during normal typing)
+                    if (value > maxMbps * 1.01) // 1% tolerance
+                    {
+                        int caretPos = textBox.CaretIndex;
+                        textBox.Text = maxMbps.ToString("F0");
+                        textBox.CaretIndex = Math.Min(caretPos, textBox.Text.Length);
+                    }
+                    else if (value < 0)
+                    {
+                        int caretPos = textBox.CaretIndex;
+                        textBox.Text = "0";
+                        textBox.CaretIndex = Math.Min(caretPos, textBox.Text.Length);
+                    }
+                }
             }
         }
 
@@ -1661,6 +2004,9 @@ namespace Dorothy.Views
                     {
                         gatewayIp = _mainController.CalculateDefaultGateway(ipAddress);
                     }
+                    
+                    // Update Mbps validation when NIC changes
+                    UpdateMbpsValidation();
                     
                     // Always update gateway IP when NIC changes
                     // Suppress TextChanged events to prevent duplicate processing
@@ -2537,6 +2883,8 @@ namespace Dorothy.Views
             try
             {
                 UpdateProfileSummary();
+                // Update Mbps validation when switching tabs
+                UpdateMbpsValidation();
                 if (e.Source is TabControl)
                 {
                     if (MainTabControl.SelectedItem == AdvancedTab)

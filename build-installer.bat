@@ -43,7 +43,7 @@ echo Compiling installer with version %APP_VERSION%...
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo Installer created successfully!
-    echo Location: installer\DoS-SEACURE-Setup-%APP_VERSION%.exe
+    echo Location: installer\SEACURE(TOOL)-setup %APP_VERSION%.exe
     echo Version: %APP_VERSION%
 ) else (
     echo.

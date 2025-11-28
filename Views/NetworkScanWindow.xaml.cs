@@ -38,6 +38,16 @@ namespace Dorothy.Views
             _databaseService = databaseService;
             _supabaseSyncService = supabaseSyncService;
             
+            // Wire up port scan mode radio button events (check for null in case XAML hasn't loaded yet)
+            if (CommonPortsRadioButton != null)
+                CommonPortsRadioButton.Checked += PortScanMode_Changed;
+            if (AllPortsRadioButton != null)
+                AllPortsRadioButton.Checked += PortScanMode_Changed;
+            if (RangePortsRadioButton != null)
+                RangePortsRadioButton.Checked += PortScanMode_Changed;
+            if (SelectedPortsRadioButton != null)
+                SelectedPortsRadioButton.Checked += PortScanMode_Changed;
+            
             // Show/hide sync button based on availability
             if (_databaseService == null || _supabaseSyncService == null)
             {
@@ -47,6 +57,63 @@ namespace Dorothy.Views
             {
                 _ = Task.Run(async () => await UpdateAssetsSyncStatus());
             }
+        }
+        
+        private void ScanMode_Changed(object sender, RoutedEventArgs e)
+        {
+            // Show/hide port scan mode panel based on scan mode
+            if (PortScanModePanel != null)
+            {
+                if (IntenseScanRadioButton?.IsChecked == true)
+                {
+                    PortScanModePanel.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    PortScanModePanel.Visibility = Visibility.Collapsed;
+                }
+            }
+        }
+        
+        private void PortScanMode_Changed(object sender, RoutedEventArgs e)
+        {
+            // Show/hide port range and selected ports panels based on selection
+            if (PortRangePanel != null && SelectedPortsPanel != null)
+            {
+                if (RangePortsRadioButton?.IsChecked == true)
+                {
+                    PortRangePanel.Visibility = Visibility.Visible;
+                    SelectedPortsPanel.Visibility = Visibility.Collapsed;
+                }
+                else if (SelectedPortsRadioButton?.IsChecked == true)
+                {
+                    PortRangePanel.Visibility = Visibility.Collapsed;
+                    SelectedPortsPanel.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    PortRangePanel.Visibility = Visibility.Collapsed;
+                    SelectedPortsPanel.Visibility = Visibility.Collapsed;
+                }
+            }
+        }
+        
+        private List<int> ParseSelectedPorts(string text)
+        {
+            var ports = new List<int>();
+            if (string.IsNullOrWhiteSpace(text))
+                return ports;
+                
+            var parts = text.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var part in parts)
+            {
+                if (int.TryParse(part.Trim(), out int port) && port >= 1 && port <= 65535)
+                {
+                    if (!ports.Contains(port))
+                        ports.Add(port);
+                }
+            }
+            return ports;
         }
 
         public async Task StartScanAsync(string networkAddress, string subnetMask)
@@ -149,8 +216,54 @@ namespace Dorothy.Views
             }
             
             // Set scan mode
-            bool intenseScan = IntenseScanRadioButton.IsChecked == true;
-            _networkScan.SetScanMode(intenseScan);
+            bool intenseScan = IntenseScanRadioButton?.IsChecked == true;
+            if (_networkScan != null)
+            {
+                _networkScan.SetScanMode(intenseScan);
+                
+                // Set port scan mode if intense scan is enabled
+                if (intenseScan)
+                {
+                    PortScanMode portMode = PortScanMode.All;
+                    int? rangeStart = null;
+                    int? rangeEnd = null;
+                    List<int>? selectedPorts = null;
+                    
+                    if (CommonPortsRadioButton?.IsChecked == true)
+                    {
+                        portMode = PortScanMode.Common;
+                    }
+                    else if (AllPortsRadioButton?.IsChecked == true)
+                    {
+                        portMode = PortScanMode.All;
+                    }
+                    else if (RangePortsRadioButton?.IsChecked == true)
+                    {
+                        portMode = PortScanMode.Range;
+                        if (PortRangeStartTextBox != null && PortRangeEndTextBox != null &&
+                            int.TryParse(PortRangeStartTextBox.Text, out int start) &&
+                            int.TryParse(PortRangeEndTextBox.Text, out int end))
+                        {
+                            rangeStart = Math.Max(1, Math.Min(start, 65535));
+                            rangeEnd = Math.Min(65535, Math.Max(start, end));
+                        }
+                    }
+                    else if (SelectedPortsRadioButton?.IsChecked == true)
+                    {
+                        portMode = PortScanMode.Selected;
+                        if (SelectedPortsTextBox != null)
+                        {
+                            selectedPorts = ParseSelectedPorts(SelectedPortsTextBox.Text);
+                        }
+                    }
+                    
+                    _networkScan.SetPortScanMode(portMode, rangeStart, rangeEnd, selectedPorts);
+                }
+                else
+                {
+                    _networkScan.SetPortScanMode(PortScanMode.None);
+                }
+            }
             
             // Hide range config panel and show progress section
             RangeConfigPanel.Visibility = Visibility.Collapsed;
@@ -170,34 +283,72 @@ namespace Dorothy.Views
         {
             try
             {
+                if (string.IsNullOrEmpty(startIp) || string.IsNullOrEmpty(endIp))
+                {
+                    MessageBox.Show("Start IP and End IP are required.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                
+                if (_networkScan == null)
+                {
+                    MessageBox.Show("Network scan instance is not initialized.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+                
                 _cancellationTokenSource = new CancellationTokenSource();
                 
                 // Show loading UI immediately and ensure visibility
                 Dispatcher.Invoke(() =>
                 {
-                    LoadingIndicator.Visibility = Visibility.Visible;
-                    CancelScanButton.Visibility = Visibility.Visible;
-                    CloseButton.IsEnabled = false;
-                    ExportExcelButton.IsEnabled = false;
-                    
-                    // Ensure progress section is visible
-                    StatusTextBlock.Visibility = Visibility.Visible;
-                    ProgressTextBlock.Visibility = Visibility.Visible;
-                    ScanProgressBar.Visibility = Visibility.Visible;
-                    CurrentIpTextBlock.Visibility = Visibility.Visible;
-                    FoundCountTextBlock.Visibility = Visibility.Visible;
-                    
-                    StatusTextBlock.Text = "Initializing scan...";
-                    StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 24, 39)); // Default dark gray
-                    ScanProgressBar.Value = 0;
-                    ScanProgressBar.Maximum = 100;
-                    CurrentIpTextBlock.Text = "Preparing scan...";
-                    CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)); // Default light gray
-                    FoundCountTextBlock.Text = "0";
-                    ProgressTextBlock.Text = "0 / 0";
-                    
-                    _foundAssets.Clear();
-                    ResultsDataGrid.ItemsSource = _foundAssets;
+                    try
+                    {
+                        if (LoadingIndicator != null)
+                            LoadingIndicator.Visibility = Visibility.Visible;
+                        if (CancelScanButton != null)
+                            CancelScanButton.Visibility = Visibility.Visible;
+                        if (CloseButton != null)
+                            CloseButton.IsEnabled = false;
+                        if (ExportExcelButton != null)
+                            ExportExcelButton.IsEnabled = false;
+                        
+                        // Ensure progress section is visible
+                        if (StatusTextBlock != null)
+                        {
+                            StatusTextBlock.Visibility = Visibility.Visible;
+                            StatusTextBlock.Text = "Initializing scan...";
+                            StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 24, 39));
+                        }
+                        if (ProgressTextBlock != null)
+                        {
+                            ProgressTextBlock.Visibility = Visibility.Visible;
+                            ProgressTextBlock.Text = "0 / 0";
+                        }
+                        if (ScanProgressBar != null)
+                        {
+                            ScanProgressBar.Visibility = Visibility.Visible;
+                            ScanProgressBar.Value = 0;
+                            ScanProgressBar.Maximum = 100;
+                        }
+                        if (CurrentIpTextBlock != null)
+                        {
+                            CurrentIpTextBlock.Visibility = Visibility.Visible;
+                            CurrentIpTextBlock.Text = "Preparing scan...";
+                            CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175));
+                        }
+                        if (FoundCountTextBlock != null)
+                        {
+                            FoundCountTextBlock.Visibility = Visibility.Visible;
+                            FoundCountTextBlock.Text = "0";
+                        }
+                        
+                        _foundAssets.Clear();
+                        if (ResultsDataGrid != null)
+                            ResultsDataGrid.ItemsSource = _foundAssets;
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error updating UI: {ex.Message}");
+                    }
                 }, System.Windows.Threading.DispatcherPriority.Send);
                 
                 // Small delay to ensure UI is updated before starting scan
@@ -226,27 +377,68 @@ namespace Dorothy.Views
                 // Final refresh to ensure all items are displayed
                 Dispatcher.Invoke(() =>
                 {
-                    ResultsDataGrid.Items.Refresh();
-                    
-                    // Clear progress indicators and show completion message
-                    StatusTextBlock.Text = $"✅ Scan Complete! Found {_assets.Count} active device(s).";
-                    StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green color
-                    ProgressTextBlock.Text = "Done";
-                    ScanProgressBar.Value = ScanProgressBar.Maximum; // Fill progress bar to 100%
-                    CurrentIpTextBlock.Text = "Scan finished successfully.";
-                    CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(5, 150, 105));
-                    
-                    ExportExcelButton.IsEnabled = _assets.Count > 0;
-                    
-                    // Hide loading UI
-                    LoadingIndicator.Visibility = Visibility.Collapsed;
-                    CancelScanButton.Visibility = Visibility.Collapsed;
-                    CloseButton.IsEnabled = true;
-                    
-                    // Update sync status
-                    if (_supabaseSyncService != null)
+                    try
                     {
-                        _ = Task.Run(async () => await UpdateAssetsSyncStatus());
+                        // Copy all assets to _foundAssets for display
+                        if (_assets != null && _assets.Count > 0)
+                        {
+                            _foundAssets.Clear();
+                            foreach (var asset in _assets)
+                            {
+                                _foundAssets.Add(asset);
+                            }
+                        }
+                        
+                        // Update the DataGrid items source to ensure it's bound correctly
+                        if (ResultsDataGrid != null)
+                        {
+                            ResultsDataGrid.ItemsSource = null; // Clear first
+                            ResultsDataGrid.ItemsSource = _foundAssets; // Rebind
+                            ResultsDataGrid.Items.Refresh();
+                        }
+                        
+                        // Clear progress indicators and show completion message
+                        if (StatusTextBlock != null)
+                        {
+                            StatusTextBlock.Text = $"✅ Scan Complete! Found {(_assets?.Count ?? 0)} active device(s).";
+                            StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(5, 150, 105));
+                        }
+                        if (ProgressTextBlock != null)
+                            ProgressTextBlock.Text = "Done";
+                        if (ScanProgressBar != null)
+                            ScanProgressBar.Value = ScanProgressBar.Maximum;
+                        if (CurrentIpTextBlock != null)
+                        {
+                            CurrentIpTextBlock.Text = "Scan finished successfully.";
+                            CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(5, 150, 105));
+                        }
+                        
+                        // Update found count display
+                        if (FoundCountTextBlock != null)
+                        {
+                            FoundCountTextBlock.Text = (_assets?.Count ?? 0).ToString();
+                        }
+                        
+                        if (ExportExcelButton != null)
+                            ExportExcelButton.IsEnabled = _assets != null && _assets.Count > 0;
+                        
+                        // Hide loading UI
+                        if (LoadingIndicator != null)
+                            LoadingIndicator.Visibility = Visibility.Collapsed;
+                        if (CancelScanButton != null)
+                            CancelScanButton.Visibility = Visibility.Collapsed;
+                        if (CloseButton != null)
+                            CloseButton.IsEnabled = true;
+                        
+                        // Update sync status
+                        if (_supabaseSyncService != null)
+                        {
+                            _ = Task.Run(async () => await UpdateAssetsSyncStatus());
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error in final UI update: {ex.Message}");
                     }
                 }, System.Windows.Threading.DispatcherPriority.Send);
             }
@@ -256,14 +448,31 @@ namespace Dorothy.Views
                 await Task.Delay(100); // Wait for pending progress updates
                 Dispatcher.Invoke(() =>
                 {
-                    StatusTextBlock.Text = "⚠️ Scan Cancelled";
-                    StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(245, 158, 11)); // Orange color
-                    ProgressTextBlock.Text = "Cancelled";
-                    CurrentIpTextBlock.Text = "Scan was cancelled by user.";
-                    CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(107, 114, 128)); // Gray color
-                    LoadingIndicator.Visibility = Visibility.Collapsed;
-                    CancelScanButton.Visibility = Visibility.Collapsed;
-                    CloseButton.IsEnabled = true;
+                    try
+                    {
+                        if (StatusTextBlock != null)
+                        {
+                            StatusTextBlock.Text = "⚠️ Scan Cancelled";
+                            StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(245, 158, 11));
+                        }
+                        if (ProgressTextBlock != null)
+                            ProgressTextBlock.Text = "Cancelled";
+                        if (CurrentIpTextBlock != null)
+                        {
+                            CurrentIpTextBlock.Text = "Scan was cancelled by user.";
+                            CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(107, 114, 128));
+                        }
+                        if (LoadingIndicator != null)
+                            LoadingIndicator.Visibility = Visibility.Collapsed;
+                        if (CancelScanButton != null)
+                            CancelScanButton.Visibility = Visibility.Collapsed;
+                        if (CloseButton != null)
+                            CloseButton.IsEnabled = true;
+                    }
+                    catch (Exception uiEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error updating UI on cancel: {uiEx.Message}");
+                    }
                 }, System.Windows.Threading.DispatcherPriority.Send);
             }
             catch (Exception ex)
@@ -272,15 +481,33 @@ namespace Dorothy.Views
                 await Task.Delay(100); // Wait for pending progress updates
                 Dispatcher.Invoke(() =>
                 {
-                    StatusTextBlock.Text = $"❌ Scan Failed: {ex.Message}";
-                    StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68)); // Red color
-                    ProgressTextBlock.Text = "Failed";
-                    CurrentIpTextBlock.Text = $"Error: {ex.Message}";
-                    CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
-                    LoadingIndicator.Visibility = Visibility.Collapsed;
-                    CancelScanButton.Visibility = Visibility.Collapsed;
-                    CloseButton.IsEnabled = true;
-                    MessageBox.Show($"Network scan failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    try
+                    {
+                        if (StatusTextBlock != null)
+                        {
+                            StatusTextBlock.Text = $"❌ Scan Failed: {ex.Message}";
+                            StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
+                        }
+                        if (ProgressTextBlock != null)
+                            ProgressTextBlock.Text = "Failed";
+                        if (CurrentIpTextBlock != null)
+                        {
+                            CurrentIpTextBlock.Text = $"Error: {ex.Message}";
+                            CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
+                        }
+                        if (LoadingIndicator != null)
+                            LoadingIndicator.Visibility = Visibility.Collapsed;
+                        if (CancelScanButton != null)
+                            CancelScanButton.Visibility = Visibility.Collapsed;
+                        if (CloseButton != null)
+                            CloseButton.IsEnabled = true;
+                        MessageBox.Show($"Network scan failed: {ex.Message}\n\nStack trace: {ex.StackTrace}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                    catch (Exception uiEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error updating UI on error: {uiEx.Message}");
+                        MessageBox.Show($"Network scan failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
                 }, System.Windows.Threading.DispatcherPriority.Send);
             }
         }
@@ -289,6 +516,9 @@ namespace Dorothy.Views
         {
             try
             {
+                if (progress == null)
+                    return;
+                    
                 // Don't update if scan is already completed
                 if (_scanCompleted)
                     return;
@@ -296,42 +526,55 @@ namespace Dorothy.Views
                 // Use BeginInvoke for better performance and responsiveness
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    // Don't update if scan completed while this was queued
-                    if (_scanCompleted)
-                        return;
+                    try
+                    {
+                        // Don't update if scan completed while this was queued
+                        if (_scanCompleted)
+                            return;
 
-                    // Reset status text color to default during scanning
-                    StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 24, 39)); // Default dark gray
-                    CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)); // Default light gray
-                    
-                    StatusTextBlock.Text = $"Scanning network...";
-                    ProgressTextBlock.Text = $"{progress.Scanned} / {progress.Total}";
-                    
-                    if (progress.Total > 0)
-                    {
-                        ScanProgressBar.Maximum = progress.Total;
-                        ScanProgressBar.Value = progress.Scanned;
-                    }
-                    
-                    // Only update current IP if scan hasn't completed
-                    if (!_scanCompleted)
-                    {
-                        CurrentIpTextBlock.Text = $"Scanning: {progress.CurrentIp}";
-                    }
-                    
-                    FoundCountTextBlock.Text = progress.Found.ToString();
-                    
-                    // Add newly found asset to DataGrid in real-time
-                    if (progress.NewAsset != null)
-                    {
-                        _foundAssets.Add(progress.NewAsset);
-                        ResultsDataGrid.Items.Refresh();
-                        
-                        // Auto-scroll to the newest item
-                        if (ResultsDataGrid.Items.Count > 0)
+                        // Reset status text color to default during scanning
+                        if (StatusTextBlock != null)
                         {
-                            ResultsDataGrid.ScrollIntoView(ResultsDataGrid.Items[ResultsDataGrid.Items.Count - 1]);
+                            StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 24, 39)); // Default dark gray
+                            StatusTextBlock.Text = $"Scanning network...";
                         }
+                        if (CurrentIpTextBlock != null)
+                            CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)); // Default light gray
+                        
+                        if (ProgressTextBlock != null)
+                            ProgressTextBlock.Text = $"{progress.Scanned} / {progress.Total}";
+                        
+                        if (ScanProgressBar != null && progress.Total > 0)
+                        {
+                            ScanProgressBar.Maximum = progress.Total;
+                            ScanProgressBar.Value = progress.Scanned;
+                        }
+                        
+                        // Only update current IP if scan hasn't completed
+                        if (!_scanCompleted && CurrentIpTextBlock != null)
+                        {
+                            CurrentIpTextBlock.Text = $"Scanning: {progress.CurrentIp ?? "..."}";
+                        }
+                        
+                        if (FoundCountTextBlock != null)
+                            FoundCountTextBlock.Text = progress.Found.ToString();
+                        
+                        // Add newly found asset to DataGrid in real-time
+                        if (progress.NewAsset != null && ResultsDataGrid != null)
+                        {
+                            _foundAssets.Add(progress.NewAsset);
+                            ResultsDataGrid.Items.Refresh();
+                            
+                            // Auto-scroll to the newest item
+                            if (ResultsDataGrid.Items.Count > 0)
+                            {
+                                ResultsDataGrid.ScrollIntoView(ResultsDataGrid.Items[ResultsDataGrid.Items.Count - 1]);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error in UpdateProgress UI update: {ex.Message}");
                     }
                 }), System.Windows.Threading.DispatcherPriority.Normal);
             }

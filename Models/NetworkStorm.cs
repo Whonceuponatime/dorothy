@@ -18,7 +18,7 @@ using Dorothy.Network.Headers;
 
 namespace Dorothy.Models
 {
-    public class NetworkStorm
+    public class NetworkStorm : IDisposable
     {
         private readonly AttackLogger _logger;
         private bool _isAttackRunning;
@@ -26,6 +26,7 @@ namespace Dorothy.Models
         private CancellationTokenSource? _gatewayResolutionCts;
         private Socket? _socket;
         private string? _attackType;
+        private bool _disposed = false;
         public string SourceIp { get; private set; }
         public byte[] SourceMac { get; private set; }
         public string GatewayIp { get; private set; }
@@ -583,6 +584,48 @@ namespace Dorothy.Models
                 _logger.LogError($"Failed to start Ethernet attack: {ex.Message}");
                 await StopAttackAsync();
             }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_disposed)
+                return;
+
+            if (disposing)
+            {
+                try
+                {
+                    // Cancel any running operations
+                    _cancellationSource?.Cancel();
+                    _gatewayResolutionCts?.Cancel();
+
+                    // Stop any running attacks
+                    if (_isAttackRunning)
+                    {
+                        StopAttackAsync().Wait(TimeSpan.FromSeconds(2));
+                    }
+
+                    // Dispose cancellation tokens
+                    _cancellationSource?.Dispose();
+                    _gatewayResolutionCts?.Dispose();
+
+                    // Close socket
+                    _socket?.Close();
+                    _socket?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Error during NetworkStorm disposal: {ex.Message}");
+                }
+            }
+
+            _disposed = true;
         }
     }
 }

@@ -41,7 +41,7 @@ if (-not (Test-Path "installer")) {
 
 # Clean up any existing installer files that might be locked
 Write-Host "Cleaning up existing installer files..." -ForegroundColor Cyan
-$installerFile = "installer\DoS-SEACURE-Setup-$appVersion.exe"
+$installerFile = "installer\SEACURE(TOOL)-setup $appVersion.exe"
 if (Test-Path $installerFile) {
     try {
         # Try to remove the file
@@ -69,7 +69,7 @@ Write-Host "Compiling installer with version $appVersion..." -ForegroundColor Cy
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`nInstaller created successfully!" -ForegroundColor Green
-    Write-Host "Location: installer\DoS-SEACURE-Setup-$appVersion.exe" -ForegroundColor Cyan
+    Write-Host "Location: installer\SEACURE(TOOL)-setup $appVersion.exe" -ForegroundColor Cyan
     Write-Host "`nVersion: $appVersion" -ForegroundColor Cyan
 } else {
     Write-Host "`nERROR: Installer compilation failed!" -ForegroundColor Red

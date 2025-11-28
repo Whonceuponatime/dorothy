@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -41,20 +42,91 @@ namespace Dorothy.Models
         public string Banner { get; set; } = string.Empty;
     }
 
+    public enum PortScanMode
+    {
+        None,           // No port scanning
+        Common,         // Scan only most common ports (top 20)
+        All,            // Scan all common ports (current behavior)
+        Range,          // Scan a range of ports
+        Selected        // Scan selected ports
+    }
+
     public class NetworkScan
     {
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
         private readonly AttackLogger _attackLogger;
         private bool _intenseScan = false;
+        private PortScanMode _portScanMode = PortScanMode.All;
+        private int? _portRangeStart = null;
+        private int? _portRangeEnd = null;
+        private List<int> _selectedPorts = new List<int>();
+        
+        // Configurable timeouts (in milliseconds)
+        private int _pingTimeout = 500;
+        private int _tcpConnectTimeout = 1000;
+        private int _dnsLookupTimeout = 2000;
+        private int _bannerReadTimeout = 1000;
+        
+        // Concurrency settings
+        private int _maxHostConcurrency = 32;
+        
+        // Optional features
+        private bool _enableReverseDns = true;
+        private bool _enableVendorLookup = true;
+        private bool _enableBannerGrabbing = true;
+        
+        // Shared HttpClient for vendor lookups
+        private static readonly HttpClient _sharedHttpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(3)
+        };
 
         public NetworkScan(AttackLogger attackLogger)
         {
             _attackLogger = attackLogger ?? throw new ArgumentNullException(nameof(attackLogger));
+            
+            // Initialize default values
+            _pingTimeout = 500;
+            _tcpConnectTimeout = 1000;
+            _dnsLookupTimeout = 2000;
+            _bannerReadTimeout = 1000;
+            _maxHostConcurrency = 32;
+            _enableReverseDns = true;
+            _enableVendorLookup = true;
+            _enableBannerGrabbing = true;
+        }
+        
+        public void SetTimeouts(int pingTimeout = 500, int tcpConnectTimeout = 1000, int dnsLookupTimeout = 2000, int bannerReadTimeout = 1000)
+        {
+            _pingTimeout = pingTimeout;
+            _tcpConnectTimeout = tcpConnectTimeout;
+            _dnsLookupTimeout = dnsLookupTimeout;
+            _bannerReadTimeout = bannerReadTimeout;
+        }
+        
+        public void SetConcurrency(int maxHostConcurrency = 32)
+        {
+            _maxHostConcurrency = Math.Max(1, Math.Min(128, maxHostConcurrency));
+        }
+        
+        public void SetOptionalFeatures(bool enableReverseDns = true, bool enableVendorLookup = true, bool enableBannerGrabbing = true)
+        {
+            _enableReverseDns = enableReverseDns;
+            _enableVendorLookup = enableVendorLookup;
+            _enableBannerGrabbing = enableBannerGrabbing;
         }
 
         public void SetScanMode(bool intenseScan)
         {
             _intenseScan = intenseScan;
+        }
+
+        public void SetPortScanMode(PortScanMode mode, int? rangeStart = null, int? rangeEnd = null, List<int>? selectedPorts = null)
+        {
+            _portScanMode = mode;
+            _portRangeStart = rangeStart;
+            _portRangeEnd = rangeEnd;
+            _selectedPorts = selectedPorts ?? new List<int>();
         }
 
         public async Task<List<NetworkAsset>> ScanNetworkBySubnetAsync(string networkAddress, string subnetMask, CancellationToken cancellationToken = default, IProgress<ScanProgress>? progress = null)
@@ -76,6 +148,11 @@ namespace Dorothy.Models
         private async Task<List<NetworkAsset>> ScanNetworkAsync(string? networkAddress, string? subnetMask, string? startIp, string? endIp, CancellationToken cancellationToken = default, IProgress<ScanProgress>? progress = null)
         {
             var assets = new List<NetworkAsset>();
+            
+            if (_attackLogger == null)
+            {
+                throw new InvalidOperationException("AttackLogger is not initialized");
+            }
             
             try
             {
@@ -127,8 +204,11 @@ namespace Dorothy.Models
                     }
                     
                     totalHosts = ipRange.Count;
-                    _attackLogger.LogInfo($"🔍 Starting custom range scan...");
-                    _attackLogger.LogInfo($"Range: {startIp} - {endIp} ({totalHosts} hosts)");
+                    if (_attackLogger != null)
+                    {
+                        _attackLogger.LogInfo($"🔍 Starting custom range scan...");
+                        _attackLogger.LogInfo($"Range: {startIp} - {endIp} ({totalHosts} hosts)");
+                    }
                 }
                 else if (!string.IsNullOrEmpty(networkAddress) && !string.IsNullOrEmpty(subnetMask))
                 {
@@ -153,9 +233,12 @@ namespace Dorothy.Models
                         networkStart[i] = (byte)(networkBytes[i] & maskBytes[i]);
                     }
 
-                    _attackLogger.LogInfo($"🔍 Starting network scan...");
-                    _attackLogger.LogInfo($"Network: {networkAddress}/{GetCidrNotation(maskBytes)}");
-                    _attackLogger.LogInfo($"Scanning network range...");
+                    if (_attackLogger != null)
+                    {
+                        _attackLogger.LogInfo($"🔍 Starting network scan...");
+                        _attackLogger.LogInfo($"Network: {networkAddress}/{GetCidrNotation(maskBytes)}");
+                        _attackLogger.LogInfo($"Scanning network range...");
+                    }
 
                     totalHosts = CalculateHostCount(maskBytes);
 
@@ -171,68 +254,135 @@ namespace Dorothy.Models
                     throw new ArgumentException("Either network/subnet or start/end IP must be provided");
                 }
                 
-                int scanned = 0;
-                
-                // Scan IP range
-                foreach (var ipString in ipRange)
+                if (ipRange == null || ipRange.Count == 0)
                 {
-                    if (cancellationToken.IsCancellationRequested)
-                        break;
-
-                    NetworkAsset? foundAsset = null;
+                    if (_attackLogger != null)
+                        _attackLogger.LogWarning("No IPs to scan");
+                    return assets;
+                }
+                
+                int scanned = 0;
+                var semaphore = new SemaphoreSlim(Math.Max(1, _maxHostConcurrency));
+                var lockObject = new object();
+                
+                // Scan IP range with concurrency control
+                var hostScanTasks = ipRange.Where(ip => !string.IsNullOrEmpty(ip)).Select(async ipString =>
+                {
+                    if (cancellationToken.IsCancellationRequested || string.IsNullOrEmpty(ipString))
+                        return;
+                    
                     try
                     {
-                        var asset = await ScanHostAsync(ipString, cancellationToken, _intenseScan);
-                        if (asset != null)
+                        await semaphore.WaitAsync(cancellationToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return; // Scan was cancelled
+                    }
+                    catch
+                    {
+                        return; // Semaphore error
+                    }
+                    
+                    try
+                    {
+                        NetworkAsset? foundAsset = null;
+                        try
                         {
-                            assets.Add(asset);
-                            foundAsset = asset;
-                            // Log minimal info - detailed info is shown in the modal
-                            var portInfo = _intenseScan && asset.OpenPorts.Count > 0 
-                                ? $" ({asset.OpenPorts.Count} open ports)" 
-                                : "";
-                            _attackLogger.LogInfo($"Found device: {asset.IpAddress}{portInfo}");
+                            var asset = await ScanHostAsync(ipString, cancellationToken, _intenseScan);
+                            if (asset != null)
+                            {
+                                lock (lockObject)
+                                {
+                                    assets.Add(asset);
+                                    foundAsset = asset;
+                                }
+                                
+                                // Log minimal info - detailed info is shown in the modal
+                                var portInfo = _intenseScan && asset.OpenPorts != null && asset.OpenPorts.Count > 0 
+                                    ? $" ({asset.OpenPorts.Count} open ports)" 
+                                    : "";
+                                if (_attackLogger != null)
+                                    _attackLogger.LogInfo($"Found device: {asset.IpAddress}{portInfo}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Debug(ex, $"Error scanning {ipString}");
+                        }
+                        finally
+                        {
+                            int currentScanned;
+                            int foundCount;
+                            lock (lockObject)
+                            {
+                                scanned++;
+                                currentScanned = scanned;
+                                foundCount = assets.Count;
+                            }
+                            
+                            // Report progress with newly found asset (report every IP for real-time updates)
+                            if (progress != null)
+                            {
+                                try
+                                {
+                                    var scanProgress = new ScanProgress
+                                    {
+                                        Scanned = currentScanned,
+                                        Total = totalHosts,
+                                        CurrentIp = ipString ?? string.Empty,
+                                        Found = foundCount,
+                                        NewAsset = foundAsset
+                                    };
+                                    progress.Report(scanProgress);
+                                }
+                                catch (Exception ex)
+                                {
+                                    // Ignore progress reporting errors
+                                    Logger.Debug(ex, "Error reporting progress");
+                                }
+                            }
+                            
+                            if (currentScanned % 10 == 0 && _attackLogger != null)
+                            {
+                                _attackLogger.LogInfo($"Scanned {currentScanned}/{totalHosts} hosts...");
+                            }
                         }
                     }
                     catch (Exception ex)
                     {
-                        Logger.Debug(ex, $"Error scanning {ipString}");
+                        Logger.Debug(ex, $"Error in scan task for {ipString}");
                     }
-
-                    scanned++;
-                    
-                    // Report progress with newly found asset (report every IP for real-time updates)
-                    if (progress != null)
+                    finally
                     {
                         try
                         {
-                            progress.Report(new ScanProgress
-                            {
-                                Scanned = scanned,
-                                Total = totalHosts,
-                                CurrentIp = ipString,
-                                Found = assets.Count,
-                                NewAsset = foundAsset // Include the newly found asset if any
-                            });
+                            semaphore.Release();
                         }
                         catch
                         {
-                            // Ignore progress reporting errors
+                            // Ignore semaphore release errors
                         }
                     }
-                    
-                    if (scanned % 10 == 0)
-                    {
-                        _attackLogger.LogInfo($"Scanned {scanned}/{totalHosts} hosts...");
-                    }
+                });
+                
+                try
+                {
+                    await Task.WhenAll(hostScanTasks);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error(ex, "Error waiting for host scan tasks");
                 }
 
-                _attackLogger.LogSuccess($"✅ Network scan complete. Found {assets.Count} active devices.");
+                if (_attackLogger != null)
+                    _attackLogger.LogSuccess($"✅ Network scan complete. Found {assets.Count} active devices.");
             }
             catch (Exception ex)
             {
                 Logger.Error(ex, "Network scan failed");
-                _attackLogger.LogError($"Network scan failed: {ex.Message}");
+                if (_attackLogger != null)
+                    _attackLogger.LogError($"Network scan failed: {ex.Message}");
                 throw;
             }
 
@@ -243,31 +393,94 @@ namespace Dorothy.Models
         {
             try
             {
-                // Ping the host first
+                // Ping the host first with timeout
                 using var ping = new Ping();
-                var reply = await ping.SendPingAsync(ipAddress, 1000);
-                
-                if (reply.Status != IPStatus.Success)
+                PingReply? reply = null;
+                try
                 {
-                    return null; // Host is not reachable
+                    var pingTask = ping.SendPingAsync(ipAddress, _pingTimeout);
+                    var pingTimeoutTask = Task.Delay(_pingTimeout, cancellationToken);
+                    var pingCompleted = await Task.WhenAny(pingTask, pingTimeoutTask);
+                    
+                    if (pingCompleted == pingTimeoutTask || cancellationToken.IsCancellationRequested)
+                    {
+                        return null; // Timeout or cancelled
+                    }
+                    
+                    reply = await pingTask;
+                    if (reply == null || reply.Status != IPStatus.Success)
+                    {
+                        return null; // Host is not reachable
+                    }
+                }
+                catch
+                {
+                    return null; // Ping failed
                 }
 
                 var asset = new NetworkAsset
                 {
                     IpAddress = ipAddress,
                     IsReachable = true,
-                    RoundTripTime = reply.RoundtripTime,
+                    RoundTripTime = reply?.RoundtripTime ?? 0,
                     Status = "Online"
                 };
 
-                // Get MAC address
+                // Get MAC address (non-blocking, with timeout)
                 try
                 {
-                    var macBytes = await GetMacAddressAsync(ipAddress);
-                    if (macBytes.Length == 6)
+                    var macTask = GetMacAddressAsync(ipAddress);
+                    var macTimeoutTask = Task.Delay(2000, cancellationToken);
+                    var macCompleted = await Task.WhenAny(macTask, macTimeoutTask);
+                    
+                    if (macCompleted == macTask && !cancellationToken.IsCancellationRequested)
                     {
-                        asset.MacAddress = BitConverter.ToString(macBytes).Replace("-", ":");
-                        asset.Vendor = await GetVendorFromMacAsync(asset.MacAddress);
+                        try
+                        {
+                            var macBytes = await macTask;
+                            if (macBytes != null && macBytes.Length == 6)
+                            {
+                                asset.MacAddress = BitConverter.ToString(macBytes).Replace("-", ":");
+                                
+                                // Get vendor (non-blocking, optional)
+                                if (_enableVendorLookup)
+                                {
+                                    try
+                                    {
+                                        var vendorTask = GetVendorFromMacAsync(asset.MacAddress);
+                                        var vendorTimeoutTask = Task.Delay(3000, cancellationToken);
+                                        var vendorCompleted = await Task.WhenAny(vendorTask, vendorTimeoutTask);
+                                        
+                                        if (vendorCompleted == vendorTask && !cancellationToken.IsCancellationRequested)
+                                        {
+                                            asset.Vendor = await vendorTask ?? "Unknown";
+                                        }
+                                        else
+                                        {
+                                            asset.Vendor = "Unknown";
+                                        }
+                                    }
+                                    catch
+                                    {
+                                        asset.Vendor = "Unknown";
+                                    }
+                                }
+                                else
+                                {
+                                    asset.Vendor = "Unknown";
+                                }
+                            }
+                            else
+                            {
+                                asset.MacAddress = "Unknown";
+                                asset.Vendor = "Unknown";
+                            }
+                        }
+                        catch
+                        {
+                            asset.MacAddress = "Unknown";
+                            asset.Vendor = "Unknown";
+                        }
                     }
                     else
                     {
@@ -281,48 +494,112 @@ namespace Dorothy.Models
                     asset.Vendor = "Unknown";
                 }
 
-                // Get hostname
-                try
+                // Get hostname (non-blocking, optional, with timeout)
+                if (_enableReverseDns)
                 {
-                    var hostEntry = await Dns.GetHostEntryAsync(ipAddress);
-                    asset.Hostname = hostEntry.HostName;
+                    try
+                    {
+                        var dnsTask = Dns.GetHostEntryAsync(ipAddress);
+                        var dnsTimeoutTask = Task.Delay(_dnsLookupTimeout, cancellationToken);
+                        var dnsCompleted = await Task.WhenAny(dnsTask, dnsTimeoutTask);
+                        
+                        if (dnsCompleted == dnsTask && !cancellationToken.IsCancellationRequested)
+                        {
+                            try
+                            {
+                                var hostEntry = await dnsTask;
+                                if (hostEntry != null && !string.IsNullOrEmpty(hostEntry.HostName))
+                                {
+                                    asset.Hostname = hostEntry.HostName;
+                                }
+                                else
+                                {
+                                    asset.Hostname = "Unknown";
+                                }
+                            }
+                            catch
+                            {
+                                asset.Hostname = "Unknown";
+                            }
+                        }
+                        else
+                        {
+                            asset.Hostname = "Unknown";
+                        }
+                    }
+                    catch
+                    {
+                        asset.Hostname = "Unknown";
+                    }
                 }
-                catch
+                else
                 {
                     asset.Hostname = "Unknown";
                 }
 
                 // Intense scan: Port scanning and banner grabbing
-                if (intenseScan)
+                if (intenseScan && _portScanMode != PortScanMode.None)
                 {
-                    asset.OpenPorts = await ScanPortsAsync(ipAddress, cancellationToken);
+                    try
+                    {
+                        var openPorts = await ScanPortsAsync(ipAddress, cancellationToken);
+                        asset.OpenPorts = openPorts ?? new List<OpenPort>();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Debug(ex, $"Error scanning ports for {ipAddress}");
+                        asset.OpenPorts = new List<OpenPort>();
+                    }
+                }
+                else
+                {
+                    asset.OpenPorts = new List<OpenPort>();
                 }
 
                 return asset;
             }
-            catch
+            catch (Exception ex)
             {
+                Logger.Debug(ex, $"Error in ScanHostAsync for {ipAddress}");
                 return null;
             }
         }
+
+        // P/Invoke declarations for SendARP
+        [DllImport("iphlpapi.dll", ExactSpelling = true)]
+        private static extern int SendARP(uint destIP, uint srcIP, byte[] macAddr, ref int macAddrLen);
 
         private async Task<byte[]> GetMacAddressAsync(string ipAddress)
         {
             try
             {
-                // Try ARP table first
+                // Try SendARP first (faster, no process spawning)
+                var macBytes = GetMacAddressViaSendARP(ipAddress);
+                if (macBytes != null && macBytes.Length == 6)
+                {
+                    return macBytes;
+                }
+
+                // If SendARP fails, try ARP table lookup
                 var arpEntry = await GetArpEntryAsync(ipAddress);
                 if (arpEntry != null)
                 {
                     return ParseMacAddress(arpEntry);
                 }
 
-                // If not in ARP table, try ARP request
+                // If not in ARP table, try ARP request via ping
                 using var ping = new Ping();
-                await ping.SendPingAsync(ipAddress, 1000);
+                await ping.SendPingAsync(ipAddress, _pingTimeout);
                 
                 // Wait a bit for ARP to populate
                 await Task.Delay(100);
+                
+                // Try SendARP again after ping
+                macBytes = GetMacAddressViaSendARP(ipAddress);
+                if (macBytes != null && macBytes.Length == 6)
+                {
+                    return macBytes;
+                }
                 
                 arpEntry = await GetArpEntryAsync(ipAddress);
                 if (arpEntry != null)
@@ -336,6 +613,41 @@ namespace Dorothy.Models
             {
                 return Array.Empty<byte>();
             }
+        }
+
+        private byte[]? GetMacAddressViaSendARP(string ipAddress)
+        {
+            try
+            {
+                if (!IPAddress.TryParse(ipAddress, out var ip))
+                    return null;
+                
+                var ipBytes = ip.GetAddressBytes();
+                if (ipBytes.Length != 4)
+                    return null;
+                
+                uint destIP = BitConverter.ToUInt32(ipBytes, 0);
+                uint srcIP = 0;
+                byte[] macAddr = new byte[6];
+                int macAddrLen = macAddr.Length;
+                
+                int result = SendARP(destIP, srcIP, macAddr, ref macAddrLen);
+                
+                if (result == 0 && macAddrLen == 6)
+                {
+                    // Check if MAC is not all zeros
+                    if (macAddr.Any(b => b != 0))
+                    {
+                        return macAddr;
+                    }
+                }
+            }
+            catch
+            {
+                // SendARP failed, fall back to other methods
+            }
+            
+            return null;
         }
 
         private async Task<string?> GetArpEntryAsync(string ipAddress)
@@ -400,21 +712,28 @@ namespace Dorothy.Models
             // Extract first 3 octets (OUI - Organizationally Unique Identifier)
             string oui = cleanMac.Substring(0, 6);
 
-            // Try online API first (macvendors.com - free, no API key required)
-            try
+            // Try online API first (macvendors.com - free, no API key required) if enabled
+            if (_enableVendorLookup)
             {
-                using var httpClient = new System.Net.Http.HttpClient();
-                httpClient.Timeout = TimeSpan.FromSeconds(3);
-                var response = await httpClient.GetStringAsync($"https://api.macvendors.com/{macAddress}");
-                
-                if (!string.IsNullOrWhiteSpace(response) && !response.Contains("error") && !response.Contains("Not Found"))
+                try
                 {
-                    return response.Trim();
+                    var responseTask = _sharedHttpClient.GetStringAsync($"https://api.macvendors.com/{macAddress}");
+                    var timeoutTask = Task.Delay(3000);
+                    var completed = await Task.WhenAny(responseTask, timeoutTask);
+                    
+                    if (completed == responseTask)
+                    {
+                        var response = await responseTask;
+                        if (!string.IsNullOrWhiteSpace(response) && !response.Contains("error") && !response.Contains("Not Found"))
+                        {
+                            return response.Trim();
+                        }
+                    }
                 }
-            }
-            catch
-            {
-                // API failed, fall back to local database
+                catch
+                {
+                    // API failed, fall back to local database
+                }
             }
 
             // Fallback to local OUI database
@@ -540,93 +859,59 @@ namespace Dorothy.Models
         {
             var openPorts = new List<OpenPort>();
             
-            // Common ports to scan
-            var commonPorts = new[]
-            {
-                // Web servers
-                (80, "TCP"), (443, "TCP"), (8080, "TCP"), (8443, "TCP"), (8000, "TCP"), (8888, "TCP"),
-                // SSH/Telnet
-                (22, "TCP"), (23, "TCP"), (2222, "TCP"),
-                // Email
-                (25, "TCP"), (110, "TCP"), (143, "TCP"), (993, "TCP"), (995, "TCP"), (587, "TCP"), (465, "TCP"),
-                // DNS
-                (53, "UDP"), (53, "TCP"),
-                // FTP
-                (21, "TCP"), (20, "TCP"), (2121, "TCP"),
-                // Database
-                (3306, "TCP"), (5432, "TCP"), (1433, "TCP"), (1521, "TCP"), (27017, "TCP"), (6379, "TCP"),
-                // Remote Desktop
-                (3389, "TCP"), (5900, "TCP"), (5901, "TCP"),
-                // SMB/File sharing
-                (139, "TCP"), (445, "TCP"),
-                // RPC
-                (135, "TCP"),
-                // Other common services
-                (161, "UDP"), (162, "UDP"), (514, "UDP"), (636, "TCP"), (873, "TCP"), (2049, "TCP"),
-                (3300, "TCP"), (5000, "TCP"), (5001, "TCP"), (5060, "TCP"), (5433, "TCP"), (5902, "TCP"),
-                (5985, "TCP"), (5986, "TCP"), (7001, "TCP"), (7002, "TCP"), (8009, "TCP"), (8010, "TCP"),
-                (8181, "TCP"), (8880, "TCP"), (9090, "TCP"), (9200, "TCP"), (9300, "TCP"), (10000, "TCP")
-            };
+            if (string.IsNullOrEmpty(ipAddress))
+                return openPorts;
+            
+            // Get ports to scan based on mode
+            List<(int port, string protocol)> portsToScan = GetPortsToScan();
+            
+            if (portsToScan == null || portsToScan.Count == 0)
+                return openPorts;
 
-            var tasks = new List<Task>();
-            var semaphore = new SemaphoreSlim(50); // Limit concurrent scans
-
-            // Create all tasks first, then wait for them
-            foreach (var (port, protocol) in commonPorts)
+            // Use semaphore-limited concurrency pattern instead of creating thousands of tasks
+            int maxConcurrent = Math.Min(100, portsToScan.Count);
+            var semaphore = new SemaphoreSlim(maxConcurrent);
+            var lockObject = new object();
+            
+            // Process ports in batches to avoid creating too many tasks at once
+            var portScanTasks = portsToScan.Select(async portInfo =>
             {
-                // Don't break on cancellation - let all tasks start, they'll check cancellation internally
-                tasks.Add(Task.Run(async () =>
+                if (cancellationToken.IsCancellationRequested)
+                    return;
+                
+                await semaphore.WaitAsync(cancellationToken);
+                try
                 {
-                    try
+                    if (cancellationToken.IsCancellationRequested)
+                        return;
+                    
+                    var openPort = await CheckPortAsync(ipAddress, portInfo.port, portInfo.protocol, cancellationToken);
+                    if (openPort != null)
                     {
-                        // Check cancellation before acquiring semaphore
-                        if (cancellationToken.IsCancellationRequested)
-                            return;
-
-                        await semaphore.WaitAsync(cancellationToken);
-                        try
+                        lock (lockObject)
                         {
-                            // Check again after acquiring semaphore
-                            if (cancellationToken.IsCancellationRequested)
-                                return;
-
-                            var openPort = await CheckPortAsync(ipAddress, port, protocol, cancellationToken);
-                            if (openPort != null)
-                            {
-                                lock (openPorts)
-                                {
-                                    openPorts.Add(openPort);
-                                }
-                            }
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            // Expected when cancellation is requested
-                        }
-                        catch
-                        {
-                            // Ignore individual port scan errors
-                        }
-                        finally
-                        {
-                            semaphore.Release();
+                            openPorts.Add(openPort);
                         }
                     }
-                    catch (OperationCanceledException)
-                    {
-                        // Expected when cancellation is requested during semaphore wait
-                    }
-                    catch
-                    {
-                        // Ignore other errors
-                    }
-                }, cancellationToken));
-            }
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected when cancellation is requested
+                }
+                catch
+                {
+                    // Ignore individual port scan errors
+                }
+                finally
+                {
+                    semaphore.Release();
+                }
+            });
 
-            // Wait for all tasks to complete (or be cancelled)
+            // Wait for all port scans to complete
             try
             {
-                await Task.WhenAll(tasks);
+                await Task.WhenAll(portScanTasks);
             }
             catch
             {
@@ -634,6 +919,83 @@ namespace Dorothy.Models
             }
 
             return openPorts.OrderBy(p => p.Port).ToList();
+        }
+
+        private List<(int port, string protocol)> GetPortsToScan()
+        {
+            var ports = new List<(int port, string protocol)>();
+            
+            switch (_portScanMode)
+            {
+                case PortScanMode.None:
+                    return ports;
+                    
+                case PortScanMode.Common:
+                    // Top 20 most common ports (faster scanning)
+                    ports.AddRange(new[]
+                    {
+                        (80, "TCP"), (443, "TCP"), (22, "TCP"), (21, "TCP"), (23, "TCP"),
+                        (25, "TCP"), (53, "TCP"), (53, "UDP"), (110, "TCP"), (143, "TCP"),
+                        (135, "TCP"), (139, "TCP"), (445, "TCP"), (993, "TCP"), (995, "TCP"),
+                        (1723, "TCP"), (3306, "TCP"), (3389, "TCP"), (5432, "TCP"), (8080, "TCP")
+                    });
+                    break;
+                    
+                case PortScanMode.All:
+                    // All common ports (current behavior)
+                    ports.AddRange(new[]
+                    {
+                        // Web servers
+                        (80, "TCP"), (443, "TCP"), (8080, "TCP"), (8443, "TCP"), (8000, "TCP"), (8888, "TCP"),
+                        // SSH/Telnet
+                        (22, "TCP"), (23, "TCP"), (2222, "TCP"),
+                        // Email
+                        (25, "TCP"), (110, "TCP"), (143, "TCP"), (993, "TCP"), (995, "TCP"), (587, "TCP"), (465, "TCP"),
+                        // DNS
+                        (53, "UDP"), (53, "TCP"),
+                        // FTP
+                        (21, "TCP"), (20, "TCP"), (2121, "TCP"),
+                        // Database
+                        (3306, "TCP"), (5432, "TCP"), (1433, "TCP"), (1521, "TCP"), (27017, "TCP"), (6379, "TCP"),
+                        // Remote Desktop
+                        (3389, "TCP"), (5900, "TCP"), (5901, "TCP"),
+                        // SMB/File sharing
+                        (139, "TCP"), (445, "TCP"),
+                        // RPC
+                        (135, "TCP"),
+                        // Other common services
+                        (161, "UDP"), (162, "UDP"), (514, "UDP"), (636, "TCP"), (873, "TCP"), (2049, "TCP"),
+                        (3300, "TCP"), (5000, "TCP"), (5001, "TCP"), (5060, "TCP"), (5433, "TCP"), (5902, "TCP"),
+                        (5985, "TCP"), (5986, "TCP"), (7001, "TCP"), (7002, "TCP"), (8009, "TCP"), (8010, "TCP"),
+                        (8181, "TCP"), (8880, "TCP"), (9090, "TCP"), (9200, "TCP"), (9300, "TCP"), (10000, "TCP")
+                    });
+                    break;
+                    
+                case PortScanMode.Range:
+                    if (_portRangeStart.HasValue && _portRangeEnd.HasValue)
+                    {
+                        int start = Math.Max(1, Math.Min(_portRangeStart.Value, _portRangeEnd.Value));
+                        int end = Math.Min(65535, Math.Max(_portRangeStart.Value, _portRangeEnd.Value));
+                        
+                        for (int port = start; port <= end; port++)
+                        {
+                            ports.Add((port, "TCP")); // Default to TCP for range scans
+                        }
+                    }
+                    break;
+                    
+                case PortScanMode.Selected:
+                    foreach (var port in _selectedPorts)
+                    {
+                        if (port >= 1 && port <= 65535)
+                        {
+                            ports.Add((port, "TCP")); // Default to TCP for selected ports
+                        }
+                    }
+                    break;
+            }
+            
+            return ports;
         }
 
         private async Task<OpenPort?> CheckPortAsync(string ipAddress, int port, string protocol, CancellationToken cancellationToken)
@@ -648,9 +1010,9 @@ namespace Dorothy.Models
                     using var client = new TcpClient();
                     try
                     {
-                        // Use ConnectAsync with timeout
+                        // Use ConnectAsync with configurable timeout
                         var connectTask = client.ConnectAsync(ipAddress, port);
-                        var timeoutTask = Task.Delay(2000, cancellationToken); // 2 second timeout per port (increased from 1s)
+                        var timeoutTask = Task.Delay(_tcpConnectTimeout, cancellationToken);
                         
                         var completedTask = await Task.WhenAny(connectTask, timeoutTask);
                         
@@ -671,7 +1033,9 @@ namespace Dorothy.Models
                                 Port = port,
                                 Protocol = protocol,
                                 Service = GetServiceName(port),
-                                Banner = await GrabBannerAsync(client, port, cancellationToken)
+                                Banner = _enableBannerGrabbing && ShouldGrabBanner(port) 
+                                    ? await GrabBannerAsync(client, port, cancellationToken) 
+                                    : string.Empty
                             };
                             return openPort;
                         }
@@ -774,6 +1138,16 @@ namespace Dorothy.Models
             };
         }
 
+        private bool ShouldGrabBanner(int port)
+        {
+            // Only grab banners for common ports to avoid delays
+            return port switch
+            {
+                21 or 22 or 25 or 80 or 110 or 143 or 443 or 3306 or 5432 => true,
+                _ => false
+            };
+        }
+
         private async Task<string> GrabBannerAsync(TcpClient client, int port, CancellationToken cancellationToken)
         {
             try
@@ -781,7 +1155,7 @@ namespace Dorothy.Models
                 if (!client.Connected) return string.Empty;
 
                 var stream = client.GetStream();
-                stream.ReadTimeout = 2000; // 2 second timeout
+                stream.ReadTimeout = _bannerReadTimeout;
                 
                 // Send common probes based on port
                 byte[] probe = port switch
@@ -803,9 +1177,18 @@ namespace Dorothy.Models
                     await stream.WriteAsync(probe, 0, probe.Length, cancellationToken);
                 }
 
-                // Read response
+                // Read response with timeout
                 var buffer = new byte[1024];
-                var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+                var readTask = stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
+                var readTimeoutTask = Task.Delay(_bannerReadTimeout, cancellationToken);
+                var readCompleted = await Task.WhenAny(readTask, readTimeoutTask);
+                
+                if (readCompleted == readTimeoutTask || cancellationToken.IsCancellationRequested)
+                {
+                    return string.Empty; // Timeout or cancelled
+                }
+                
+                var bytesRead = await readTask;
                 
                 if (bytesRead > 0)
                 {

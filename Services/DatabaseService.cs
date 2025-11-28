@@ -10,11 +10,12 @@ using NLog;
 
 namespace Dorothy.Services
 {
-    public class DatabaseService
+    public class DatabaseService : IDisposable
     {
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
         private readonly string _dbPath;
         private readonly string _connectionString;
+        private bool _disposed = false;
 
         public DatabaseService()
         {
@@ -464,6 +465,27 @@ namespace Dorothy.Services
                 IsSynced = reader.GetInt32(18) == 1,
                 Synced = reader.GetInt32(18) == 1
             };
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_disposed)
+                return;
+
+            if (disposing)
+            {
+                // SQLite connections are managed per-operation (using statements)
+                // No persistent connections to close, but we can log disposal
+                Logger.Debug("DatabaseService disposed");
+            }
+
+            _disposed = true;
         }
     }
 }
