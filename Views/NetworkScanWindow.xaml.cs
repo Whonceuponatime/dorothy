@@ -25,6 +25,7 @@ namespace Dorothy.Views
         private List<NetworkAsset> _assets = new List<NetworkAsset>();
         private CancellationTokenSource? _cancellationTokenSource;
         private readonly List<NetworkAsset> _foundAssets = new List<NetworkAsset>();
+        private bool _scanCompleted = false;
 
         private string _networkAddress = string.Empty;
         private string _subnetMask = string.Empty;
@@ -202,10 +203,19 @@ namespace Dorothy.Views
                 // Small delay to ensure UI is updated before starting scan
                 await Task.Delay(150);
                 
+                // Reset scan completed flag
+                _scanCompleted = false;
+                
                 // Create progress reporter that updates the DataGrid in real-time
                 var progress = new Progress<ScanProgress>(UpdateProgress);
                 
                 _assets = await _networkScan.ScanNetworkByRangeAsync(startIp, endIp, _cancellationTokenSource.Token, progress);
+                
+                // Mark scan as completed before updating UI
+                _scanCompleted = true;
+                
+                // Wait a moment to ensure all pending progress updates are processed
+                await Task.Delay(100);
                 
                 // Save assets to database
                 if (_databaseService != null && _assets.Count > 0)
@@ -238,10 +248,12 @@ namespace Dorothy.Views
                     {
                         _ = Task.Run(async () => await UpdateAssetsSyncStatus());
                     }
-                });
+                }, System.Windows.Threading.DispatcherPriority.Send);
             }
             catch (OperationCanceledException)
             {
+                _scanCompleted = true;
+                await Task.Delay(100); // Wait for pending progress updates
                 Dispatcher.Invoke(() =>
                 {
                     StatusTextBlock.Text = "⚠️ Scan Cancelled";
@@ -252,10 +264,12 @@ namespace Dorothy.Views
                     LoadingIndicator.Visibility = Visibility.Collapsed;
                     CancelScanButton.Visibility = Visibility.Collapsed;
                     CloseButton.IsEnabled = true;
-                });
+                }, System.Windows.Threading.DispatcherPriority.Send);
             }
             catch (Exception ex)
             {
+                _scanCompleted = true;
+                await Task.Delay(100); // Wait for pending progress updates
                 Dispatcher.Invoke(() =>
                 {
                     StatusTextBlock.Text = $"❌ Scan Failed: {ex.Message}";
@@ -267,7 +281,7 @@ namespace Dorothy.Views
                     CancelScanButton.Visibility = Visibility.Collapsed;
                     CloseButton.IsEnabled = true;
                     MessageBox.Show($"Network scan failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                });
+                }, System.Windows.Threading.DispatcherPriority.Send);
             }
         }
 
@@ -275,9 +289,17 @@ namespace Dorothy.Views
         {
             try
             {
+                // Don't update if scan is already completed
+                if (_scanCompleted)
+                    return;
+
                 // Use BeginInvoke for better performance and responsiveness
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
+                    // Don't update if scan completed while this was queued
+                    if (_scanCompleted)
+                        return;
+
                     // Reset status text color to default during scanning
                     StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 24, 39)); // Default dark gray
                     CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)); // Default light gray
@@ -291,7 +313,12 @@ namespace Dorothy.Views
                         ScanProgressBar.Value = progress.Scanned;
                     }
                     
-                    CurrentIpTextBlock.Text = $"Scanning: {progress.CurrentIp}";
+                    // Only update current IP if scan hasn't completed
+                    if (!_scanCompleted)
+                    {
+                        CurrentIpTextBlock.Text = $"Scanning: {progress.CurrentIp}";
+                    }
+                    
                     FoundCountTextBlock.Text = progress.Found.ToString();
                     
                     // Add newly found asset to DataGrid in real-time

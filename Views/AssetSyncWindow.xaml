@@ -2,7 +2,9 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Dorothy.Views"
-        Title="Sync Assets to Cloud" Height="600" Width="900"
+        Title="Sync Assets to Cloud" 
+        Icon="pack://application:,,,/Resources/icon.ico"
+        Height="600" Width="900"
         WindowStartupLocation="CenterOwner"
         Background="#F3F4F6">
     <Window.Resources>

@@ -571,37 +571,68 @@ namespace Dorothy.Models
             var tasks = new List<Task>();
             var semaphore = new SemaphoreSlim(50); // Limit concurrent scans
 
+            // Create all tasks first, then wait for them
             foreach (var (port, protocol) in commonPorts)
             {
-                if (cancellationToken.IsCancellationRequested)
-                    break;
-
-                await semaphore.WaitAsync(cancellationToken);
+                // Don't break on cancellation - let all tasks start, they'll check cancellation internally
                 tasks.Add(Task.Run(async () =>
                 {
                     try
                     {
-                        var openPort = await CheckPortAsync(ipAddress, port, protocol, cancellationToken);
-                        if (openPort != null)
+                        // Check cancellation before acquiring semaphore
+                        if (cancellationToken.IsCancellationRequested)
+                            return;
+
+                        await semaphore.WaitAsync(cancellationToken);
+                        try
                         {
-                            lock (openPorts)
+                            // Check again after acquiring semaphore
+                            if (cancellationToken.IsCancellationRequested)
+                                return;
+
+                            var openPort = await CheckPortAsync(ipAddress, port, protocol, cancellationToken);
+                            if (openPort != null)
                             {
-                                openPorts.Add(openPort);
+                                lock (openPorts)
+                                {
+                                    openPorts.Add(openPort);
+                                }
                             }
                         }
+                        catch (OperationCanceledException)
+                        {
+                            // Expected when cancellation is requested
+                        }
+                        catch
+                        {
+                            // Ignore individual port scan errors
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Expected when cancellation is requested during semaphore wait
                     }
                     catch
                     {
-                        // Ignore individual port scan errors
-                    }
-                    finally
-                    {
-                        semaphore.Release();
+                        // Ignore other errors
                     }
                 }, cancellationToken));
             }
 
-            await Task.WhenAll(tasks);
+            // Wait for all tasks to complete (or be cancelled)
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch
+            {
+                // Some tasks may have been cancelled, but we still want to return what we found
+            }
+
             return openPorts.OrderBy(p => p.Port).ToList();
         }
 
@@ -609,29 +640,56 @@ namespace Dorothy.Models
         {
             try
             {
+                if (cancellationToken.IsCancellationRequested)
+                    return null;
+
                 if (protocol == "TCP")
                 {
                     using var client = new TcpClient();
-                    var connectTask = client.ConnectAsync(ipAddress, port);
-                    var timeoutTask = Task.Delay(1000, cancellationToken); // 1 second timeout per port
-                    
-                    var completedTask = await Task.WhenAny(connectTask, timeoutTask);
-                    if (completedTask == timeoutTask || cancellationToken.IsCancellationRequested)
+                    try
                     {
-                        return null; // Port is closed or timeout
-                    }
+                        // Use ConnectAsync with timeout
+                        var connectTask = client.ConnectAsync(ipAddress, port);
+                        var timeoutTask = Task.Delay(2000, cancellationToken); // 2 second timeout per port (increased from 1s)
+                        
+                        var completedTask = await Task.WhenAny(connectTask, timeoutTask);
+                        
+                        if (cancellationToken.IsCancellationRequested)
+                            return null;
 
-                    if (client.Connected)
-                    {
-                        var openPort = new OpenPort
+                        if (completedTask == timeoutTask)
                         {
-                            Port = port,
-                            Protocol = protocol,
-                            Service = GetServiceName(port),
-                            Banner = await GrabBannerAsync(client, port, cancellationToken)
-                        };
-                        client.Close();
-                        return openPort;
+                            // Timeout - port is likely closed or filtered
+                            return null;
+                        }
+
+                        // Check if connection succeeded
+                        if (client.Connected)
+                        {
+                            var openPort = new OpenPort
+                            {
+                                Port = port,
+                                Protocol = protocol,
+                                Service = GetServiceName(port),
+                                Banner = await GrabBannerAsync(client, port, cancellationToken)
+                            };
+                            return openPort;
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Expected when cancellation is requested
+                        return null;
+                    }
+                    catch (SocketException)
+                    {
+                        // Port is closed or unreachable - this is normal
+                        return null;
+                    }
+                    catch
+                    {
+                        // Other errors - port is likely closed
+                        return null;
                     }
                 }
                 else if (protocol == "UDP")
@@ -641,9 +699,14 @@ namespace Dorothy.Models
                     // UDP scanning typically requires sending packets and waiting for responses
                 }
             }
+            catch (OperationCanceledException)
+            {
+                // Expected when cancellation is requested
+                return null;
+            }
             catch
             {
-                // Port is closed or unreachable
+                // Port is closed or unreachable - this is normal
             }
 
             return null;

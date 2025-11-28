@@ -1,7 +1,9 @@
 <Window x:Class="Dorothy.Views.CustomGatewayDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Custom Gateway IP" Height="150" Width="300"
+        Title="Custom Gateway IP" 
+        Icon="pack://application:,,,/Resources/icon.ico"
+        Height="150" Width="300"
         WindowStartupLocation="CenterOwner">
     <StackPanel Margin="10">
         <TextBlock Text="Enter Gateway IP:"/>
