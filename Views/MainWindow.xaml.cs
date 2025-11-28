@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -440,7 +441,11 @@ namespace Dorothy.Views
                         else if (line.StartsWith("SupabaseUrl="))
                             _supabaseUrl = line.Substring("SupabaseUrl=".Length);
                         else if (line.StartsWith("SupabaseAnonKey="))
-                            _supabaseAnonKey = line.Substring("SupabaseAnonKey=".Length);
+                        {
+                            var encryptedKey = line.Substring("SupabaseAnonKey=".Length);
+                            // Try to decrypt (for new encrypted format) or use as-is (for old plain text format)
+                            _supabaseAnonKey = DecryptString(encryptedKey) ?? encryptedKey;
+                        }
                     }
                     
                     // Initialize Supabase if configured
@@ -484,7 +489,7 @@ namespace Dorothy.Views
                     $"FontSizeIndex={_fontSizeIndex}",
                     $"ThemeIndex={_themeIndex}",
                     $"SupabaseUrl={_supabaseUrl}",
-                    $"SupabaseAnonKey={_supabaseAnonKey}"
+                    $"SupabaseAnonKey={EncryptString(_supabaseAnonKey)}"
                 };
 
                 System.IO.File.WriteAllLines(settingsFile, lines);
@@ -3540,6 +3545,69 @@ namespace Dorothy.Views
                 _attackLogger.LogError($"Error refreshing source IP: {ex.Message}");
                 MessageBox.Show($"Error refreshing source IP: {ex.Message}", 
                     "Refresh Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Encrypts a string using Windows DPAPI (Data Protection API).
+        /// The encrypted data can only be decrypted by the same Windows user account.
+        /// </summary>
+        private string EncryptString(string plainText)
+        {
+            if (string.IsNullOrEmpty(plainText))
+                return string.Empty;
+
+            try
+            {
+                byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
+                byte[] encryptedBytes = ProtectedData.Protect(
+                    plainBytes,
+                    null, // Optional entropy (additional data)
+                    DataProtectionScope.CurrentUser); // Only current user can decrypt
+
+                return Convert.ToBase64String(encryptedBytes);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Failed to encrypt Supabase key, storing as plain text");
+                return plainText; // Fallback to plain text if encryption fails
+            }
+        }
+
+        /// <summary>
+        /// Decrypts a string that was encrypted using Windows DPAPI.
+        /// Returns null if decryption fails (e.g., invalid format or different user).
+        /// </summary>
+        private string? DecryptString(string encryptedText)
+        {
+            if (string.IsNullOrEmpty(encryptedText))
+                return null;
+
+            try
+            {
+                // Check if it's base64 encoded (encrypted format)
+                byte[] encryptedBytes;
+                try
+                {
+                    encryptedBytes = Convert.FromBase64String(encryptedText);
+                }
+                catch
+                {
+                    // Not base64, likely plain text from old version
+                    return null;
+                }
+
+                byte[] decryptedBytes = ProtectedData.Unprotect(
+                    encryptedBytes,
+                    null, // Optional entropy (must match encryption)
+                    DataProtectionScope.CurrentUser);
+
+                return Encoding.UTF8.GetString(decryptedBytes);
+            }
+            catch (Exception ex)
+            {
+                _logger.Debug(ex, "Failed to decrypt Supabase key, treating as plain text");
+                return null; // Return null to use as plain text
             }
         }
     }

@@ -38,7 +38,6 @@ namespace Dorothy.Views
             ThemeComboBox.SelectedIndex = ThemeIndex;
             SupabaseUrlTextBox.Text = SupabaseUrl;
             SupabaseAnonKeyPasswordBox.Password = SupabaseAnonKey;
-            SupabaseAnonKeyTextBox.Text = SupabaseAnonKey;
         }
 
         private void BrowseLogLocationButton_Click(object sender, RoutedEventArgs e)
@@ -62,9 +61,7 @@ namespace Dorothy.Views
             FontSizeIndex = FontSizeComboBox.SelectedIndex;
             ThemeIndex = ThemeComboBox.SelectedIndex;
             SupabaseUrl = SupabaseUrlTextBox.Text.Trim();
-            SupabaseAnonKey = SupabaseAnonKeyPasswordBox.Visibility == Visibility.Visible 
-                ? SupabaseAnonKeyPasswordBox.Password.Trim() 
-                : SupabaseAnonKeyTextBox.Text.Trim();
+            SupabaseAnonKey = SupabaseAnonKeyPasswordBox.Password.Trim();
 
             // Validate log location
             if (!Directory.Exists(LogLocation))
@@ -115,70 +112,18 @@ namespace Dorothy.Views
             SupabaseUrl = SupabaseUrlTextBox.Text.Trim();
         }
 
-        private void SupabaseAnonKeyTextBox_PasswordChanged(object sender, RoutedEventArgs e)
+        private void SupabaseAnonKeyPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
         {
-            // Sync password box to text box
             if (sender is System.Windows.Controls.PasswordBox passwordBox)
             {
                 SupabaseAnonKey = passwordBox.Password.Trim();
-                SupabaseAnonKeyTextBox.Text = passwordBox.Password;
-            }
-        }
-
-        private void SupabaseAnonKeyTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
-        {
-            // Sync text box to password box
-            if (sender is System.Windows.Controls.TextBox textBox)
-            {
-                SupabaseAnonKey = textBox.Text.Trim();
-                SupabaseAnonKeyPasswordBox.Password = textBox.Text;
-            }
-        }
-
-        private void TogglePasswordVisibilityButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (SupabaseAnonKeyPasswordBox.Visibility == Visibility.Visible)
-            {
-                // Switch to visible text
-                SupabaseAnonKeyTextBox.Text = SupabaseAnonKeyPasswordBox.Password;
-                SupabaseAnonKeyPasswordBox.Visibility = Visibility.Collapsed;
-                SupabaseAnonKeyTextBox.Visibility = Visibility.Visible;
-                var button = sender as Button;
-                if (button != null)
-                {
-                    button.Content = new TextBlock 
-                    { 
-                        Text = "🙈", 
-                        FontSize = 14, 
-                        Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128)) 
-                    };
-                }
-            }
-            else
-            {
-                // Switch to password box
-                SupabaseAnonKeyPasswordBox.Password = SupabaseAnonKeyTextBox.Text;
-                SupabaseAnonKeyTextBox.Visibility = Visibility.Collapsed;
-                SupabaseAnonKeyPasswordBox.Visibility = Visibility.Visible;
-                var button = sender as Button;
-                if (button != null)
-                {
-                    button.Content = new TextBlock 
-                    { 
-                        Text = "👁", 
-                        FontSize = 14, 
-                        Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128)) 
-                    };
-                }
             }
         }
 
         private async void TestConnectionButton_Click(object sender, RoutedEventArgs e)
         {
             var url = SupabaseUrlTextBox.Text.Trim();
-            var anonKey = SupabaseAnonKeyPasswordBox.Visibility == Visibility.Visible 
-                ? SupabaseAnonKeyPasswordBox.Password.Trim() 
-                : SupabaseAnonKeyTextBox.Text.Trim();
+            var anonKey = SupabaseAnonKeyPasswordBox.Password.Trim();
 
             if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(anonKey))
             {

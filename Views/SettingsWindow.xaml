@@ -131,8 +131,27 @@
                     <TextBlock Text="Configure Supabase to enable cloud sync of attack logs. Leave empty to use offline mode only."
                                FontSize="11"
                                Foreground="#6B7280"
-                               Margin="0,0,0,16"
+                               Margin="0,0,0,8"
                                TextWrapping="Wrap"/>
+                    <Border Background="#EFF6FF"
+                            BorderBrush="#BFDBFE"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="10"
+                            Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="🔒 Security Note"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Foreground="#1E40AF"
+                                       Margin="0,0,0,4"/>
+                            <TextBlock Text="Your Supabase Anon Key is encrypted using Windows Data Protection API (DPAPI) and stored securely. The key is only accessible to your Windows user account. Supabase anon keys are designed to be public, but proper Row Level Security (RLS) policies should be configured in your Supabase project to protect your data."
+                                       FontSize="10"
+                                       Foreground="#1E3A8A"
+                                       TextWrapping="Wrap"
+                                       LineHeight="16"/>
+                        </StackPanel>
+                    </Border>
                     
                     <!-- Supabase URL -->
                     <StackPanel Margin="0,0,0,16">
@@ -159,45 +178,13 @@
                                    FontSize="12"
                                    Foreground="#374151"
                                    Margin="0,0,0,4"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <PasswordBox x:Name="SupabaseAnonKeyPasswordBox"
-                                         Grid.Column="0"
-                                         Height="32"
-                                         Padding="8,6"
-                                         BorderBrush="#D1D5DB"
-                                         BorderThickness="1"
-                                         Background="White"
-                                         PasswordChanged="SupabaseAnonKeyTextBox_PasswordChanged"
-                                         Margin="0,0,8,0"/>
-                            <TextBox x:Name="SupabaseAnonKeyTextBox"
-                                     Grid.Column="0"
+                        <PasswordBox x:Name="SupabaseAnonKeyPasswordBox"
                                      Height="32"
                                      Padding="8,6"
                                      BorderBrush="#D1D5DB"
                                      BorderThickness="1"
                                      Background="White"
-                                     TextChanged="SupabaseAnonKeyTextBox_TextChanged"
-                                     Margin="0,0,8,0"
-                                     Visibility="Collapsed"/>
-                            <Button x:Name="TogglePasswordVisibilityButton"
-                                    Grid.Column="1"
-                                    Width="32"
-                                    Height="32"
-                                    Padding="0"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Cursor="Hand"
-                                    Click="TogglePasswordVisibilityButton_Click"
-                                    ToolTip="Show/Hide API Key">
-                                <TextBlock Text="👁"
-                                           FontSize="14"
-                                           Foreground="#6B7280"/>
-                            </Button>
-                        </Grid>
+                                     PasswordChanged="SupabaseAnonKeyPasswordBox_PasswordChanged"/>
                         <TextBlock Text="Your Supabase project's anonymous key"
                                    FontSize="10"
                                    FontStyle="Italic"
