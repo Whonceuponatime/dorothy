@@ -14,7 +14,7 @@ namespace Dorothy.Services
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
         private readonly DatabaseService _databaseService;
         private Client? _supabaseClient;
-        private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+        private static readonly HttpClient _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
 
         public event Action<string>? ProgressChanged;
 
@@ -140,7 +140,16 @@ namespace Dorothy.Services
                     catch (Exception ex)
                     {
                         Logger.Error(ex, $"Failed to sync log {log.Id}");
-                        errors.Add($"Log {log.Id}: {ex.Message}");
+                        
+                        // Check for RLS policy violation
+                        string errorMessage = ex.Message;
+                        if (ex.Message.Contains("row-level security policy", StringComparison.OrdinalIgnoreCase) ||
+                            ex.Message.Contains("42501", StringComparison.OrdinalIgnoreCase))
+                        {
+                            errorMessage = "RLS policy violation - Check Supabase RLS policies allow inserts with anon key, or configure authentication";
+                        }
+                        
+                        errors.Add($"Log {log.Id}: {errorMessage}");
                     }
                 }
 
@@ -150,9 +159,28 @@ namespace Dorothy.Services
                     await _databaseService.MarkAsSyncedAsync(syncedIds, DateTime.UtcNow);
                 }
 
-                var message = syncedCount == unsyncedLogs.Count
-                    ? $"Successfully synced {syncedCount} log(s)."
-                    : $"Synced {syncedCount} of {unsyncedLogs.Count} log(s). {(errors.Count > 0 ? string.Join("; ", errors.Take(3)) : "")}";
+                // Build detailed error message for RLS policy violations
+                var rlsErrors = errors.Where(e => e.Contains("RLS policy violation", StringComparison.OrdinalIgnoreCase)).ToList();
+                var otherErrors = errors.Where(e => !e.Contains("RLS policy violation", StringComparison.OrdinalIgnoreCase)).ToList();
+                
+                string message;
+                if (syncedCount == unsyncedLogs.Count)
+                {
+                    message = $"Successfully synced {syncedCount} log(s).";
+                }
+                else
+                {
+                    var errorSummary = new List<string>();
+                    if (rlsErrors.Count > 0)
+                    {
+                        errorSummary.Add($"{rlsErrors.Count} RLS policy violation(s) - Check Supabase RLS policies to allow inserts");
+                    }
+                    if (otherErrors.Count > 0)
+                    {
+                        errorSummary.Add(string.Join("; ", otherErrors.Take(3)));
+                    }
+                    message = $"Synced {syncedCount} of {unsyncedLogs.Count} log(s). {(errorSummary.Count > 0 ? string.Join(". ", errorSummary) : "")}";
+                }
 
                 return new SyncResult
                 {
@@ -208,51 +236,132 @@ namespace Dorothy.Services
                 var errors = new List<string>();
                 var syncedIds = new List<long>();
 
-                for (int i = 0; i < unsyncedAssets.Count; i++)
+                // Step 1: Enhance data in parallel batches (if enabled)
+                if (enhanceData)
                 {
-                    var asset = unsyncedAssets[i];
-                    try
+                    ReportProgress($"Enhancing {unsyncedAssets.Count} asset(s) in parallel...");
+                    
+                    // Process enhancements in parallel batches (max 10 concurrent to avoid overwhelming APIs)
+                    int batchSize = 10;
+                    var semaphore = new System.Threading.SemaphoreSlim(batchSize);
+                    var enhancementTasks = unsyncedAssets.Select(async (asset, index) =>
                     {
-                        ReportProgress($"Syncing asset {i + 1}/{unsyncedAssets.Count}: {asset.HostIp}");
-                        
-                        // Enhance asset data with online lookups during sync (if enabled)
-                        string hostname = asset.HostName;
-                        string vendor = asset.Vendor;
-
-                        if (enhanceData)
+                        await semaphore.WaitAsync();
+                        try
                         {
-                            ReportProgress($"Enhancing data for {asset.HostIp}...");
+                            // Enhance hostname and vendor in parallel for this asset
+                            var hostnameTask = Task.FromResult(asset.HostName);
+                            var vendorTask = Task.FromResult(asset.Vendor);
                             
-                            // Do DNS lookup ONLY if hostname is unknown
-                            if (string.IsNullOrEmpty(hostname) || hostname == "Unknown")
+                            // Do NetBIOS lookup ONLY if hostname is unknown (gets machine name, not DNS name)
+                            if (string.IsNullOrEmpty(asset.HostName) || asset.HostName == "Unknown")
                             {
-                                ReportProgress($"Looking up hostname for {asset.HostIp}...");
-                                hostname = await ResolveHostnameAsync(asset.HostIp);
+                                hostnameTask = ResolveHostnameAsync(asset.HostIp);
                             }
 
-                            // For vendor: Check local OUI first, then online API if still unknown
-                            if ((string.IsNullOrEmpty(vendor) || vendor == "Unknown") && 
+                            // For vendor: Use local OUI database only (offline)
+                            if ((string.IsNullOrEmpty(asset.Vendor) || asset.Vendor == "Unknown") && 
                                 !string.IsNullOrEmpty(asset.MacAddress) && 
                                 asset.MacAddress != "Unknown")
                             {
-                                // Try local OUI database first (fast, free)
-                                vendor = GetVendorFromLocalDatabase(asset.MacAddress);
-                                
-                                // If still unknown, try online API
-                                if (vendor == "Unknown")
-                                {
-                                    ReportProgress($"Looking up vendor for {asset.MacAddress}...");
-                                    vendor = await LookupVendorOnlineAsync(asset.MacAddress);
-                                }
+                                // Use local OUI database only (offline, instant)
+                                var localVendor = GetVendorFromLocalDatabase(asset.MacAddress);
+                                vendorTask = Task.FromResult(localVendor);
                             }
+                            else
+                            {
+                            }
+                            
+                            // Wait for both lookups to complete
+                            await Task.WhenAll(hostnameTask, vendorTask);
+                            
+                            // Store enhanced values back to asset (we'll use these when syncing)
+                            asset.HostName = await hostnameTask;
+                            asset.Vendor = await vendorTask;
+                            
+                            if ((index + 1) % 10 == 0)
+                            {
+                                ReportProgress($"Enhanced {index + 1}/{unsyncedAssets.Count} asset(s)...");
+                            }
+                        }
+                        catch
+                        {
+                            // Continue with original values if enhancement fails
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    });
+                    
+                    await Task.WhenAll(enhancementTasks);
+                    
+                    // Save enhanced data back to local database so it persists
+                    ReportProgress($"Saving enhanced data to local database...");
+                    var updateTasks = unsyncedAssets.Where(asset => 
+                        (!string.IsNullOrEmpty(asset.Vendor) && asset.Vendor != "Unknown") ||
+                        (!string.IsNullOrEmpty(asset.HostName) && asset.HostName != "Unknown"))
+                        .Select(async asset =>
+                        {
+                            try
+                            {
+                                await _databaseService.UpdateAssetVendorAndHostnameAsync(
+                                    asset.Id, 
+                                    asset.Vendor, 
+                                    asset.HostName);
+                            }
+                            catch
+                            {
+                                // Continue even if update fails
+                            }
+                        });
+                    await Task.WhenAll(updateTasks);
+                    
+                    ReportProgress($"Enhancement complete. Syncing to cloud...");
+                }
+
+                // Step 2: Sync to Supabase in parallel batches (now with enhanced data)
+                ReportProgress($"Syncing {unsyncedAssets.Count} asset(s) to cloud...");
+                
+                int syncBatchSize = 5; // Limit concurrent Supabase inserts to avoid rate limiting
+                var syncSemaphore = new System.Threading.SemaphoreSlim(syncBatchSize);
+                var syncLock = new object();
+                
+                var syncTasks = unsyncedAssets.Select(async (asset, index) =>
+                {
+                    await syncSemaphore.WaitAsync();
+                    try
+                    {
+                        if ((index + 1) % 10 == 0)
+                        {
+                            ReportProgress($"Syncing {index + 1}/{unsyncedAssets.Count} asset(s)...");
+                        }
+
+                        // Convert "Unknown" strings to null for proper database storage
+                        var hostName = asset.HostName;
+                        if (string.IsNullOrWhiteSpace(hostName) || hostName == "Unknown")
+                        {
+                            hostName = null;
+                        }
+                        
+                        var vendor = asset.Vendor;
+                        if (string.IsNullOrWhiteSpace(vendor) || vendor == "Unknown")
+                        {
+                            vendor = null;
+                        }
+                        
+                        var macAddress = asset.MacAddress;
+                        if (string.IsNullOrWhiteSpace(macAddress) || macAddress == "Unknown")
+                        {
+                            macAddress = null;
                         }
 
                         var supabaseAsset = new AssetEntry
                         {
                             HostIp = asset.HostIp,
-                            HostName = hostname, // Enhanced hostname
-                            MacAddress = asset.MacAddress,
-                            Vendor = vendor, // Enhanced vendor
+                            HostName = hostName, // Convert "Unknown" to null
+                            MacAddress = macAddress, // Convert "Unknown" to null
+                            Vendor = vendor, // Convert "Unknown" to null
                             IsOnline = asset.IsOnline,
                             PingTime = asset.PingTime,
                             ScanTime = asset.ScanTime,
@@ -274,16 +383,37 @@ namespace Dorothy.Services
 
                         if (response != null && response.Models != null && response.Models.Count > 0)
                         {
-                            syncedIds.Add(asset.Id);
-                            syncedCount++;
+                            lock (syncLock)
+                            {
+                                syncedIds.Add(asset.Id);
+                                syncedCount++;
+                            }
                         }
                     }
                     catch (Exception ex)
                     {
                         Logger.Error(ex, $"Failed to sync asset {asset.Id}");
-                        errors.Add($"Asset {asset.Id}: {ex.Message}");
+                        
+                        // Check for RLS policy violation
+                        string errorMessage = ex.Message;
+                        if (ex.Message.Contains("row-level security policy", StringComparison.OrdinalIgnoreCase) ||
+                            ex.Message.Contains("42501", StringComparison.OrdinalIgnoreCase))
+                        {
+                            errorMessage = "RLS policy violation - Check Supabase RLS policies allow inserts with anon key, or configure authentication";
+                        }
+                        
+                        lock (syncLock)
+                        {
+                            errors.Add($"Asset {asset.Id}: {errorMessage}");
+                        }
                     }
-                }
+                    finally
+                    {
+                        syncSemaphore.Release();
+                    }
+                });
+                
+                await Task.WhenAll(syncTasks);
 
                 // Mark all successfully synced assets
                 if (syncedIds.Count > 0)
@@ -291,9 +421,28 @@ namespace Dorothy.Services
                     await _databaseService.MarkAssetsAsSyncedAsync(syncedIds, DateTime.UtcNow);
                 }
 
-                var message = syncedCount == unsyncedAssets.Count
-                    ? $"Successfully synced {syncedCount} asset(s)."
-                    : $"Synced {syncedCount} of {unsyncedAssets.Count} asset(s). {(errors.Count > 0 ? string.Join("; ", errors.Take(3)) : "")}";
+                // Build detailed error message for RLS policy violations
+                var rlsErrors = errors.Where(e => e.Contains("RLS policy violation", StringComparison.OrdinalIgnoreCase)).ToList();
+                var otherErrors = errors.Where(e => !e.Contains("RLS policy violation", StringComparison.OrdinalIgnoreCase)).ToList();
+                
+                string message;
+                if (syncedCount == unsyncedAssets.Count)
+                {
+                    message = $"Successfully synced {syncedCount} asset(s).";
+                }
+                else
+                {
+                    var errorSummary = new List<string>();
+                    if (rlsErrors.Count > 0)
+                    {
+                        errorSummary.Add($"{rlsErrors.Count} RLS policy violation(s) - Check Supabase RLS policies to allow inserts");
+                    }
+                    if (otherErrors.Count > 0)
+                    {
+                        errorSummary.Add(string.Join("; ", otherErrors.Take(3)));
+                    }
+                    message = $"Synced {syncedCount} of {unsyncedAssets.Count} asset(s). {(errorSummary.Count > 0 ? string.Join(". ", errorSummary) : "")}";
+                }
 
                 return new SyncResult
                 {
@@ -326,73 +475,102 @@ namespace Dorothy.Services
         /// </summary>
         private async Task<string> ResolveHostnameAsync(string ipAddress)
         {
+            // Use NetBIOS to get machine name (not DNS)
             try
             {
-                var dnsTask = System.Net.Dns.GetHostEntryAsync(ipAddress);
-                var timeoutTask = Task.Delay(5000); // 5 second timeout
-                var completed = await Task.WhenAny(dnsTask, timeoutTask);
-                
-                if (completed == dnsTask)
+                using var process = new System.Diagnostics.Process
                 {
-                    var hostEntry = await dnsTask;
-                    if (hostEntry != null && !string.IsNullOrEmpty(hostEntry.HostName))
+                    StartInfo = new System.Diagnostics.ProcessStartInfo
                     {
-                        Logger.Info($"Hostname resolved: {hostEntry.HostName}");
-                        return hostEntry.HostName;
+                        FileName = "nbtstat",
+                        Arguments = $"-A {ipAddress}",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
                     }
+                };
+
+                process.Start();
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                var timeoutTask = Task.Delay(3000); // 3 second timeout
+                var completed = await Task.WhenAny(outputTask, timeoutTask);
+
+                if (completed == outputTask)
+                {
+                    var output = await outputTask;
+                    await process.WaitForExitAsync();
+
+                    // Parse NetBIOS name from output - try multiple suffixes
+                    // <00> = Workstation Service, <20> = File Server Service, <03> = Messenger Service
+                    var lines = output.Split('\n');
+                    string? bestName = null;
+                    
+                    foreach (var line in lines)
+                    {
+                        // Try to find workstation name first (<00>), then file server (<20>), then messenger (<03>)
+                        if (line.Contains("<00>") || line.Contains("<20>") || line.Contains("<03>"))
+                        {
+                            var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (parts.Length >= 1)
+                            {
+                                var name = parts[0].Trim();
+                                if (!string.IsNullOrWhiteSpace(name) && 
+                                    !name.Equals("Name", StringComparison.OrdinalIgnoreCase) &&
+                                    !name.Equals("---", StringComparison.OrdinalIgnoreCase) &&
+                                    !name.StartsWith("_", StringComparison.OrdinalIgnoreCase)) // Skip service names
+                                {
+                                    // Prefer workstation service name
+                                    if (line.Contains("<00>") && bestName == null)
+                                    {
+                                        bestName = name;
+                                    }
+                                    // Fallback to file server name
+                                    else if (line.Contains("<20>") && bestName == null)
+                                    {
+                                        bestName = name;
+                                    }
+                                    // Last resort: messenger service
+                                    else if (line.Contains("<03>") && bestName == null)
+                                    {
+                                        bestName = name;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (!string.IsNullOrWhiteSpace(bestName))
+                    {
+                        // Clean up the name
+                        bestName = bestName.Trim();
+                        // Remove any trailing spaces or special characters
+                        while (bestName.Length > 0 && (bestName[bestName.Length - 1] == ' ' || 
+                               bestName[bestName.Length - 1] < 32))
+                        {
+                            bestName = bestName.Substring(0, bestName.Length - 1);
+                        }
+                        if (!string.IsNullOrWhiteSpace(bestName))
+                        {
+                            return bestName;
+                        }
+                    }
+                }
+                else
+                {
+                    try { process.Kill(); } catch { }
                 }
             }
             catch
             {
-                // DNS failed, stay as unknown
+                // NetBIOS lookup failed, stay as unknown
             }
             
             return "Unknown";
         }
 
         /// <summary>
-        /// Looks up vendor from MAC address using ONLINE API only (macvendors.com).
-        /// This is called during sync only for vendors that are still "Unknown" after local OUI check.
-        /// </summary>
-        private async Task<string> LookupVendorOnlineAsync(string macAddress)
-        {
-            if (string.IsNullOrWhiteSpace(macAddress) || macAddress == "Unknown")
-            {
-                return "Unknown";
-            }
-
-            try
-            {
-                // Try online API (macvendors.com - free, no API key required)
-                var url = $"https://api.macvendors.com/{macAddress}";
-                var responseTask = _httpClient.GetStringAsync(url);
-                var timeoutTask = Task.Delay(3000);
-                var completed = await Task.WhenAny(responseTask, timeoutTask);
-                
-                if (completed == responseTask)
-                {
-                    var response = await responseTask;
-                    if (!string.IsNullOrWhiteSpace(response) && 
-                        !response.Contains("error", StringComparison.OrdinalIgnoreCase) && 
-                        !response.Contains("Not Found", StringComparison.OrdinalIgnoreCase))
-                    {
-                        Logger.Info($"Vendor found via API: {response}");
-                        return response.Trim();
-                    }
-                }
-            }
-            catch
-            {
-                // API failed, stay as unknown
-            }
-
-            // If online API fails, stay as "Unknown" (local OUI was already checked during scan)
-            return "Unknown";
-        }
-
-        /// <summary>
-        /// Gets vendor from local OUI database (not used in SupabaseSyncService).
-        /// This is here for reference - the actual local lookup happens during scan.
+        /// Gets vendor from local OUI database (offline only).
         /// </summary>
         private string GetVendorFromLocalDatabase(string macAddress)
         {
@@ -405,26 +583,331 @@ namespace Dorothy.Services
 
             string oui = cleanMac.Substring(0, 6);
 
-            // Common OUI database
+            // Comprehensive offline OUI database with verified IEEE assignments
             var ouiDatabase = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                // Major vendors
-                { "005056", "VMware" }, { "000C29", "VMware" }, { "080027", "VirtualBox" },
-                { "00155D", "Hyper-V" }, { "001DD8", "Microsoft" },
-                { "A4C361", "Apple" }, { "BC9FEF", "Apple" }, { "64B9E8", "Apple" },
-                { "1CBDB9", "Samsung" }, { "E4121D", "Samsung" }, { "DC7144", "Samsung" },
-                { "00AA00", "Intel" }, { "00AA01", "Intel" }, { "7085C2", "Intel" },
-                { "00E04C", "Realtek" }, { "525400", "Realtek" }, { "74DA38", "Realtek" },
-                { "001C23", "Dell" }, { "002170", "Dell" }, { "78F7BE", "Dell" },
-                { "001438", "HP" }, { "9C8E99", "HP" }, { "C08995", "HP" },
-                { "F4EC38", "TP-Link" }, { "D82686", "TP-Link" }, { "C46E1F", "TP-Link" },
-                { "2CF05D", "ASUS" }, { "AC220B", "ASUS" }, { "7054D5", "ASUS" },
-                { "00000C", "Cisco" }, { "68BDAB", "Cisco" }, { "001D71", "Cisco" },
-                { "0024B2", "Netgear" }, { "A021B7", "Netgear" }, { "4C9EFF", "Netgear" },
-                { "000D88", "D-Link" }, { "B8A386", "D-Link" }, { "1C7EE5", "D-Link" },
-                { "00E00C", "Huawei" }, { "C0A0BB", "Huawei" }, { "4C549F", "Huawei" },
-                { "64B473", "Xiaomi" }, { "F8A45F", "Xiaomi" }, { "34CE00", "Xiaomi" },
-                { "54C0EB", "Google" }, { "3C5AB4", "Google" }, { "F4F5D8", "Google" },
+                // Virtual/Hypervisors
+                { "005056", "VMware" },
+                { "000C29", "VMware" },
+                { "000569", "VMware" },
+                { "080027", "VirtualBox" },
+                { "0A0027", "VirtualBox" },
+                { "00155D", "Hyper-V" },
+                { "001DD8", "Microsoft" },
+
+                // Common network equipment and devices
+                { "0010F3", "Nexans" },
+                { "F8A2CF", "Unknown" }, // No IEEE record - keep as Unknown
+                { "98E7F4", "Wistron Neweb" },
+                { "04D9F5", "MSI" },
+                { "3C7C3F", "LG Electronics" },
+                { "F8E43B", "Hon Hai Precision" }, // Foxconn
+                { "305A3A", "AzureWave Technology" },
+                { "50EBF6", "Lite-On Technology" },
+                { "B0383B", "Hon Hai Precision" },
+                { "C8B223", "D-Link" },
+                { "E86A64", "TP-Link" },
+
+                // Apple
+                { "A4C361", "Apple" },
+                { "BC9FEF", "Apple" },
+                { "64B9E8", "Apple" },
+                { "DCBF54", "Apple" },
+                { "787B8A", "Apple" },
+                { "10DD01", "Apple" },
+                { "F4F15A", "Apple" },
+                { "6C4D73", "Apple" },
+                { "9027E4", "Apple" },
+                { "CCF9E8", "Apple" },
+                { "F02475", "Apple" },
+                { "ACBC32", "Apple" },
+                { "3C2EF9", "Apple" },
+                { "AC7F3E", "Apple" },
+                { "F81EDF", "Apple" },
+                { "04489A", "Apple" },
+                { "DC2B2A", "Apple" },
+                { "3451C9", "Apple" },
+
+                // Samsung
+                { "1CBDB9", "Samsung" },
+                { "E4121D", "Samsung" },
+                { "DC7144", "Samsung" },
+                { "A81B5A", "Samsung" },
+                { "F4099B", "Samsung" },
+                { "48DB50", "Samsung" },
+                { "BC8385", "Samsung" },
+                { "3C7A8A", "Samsung" },
+                { "086698", "Samsung" },
+                { "30F769", "Samsung" },
+                { "001632", "Samsung" },
+                { "0000F0", "Samsung" },
+                { "002399", "Samsung" },
+                { "002566", "Samsung" },
+                { "C89E43", "Samsung" },
+                { "588694", "Samsung" },
+                { "58869C", "Samsung" },
+                { "B0386C", "Samsung" },
+                { "30CDA7", "Samsung" },
+                { "988389", "Samsung" },
+
+                // Intel
+                { "00AA00", "Intel" },
+                { "00AA01", "Intel" },
+                { "00AA02", "Intel" },
+                { "00D0B7", "Intel" },
+                { "7085C2", "Intel" },
+                { "A4D1D2", "Intel" },
+                { "DC53D4", "Intel" },
+                { "84A9C4", "Intel" },
+                { "48F17F", "Intel" },
+                { "00C2C6", "Intel" },
+                { "001B21", "Intel" },
+                { "F0DEEF", "Intel" },
+                { "941882", "Intel" },
+                { "685D43", "Intel" },
+                { "B4FCC4", "Intel" },
+
+                // Realtek
+                { "00E04C", "Realtek" },
+                { "525400", "Realtek" },
+                { "74DA38", "Realtek" },
+                { "1C39BB", "Realtek" },
+                { "10C37B", "Realtek" },
+                { "98DED0", "Realtek" },
+                { "801F02", "Realtek" },
+                { "30F9ED", "Realtek" },
+
+                // Dell
+                { "001C23", "Dell" },
+                { "002170", "Dell" },
+                { "00215D", "Dell" },
+                { "001E4F", "Dell" },
+                { "78F7BE", "Dell" },
+                { "D4BED9", "Dell" },
+                { "182033", "Dell" },
+                { "F04DA2", "Dell" },
+                { "609C9F", "Dell" },
+                { "D89695", "Dell" },
+                { "241DD5", "Dell" },
+                { "4CD717", "Dell" },
+                { "B07B25", "Dell" },
+
+                // HP / HPE
+                { "001438", "HP" },
+                { "002324", "HP" },
+                { "C08995", "HP" },
+                { "9C8E99", "HP" },
+                { "106FD0", "HP" },
+                { "2C768A", "HP" },
+                { "6C3BE6", "HP" },
+                { "489A8A", "HP" },
+                { "009C02", "HP" },
+                { "001E0B", "HP" },
+                { "5C60BA", "HP" },
+                { "E4E749", "HP" },
+
+                // Lenovo
+                { "60F677", "Lenovo" },
+                { "5065F3", "Lenovo" },
+                { "1C69A5", "Lenovo" },
+                { "74E543", "Lenovo" },
+                { "C82A14", "Lenovo" },
+                { "40F2E9", "Lenovo" },
+                { "30C9AB", "Lenovo" },
+                { "9CBC36", "Lenovo" },
+                { "A01D48", "Lenovo" },
+
+                // TP-Link
+                { "F4EC38", "TP-Link" },
+                { "D82686", "TP-Link" },
+                { "C46E1F", "TP-Link" },
+                { "A42BB0", "TP-Link" },
+                { "0CE150", "TP-Link" },
+                { "50D4F7", "TP-Link" },
+                { "ECF196", "TP-Link" },
+                { "10FEED", "TP-Link" },
+                { "A04606", "TP-Link" },
+                { "1C3BF3", "TP-Link" },
+
+                // ASUS
+                { "2CF05D", "ASUS" },
+                { "1C87EC", "ASUS" },
+                { "AC220B", "ASUS" },
+                { "04927A", "ASUS" },
+                { "7054D5", "ASUS" },
+                { "38D547", "ASUS" },
+                { "F46D04", "ASUS" },
+                { "F832E4", "ASUS" },
+                { "D45D64", "ASUS" },
+                { "581122", "ASUS" },
+                { "7C10C9", "ASUS" },
+                { "6045CB", "ASUS" },
+                { "BCFCE7", "ASUS" },
+                { "FC3497", "ASUS" },
+                { "74D02B", "ASUS" },
+                { "B06EBF", "ASUS" },
+                { "A85E45", "ASUS" },
+
+                // Cisco
+                { "00000C", "Cisco" },
+                { "00000D", "Cisco" },
+                { "00000E", "Cisco" },
+                { "00000F", "Cisco" },
+                { "000102", "Cisco" },
+                { "0001C7", "Cisco" },
+                { "0001C9", "Cisco" },
+                { "0001CB", "Cisco" },
+                { "68BDAB", "Cisco" },
+                { "001D71", "Cisco" },
+                { "0021A0", "Cisco" },
+
+                // Netgear
+                { "0024B2", "Netgear" },
+                { "000FB5", "Netgear" },
+                { "001B2F", "Netgear" },
+                { "001E2A", "Netgear" },
+                { "A021B7", "Netgear" },
+                { "4C9EFF", "Netgear" },
+                { "E091F5", "Netgear" },
+                { "3490EA", "Netgear" },
+                { "288088", "Netgear" },
+
+                // D-Link
+                { "000D88", "D-Link" },
+                { "001195", "D-Link" },
+                { "001346", "D-Link" },
+                { "0015E9", "D-Link" },
+                { "001CF0", "D-Link" },
+                { "0022B0", "D-Link" },
+                { "B8A386", "D-Link" },
+                { "1C7EE5", "D-Link" },
+                { "CCB255", "D-Link" },
+
+                // Huawei
+                { "00E00C", "Huawei" },
+                { "0018E7", "Huawei" },
+                { "00259E", "Huawei" },
+                { "002692", "Huawei" },
+                { "C0A0BB", "Huawei" },
+                { "4C549F", "Huawei" },
+                { "D4A9E8", "Huawei" },
+                { "30D1DC", "Huawei" },
+                { "786EB8", "Huawei" },
+
+                // Xiaomi
+                { "64B473", "Xiaomi" },
+                { "F8A45F", "Xiaomi" },
+                { "783A84", "Xiaomi" },
+                { "50EC50", "Xiaomi" },
+                { "F0B429", "Xiaomi" },
+                { "34CE00", "Xiaomi" },
+                { "D4619D", "Xiaomi" },
+                { "B0E235", "Xiaomi" },
+                { "5C63BF", "Xiaomi" },
+
+                // Google / Nest
+                { "54C0EB", "Google" },
+                { "54EAA8", "Google" },
+                { "3C5AB4", "Google" },
+                { "94EB2C", "Google" },
+                { "C058EC", "Google" },
+                { "F4F5D8", "Google" },
+
+                // Amazon / Ring
+                { "74C246", "Amazon" },
+                { "ACF85C", "Amazon" },
+                { "84D6D0", "Amazon" },
+                { "74C630", "Amazon" },
+                { "6854FD", "Amazon" },
+                { "0C47C9", "Amazon" },
+
+                // Broadcom
+                { "001018", "Broadcom" },
+                { "002618", "Broadcom" },
+                { "00D0C0", "Broadcom" },
+                { "0090F8", "Broadcom" },
+                { "B49691", "Broadcom" },
+                { "E8B2AC", "Broadcom" },
+
+                // Qualcomm
+                { "009065", "Qualcomm" },
+                { "B0702D", "Qualcomm" },
+                { "C47C8D", "Qualcomm" },
+                { "2C5491", "Qualcomm" },
+                { "8C15C7", "Qualcomm" },
+                { "001DA2", "Qualcomm" },
+
+                // Sony
+                { "001D0D", "Sony" },
+                { "002076", "Sony" },
+                { "00247E", "Sony" },
+                { "7C669E", "Sony" },
+                { "18F46A", "Sony" },
+                { "F8321A", "Sony" },
+
+                // LG
+                { "001C62", "LG" },
+                { "001E75", "LG" },
+                { "B4B3CF", "LG" },
+                { "9C97DC", "LG" },
+                { "789ED0", "LG" },
+                { "50685D", "LG" },
+
+                // Motorola
+                { "00139D", "Motorola" },
+                { "001ADB", "Motorola" },
+                { "9C5CF9", "Motorola" },
+                { "0060A1", "Motorola" },
+                { "0004E2", "Motorola" },
+
+                // Linksys / Belkin
+                { "002129", "Linksys" },
+                { "00131A", "Linksys" },
+                { "001217", "Linksys" },
+                { "000625", "Linksys" },
+                { "002275", "Linksys" },
+
+                // Ubiquiti
+                { "04185A", "Ubiquiti" },
+                { "18E829", "Ubiquiti" },
+                { "687251", "Ubiquiti" },
+                { "24A43C", "Ubiquiti" },
+                { "FC0CAB", "Ubiquiti" },
+
+                // Raspberry Pi Foundation
+                { "B827EB", "Raspberry Pi" },
+                { "DCA632", "Raspberry Pi" },
+                { "E45F01", "Raspberry Pi" },
+
+                // ASRock
+                { "70856F", "ASRock" },
+
+                // GIGABYTE
+                { "1C697A", "GIGABYTE" },
+                { "9C6B00", "GIGABYTE" },
+
+                // MSI
+                { "00241D", "MSI" },
+                { "448A5B", "MSI" },
+
+                // Extra OUIs from scans
+                { "705DCC", "EFM Networks" },
+                { "6C2408", "LCFC(Hefei) Electronics" },
+                { "84BA3B", "Canon" },
+                { "00E04D", "INTERNET INITIATIVE JAPAN" },
+                { "3498B5", "S1 Corporation" },
+                { "00089B", "S1 Corporation" },
+                { "9009D0", "Synology" },
+                { "D4CA6D", "MikroTik" },
+                { "1853E0", "Hanyang Digitech" },
+
+                // Still unresolved or rare OUIs
+                { "0009E5", "Unknown" },
+                { "A0CEC8", "Unknown" },
+                { "245EBE", "Unknown" },
+                { "000159", "Unknown" },
+                { "107B44", "Unknown" },
+                { "F8A26D", "Unknown" },
             };
 
             return ouiDatabase.TryGetValue(oui, out var vendor) ? vendor : "Unknown";

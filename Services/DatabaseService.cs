@@ -455,6 +455,33 @@ namespace Dorothy.Services
             }
         }
 
+        public async Task UpdateAssetVendorAndHostnameAsync(long assetId, string? vendor, string? hostname)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    UPDATE Assets
+                    SET Vendor = @Vendor, HostName = @HostName
+                    WHERE Id = @Id
+                ";
+
+                command.Parameters.AddWithValue("@Id", assetId);
+                command.Parameters.AddWithValue("@Vendor", vendor ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@HostName", hostname ?? (object)DBNull.Value);
+
+                await command.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, $"Failed to update asset {assetId} vendor/hostname");
+                throw;
+            }
+        }
+
         public async Task DeleteAssetsAsync(IEnumerable<long> ids)
         {
             try

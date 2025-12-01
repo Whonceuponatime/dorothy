@@ -126,6 +126,7 @@
                                 </Binding>
                             </DataGridTextColumn.Binding>
                         </DataGridTextColumn>
+                        <DataGridTextColumn Header="Ports" Binding="{Binding OpenPortsDisplay}" Width="150"/>
                         <DataGridTextColumn Header="Ping (ms)" Binding="{Binding PingTime}" Width="80"/>
                         <DataGridTextColumn Header="Scan Time" Binding="{Binding ScanTime, StringFormat='{}{0:yyyy-MM-dd HH:mm}'}" Width="140"/>
                     </DataGrid.Columns>

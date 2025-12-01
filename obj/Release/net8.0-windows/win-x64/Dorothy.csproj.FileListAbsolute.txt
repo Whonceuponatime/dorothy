@@ -1017,3 +1017,6 @@ C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\obj\Release\net8.0-w
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\obj\Release\net8.0-windows\win-x64\Views\AssetSyncWindow.baml
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\obj\Release\net8.0-windows\win-x64\Views\AboutWindow.baml
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\obj\Release\net8.0-windows\win-x64\Views\AboutWindow.g.cs
+C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\bin\Release\net8.0-windows\win-x64\System.Management.dll
+C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\obj\Release\net8.0-windows\win-x64\Views\LicenseWindow.baml
+C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\obj\Release\net8.0-windows\win-x64\Views\LicenseWindow.g.cs

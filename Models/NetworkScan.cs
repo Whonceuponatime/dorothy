@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
+using Dorothy.Network;
 
 namespace Dorothy.Models
 {
@@ -31,7 +31,10 @@ namespace Dorothy.Models
         public long? RoundTripTime { get; set; }
         public string Status { get; set; } = string.Empty;
         public List<OpenPort> OpenPorts { get; set; } = new List<OpenPort>();
-        public string OpenPortsDisplay => OpenPorts.Count > 0 ? string.Join(", ", OpenPorts.Select(p => $"{p.Port}/{p.Protocol}")) : "None";
+        public bool PortScanPerformed { get; set; } = false; // Track if port scanning was attempted
+        public string OpenPortsDisplay => OpenPorts.Count > 0 
+            ? string.Join(", ", OpenPorts.Select(p => $"{p.Port}/{p.Protocol}")) 
+            : (PortScanPerformed ? "None" : "N/A");
     }
 
     public class OpenPort
@@ -75,11 +78,7 @@ namespace Dorothy.Models
         private bool _enableVendorLookup = true;
         private bool _enableBannerGrabbing = true;
         
-        // Shared HttpClient for vendor lookups
-        private static readonly HttpClient _sharedHttpClient = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(3)
-        };
+        // HttpClient removed - vendor lookups now use local OUI database only (offline)
 
         public NetworkScan(AttackLogger attackLogger)
         {
@@ -442,22 +441,27 @@ namespace Dorothy.Models
                             if (macBytes != null && macBytes.Length == 6)
                             {
                                 asset.MacAddress = BitConverter.ToString(macBytes).Replace("-", ":");
+                                _attackLogger.LogInfo($"✅ MAC address retrieved: {asset.MacAddress} for IP: {ipAddress}");
                                 
                                 // Get vendor from local OUI database (fast, no timeout needed)
                                 if (_enableVendorLookup)
                                 {
                                     try
                                     {
+                                        _attackLogger.LogInfo($"🔍 Looking up vendor for MAC: {asset.MacAddress}");
                                         // Local OUI lookup is instant, no timeout needed
                                         asset.Vendor = await GetVendorFromMacAsync(asset.MacAddress);
+                                        _attackLogger.LogInfo($"✅ Vendor resolved for {asset.MacAddress}: {asset.Vendor}");
                                     }
-                                    catch
+                                    catch (Exception ex)
                                     {
+                                        _attackLogger.LogWarning($"❌ Failed to get vendor for MAC {asset.MacAddress}: {ex.Message}");
                                         asset.Vendor = "Unknown";
                                     }
                                 }
                                 else
                                 {
+                                    _attackLogger.LogWarning($"⚠️ Vendor lookup disabled for {asset.MacAddress}");
                                     asset.Vendor = "Unknown";
                                 }
                             }
@@ -475,56 +479,36 @@ namespace Dorothy.Models
                     }
                     else
                     {
+                        _attackLogger.LogWarning($"⚠️ MAC address not retrieved for IP: {ipAddress} (timeout or failed)");
                         asset.MacAddress = "Unknown";
                         asset.Vendor = "Unknown";
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
+                    _attackLogger.LogWarning($"⚠️ Exception getting MAC address for IP: {ipAddress}: {ex.Message}");
                     asset.MacAddress = "Unknown";
                     asset.Vendor = "Unknown";
                 }
 
-                // Get hostname (non-blocking, optional, with timeout)
+                // Get hostname using multiple methods (non-blocking, optional, with timeout)
                 if (_enableReverseDns)
                 {
                     try
                     {
-                        var dnsTask = Dns.GetHostEntryAsync(ipAddress);
-                        var dnsTimeoutTask = Task.Delay(_dnsLookupTimeout, cancellationToken);
-                        var dnsCompleted = await Task.WhenAny(dnsTask, dnsTimeoutTask);
-                        
-                        if (dnsCompleted == dnsTask && !cancellationToken.IsCancellationRequested)
+                        _attackLogger.LogInfo($"🔍 Looking up hostname for IP: {ipAddress}");
+                        asset.Hostname = await ResolveHostnameMultiMethodAsync(ipAddress, cancellationToken);
+                        _attackLogger.LogInfo($"✅ Hostname resolved for {ipAddress}: {asset.Hostname}");
+                    }
+                    catch (Exception ex)
                         {
-                            try
-                            {
-                                var hostEntry = await dnsTask;
-                                if (hostEntry != null && !string.IsNullOrEmpty(hostEntry.HostName))
-                                {
-                                    asset.Hostname = hostEntry.HostName;
-                                }
-                                else
-                                {
-                                    asset.Hostname = "Unknown";
-                                }
-                            }
-                            catch
-                            {
+                        _attackLogger.LogWarning($"❌ Failed to resolve hostname for {ipAddress}: {ex.Message}");
                                 asset.Hostname = "Unknown";
                             }
                         }
                         else
                         {
-                            asset.Hostname = "Unknown";
-                        }
-                    }
-                    catch
-                    {
-                        asset.Hostname = "Unknown";
-                    }
-                }
-                else
-                {
+                    _attackLogger.LogWarning($"⚠️ Hostname lookup disabled for {ipAddress}");
                     asset.Hostname = "Unknown";
                 }
 
@@ -535,16 +519,19 @@ namespace Dorothy.Models
                     {
                         var openPorts = await ScanPortsAsync(ipAddress, cancellationToken);
                         asset.OpenPorts = openPorts ?? new List<OpenPort>();
+                        asset.PortScanPerformed = true; // Mark that port scanning was performed
                     }
                     catch (Exception ex)
                     {
                         Logger.Debug(ex, $"Error scanning ports for {ipAddress}");
                         asset.OpenPorts = new List<OpenPort>();
+                        asset.PortScanPerformed = true; // Still mark as performed even if it failed
                     }
                 }
                 else
                 {
                     asset.OpenPorts = new List<OpenPort>();
+                    asset.PortScanPerformed = false; // Simple scan - no port scanning performed
                 }
 
                 return asset;
@@ -686,182 +673,811 @@ namespace Dorothy.Models
             return macBytes;
         }
 
-        private async Task<string> GetVendorFromMacAsync(string macAddress)
+        private async Task<string> ResolveHostnameMultiMethodAsync(string ipAddress, CancellationToken cancellationToken)
+        {
+            // Check if we have internet - if online and resolution fails, don't worry about it
+            bool isOnline = IsInternetAvailable();
+            
+            // Method 1: Try DNS/LLMNR/hosts (works offline if local DNS exists)
+            try
+            {
+                if (IPAddress.TryParse(ipAddress, out var ip))
+                {
+                    var dnsHostname = await HostnameResolver.ResolveHostnameAsync(ip, 1000);
+                    if (!string.IsNullOrWhiteSpace(dnsHostname) && dnsHostname != ipAddress)
+                    {
+                        _attackLogger.LogInfo($"✅ Hostname found via DNS/LLMNR: {dnsHostname}");
+                        return dnsHostname;
+                    }
+                }
+            }
+            catch
+            {
+                // DNS/LLMNR failed - continue to next method
+            }
+
+            // Method 2: Try NetBIOS Name Service (UDP 137) - Windows-style names like DESKTOP-ABC
+            try
+            {
+                if (IPAddress.TryParse(ipAddress, out var ip))
+        {
+                    var netbiosHostname = await NetBiosNameQuery.QueryNetBiosNameAsync(ip, 800);
+                    if (!string.IsNullOrWhiteSpace(netbiosHostname))
+                    {
+                        _attackLogger.LogInfo($"✅ Hostname found via NetBIOS NBNS: {netbiosHostname}");
+                        return netbiosHostname;
+                    }
+                }
+            }
+            catch
+            {
+                // NetBIOS NBNS failed - continue to next method
+            }
+
+            // Method 3: Try nbtstat -A (fallback for Windows NetBIOS)
+            try
+            {
+                var netbiosHostname = await GetNetBiosNameAsync(ipAddress, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(netbiosHostname) && netbiosHostname != "Unknown")
+                {
+                    _attackLogger.LogInfo($"✅ Hostname found via nbtstat: {netbiosHostname}");
+                    return netbiosHostname;
+                }
+            }
+            catch
+            {
+                // nbtstat failed - continue
+            }
+
+            // Method 4: Try ARP table (sometimes contains machine names)
+            try
+            {
+                var arpHostname = await GetHostnameFromArpTableAsync(ipAddress, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(arpHostname) && arpHostname != "Unknown")
+            {
+                    _attackLogger.LogInfo($"✅ Hostname found via ARP table: {arpHostname}");
+                    return arpHostname;
+                }
+            }
+            catch
+            {
+                // ARP table lookup failed
+            }
+
+            // If online and all methods failed, don't worry about it - just return Unknown
+            if (isOnline)
+            {
+                // Online: hostname resolution failed, but that's okay - device might not expose name
+                return "Unknown";
+            }
+
+            // Offline: all offline methods failed - no hostname available
+            _attackLogger.LogWarning($"❌ Hostname not found for {ipAddress} (tried DNS/LLMNR, NetBIOS NBNS, nbtstat, ARP)");
+            return "Unknown";
+        }
+
+        /// <summary>
+        /// Checks if internet connection is available
+        /// </summary>
+        private bool IsInternetAvailable()
+        {
+            try
+            {
+                // Quick check: ping a reliable DNS server
+                using var ping = new System.Net.NetworkInformation.Ping();
+                var reply = ping.Send("8.8.8.8", 1000); // Google DNS, 1 second timeout
+                return reply?.Status == System.Net.NetworkInformation.IPStatus.Success;
+            }
+            catch
+            {
+                // If ping fails, assume offline
+                return false;
+            }
+        }
+
+        private async Task<string> GetNetBiosNameAsync(string ipAddress, CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Method 1: Try nbtstat -A (query by IP address)
+                using var process = new System.Diagnostics.Process
+                {
+                    StartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "nbtstat",
+                        Arguments = $"-A {ipAddress}",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    }
+                };
+
+                process.Start();
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                var timeoutTask = Task.Delay(2000, cancellationToken); // Reduced to 2 seconds since it's timing out anyway
+                var completed = await Task.WhenAny(outputTask, timeoutTask);
+
+                if (completed == outputTask && !cancellationToken.IsCancellationRequested)
+                {
+                    var output = await outputTask;
+                    await process.WaitForExitAsync();
+
+
+                    // Parse NetBIOS name from output - try multiple suffixes
+                    // <00> = Workstation Service, <20> = File Server Service, <03> = Messenger Service
+                    var lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    string? bestName = null;
+                    
+                    foreach (var line in lines)
+                    {
+                        // Skip header lines
+                        if (line.Contains("Name") && line.Contains("Type") && line.Contains("Status"))
+                            continue;
+                        if (line.Contains("---") || line.Trim().Length == 0)
+                            continue;
+
+                        // Try to find workstation name first (<00>), then file server (<20>), then messenger (<03>)
+                        if (line.Contains("<00>") || line.Contains("<20>") || line.Contains("<03>"))
+                        {
+                            // Parse the line - format is typically: "NAME            <00>  UNIQUE      Registered"
+                            var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (parts.Length >= 1)
+                            {
+                                var name = parts[0].Trim();
+                                // Remove any trailing spaces or special characters from the name
+                                name = name.TrimEnd();
+                                
+                                if (!string.IsNullOrWhiteSpace(name) && 
+                                    !name.Equals("Name", StringComparison.OrdinalIgnoreCase) &&
+                                    !name.Equals("---", StringComparison.OrdinalIgnoreCase) &&
+                                    !name.StartsWith("_", StringComparison.OrdinalIgnoreCase) && // Skip service names
+                                    name.Length <= 15) // NetBIOS names are max 15 characters
+                                {
+                                    // Prefer workstation service name (<00>)
+                                    if (line.Contains("<00>") && bestName == null)
+                                    {
+                                        bestName = name;
+                                    }
+                                    // Fallback to file server name (<20>)
+                                    else if (line.Contains("<20>") && bestName == null)
+                                    {
+                                        bestName = name;
+                                    }
+                                    // Last resort: messenger service (<03>)
+                                    else if (line.Contains("<03>") && bestName == null)
+                                    {
+                                        bestName = name;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (!string.IsNullOrWhiteSpace(bestName))
+                    {
+                        // Clean up the name - remove any trailing spaces or special characters
+                        bestName = bestName.Trim();
+                        while (bestName.Length > 0 && (bestName[bestName.Length - 1] == ' ' || 
+                               bestName[bestName.Length - 1] < 32))
+                        {
+                            bestName = bestName.Substring(0, bestName.Length - 1);
+                        }
+                        if (!string.IsNullOrWhiteSpace(bestName) && bestName.Length <= 15)
+                        {
+                            return bestName;
+                        }
+                    }
+                    else
+                    {
+                    }
+                }
+                else
+                {
+                    try { process.Kill(); } catch { }
+                }
+            }
+            catch
+            {
+                // nbtstat -n failed
+            }
+
+            // Method 2: Try ping with -a flag (resolves hostname via DNS/NetBIOS)
+            try
+            {
+                using var pingProcess = new System.Diagnostics.Process
+                {
+                    StartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "ping",
+                        Arguments = $"-a -n 1 -w 2000 {ipAddress}",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    }
+                };
+
+                pingProcess.Start();
+                var pingOutputTask = pingProcess.StandardOutput.ReadToEndAsync();
+                var pingTimeoutTask = Task.Delay(3000, cancellationToken);
+                var pingCompleted = await Task.WhenAny(pingOutputTask, pingTimeoutTask);
+
+                if (pingCompleted == pingOutputTask && !cancellationToken.IsCancellationRequested)
+                {
+                    var pingOutput = await pingOutputTask;
+                    await pingProcess.WaitForExitAsync();
+
+
+                    // Parse hostname from ping output
+                    // Format: "Pinging HOSTNAME [192.168.1.1] with 32 bytes of data:"
+                    var pingMatch = System.Text.RegularExpressions.Regex.Match(
+                        pingOutput,
+                        @"Pinging\s+([a-zA-Z0-9\-_\.]+)\s+\[",
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+                    if (pingMatch.Success && pingMatch.Groups.Count > 1)
+                    {
+                        var hostname = pingMatch.Groups[1].Value.Trim();
+                        if (!string.IsNullOrWhiteSpace(hostname) && hostname != ipAddress && !hostname.Contains("."))
+                        {
+                            _attackLogger.LogInfo($"✅ Hostname found via ping -a: {hostname}");
+                            return hostname;
+                        }
+                    }
+                }
+                else
+                {
+                    try { pingProcess.Kill(); } catch { }
+                }
+            }
+            catch
+            {
+                // ping -a failed
+            }
+
+            // Method 3: Try nbtstat -n to check local NetBIOS name cache
+            try
+            {
+                using var cacheProcess = new System.Diagnostics.Process
+                {
+                    StartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "nbtstat",
+                        Arguments = "-n",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    }
+                };
+
+                cacheProcess.Start();
+                var cacheOutputTask = cacheProcess.StandardOutput.ReadToEndAsync();
+                var cacheTimeoutTask = Task.Delay(2000, cancellationToken);
+                var cacheCompleted = await Task.WhenAny(cacheOutputTask, cacheTimeoutTask);
+
+                if (cacheCompleted == cacheOutputTask && !cancellationToken.IsCancellationRequested)
+                {
+                    var cacheOutput = await cacheOutputTask;
+                    await cacheProcess.WaitForExitAsync();
+
+                    // Look for the IP in the cache output
+                    // Format: "Node IpAddress: [192.168.1.1] Scope Id: []"
+                    // Then look for names associated with that IP
+                    if (cacheOutput.Contains(ipAddress))
+                    {
+                        var lines = cacheOutput.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var line in lines)
+                        {
+                            if (line.Contains("<00>") && !line.Contains("Name") && !line.Contains("---"))
+                            {
+                                var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                                if (parts.Length >= 1)
+                                {
+                                    var name = parts[0].Trim();
+                                    if (!string.IsNullOrWhiteSpace(name) && name.Length <= 15)
+                                    {
+                                        _attackLogger.LogInfo($"✅ Hostname found via nbtstat cache: {name}");
+                                        return name;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    try { cacheProcess.Kill(); } catch { }
+                }
+            }
+            catch
+            {
+                // nbtstat -n failed
+            }
+
+            // Method 4: Try using Windows hostname resolution via System.Net.Dns (for local network only)
+            // This works for devices that have registered their names in the local DNS/LLMNR
+            try
+            {
+                var dnsTask = System.Net.Dns.GetHostEntryAsync(ipAddress);
+                var dnsTimeoutTask = Task.Delay(2000, cancellationToken);
+                var dnsCompleted = await Task.WhenAny(dnsTask, dnsTimeoutTask);
+
+                if (dnsCompleted == dnsTask && !cancellationToken.IsCancellationRequested)
+                {
+                    try
+                    {
+                        var hostEntry = await dnsTask;
+                        if (hostEntry != null && !string.IsNullOrEmpty(hostEntry.HostName))
+                        {
+                            var hostname = hostEntry.HostName;
+                            // Remove domain suffixes for local network names
+                            if (hostname.Contains("."))
+                            {
+                                hostname = hostname.Split('.')[0];
+                            }
+                            if (!string.IsNullOrWhiteSpace(hostname) && hostname != ipAddress)
+                            {
+                                _attackLogger.LogInfo($"✅ Hostname found via DNS/LLMNR: {hostname}");
+                                return hostname;
+                            }
+                        }
+                    }
+                    catch (System.Net.Sockets.SocketException)
+                    {
+                        // DNS/LLMNR failed - device not in DNS
+                    }
+                }
+            }
+            catch
+            {
+                // NetBIOS lookup failed
+            }
+
+            return "Unknown";
+        }
+
+        private async Task<string> GetHostnameFromArpTableAsync(string ipAddress, CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Try full ARP table first (more reliable)
+                using var process = new System.Diagnostics.Process
+                {
+                    StartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "arp",
+                        Arguments = "-a", // Get full table, not just one IP
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    }
+                };
+
+                process.Start();
+                var outputTask = process.StandardOutput.ReadToEndAsync();
+                var timeoutTask = Task.Delay(2000, cancellationToken); // Increased timeout
+                var completed = await Task.WhenAny(outputTask, timeoutTask);
+
+                if (completed == outputTask && !cancellationToken.IsCancellationRequested)
+                {
+                    var output = await outputTask;
+                    await process.WaitForExitAsync();
+
+                    // ARP table sometimes contains hostnames in parentheses
+                    // Format: "192.168.1.1 (hostname) at 00:11:22:33:44:55"
+                    // Also try: "192.168.1.1 hostname 00:11:22:33:44:55"
+                    var patterns = new[]
+                    {
+                        $@"{System.Text.RegularExpressions.Regex.Escape(ipAddress)}\s+\(([^)]+)\)", // With parentheses
+                        $@"{System.Text.RegularExpressions.Regex.Escape(ipAddress)}\s+([a-zA-Z0-9\-_\.]+)\s+[0-9a-fA-F]", // Without parentheses
+                    };
+                    
+                    foreach (var pattern in patterns)
+                    {
+                        var match = System.Text.RegularExpressions.Regex.Match(
+                            output, 
+                            pattern,
+                            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        
+                        if (match.Success && match.Groups.Count > 1)
+                        {
+                            var hostname = match.Groups[1].Value.Trim();
+                            if (!string.IsNullOrWhiteSpace(hostname))
+                            {
+                                return hostname;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    try { process.Kill(); } catch { }
+                }
+            }
+            catch
+            {
+                // ARP lookup failed
+            }
+
+            return "Unknown";
+        }
+
+        private Task<string> GetVendorFromMacAsync(string macAddress)
         {
             if (string.IsNullOrWhiteSpace(macAddress) || macAddress == "Unknown")
             {
-                return "Unknown";
+                return Task.FromResult("Unknown");
             }
 
             // Clean MAC address (remove separators)
             string cleanMac = macAddress.Replace(":", "").Replace("-", "").ToUpper();
             if (cleanMac.Length < 6)
             {
-                return "Unknown";
+                return Task.FromResult("Unknown");
             }
 
             // Extract first 3 octets (OUI - Organizationally Unique Identifier)
             string oui = cleanMac.Substring(0, 6);
 
-            // During scan, ONLY use local OUI database (fast, offline)
-            // Online API lookups are done during sync instead
-            return await Task.FromResult(GetVendorFromLocalDatabase(oui));
+            // Check local OUI database only (offline, instant)
+            var vendor = GetVendorFromLocalDatabase(oui);
+            
+            if (vendor != "Unknown")
+            {
+                _attackLogger.LogInfo($"✅ Vendor found in offline database: {vendor} (OUI: {oui})");
+            }
+            else
+            {
+                _attackLogger.LogWarning($"❌ Vendor lookup FAILED: OUI {oui} not found in local database");
+            }
+            
+            return Task.FromResult(vendor);
         }
 
         private string GetVendorFromLocalDatabase(string oui)
         {
-            // Comprehensive OUI database with verified IEEE assignments
+            // Comprehensive offline OUI database with verified IEEE assignments
             var ouiDatabase = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 // Virtual/Hypervisors
-                { "005056", "VMware" }, { "000C29", "VMware" }, { "000569", "VMware" },
-                { "080027", "VirtualBox" }, { "0A0027", "VirtualBox" },
-                { "00155D", "Hyper-V" }, { "001DD8", "Microsoft" },
+                { "005056", "VMware" },
+                { "000C29", "VMware" },
+                { "000569", "VMware" },
+                { "080027", "VirtualBox" },
+                { "0A0027", "VirtualBox" },
+                { "00155D", "Hyper-V" },
+                { "001DD8", "Microsoft" },
                 
                 // Common network equipment and devices
-                { "0010F3", "Nexans" }, // Network infrastructure
-                { "F8A2CF", "Unknown" }, // Will be looked up online
-                { "98E7F4", "Wistron Neweb" }, // Wireless/Network
-                { "04D9F5", "Micro-Star" }, // MSI
+                { "0010F3", "Nexans" },
+                { "F8A2CF", "Unknown" }, // No IEEE record - keep as Unknown
+                { "98E7F4", "Wistron Neweb" },
+                { "04D9F5", "MSI" },
                 { "3C7C3F", "LG Electronics" },
                 { "F8E43B", "Hon Hai Precision" }, // Foxconn
-                { "305A3A", "AzureWave Technology" }, // Wireless modules
-                { "50EBF6", "liteon" }, // Lite-On Technology
-                { "58869C", "Samsung" },
+                { "305A3A", "AzureWave Technology" },
+                { "50EBF6", "Lite-On Technology" },
                 { "B0383B", "Hon Hai Precision" },
                 { "C8B223", "D-Link" },
-                { "E86A64", "Tp-Link" },
+                { "E86A64", "TP-Link" },
                 
-                // Apple - Verified OUIs
-                { "A4C361", "Apple" }, { "BC9FEF", "Apple" }, { "64B9E8", "Apple" },
-                { "DCBF54", "Apple" }, { "787B8A", "Apple" }, { "10DD01", "Apple" },
-                { "F4F15A", "Apple" }, { "6C4D73", "Apple" }, { "9027E4", "Apple" },
-                { "CCF9E8", "Apple" }, { "F02475", "Apple" }, { "ACBC32", "Apple" },
-                { "3C2EF9", "Apple" }, { "AC7F3E", "Apple" }, { "F81EDF", "Apple" },
-                { "04489A", "Apple" }, { "DC2B2A", "Apple" }, { "3451C9", "Apple" },
+                // Apple
+                { "A4C361", "Apple" },
+                { "BC9FEF", "Apple" },
+                { "64B9E8", "Apple" },
+                { "DCBF54", "Apple" },
+                { "787B8A", "Apple" },
+                { "10DD01", "Apple" },
+                { "F4F15A", "Apple" },
+                { "6C4D73", "Apple" },
+                { "9027E4", "Apple" },
+                { "CCF9E8", "Apple" },
+                { "F02475", "Apple" },
+                { "ACBC32", "Apple" },
+                { "3C2EF9", "Apple" },
+                { "AC7F3E", "Apple" },
+                { "F81EDF", "Apple" },
+                { "04489A", "Apple" },
+                { "DC2B2A", "Apple" },
+                { "3451C9", "Apple" },
                 
-                // Samsung - Verified OUIs
-                { "1CBDB9", "Samsung" }, { "E4121D", "Samsung" }, { "DC7144", "Samsung" },
-                { "A81B5A", "Samsung" }, { "F4099B", "Samsung" }, { "48DB50", "Samsung" },
-                { "BC8385", "Samsung" }, { "3C7A8A", "Samsung" }, { "086698", "Samsung" },
-                { "30F769", "Samsung" }, { "001632", "Samsung" }, { "0000F0", "Samsung" },
-                { "002399", "Samsung" }, { "002566", "Samsung" }, { "C89E43", "Samsung" },
+                // Samsung
+                { "1CBDB9", "Samsung" },
+                { "E4121D", "Samsung" },
+                { "DC7144", "Samsung" },
+                { "A81B5A", "Samsung" },
+                { "F4099B", "Samsung" },
+                { "48DB50", "Samsung" },
+                { "BC8385", "Samsung" },
+                { "3C7A8A", "Samsung" },
+                { "086698", "Samsung" },
+                { "30F769", "Samsung" },
+                { "001632", "Samsung" },
+                { "0000F0", "Samsung" },
+                { "002399", "Samsung" },
+                { "002566", "Samsung" },
+                { "C89E43", "Samsung" },
+                { "588694", "Samsung" },
+                { "58869C", "Samsung" },
+                { "B0386C", "Samsung" },
+                { "30CDA7", "Samsung" },
+                { "988389", "Samsung" },
                 
-                // Intel - Verified OUIs
-                { "00AA00", "Intel" }, { "00AA01", "Intel" }, { "00AA02", "Intel" },
-                { "00D0B7", "Intel" }, { "7085C2", "Intel" }, { "A4D1D2", "Intel" },
-                { "DC53D4", "Intel" }, { "84A9C4", "Intel" }, { "48F17F", "Intel" },
-                { "00C2C6", "Intel" }, { "001B21", "Intel" }, { "F0DEEF", "Intel" },
-                { "941882", "Intel" }, { "685D43", "Intel" }, { "B4FCC4", "Intel" },
+                // Intel
+                { "00AA00", "Intel" },
+                { "00AA01", "Intel" },
+                { "00AA02", "Intel" },
+                { "00D0B7", "Intel" },
+                { "7085C2", "Intel" },
+                { "A4D1D2", "Intel" },
+                { "DC53D4", "Intel" },
+                { "84A9C4", "Intel" },
+                { "48F17F", "Intel" },
+                { "00C2C6", "Intel" },
+                { "001B21", "Intel" },
+                { "F0DEEF", "Intel" },
+                { "941882", "Intel" },
+                { "685D43", "Intel" },
+                { "B4FCC4", "Intel" },
                 
-                // Realtek - Verified OUIs
-                { "00E04C", "Realtek" }, { "525400", "Realtek" }, { "74DA38", "Realtek" },
-                { "1C39BB", "Realtek" }, { "10C37B", "Realtek" },
-                { "98DED0", "Realtek" }, { "801F02", "Realtek" }, { "30F9ED", "Realtek" },
+                // Realtek
+                { "00E04C", "Realtek" },
+                { "525400", "Realtek" },
+                { "74DA38", "Realtek" },
+                { "1C39BB", "Realtek" },
+                { "10C37B", "Realtek" },
+                { "98DED0", "Realtek" },
+                { "801F02", "Realtek" },
+                { "30F9ED", "Realtek" },
                 
-                // Dell - Verified OUIs
-                { "001C23", "Dell" }, { "002170", "Dell" }, { "00215D", "Dell" },
-                { "001E4F", "Dell" }, { "78F7BE", "Dell" }, { "D4BED9", "Dell" },
-                { "182033", "Dell" }, { "F04DA2", "Dell" }, { "609C9F", "Dell" },
-                { "D89695", "Dell" }, { "241DD5", "Dell" },
+                // Dell
+                { "001C23", "Dell" },
+                { "002170", "Dell" },
+                { "00215D", "Dell" },
+                { "001E4F", "Dell" },
+                { "78F7BE", "Dell" },
+                { "D4BED9", "Dell" },
+                { "182033", "Dell" },
+                { "F04DA2", "Dell" },
+                { "609C9F", "Dell" },
+                { "D89695", "Dell" },
+                { "241DD5", "Dell" },
+                { "4CD717", "Dell" },
+                { "B07B25", "Dell" },
                 
-                // HP - Verified OUIs
-                { "001438", "HP" }, { "002324", "HP" },
-                { "C08995", "HP" }, { "9C8E99", "HP" }, { "106FD0", "HP" },
-                { "2C768A", "HP" }, { "6C3BE6", "HP" }, { "489A8A", "HP" },
-                { "009C02", "HP" }, { "001E0B", "HP" },
+                // HP / HPE
+                { "001438", "HP" },
+                { "002324", "HP" },
+                { "C08995", "HP" },
+                { "9C8E99", "HP" },
+                { "106FD0", "HP" },
+                { "2C768A", "HP" },
+                { "6C3BE6", "HP" },
+                { "489A8A", "HP" },
+                { "009C02", "HP" },
+                { "001E0B", "HP" },
+                { "5C60BA", "HP" },
+                { "E4E749", "HP" },
                 
-                // Lenovo - Verified OUIs
-                { "60F677", "Lenovo" }, { "5065F3", "Lenovo" }, { "1C69A5", "Lenovo" },
-                { "74E543", "Lenovo" }, { "C82A14", "Lenovo" }, { "40F2E9", "Lenovo" },
-                { "30C9AB", "Lenovo" }, { "9CBC36", "Lenovo" }, { "A01D48", "Lenovo" },
+                // Lenovo
+                { "60F677", "Lenovo" },
+                { "5065F3", "Lenovo" },
+                { "1C69A5", "Lenovo" },
+                { "74E543", "Lenovo" },
+                { "C82A14", "Lenovo" },
+                { "40F2E9", "Lenovo" },
+                { "30C9AB", "Lenovo" },
+                { "9CBC36", "Lenovo" },
+                { "A01D48", "Lenovo" },
                 
-                // TP-Link - Verified OUIs
-                { "F4EC38", "TP-Link" }, { "D82686", "TP-Link" }, { "C46E1F", "TP-Link" },
-                { "A42BB0", "TP-Link" }, { "0CE150", "TP-Link" }, { "50D4F7", "TP-Link" },
-                { "ECF196", "TP-Link" }, { "10FEED", "TP-Link" }, { "A04606", "TP-Link" },
+                // TP-Link
+                { "F4EC38", "TP-Link" },
+                { "D82686", "TP-Link" },
+                { "C46E1F", "TP-Link" },
+                { "A42BB0", "TP-Link" },
+                { "0CE150", "TP-Link" },
+                { "50D4F7", "TP-Link" },
+                { "ECF196", "TP-Link" },
+                { "10FEED", "TP-Link" },
+                { "A04606", "TP-Link" },
+                { "1C3BF3", "TP-Link" },
                 
-                // ASUS - Verified OUIs
-                { "2CF05D", "ASUS" }, { "1C87EC", "ASUS" },
-                { "AC220B", "ASUS" }, { "04927A", "ASUS" }, { "7054D5", "ASUS" },
-                { "38D547", "ASUS" }, { "F46D04", "ASUS" }, { "F832E4", "ASUS" },
+                // ASUS
+                { "2CF05D", "ASUS" },
+                { "1C87EC", "ASUS" },
+                { "AC220B", "ASUS" },
+                { "04927A", "ASUS" },
+                { "7054D5", "ASUS" },
+                { "38D547", "ASUS" },
+                { "F46D04", "ASUS" },
+                { "F832E4", "ASUS" },
+                { "D45D64", "ASUS" },
+                { "581122", "ASUS" },
+                { "7C10C9", "ASUS" },
+                { "6045CB", "ASUS" },
+                { "BCFCE7", "ASUS" },
+                { "FC3497", "ASUS" },
+                { "74D02B", "ASUS" },
+                { "B06EBF", "ASUS" },
+                { "A85E45", "ASUS" },
                 
-                // Cisco - Verified OUIs
-                { "00000C", "Cisco" }, { "00000D", "Cisco" }, { "00000E", "Cisco" },
-                { "00000F", "Cisco" }, { "000102", "Cisco" }, { "0001C7", "Cisco" },
-                { "0001C9", "Cisco" }, { "0001CB", "Cisco" }, { "68BDAB", "Cisco" },
-                { "001D71", "Cisco" }, { "0021A0", "Cisco" },
+                // Cisco
+                { "00000C", "Cisco" },
+                { "00000D", "Cisco" },
+                { "00000E", "Cisco" },
+                { "00000F", "Cisco" },
+                { "000102", "Cisco" },
+                { "0001C7", "Cisco" },
+                { "0001C9", "Cisco" },
+                { "0001CB", "Cisco" },
+                { "68BDAB", "Cisco" },
+                { "001D71", "Cisco" },
+                { "0021A0", "Cisco" },
                 
-                // Netgear - Verified OUIs
-                { "0024B2", "Netgear" }, { "000FB5", "Netgear" }, { "001B2F", "Netgear" },
-                { "001E2A", "Netgear" }, { "A021B7", "Netgear" }, { "4C9EFF", "Netgear" },
-                { "E091F5", "Netgear" }, { "3490EA", "Netgear" }, { "0862660", "Netgear" },
+                // Netgear
+                { "0024B2", "Netgear" },
+                { "000FB5", "Netgear" },
+                { "001B2F", "Netgear" },
+                { "001E2A", "Netgear" },
+                { "A021B7", "Netgear" },
+                { "4C9EFF", "Netgear" },
+                { "E091F5", "Netgear" },
+                { "3490EA", "Netgear" },
+                { "288088", "Netgear" },
                 
-                // D-Link - Verified OUIs
-                { "000D88", "D-Link" }, { "001195", "D-Link" }, { "001346", "D-Link" },
-                { "0015E9", "D-Link" }, { "001CF0", "D-Link" }, { "0022B0", "D-Link" },
-                { "B8A386", "D-Link" }, { "1C7EE5", "D-Link" }, { "CCB255", "D-Link" },
+                // D-Link
+                { "000D88", "D-Link" },
+                { "001195", "D-Link" },
+                { "001346", "D-Link" },
+                { "0015E9", "D-Link" },
+                { "001CF0", "D-Link" },
+                { "0022B0", "D-Link" },
+                { "B8A386", "D-Link" },
+                { "1C7EE5", "D-Link" },
+                { "CCB255", "D-Link" },
                 
-                // Huawei - Verified OUIs
-                { "00E00C", "Huawei" }, { "0018E7", "Huawei" }, { "00259E", "Huawei" },
-                { "002692", "Huawei" }, { "C0A0BB", "Huawei" }, { "4C549F", "Huawei" },
-                { "D4A9E8", "Huawei" }, { "30D1DC", "Huawei" }, { "786EB8", "Huawei" },
+                // Huawei
+                { "00E00C", "Huawei" },
+                { "0018E7", "Huawei" },
+                { "00259E", "Huawei" },
+                { "002692", "Huawei" },
+                { "C0A0BB", "Huawei" },
+                { "4C549F", "Huawei" },
+                { "D4A9E8", "Huawei" },
+                { "30D1DC", "Huawei" },
+                { "786EB8", "Huawei" },
                 
-                // Xiaomi - Verified OUIs
-                { "64B473", "Xiaomi" }, { "F8A45F", "Xiaomi" }, { "783A84", "Xiaomi" },
-                { "50EC50", "Xiaomi" }, { "F0B429", "Xiaomi" }, { "34CE00", "Xiaomi" },
-                { "D4619D", "Xiaomi" }, { "B0E235", "Xiaomi" }, { "5C63BF", "Xiaomi" },
+                // Xiaomi
+                { "64B473", "Xiaomi" },
+                { "F8A45F", "Xiaomi" },
+                { "783A84", "Xiaomi" },
+                { "50EC50", "Xiaomi" },
+                { "F0B429", "Xiaomi" },
+                { "34CE00", "Xiaomi" },
+                { "D4619D", "Xiaomi" },
+                { "B0E235", "Xiaomi" },
+                { "5C63BF", "Xiaomi" },
                 
-                // Google/Nest - Verified OUIs
-                { "54C0EB", "Google" }, { "54EAA8", "Google" }, { "3C5AB4", "Google" },
-                { "94EB2C", "Google" }, { "C058EC", "Google" }, { "F4F5D8", "Google" },
+                // Google / Nest
+                { "54C0EB", "Google" },
+                { "54EAA8", "Google" },
+                { "3C5AB4", "Google" },
+                { "94EB2C", "Google" },
+                { "C058EC", "Google" },
+                { "F4F5D8", "Google" },
                 
-                // Amazon/Ring - Verified OUIs
-                { "74C246", "Amazon" }, { "ACF85C", "Amazon" }, { "84D6D0", "Amazon" },
-                { "74C630", "Amazon" }, { "6854FD", "Amazon" }, { "0C47C9", "Amazon" },
+                // Amazon / Ring
+                { "74C246", "Amazon" },
+                { "ACF85C", "Amazon" },
+                { "84D6D0", "Amazon" },
+                { "74C630", "Amazon" },
+                { "6854FD", "Amazon" },
+                { "0C47C9", "Amazon" },
                 
-                // Broadcom - Verified OUIs
-                { "001018", "Broadcom" }, { "002618", "Broadcom" }, { "00D0C0", "Broadcom" },
-                { "0090F8", "Broadcom" }, { "B49691", "Broadcom" }, { "E8B2AC", "Broadcom" },
+                // Broadcom
+                { "001018", "Broadcom" },
+                { "002618", "Broadcom" },
+                { "00D0C0", "Broadcom" },
+                { "0090F8", "Broadcom" },
+                { "B49691", "Broadcom" },
+                { "E8B2AC", "Broadcom" },
                 
-                // Qualcomm - Verified OUIs
-                { "009065", "Qualcomm" }, { "B0702D", "Qualcomm" }, { "C47C8D", "Qualcomm" },
-                { "2C5491", "Qualcomm" }, { "8C15C7", "Qualcomm" }, { "001DA2", "Qualcomm" },
+                // Qualcomm
+                { "009065", "Qualcomm" },
+                { "B0702D", "Qualcomm" },
+                { "C47C8D", "Qualcomm" },
+                { "2C5491", "Qualcomm" },
+                { "8C15C7", "Qualcomm" },
+                { "001DA2", "Qualcomm" },
                 
-                // Sony - Verified OUIs
-                { "001D0D", "Sony" }, { "002076", "Sony" }, { "00247E", "Sony" },
-                { "7C669E", "Sony" }, { "18F46A", "Sony" }, { "F8321A", "Sony" },
+                // Sony
+                { "001D0D", "Sony" },
+                { "002076", "Sony" },
+                { "00247E", "Sony" },
+                { "7C669E", "Sony" },
+                { "18F46A", "Sony" },
+                { "F8321A", "Sony" },
                 
-                // LG - Verified OUIs
-                { "001C62", "LG" }, { "001E75", "LG" }, { "B4B3CF", "LG" },
-                { "9C97DC", "LG" }, { "789ED0", "LG" }, { "50685D", "LG" },
+                // LG
+                { "001C62", "LG" },
+                { "001E75", "LG" },
+                { "B4B3CF", "LG" },
+                { "9C97DC", "LG" },
+                { "789ED0", "LG" },
+                { "50685D", "LG" },
                 
-                // Motorola - Verified OUIs
-                { "00139D", "Motorola" }, { "001ADB", "Motorola" }, { "9C5CF9", "Motorola" },
-                { "0060A1", "Motorola" }, { "0004E2", "Motorola" },
+                // Motorola
+                { "00139D", "Motorola" },
+                { "001ADB", "Motorola" },
+                { "9C5CF9", "Motorola" },
+                { "0060A1", "Motorola" },
+                { "0004E2", "Motorola" },
                 
-                // Linksys/Belkin - Verified OUIs
-                { "002129", "Linksys" }, { "00131A", "Linksys" }, { "001217", "Linksys" },
-                { "000625", "Linksys" }, { "002275", "Linksys" },
+                // Linksys / Belkin
+                { "002129", "Linksys" },
+                { "00131A", "Linksys" },
+                { "001217", "Linksys" },
+                { "000625", "Linksys" },
+                { "002275", "Linksys" },
                 
-                // Ubiquiti - Verified OUIs
-                { "04185A", "Ubiquiti" }, { "18E829", "Ubiquiti" }, { "687251", "Ubiquiti" },
-                { "24A43C", "Ubiquiti" }, { "FC0CAB", "Ubiquiti" },
+                // Ubiquiti
+                { "04185A", "Ubiquiti" },
+                { "18E829", "Ubiquiti" },
+                { "687251", "Ubiquiti" },
+                { "24A43C", "Ubiquiti" },
+                { "FC0CAB", "Ubiquiti" },
                 
                 // Raspberry Pi Foundation
-                { "B827EB", "Raspberry Pi" }, { "DCA632", "Raspberry Pi" }, { "E45F01", "Raspberry Pi" },
+                { "B827EB", "Raspberry Pi" },
+                { "DCA632", "Raspberry Pi" },
+                { "E45F01", "Raspberry Pi" },
                 
                 // ASRock
                 { "70856F", "ASRock" },
                 
                 // GIGABYTE
-                { "1C697A", "GIGABYTE" }, { "9C6B00", "GIGABYTE" },
+                { "1C697A", "GIGABYTE" },
+                { "9C6B00", "GIGABYTE" },
                 
                 // MSI
                 { "00241D", "MSI" },
+                { "448A5B", "MSI" },
+
+                // Extra OUIs from scans
+                { "705DCC", "EFM Networks" },
+                { "6C2408", "LCFC(Hefei) Electronics" },
+                { "84BA3B", "Canon" },
+                { "00E04D", "INTERNET INITIATIVE JAPAN" },
+                { "3498B5", "S1 Corporation" },
+                { "00089B", "S1 Corporation" },
+                { "9009D0", "Synology" },
+                { "D4CA6D", "MikroTik" },
+                { "1853E0", "Hanyang Digitech" },
+
+                // Still unresolved or rare OUIs
+                { "0009E5", "Unknown" },
+                { "A0CEC8", "Unknown" },
+                { "245EBE", "Unknown" },
+                { "000159", "Unknown" },
+                { "107B44", "Unknown" },
+                { "F8A26D", "Unknown" },
             };
 
-            return ouiDatabase.TryGetValue(oui, out var vendor) ? vendor : "Unknown";
+            // Ensure OUI is uppercase for consistent lookup
+            oui = oui.ToUpperInvariant();
+            
+            // Try exact match first
+            if (ouiDatabase.TryGetValue(oui, out var vendor))
+            {
+                _attackLogger.LogInfo($"✅ Vendor lookup SUCCESS: OUI {oui} -> {vendor}");
+                return vendor;
+            }
+            
+            // Log when vendor is not found for debugging
+            _attackLogger.LogWarning($"❌ Vendor lookup FAILED: OUI {oui} not found in database (database has {ouiDatabase.Count} entries)");
+            return "Unknown";
         }
 
         private int CompareIpBytes(byte[] ip1, byte[] ip2)

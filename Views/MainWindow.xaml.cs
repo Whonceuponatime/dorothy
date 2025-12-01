@@ -143,6 +143,9 @@ namespace Dorothy.Views
         {
             try
             {
+                // Apply responsive scaling based on screen size
+                ApplyResponsiveScaling();
+
                 // Initialize toast notification service after window is fully loaded
                 if (ToastContainer != null)
                 {
@@ -179,6 +182,130 @@ namespace Dorothy.Views
                     "Initialization Error", 
                     MessageBoxButton.OK, 
                     MessageBoxImage.Error);
+            }
+        }
+
+        private void ApplyResponsiveScaling()
+        {
+            try
+            {
+                // Get primary screen dimensions
+                var screenWidth = SystemParameters.PrimaryScreenWidth;
+                var screenHeight = SystemParameters.PrimaryScreenHeight;
+                
+                // Calculate scale factor based on screen size
+                // Use 1920x1080 as baseline (scale = 1.0)
+                double baseWidth = 1920;
+                double baseHeight = 1080;
+                
+                double widthScale = screenWidth / baseWidth;
+                double heightScale = screenHeight / baseHeight;
+                
+                // Use the smaller scale to ensure everything fits
+                double scale = Math.Min(widthScale, heightScale);
+                
+                // Clamp scale between 0.6 and 1.2 to prevent extreme scaling
+                scale = Math.Max(0.6, Math.Min(1.2, scale));
+                
+                // Adjust window minimum size based on screen size
+                if (screenWidth < 1366 || screenHeight < 768)
+                {
+                    // Small screens (laptops, tablets)
+                    this.MinWidth = 800;
+                    this.MinHeight = 600;
+                }
+                else if (screenWidth < 1600 || screenHeight < 900)
+                {
+                    // Medium screens
+                    this.MinWidth = 1000;
+                    this.MinHeight = 650;
+                }
+                else
+                {
+                    // Large screens (default)
+                    this.MinWidth = 1200;
+                    this.MinHeight = 700;
+                }
+                
+                // Adjust font sizes if screen is small
+                if (scale < 0.85)
+                {
+                    // Reduce base font size for small screens
+                    double fontSizeMultiplier = 0.9;
+                    
+                    // Apply to window-level font size
+                    this.FontSize = 12 * fontSizeMultiplier;
+                    
+                    // Adjust specific UI elements that might be too large
+                    if (PacketsSentText != null)
+                        PacketsSentText.FontSize = 14 * fontSizeMultiplier;
+                    if (ElapsedTimeText != null)
+                        ElapsedTimeText.FontSize = 14 * fontSizeMultiplier;
+                    if (MbpsSentText != null)
+                        MbpsSentText.FontSize = 14 * fontSizeMultiplier;
+                    if (ProfileSummaryText != null)
+                        ProfileSummaryText.FontSize = 11 * fontSizeMultiplier;
+                }
+                
+                // Adjust window size if not maximized and screen is small
+                if (this.WindowState != WindowState.Maximized)
+                {
+                    if (screenWidth < 1366 || screenHeight < 768)
+                    {
+                        // For small screens, set a reasonable default size
+                        this.Width = Math.Min(screenWidth * 0.95, 1200);
+                        this.Height = Math.Min(screenHeight * 0.95, 800);
+                    }
+                }
+                
+                // Adjust margins for smaller screens
+                if (MainContentGrid != null)
+                {
+                    if (screenWidth < 1366 || screenHeight < 768)
+                    {
+                        // Reduce margins on small screens
+                        MainContentGrid.Margin = new Thickness(8);
+                    }
+                    else if (screenWidth < 1600 || screenHeight < 900)
+                    {
+                        // Medium margins for medium screens
+                        MainContentGrid.Margin = new Thickness(12);
+                    }
+                    else
+                    {
+                        // Default margins for large screens
+                        MainContentGrid.Margin = new Thickness(16);
+                    }
+                }
+                
+                // Adjust header padding for smaller screens
+                if (HeaderBar != null)
+                {
+                    if (screenWidth < 1366 || screenHeight < 768)
+                    {
+                        HeaderBar.Padding = new Thickness(12, 10, 12, 10);
+                    }
+                    else
+                    {
+                        HeaderBar.Padding = new Thickness(16, 12, 16, 12);
+                    }
+                }
+                
+                // Adjust logo size for smaller screens
+                if (LogoImage != null && (screenWidth < 1366 || screenHeight < 768))
+                {
+                    // Reduce logo size on small screens
+                    LogoImage.Height = 120;
+                }
+                else if (LogoImage != null && (screenWidth < 1600 || screenHeight < 900))
+                {
+                    // Medium size for medium screens
+                    LogoImage.Height = 140;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error applying responsive scaling");
             }
         }
 
@@ -778,9 +905,18 @@ namespace Dorothy.Views
                     CloudSyncButton.IsEnabled = false;
                     var originalTooltip = CloudSyncButton.ToolTip;
 
-                    int syncedLogsCount = 0;
-                    int syncedAssetsCount = 0;
-                    bool hasDeletions = syncWindow.DeletedLogIds.Count > 0 || syncWindow.DeletedAssetIds.Count > 0;
+                    // Show loading overlay
+                    SyncLoadingOverlay.Visibility = Visibility.Visible;
+                    SyncProgressText.Text = "Preparing sync...";
+                    
+                    // Subscribe to progress updates
+                    _supabaseSyncService.ProgressChanged += OnSyncProgressChanged;
+
+                    try
+                    {
+                        int syncedLogsCount = 0;
+                        int syncedAssetsCount = 0;
+                        bool hasDeletions = syncWindow.DeletedLogIds.Count > 0 || syncWindow.DeletedAssetIds.Count > 0;
 
                     // Delete selected logs if any (always process deletions, even if not syncing)
                     if (syncWindow.DeletedLogIds.Count > 0)
@@ -864,11 +1000,27 @@ namespace Dorothy.Views
                         _toastService.ShowInfo($"Deleted {deletedCount} item(s).");
                     }
 
-                    CloudSyncButton.IsEnabled = true;
-                    CloudSyncButton.ToolTip = originalTooltip;
+                        // Hide loading overlay
+                        SyncLoadingOverlay.Visibility = Visibility.Collapsed;
+                        _supabaseSyncService.ProgressChanged -= OnSyncProgressChanged;
+                        
+                        CloudSyncButton.IsEnabled = true;
+                        CloudSyncButton.ToolTip = originalTooltip;
 
-                    // Always update sync status after window closes (deletions or sync)
-                    _ = Task.Run(async () => await UpdateSyncStatus());
+                        // Always update sync status after window closes (deletions or sync)
+                        _ = Task.Run(async () => await UpdateSyncStatus());
+                    }
+                    catch (Exception ex)
+                    {
+                        // Ensure loading overlay is hidden even on error
+                        SyncLoadingOverlay.Visibility = Visibility.Collapsed;
+                        _supabaseSyncService.ProgressChanged -= OnSyncProgressChanged;
+                        CloudSyncButton.IsEnabled = true;
+                        CloudSyncButton.ToolTip = originalTooltip;
+                        
+                        _attackLogger.LogError($"Sync operation failed: {ex.Message}");
+                        _toastService.ShowError($"Sync failed: {ex.Message}");
+                    }
                 }
             }
             catch (Exception ex)
@@ -881,6 +1033,14 @@ namespace Dorothy.Views
         private async void SyncCheckTimer_Tick(object? sender, EventArgs e)
         {
             await UpdateSyncStatus();
+        }
+
+        private void OnSyncProgressChanged(string message)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                SyncProgressText.Text = message;
+            });
         }
 
         private async Task UpdateSyncStatus()

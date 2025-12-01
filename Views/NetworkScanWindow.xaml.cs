@@ -321,6 +321,8 @@ namespace Dorothy.Views
                             LoadingIndicator.Visibility = Visibility.Visible;
                         if (CancelScanButton != null)
                             CancelScanButton.Visibility = Visibility.Visible;
+                        if (BackButton != null)
+                            BackButton.Visibility = Visibility.Collapsed;
                         if (CloseButton != null)
                             CloseButton.IsEnabled = false;
                         if (ExportExcelButton != null)
@@ -437,11 +439,13 @@ namespace Dorothy.Views
                         if (ExportExcelButton != null)
                             ExportExcelButton.IsEnabled = _assets != null && _assets.Count > 0;
                         
-                        // Hide loading UI
+                        // Hide loading UI and show back button
                         if (LoadingIndicator != null)
                             LoadingIndicator.Visibility = Visibility.Collapsed;
                         if (CancelScanButton != null)
                             CancelScanButton.Visibility = Visibility.Collapsed;
+                        if (BackButton != null)
+                            BackButton.Visibility = Visibility.Visible;
                         if (CloseButton != null)
                             CloseButton.IsEnabled = true;
                         
@@ -481,6 +485,8 @@ namespace Dorothy.Views
                             LoadingIndicator.Visibility = Visibility.Collapsed;
                         if (CancelScanButton != null)
                             CancelScanButton.Visibility = Visibility.Collapsed;
+                        if (BackButton != null)
+                            BackButton.Visibility = Visibility.Visible;
                         if (CloseButton != null)
                             CloseButton.IsEnabled = true;
                     }
@@ -514,6 +520,8 @@ namespace Dorothy.Views
                             LoadingIndicator.Visibility = Visibility.Collapsed;
                         if (CancelScanButton != null)
                             CancelScanButton.Visibility = Visibility.Collapsed;
+                        if (BackButton != null)
+                            BackButton.Visibility = Visibility.Visible;
                         if (CloseButton != null)
                             CloseButton.IsEnabled = true;
                         MessageBox.Show($"Network scan failed: {ex.Message}\n\nStack trace: {ex.StackTrace}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -617,9 +625,10 @@ namespace Dorothy.Views
                     var assetEntry = new Models.Database.AssetEntry
                     {
                         HostIp = asset.IpAddress,
-                        HostName = string.IsNullOrEmpty(asset.Hostname) || asset.Hostname == "Unknown" ? null : asset.Hostname,
-                        MacAddress = string.IsNullOrEmpty(asset.MacAddress) || asset.MacAddress == "Unknown" ? null : asset.MacAddress,
-                        Vendor = string.IsNullOrEmpty(asset.Vendor) || asset.Vendor == "Unknown" ? null : asset.Vendor,
+                        // Keep "Unknown" as string for display purposes (don't convert to null)
+                        HostName = string.IsNullOrEmpty(asset.Hostname) ? null : (asset.Hostname == "Unknown" ? "Unknown" : asset.Hostname),
+                        MacAddress = string.IsNullOrEmpty(asset.MacAddress) ? null : (asset.MacAddress == "Unknown" ? "Unknown" : asset.MacAddress),
+                        Vendor = string.IsNullOrEmpty(asset.Vendor) ? null : (asset.Vendor == "Unknown" ? "Unknown" : asset.Vendor),
                         IsOnline = asset.IsReachable,
                         PingTime = asset.RoundTripTime.HasValue ? (int)asset.RoundTripTime.Value : null,
                         ScanTime = DateTime.UtcNow,
@@ -834,6 +843,68 @@ namespace Dorothy.Views
             summarySheet.Columns().AdjustToContents();
 
             workbook.SaveAs(filePath);
+        }
+
+        private void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            _cancellationTokenSource?.Cancel();
+            
+            // Restore the initial state - show configuration panel, hide results
+            Dispatcher.Invoke(() =>
+            {
+                try
+                {
+                    // Show the scan configuration panel
+                    if (RangeConfigPanel != null)
+                        RangeConfigPanel.Visibility = Visibility.Visible;
+                    
+                    // Re-enable the start scan button
+                    if (StartScanButton != null)
+                        StartScanButton.IsEnabled = true;
+                    
+                    // Hide the back button (only show after scan completes)
+                    if (BackButton != null)
+                        BackButton.Visibility = Visibility.Collapsed;
+                    
+                    // Reset progress indicators
+                    if (StatusTextBlock != null)
+                    {
+                        StatusTextBlock.Text = "Ready to scan";
+                        StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 24, 39));
+                    }
+                    if (ProgressTextBlock != null)
+                        ProgressTextBlock.Text = "0 / 0";
+                    if (ScanProgressBar != null)
+                    {
+                        ScanProgressBar.Value = 0;
+                        ScanProgressBar.Maximum = 100;
+                    }
+                    if (CurrentIpTextBlock != null)
+                        CurrentIpTextBlock.Text = "";
+                    if (FoundCountTextBlock != null)
+                        FoundCountTextBlock.Text = "0";
+                    if (LoadingIndicator != null)
+                        LoadingIndicator.Visibility = Visibility.Collapsed;
+                    if (CancelScanButton != null)
+                        CancelScanButton.Visibility = Visibility.Collapsed;
+                    
+                    // Clear the results
+                    _foundAssets.Clear();
+                    if (ResultsDataGrid != null)
+                    {
+                        ResultsDataGrid.ItemsSource = null;
+                        ResultsDataGrid.ItemsSource = _foundAssets;
+                    }
+                    
+                    // Disable export button
+                    if (ExportExcelButton != null)
+                        ExportExcelButton.IsEnabled = false;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error in BackButton_Click: {ex.Message}");
+                }
+            });
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)

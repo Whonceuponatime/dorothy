@@ -25,6 +25,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -71,13 +72,13 @@
         </Border>
 
         <!-- Sync Options -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 Background="White"
                 BorderBrush="#E5E7EB"
                 BorderThickness="1"
                 CornerRadius="8"
                 Padding="16"
-                Margin="0,12,0,12">
+                Margin="0,0,0,12">
             <StackPanel>
                 <TextBlock Text="Sync Options"
                            FontSize="14"
@@ -99,7 +100,7 @@
         </Border>
         
         <!-- Tabs for Logs and Assets -->
-        <TabControl x:Name="SyncTabControl" Grid.Row="3">
+        <TabControl x:Name="SyncTabControl" Grid.Row="4">
             <TabItem Header="Attack Logs" x:Name="LogsTab">
                 <Grid Margin="0">
                     <Grid.RowDefinitions>
@@ -306,6 +307,7 @@
                                             </Binding>
                                         </DataGridTextColumn.Binding>
                                     </DataGridTextColumn>
+                                    <DataGridTextColumn Header="Ports" Binding="{Binding OpenPortsDisplay}" Width="150" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Scan Time" Binding="{Binding ScanTime, StringFormat=yyyy-MM-dd HH:mm}" Width="140" IsReadOnly="True"/>
                                 </DataGrid.Columns>
                             </DataGrid>
@@ -334,7 +336,7 @@
         </TabControl>
 
         <!-- Summary and Buttons -->
-        <Grid Grid.Row="4" Margin="0,16,0,0">
+        <Grid Grid.Row="5" Margin="0,16,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -369,7 +371,7 @@
         
         <!-- Progress Overlay (hidden by default) -->
         <Grid x:Name="ProgressOverlay"
-              Grid.RowSpan="5"
+              Grid.RowSpan="6"
               Background="#AA000000"
               Visibility="Collapsed">
             <Border Background="White"

@@ -26,9 +26,9 @@ namespace Dorothy.Views
             {
                 Id = asset.Id,
                 HostIp = asset.HostIp,
-                HostName = asset.HostName ?? "Unknown",
-                MacAddress = asset.MacAddress ?? "Unknown",
-                Vendor = asset.Vendor ?? "Unknown",
+                HostName = string.IsNullOrWhiteSpace(asset.HostName) ? "Unknown" : asset.HostName,
+                MacAddress = string.IsNullOrWhiteSpace(asset.MacAddress) ? "Unknown" : asset.MacAddress,
+                Vendor = string.IsNullOrWhiteSpace(asset.Vendor) ? "Unknown" : asset.Vendor,
                 IsOnline = asset.IsOnline,
                 PingTime = asset.PingTime,
                 ScanTime = asset.ScanTime,
@@ -152,6 +152,7 @@ namespace Dorothy.Views
         public int? PingTime { get; set; }
         public DateTime ScanTime { get; set; }
         public string ProjectName { get; set; } = string.Empty;
+        public string OpenPortsDisplay { get; set; } = "N/A"; // Ports not stored in database
 
         public bool IsSelected
         {

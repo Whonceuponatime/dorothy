@@ -43,11 +43,12 @@ namespace Dorothy.Views
             {
                 Id = asset.Id,
                 HostIp = asset.HostIp,
-                HostName = asset.HostName ?? "Unknown",
-                MacAddress = asset.MacAddress ?? "Unknown",
-                Vendor = asset.Vendor ?? "Unknown",
+                HostName = string.IsNullOrWhiteSpace(asset.HostName) ? "Unknown" : asset.HostName,
+                MacAddress = string.IsNullOrWhiteSpace(asset.MacAddress) ? "Unknown" : asset.MacAddress,
+                Vendor = string.IsNullOrWhiteSpace(asset.Vendor) ? "Unknown" : asset.Vendor,
                 IsOnline = asset.IsOnline,
                 ScanTime = asset.ScanTime,
+                OpenPortsDisplay = "N/A", // Ports not stored in database
                 IsSelected = true // Default to selected
             }).ToList();
 

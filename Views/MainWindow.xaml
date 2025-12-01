@@ -5,8 +5,8 @@
         Icon="pack://application:,,,/Resources/icon.ico"
         WindowState="Maximized"
         WindowStartupLocation="CenterScreen"
-        MinWidth="1200"
-        MinHeight="700"
+        MinWidth="800"
+        MinHeight="600"
         FontFamily="Segoe UI"
         FontSize="12"
         SnapsToDevicePixels="True"
@@ -162,7 +162,8 @@
                 Padding="16,12"
                 BorderBrush="#E5E7EB"
                 BorderThickness="0,0,0,1"
-                Height="Auto">
+                Height="Auto"
+                x:Name="HeaderBar">
             <Grid>
         <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -174,6 +175,7 @@
 
                 <!-- LEFT: LOGO -->
                 <Image Grid.Column="0"
+                       x:Name="LogoImage"
                        Source="/Resources/logo.png"
                        Height="160"
                        Stretch="Uniform"
@@ -363,17 +365,14 @@
             </Grid>
         </Border>
 
-        <!-- MAIN CONTENT WITH SCROLLING -->
-        <ScrollViewer Grid.Row="1" 
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
-            <Grid Margin="16">
+        <!-- MAIN CONTENT -->
+        <Grid Grid.Row="1" Margin="16" x:Name="MainContentGrid">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="45*" MinWidth="400"/>
-                    <ColumnDefinition Width="55*" MinWidth="450"/>
+                    <ColumnDefinition Width="45*" MinWidth="350"/>
+                    <ColumnDefinition Width="55*" MinWidth="400"/>
         </Grid.ColumnDefinitions>
         
         <!-- Left Panel: Configuration Tabs -->
@@ -1004,7 +1003,6 @@
             </Border>
         </Grid>
             </Grid>
-        </ScrollViewer>
         </Grid>
         
         <!-- Toast Container -->
@@ -1014,5 +1012,39 @@
                     HorizontalAlignment="Right"
                     Margin="0,20,20,0"
                     Panel.ZIndex="9999"/>
+        
+        <!-- Sync Loading Overlay -->
+        <Border x:Name="SyncLoadingOverlay"
+                Grid.Row="0"
+                Background="#80000000"
+                Visibility="Collapsed"
+                Panel.ZIndex="10000">
+            <Border Background="White"
+                    CornerRadius="8"
+                    Padding="24"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    MinWidth="300">
+                <StackPanel>
+                    <TextBlock Text="Syncing to Cloud..."
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#111827"
+                               Margin="0,0,0,12"
+                               HorizontalAlignment="Center"/>
+                    <ProgressBar x:Name="SyncProgressBar"
+                                 IsIndeterminate="True"
+                                 Height="6"
+                                 Margin="0,0,0,12"/>
+                    <TextBlock x:Name="SyncProgressText"
+                               Text="Preparing sync..."
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               TextWrapping="Wrap"
+                               HorizontalAlignment="Center"
+                               TextAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
 </Window> 

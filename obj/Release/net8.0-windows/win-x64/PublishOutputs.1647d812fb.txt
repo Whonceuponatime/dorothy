@@ -491,6 +491,7 @@ C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\bin\Release\net8.0-w
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\bin\Release\net8.0-windows\win-x64\publish\Supabase.Realtime.dll
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\bin\Release\net8.0-windows\win-x64\publish\Supabase.Storage.dll
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\bin\Release\net8.0-windows\win-x64\publish\System.IdentityModel.Tokens.Jwt.dll
+C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\bin\Release\net8.0-windows\win-x64\publish\System.Management.dll
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\bin\Release\net8.0-windows\win-x64\publish\System.Reactive.dll
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\bin\Release\net8.0-windows\win-x64\publish\Websocket.Client.dll
 C:\Users\SAMSUNG\Desktop\P.Projects\DoSNetworkStorm-seacure\bin\Release\net8.0-windows\win-x64\publish\XLParser.dll
