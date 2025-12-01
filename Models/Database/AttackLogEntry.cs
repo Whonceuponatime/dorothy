@@ -57,6 +57,18 @@ namespace Dorothy.Models.Database
         [Column("created_at")]
         public DateTime CreatedAt { get; set; }
 
+        [Column("hardware_id")]
+        public string? HardwareId { get; set; }
+
+        [Column("machine_name")]
+        public string? MachineName { get; set; }
+
+        [Column("username")]
+        public string? Username { get; set; }
+
+        [Column("user_id")]
+        public Guid? UserId { get; set; }
+
         // Local SQLite only fields (not in Supabase)
         // These properties must be excluded from Supabase serialization
         // Using both JsonIgnore and IgnoreDataMember to ensure exclusion
@@ -95,6 +107,10 @@ namespace Dorothy.Models.Database
                 StopTime = StopTime,
                 Synced = Synced,
                 CreatedAt = CreatedAt,
+                HardwareId = HardwareId,
+                MachineName = MachineName,
+                Username = Username,
+                UserId = UserId,
                 Note = Note,
                 LogContent = LogContent,
                 IsSynced = IsSynced,

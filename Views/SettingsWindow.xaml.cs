@@ -8,6 +8,7 @@ using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using Dorothy.Models.Database;
+using Dorothy.Services;
 using Microsoft.Win32;
 using Supabase;
 
@@ -18,26 +19,22 @@ namespace Dorothy.Views
         public string LogLocation { get; private set; } = string.Empty;
         public int FontSizeIndex { get; private set; } = 1;
         public int ThemeIndex { get; private set; } = 0;
-        public string SupabaseUrl { get; private set; } = string.Empty;
-        public string SupabaseAnonKey { get; private set; } = string.Empty;
 
-        public SettingsWindow(string currentLogLocation, int currentFontSizeIndex, int currentThemeIndex, 
-                             string currentSupabaseUrl, string currentSupabaseAnonKey)
+        public SettingsWindow(string currentLogLocation, int currentFontSizeIndex, int currentThemeIndex)
         {
             InitializeComponent();
             LogLocation = currentLogLocation;
             FontSizeIndex = currentFontSizeIndex;
             ThemeIndex = currentThemeIndex;
-            SupabaseUrl = currentSupabaseUrl;
-            SupabaseAnonKey = currentSupabaseAnonKey;
 
             LogLocationTextBox.Text = string.IsNullOrEmpty(LogLocation) 
                 ? AppDomain.CurrentDomain.BaseDirectory 
                 : LogLocation;
             FontSizeComboBox.SelectedIndex = FontSizeIndex;
             ThemeComboBox.SelectedIndex = ThemeIndex;
-            SupabaseUrlTextBox.Text = SupabaseUrl;
-            SupabaseAnonKeyPasswordBox.Password = SupabaseAnonKey;
+            
+            // Load license information
+            LoadLicenseInfo();
         }
 
         private void BrowseLogLocationButton_Click(object sender, RoutedEventArgs e)
@@ -50,7 +47,7 @@ namespace Dorothy.Views
         }
 
         private string ShowFolderBrowserDialog(string description, string initialPath)
-        {
+            {
             var hwnd = new WindowInteropHelper(this).Handle;
             return FolderBrowser.ShowDialog(hwnd, description, initialPath);
         }
@@ -60,8 +57,6 @@ namespace Dorothy.Views
             LogLocation = LogLocationTextBox.Text;
             FontSizeIndex = FontSizeComboBox.SelectedIndex;
             ThemeIndex = ThemeComboBox.SelectedIndex;
-            SupabaseUrl = SupabaseUrlTextBox.Text.Trim();
-            SupabaseAnonKey = SupabaseAnonKeyPasswordBox.Password.Trim();
 
             // Validate log location
             if (!Directory.Exists(LogLocation))
@@ -81,20 +76,7 @@ namespace Dorothy.Views
                 }
             }
 
-            // Validate Supabase URL format if provided
-            if (!string.IsNullOrWhiteSpace(SupabaseUrl))
-            {
-                if (!Uri.TryCreate(SupabaseUrl, UriKind.Absolute, out var uri) || 
-                    (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-                {
-                    MessageBox.Show(
-                        "Invalid Supabase URL format. Please enter a valid URL (e.g., https://your-project.supabase.co)",
-                        "Invalid URL",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
-                    return;
-                }
-            }
+            // Supabase credentials are hardcoded - no validation needed
 
             DialogResult = true;
             Close();
@@ -106,121 +88,85 @@ namespace Dorothy.Views
             Close();
         }
 
-        private void SupabaseUrlTextBox_TextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+        // Supabase URL and Anon Key are now hardcoded - no UI handlers needed
+
+        private void CopyHardwareIdButton_Click(object sender, RoutedEventArgs e)
         {
-            // Update property as user types
-            SupabaseUrl = SupabaseUrlTextBox.Text.Trim();
-        }
-
-        private void SupabaseAnonKeyPasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
-        {
-            if (sender is System.Windows.Controls.PasswordBox passwordBox)
-            {
-                SupabaseAnonKey = passwordBox.Password.Trim();
-            }
-        }
-
-        private async void TestConnectionButton_Click(object sender, RoutedEventArgs e)
-        {
-            var url = SupabaseUrlTextBox.Text.Trim();
-            var anonKey = SupabaseAnonKeyPasswordBox.Password.Trim();
-
-            if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(anonKey))
-            {
-                MessageBox.Show(
-                    "Please enter both Supabase URL and Anon Key",
-                    "Missing Information",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
-            }
-
-            // Validate URL format
-            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || 
-                (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-            {
-                MessageBox.Show(
-                    "Invalid URL format. Please enter a valid URL (e.g., https://your-project.supabase.co)",
-                    "Invalid URL",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
-                return;
-            }
-
-            TestConnectionButton.IsEnabled = false;
-            TestConnectionButton.Content = "Testing...";
-            TestConnectionResultText.Visibility = Visibility.Collapsed;
-
             try
             {
-                var options = new SupabaseOptions
+                if (CurrentHardwareIdTextBlock != null && !string.IsNullOrEmpty(CurrentHardwareIdTextBlock.Text))
                 {
-                    AutoConnectRealtime = false,
-                    AutoRefreshToken = false
-                };
-
-                var testClient = new Client(url, anonKey, options);
-                
-                // Try to query a simple table to test connection
-                // We'll try to query attack_logs table (it's okay if it doesn't exist yet)
-                try
-                {
-                    var testResponse = await testClient
-                        .From<AttackLogEntry>()
-                        .Select("id")
-                        .Limit(1)
-                        .Get();
-
+                    Clipboard.SetText(CurrentHardwareIdTextBlock.Text);
                     MessageBox.Show(
-                        "Connection successful! ✓\n\nYour Supabase credentials are valid and the connection is working.",
-                        "Connection Successful",
+                        "Hardware ID copied to clipboard!\n\nYou can now send this to your administrator for authorization.",
+                        "Copied",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
-                }
-                catch (Exception ex)
-                {
-                    // If table doesn't exist, that's okay - connection works
-                    if (ex.Message.Contains("relation") && ex.Message.Contains("does not exist"))
-                    {
-                        MessageBox.Show(
-                            "Connection successful! ✓\n\nYour Supabase credentials are valid.\nNote: The attack_logs table hasn't been created yet. Please run the SQL schema script in your Supabase dashboard.",
-                            "Connection Successful",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
-                    }
-                    else
-                    {
-                        MessageBox.Show(
-                            $"Connection test failed:\n\n{ex.Message}\n\nPlease check your Supabase URL and Anon Key.",
-                            "Connection Failed",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Error);
-                    }
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Connection failed:\n\n{ex.Message}\n\nPlease check your Supabase URL and Anon Key.",
-                    "Connection Failed",
+                    $"Failed to copy to clipboard: {ex.Message}",
+                    "Error",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
-            finally
+        }
+
+        private async void LoadLicenseInfo()
+        {
+            try
             {
-                TestConnectionButton.IsEnabled = true;
-                TestConnectionButton.Content = "Test Connection";
+                // Initialize Supabase client with hardcoded credentials
+                var supabaseClient = new Supabase.Client(
+                    Services.SupabaseConfig.Url,
+                    Services.SupabaseConfig.AnonKey,
+                    new Supabase.SupabaseOptions
+                    {
+                        AutoConnectRealtime = false,
+                        AutoRefreshToken = false
+                    });
+
+                var licenseService = new LicenseService(supabaseClient);
+                var hardwareId = licenseService.HardwareId;
+                
+                // Check Supabase license (centralized control)
+                var validationResult = await licenseService.ValidateLicenseAsync();
+
+                if (CurrentHardwareIdTextBlock != null)
+                {
+                    CurrentHardwareIdTextBlock.Text = hardwareId;
+                }
+
+                if (LicenseStatusTextBlock != null)
+                {
+                    LicenseStatusTextBlock.Text = validationResult.IsValid
+                        ? "✅ Status: Authorized (Supabase)"
+                        : "❌ Status: Not Authorized - Contact Administrator";
+                    LicenseStatusTextBlock.Foreground = validationResult.IsValid
+                        ? new SolidColorBrush(Color.FromRgb(34, 197, 94)) // Green
+                        : new SolidColorBrush(Color.FromRgb(239, 68, 68)); // Red
+                }
+
+                if (LicenseMessageTextBlock != null)
+                {
+                    LicenseMessageTextBlock.Text = validationResult.IsValid
+                        ? "Your license is managed by the administrator through Supabase."
+                        : $"To request a license:\n1. Log into seacuredb and go to Settings\n2. Request for a license\n3. Ask the admin to approve your request\n\nYour Hardware ID: {hardwareId}";
+                }
+            }
+            catch (Exception ex)
+            {
+                // Silently fail - license info is optional
+                if (LicenseStatusTextBlock != null)
+                {
+                    LicenseStatusTextBlock.Text = "⚠️ Status: Unable to verify license";
+                    LicenseStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(234, 179, 8)); // Yellow
+                }
             }
         }
 
-        private void ShowTestResult(string message, bool isSuccess)
-        {
-            TestConnectionResultText.Text = message;
-            TestConnectionResultText.Foreground = isSuccess 
-                ? new SolidColorBrush(Color.FromRgb(5, 150, 105)) // Green
-                : new SolidColorBrush(Color.FromRgb(220, 38, 38)); // Red
-            TestConnectionResultText.Visibility = Visibility.Visible;
-        }
     }
 
     // Pure WPF folder browser using Windows API

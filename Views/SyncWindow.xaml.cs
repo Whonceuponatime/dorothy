@@ -16,6 +16,7 @@ namespace Dorothy.Views
         public List<long> DeletedLogIds { get; private set; } = new();
         public List<long> DeletedAssetIds { get; private set; } = new();
         public bool ShouldSync { get; private set; }
+        public bool EnhanceData { get; private set; }
 
         private List<LogItem> _logItems = new();
         private List<AssetItem> _assetItems = new();
@@ -58,14 +59,18 @@ namespace Dorothy.Views
             
             UpdateSelectedCounts();
             
-            // Hide tabs if empty
-            if (logs.Count == 0)
+            // Always show both tabs (even if empty) for consistency
+            LogsTab.Visibility = Visibility.Visible;
+            AssetsTab.Visibility = Visibility.Visible;
+            
+            // Select the tab with data, or logs tab by default
+            if (assets.Count > 0 && logs.Count == 0)
             {
-                LogsTab.Visibility = Visibility.Collapsed;
+                SyncTabControl.SelectedItem = AssetsTab;
             }
-            if (assets.Count == 0)
+            else
             {
-                AssetsTab.Visibility = Visibility.Collapsed;
+                SyncTabControl.SelectedItem = LogsTab;
             }
 
             // Handle window closing to persist deletions
@@ -241,6 +246,7 @@ namespace Dorothy.Views
                 return;
             }
 
+            EnhanceData = EnhanceDataCheckBox?.IsChecked ?? true;
             ShouldSync = true;
             DialogResult = true;
             Close();

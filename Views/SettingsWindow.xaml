@@ -128,120 +128,204 @@
                                FontWeight="SemiBold"
                                Foreground="#111827"
                                Margin="0,0,0,8"/>
-                    <TextBlock Text="Configure Supabase to enable cloud sync of attack logs. Leave empty to use offline mode only."
+                    <TextBlock Text="Supabase cloud sync is pre-configured. All attack logs and assets are automatically synced to the cloud database."
                                FontSize="11"
                                Foreground="#6B7280"
                                Margin="0,0,0,8"
                                TextWrapping="Wrap"/>
-                    <Border Background="#EFF6FF"
-                            BorderBrush="#BFDBFE"
+                    <Border Background="#ECFDF5"
+                            BorderBrush="#A7F3D0"
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="10"
                             Margin="0,0,0,16">
                         <StackPanel>
-                            <TextBlock Text="🔒 Security Note"
+                            <TextBlock Text="✅ Pre-Configured"
                                        FontSize="11"
                                        FontWeight="SemiBold"
-                                       Foreground="#1E40AF"
+                                       Foreground="#059669"
                                        Margin="0,0,0,4"/>
-                            <TextBlock Text="Your Supabase Anon Key is encrypted using Windows Data Protection API (DPAPI) and stored securely. The key is only accessible to your Windows user account. Supabase anon keys are designed to be public, but proper Row Level Security (RLS) policies should be configured in your Supabase project to protect your data."
+                            <TextBlock Text="Supabase credentials are built-in and secured. The anon key is obfuscated and protected by Row Level Security (RLS) policies on the server. Your data is protected by hardware-based licensing."
                                        FontSize="10"
-                                       Foreground="#1E3A8A"
+                                       Foreground="#047857"
                                        TextWrapping="Wrap"
                                        LineHeight="16"/>
                         </StackPanel>
                     </Border>
                     
-                    <!-- Supabase URL -->
+                    <!-- Status Display (Read-Only) -->
                     <StackPanel Margin="0,0,0,16">
-                        <TextBlock Text="Supabase URL"
+                        <TextBlock Text="Connection Status"
                                    FontSize="12"
                                    Foreground="#374151"
                                    Margin="0,0,0,4"/>
-                        <TextBox x:Name="SupabaseUrlTextBox"
-                                 Height="32"
-                                 Padding="8,6"
-                                 BorderBrush="#D1D5DB"
-                                 BorderThickness="1"
-                                 Background="White"
-                                 TextChanged="SupabaseUrlTextBox_TextChanged"/>
-                        <TextBlock Text="Example: https://your-project.supabase.co"
-                                   FontSize="10"
-                                   Foreground="#9CA3AF"
-                                   Margin="0,2,0,0"/>
+                        <Border Background="#F9FAFB"
+                                BorderBrush="#D1D5DB"
+                                BorderThickness="1"
+                                Padding="12,8">
+                            <StackPanel>
+                                <TextBlock Text="Supabase URL: https://tlttgskbphuwdsnmxmar.supabase.co"
+                                           FontFamily="Consolas"
+                                           FontSize="10"
+                                           Foreground="#6B7280"
+                                           Margin="0,0,0,4"/>
+                                <TextBlock Text="Status: Pre-configured ✓"
+                                           FontSize="10"
+                                           Foreground="#059669"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
-                    <!-- Supabase Anon Key -->
-                    <StackPanel Margin="0,0,0,16">
-                        <TextBlock Text="Supabase Anon Key"
-                                   FontSize="12"
-                                   Foreground="#374151"
-                                   Margin="0,0,0,4"/>
-                        <PasswordBox x:Name="SupabaseAnonKeyPasswordBox"
-                                     Height="32"
-                                     Padding="8,6"
-                                     BorderBrush="#D1D5DB"
-                                     BorderThickness="1"
-                                     Background="White"
-                                     PasswordChanged="SupabaseAnonKeyPasswordBox_PasswordChanged"/>
-                        <TextBlock Text="Your Supabase project's anonymous key"
-                                   FontSize="10"
-                                   FontStyle="Italic"
-                                   Foreground="#9CA3AF"
-                                   Margin="0,2,0,0"/>
-                    </StackPanel>
-
-                    <!-- Test Connection Button -->
-                    <Button x:Name="TestConnectionButton"
-                            Content="Test Connection"
-                            Width="140"
-                            Height="32"
-                            HorizontalAlignment="Left"
-                            Click="TestConnectionButton_Click"
-                            BorderBrush="#D1D5DB"
+                    <!-- Test Connection (Always uses hardcoded credentials) -->
+                    <TextBlock Text="Note: Supabase credentials are hardcoded for security and ease of distribution. Connection is automatically verified on application startup."
+                               FontSize="10"
+                               Foreground="#6B7280"
+                               FontStyle="Italic"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,8"/>
+                    <Border Background="#FEF3C7"
+                            BorderBrush="#FDE047"
                             BorderThickness="1"
-                            Background="White"
-                            Foreground="#374151"
-                            Cursor="Hand">
-                        <Button.Style>
-                            <Style TargetType="Button">
-                                <Setter Property="FontSize" Value="14"/>
-                                <Setter Property="Padding" Value="12,6"/>
-                                <Setter Property="Background" Value="White"/>
-                                <Setter Property="Foreground" Value="#374151"/>
-                                <Setter Property="BorderBrush" Value="#D1D5DB"/>
-                                <Setter Property="BorderThickness" Value="1"/>
-                                <Setter Property="Cursor" Value="Hand"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border Background="{TemplateBinding Background}"
-                                                    BorderBrush="{TemplateBinding BorderBrush}"
-                                                    BorderThickness="{TemplateBinding BorderThickness}"
-                                                    CornerRadius="6"
-                                                    Padding="12,6">
-                                                <ContentPresenter HorizontalAlignment="Center"
-                                                                  VerticalAlignment="Center"/>
-                                            </Border>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                                <Style.Triggers>
-                                    <Trigger Property="IsEnabled" Value="False">
-                                        <Setter Property="Background" Value="#F3F4F6"/>
-                                        <Setter Property="Foreground" Value="#9CA3AF"/>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                    <TextBlock x:Name="TestConnectionResultText"
-                               Text=""
+                            CornerRadius="6"
+                            Padding="10"
+                            Margin="0,8,0,0">
+                        <StackPanel>
+                            <TextBlock Text="🔐 Security Information"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Foreground="#92400E"
+                                       Margin="0,0,0,4"/>
+                            <TextBlock FontSize="10"
+                                       Foreground="#78350F"
+                                       TextWrapping="Wrap"
+                                       LineHeight="16">
+                                <Run Text="The Supabase anon key is obfuscated within the application code. While it can be extracted through reverse engineering, this is safe by design:"/>
+                                <LineBreak/><LineBreak/>
+                                <Run Text="• Supabase anon keys are meant to be public (used in web/mobile apps)"/>
+                                <LineBreak/>
+                                <Run Text="• Security relies on Row Level Security (RLS) policies (server-side)"/>
+                                <LineBreak/>
+                                <Run Text="• Hardware licensing prevents unauthorized application use"/>
+                                <LineBreak/><LineBreak/>
+                                <Run Text="See SECURITY.md for detailed information."/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- License Management -->
+            <Border Background="White"
+                    BorderBrush="#E5E7EB"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16"
+                    Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="License Status"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="#111827"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Text="Licenses are centrally managed by the administrator through Supabase."
                                FontSize="11"
-                               Foreground="#059669"
-                               Margin="0,8,0,0"
-                               Visibility="Collapsed"/>
+                               Foreground="#6B7280"
+                               Margin="0,0,0,16"
+                               TextWrapping="Wrap"/>
+
+                    <!-- Current Hardware ID -->
+                    <StackPanel Margin="0,0,0,16">
+                        <TextBlock Text="Your Hardware ID"
+                                   FontSize="12"
+                                   Foreground="#374151"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,4"/>
+                        <Border Background="#F9FAFB"
+                                BorderBrush="#D1D5DB"
+                                BorderThickness="1"
+                                Padding="12,8"
+                                Margin="0,0,0,8">
+                            <StackPanel>
+                            <TextBlock x:Name="CurrentHardwareIdTextBlock"
+                                       Text="Loading..."
+                                       FontFamily="Consolas"
+                                       FontSize="10"
+                                       Foreground="#111827"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,4"/>
+                                <Button Content="📋 Copy to Clipboard"
+                                        FontSize="10"
+                                        Padding="8,4"
+                                        HorizontalAlignment="Left"
+                                        Background="#F3F4F6"
+                                        BorderBrush="#D1D5DB"
+                                        BorderThickness="1"
+                                        Cursor="Hand"
+                                        Click="CopyHardwareIdButton_Click"/>
+                            </StackPanel>
+                        </Border>
+                        <TextBlock x:Name="LicenseStatusTextBlock"
+                                   Text="Checking..."
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="#6B7280"
+                                   Margin="0,8,0,4"/>
+                        <TextBlock x:Name="LicenseMessageTextBlock"
+                                   Text=""
+                                   FontSize="10"
+                                   Foreground="#6B7280"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- Instructions for Users -->
+                    <Border Background="#EFF6FF"
+                            BorderBrush="#BFDBFE"
+                            BorderThickness="1"
+                            Padding="16"
+                            CornerRadius="6">
+                        <StackPanel>
+                            <TextBlock Text="ℹ️ License Not Authorized?"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="#1E40AF"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock TextWrapping="Wrap"
+                                       FontSize="11"
+                                       Foreground="#1E3A8A"
+                                       LineHeight="18">
+                                <Run Text="To request a license for this machine:"/>
+                                <LineBreak/><LineBreak/>
+                                <Run Text="1. First, log into seacuredb and go to Settings"/>
+                                <LineBreak/>
+                                <Run Text="2. Then request for a license"/>
+                                <LineBreak/>
+                                <Run Text="3. Ask or tell the admin to approve of the request"/>
+                                <LineBreak/>
+                                <Run Text="4. Once approved, restart the application"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Admin Info -->
+                    <Border Background="#F9FAFB"
+                            BorderBrush="#E5E7EB"
+                            BorderThickness="1"
+                            Padding="12"
+                            CornerRadius="6"
+                            Margin="0,16,0,0">
+                        <StackPanel>
+                            <TextBlock Text="🔐 Centralized License Control"
+                                   FontSize="11"
+                                   FontWeight="SemiBold"
+                                   Foreground="#374151"
+                                       Margin="0,0,0,6"/>
+                            <TextBlock Text="All licenses are managed through Supabase by the administrator. Users cannot self-authorize to ensure security and compliance."
+                                   FontSize="10"
+                                   Foreground="#6B7280"
+                                       TextWrapping="Wrap"/>
+                    </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
             </StackPanel>

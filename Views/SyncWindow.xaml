@@ -24,6 +24,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -68,9 +69,37 @@
                            Margin="0,4,0,0"/>
             </StackPanel>
         </Border>
+
+        <!-- Sync Options -->
+        <Border Grid.Row="1"
+                Background="White"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="16"
+                Margin="0,12,0,12">
+            <StackPanel>
+                <TextBlock Text="Sync Options"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="#111827"
+                           Margin="0,0,0,8"/>
+                <CheckBox x:Name="EnhanceDataCheckBox"
+                          Content="Enhance asset data (lookup vendors and hostnames online)"
+                          FontSize="12"
+                          Foreground="#374151"
+                          IsChecked="True"
+                          Margin="0,0,0,4"/>
+                <TextBlock Text="⚠️ Enabling this may slow down sync for large datasets (~1-2 seconds per unknown asset)"
+                           FontSize="10"
+                           Foreground="#9CA3AF"
+                           Margin="20,0,0,0"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
         
         <!-- Tabs for Logs and Assets -->
-        <TabControl Grid.Row="2">
+        <TabControl x:Name="SyncTabControl" Grid.Row="3">
             <TabItem Header="Attack Logs" x:Name="LogsTab">
                 <Grid Margin="0">
                     <Grid.RowDefinitions>
@@ -305,7 +334,7 @@
         </TabControl>
 
         <!-- Summary and Buttons -->
-        <Grid Grid.Row="3" Margin="0,16,0,0">
+        <Grid Grid.Row="4" Margin="0,16,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -336,6 +365,41 @@
                     BorderThickness="0"
                     Cursor="Hand"/>
             </StackPanel>
+        </Grid>
+        
+        <!-- Progress Overlay (hidden by default) -->
+        <Grid x:Name="ProgressOverlay"
+              Grid.RowSpan="5"
+              Background="#AA000000"
+              Visibility="Collapsed">
+            <Border Background="White"
+                    BorderBrush="#E5E7EB"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="32"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    MinWidth="400">
+                <StackPanel>
+                    <TextBlock x:Name="ProgressStatusText"
+                               Text="Syncing..."
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#111827"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,16"/>
+                    <ProgressBar IsIndeterminate="True"
+                                 Height="6"
+                                 Margin="0,0,0,12"/>
+                    <TextBlock x:Name="ProgressDetailText"
+                               Text="Preparing sync..."
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               HorizontalAlignment="Center"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"/>
+                </StackPanel>
+            </Border>
         </Grid>
     </Grid>
 </Window>

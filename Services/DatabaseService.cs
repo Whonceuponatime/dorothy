@@ -29,6 +29,65 @@ namespace Dorothy.Services
             InitializeDatabase();
         }
 
+        private void MigrateDatabase(SqliteConnection connection)
+        {
+            try
+            {
+                // Check if Assets table needs migration (add metadata columns)
+                var checkCommand = connection.CreateCommand();
+                checkCommand.CommandText = "PRAGMA table_info(Assets)";
+                
+                var columns = new HashSet<string>();
+                using (var reader = checkCommand.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        columns.Add(reader.GetString(1)); // Column name is at index 1
+                    }
+                }
+
+                // Add missing columns to Assets table
+                if (!columns.Contains("HardwareId"))
+                {
+                    Logger.Info("Migrating Assets table: Adding HardwareId column");
+                    var addColumn = connection.CreateCommand();
+                    addColumn.CommandText = "ALTER TABLE Assets ADD COLUMN HardwareId TEXT";
+                    addColumn.ExecuteNonQuery();
+                }
+
+                if (!columns.Contains("MachineName"))
+                {
+                    Logger.Info("Migrating Assets table: Adding MachineName column");
+                    var addColumn = connection.CreateCommand();
+                    addColumn.CommandText = "ALTER TABLE Assets ADD COLUMN MachineName TEXT";
+                    addColumn.ExecuteNonQuery();
+                }
+
+                if (!columns.Contains("Username"))
+                {
+                    Logger.Info("Migrating Assets table: Adding Username column");
+                    var addColumn = connection.CreateCommand();
+                    addColumn.CommandText = "ALTER TABLE Assets ADD COLUMN Username TEXT";
+                    addColumn.ExecuteNonQuery();
+                }
+
+                if (!columns.Contains("UserId"))
+                {
+                    Logger.Info("Migrating Assets table: Adding UserId column");
+                    var addColumn = connection.CreateCommand();
+                    addColumn.CommandText = "ALTER TABLE Assets ADD COLUMN UserId TEXT";
+                    addColumn.ExecuteNonQuery();
+                }
+
+                Logger.Info("Database migration completed successfully");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Error during database migration");
+                // Don't throw - allow initialization to continue
+            }
+        }
+
         private void InitializeDatabase()
         {
             try
@@ -57,7 +116,11 @@ namespace Dorothy.Services
                         LogContent TEXT NOT NULL,
                         CreatedAt TEXT NOT NULL,
                         SyncedAt TEXT,
-                        IsSynced INTEGER NOT NULL DEFAULT 0
+                        IsSynced INTEGER NOT NULL DEFAULT 0,
+                        HardwareId TEXT,
+                        MachineName TEXT,
+                        Username TEXT,
+                        UserId TEXT
                     );
                     
                     CREATE TABLE IF NOT EXISTS Assets (
@@ -72,10 +135,19 @@ namespace Dorothy.Services
                         ProjectName TEXT,
                         Synced INTEGER NOT NULL DEFAULT 0,
                         CreatedAt TEXT NOT NULL,
-                        SyncedAt TEXT
+                        SyncedAt TEXT,
+                        HardwareId TEXT,
+                        MachineName TEXT,
+                        Username TEXT,
+                        UserId TEXT
                     );
                 ";
                 command.ExecuteNonQuery();
+                Logger.Info("Database tables created");
+                
+                // Run migrations AFTER tables are created
+                MigrateDatabase(connection);
+                
                 Logger.Info("Database initialized successfully");
             }
             catch (Exception ex)
@@ -96,10 +168,12 @@ namespace Dorothy.Services
                 command.CommandText = @"
                     INSERT INTO AttackLogs 
                     (ProjectName, AttackType, Protocol, SourceIp, SourceMac, TargetIp, TargetMac, TargetPort, 
-                     TargetRateMbps, PacketsSent, DurationSeconds, StartTime, StopTime, Note, LogContent, CreatedAt, IsSynced)
+                     TargetRateMbps, PacketsSent, DurationSeconds, StartTime, StopTime, Note, LogContent, CreatedAt, IsSynced,
+                     HardwareId, MachineName, Username, UserId)
                     VALUES 
                     (@ProjectName, @AttackType, @Protocol, @SourceIp, @SourceMac, @TargetIp, @TargetMac, @TargetPort,
-                     @TargetRateMbps, @PacketsSent, @DurationSeconds, @StartTime, @StopTime, @Note, @LogContent, @CreatedAt, 0);
+                     @TargetRateMbps, @PacketsSent, @DurationSeconds, @StartTime, @StopTime, @Note, @LogContent, @CreatedAt, 0,
+                     @HardwareId, @MachineName, @Username, @UserId);
                     SELECT last_insert_rowid();
                 ";
 
@@ -119,6 +193,10 @@ namespace Dorothy.Services
                 command.Parameters.AddWithValue("@Note", entry.Note ?? (object)DBNull.Value);
                 command.Parameters.AddWithValue("@LogContent", entry.LogContent);
                 command.Parameters.AddWithValue("@CreatedAt", entry.CreatedAt.ToString("O"));
+                command.Parameters.AddWithValue("@HardwareId", entry.HardwareId ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@MachineName", entry.MachineName ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@Username", entry.Username ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@UserId", entry.UserId?.ToString() ?? (object)DBNull.Value);
 
                 var result = await command.ExecuteScalarAsync();
                 return Convert.ToInt64(result);
@@ -141,7 +219,7 @@ namespace Dorothy.Services
                 string query = @"
                     SELECT Id, ProjectName, AttackType, Protocol, SourceIp, SourceMac, TargetIp, TargetMac, TargetPort,
                            TargetRateMbps, PacketsSent, DurationSeconds, StartTime, StopTime, Note, LogContent, 
-                           CreatedAt, SyncedAt, IsSynced
+                           CreatedAt, SyncedAt, IsSynced, HardwareId, MachineName, Username, UserId
                     FROM AttackLogs
                     WHERE IsSynced = 0";
                 
@@ -272,9 +350,11 @@ namespace Dorothy.Services
                 var command = connection.CreateCommand();
                 command.CommandText = @"
                     INSERT INTO Assets 
-                    (HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, CreatedAt, Synced)
+                    (HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, CreatedAt, Synced,
+                     HardwareId, MachineName, Username, UserId)
                     VALUES 
-                    (@HostIp, @HostName, @MacAddress, @Vendor, @IsOnline, @PingTime, @ScanTime, @ProjectName, @CreatedAt, 0);
+                    (@HostIp, @HostName, @MacAddress, @Vendor, @IsOnline, @PingTime, @ScanTime, @ProjectName, @CreatedAt, 0,
+                     @HardwareId, @MachineName, @Username, @UserId);
                     SELECT last_insert_rowid();
                 ";
 
@@ -287,6 +367,10 @@ namespace Dorothy.Services
                 command.Parameters.AddWithValue("@ScanTime", asset.ScanTime.ToString("O"));
                 command.Parameters.AddWithValue("@ProjectName", asset.ProjectName ?? (object)DBNull.Value);
                 command.Parameters.AddWithValue("@CreatedAt", asset.CreatedAt.ToString("O"));
+                command.Parameters.AddWithValue("@HardwareId", asset.HardwareId ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@MachineName", asset.MachineName ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@Username", asset.Username ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@UserId", asset.UserId?.ToString() ?? (object)DBNull.Value);
 
                 var result = await command.ExecuteScalarAsync();
                 return Convert.ToInt64(result);
@@ -307,7 +391,8 @@ namespace Dorothy.Services
 
                 var command = connection.CreateCommand();
                 string query = @"
-                    SELECT Id, HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, Synced, CreatedAt, SyncedAt
+                    SELECT Id, HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, Synced, CreatedAt, SyncedAt,
+                           HardwareId, MachineName, Username, UserId
                     FROM Assets
                     WHERE Synced = 0";
                 
@@ -436,35 +521,78 @@ namespace Dorothy.Services
                 ProjectName = reader.IsDBNull(8) ? null : reader.GetString(8),
                 Synced = reader.GetInt32(9) == 1,
                 CreatedAt = DateTime.Parse(reader.GetString(10)),
-                SyncedAt = reader.IsDBNull(11) ? null : DateTime.Parse(reader.GetString(11))
+                SyncedAt = reader.IsDBNull(11) ? null : DateTime.Parse(reader.GetString(11)),
+                HardwareId = reader.IsDBNull(12) ? null : reader.GetString(12),
+                MachineName = reader.IsDBNull(13) ? null : reader.GetString(13),
+                Username = reader.IsDBNull(14) ? null : reader.GetString(14),
+                UserId = reader.IsDBNull(15) ? null : Guid.Parse(reader.GetString(15))
             };
         }
 
         private AttackLogEntry MapReaderToEntry(DbDataReader reader)
         {
-            return new AttackLogEntry
+            var entry = new AttackLogEntry
             {
-                Id = reader.GetInt64(0),
-                ProjectName = reader.IsDBNull(1) ? null : reader.GetString(1),
-                AttackType = reader.GetString(2),
-                Protocol = reader.GetString(3),
-                SourceIp = reader.GetString(4),
-                SourceMac = reader.IsDBNull(5) ? null : reader.GetString(5),
-                TargetIp = reader.GetString(6),
-                TargetMac = reader.IsDBNull(7) ? null : reader.GetString(7),
-                TargetPort = reader.GetInt32(8),
-                TargetRateMbps = reader.GetDouble(9),
-                PacketsSent = reader.GetInt64(10),
-                DurationSeconds = reader.GetInt32(11),
-                StartTime = DateTime.Parse(reader.GetString(12)),
-                StopTime = DateTime.Parse(reader.GetString(13)),
-                Note = reader.IsDBNull(14) ? null : reader.GetString(14),
-                LogContent = reader.GetString(15),
-                CreatedAt = DateTime.Parse(reader.GetString(16)),
-                SyncedAt = reader.IsDBNull(17) ? null : DateTime.Parse(reader.GetString(17)),
-                IsSynced = reader.GetInt32(18) == 1,
-                Synced = reader.GetInt32(18) == 1
+                Id = reader.GetInt64(reader.GetOrdinal("Id")),
+                ProjectName = reader.IsDBNull(reader.GetOrdinal("ProjectName")) ? null : reader.GetString(reader.GetOrdinal("ProjectName")),
+                AttackType = reader.GetString(reader.GetOrdinal("AttackType")),
+                Protocol = reader.GetString(reader.GetOrdinal("Protocol")),
+                SourceIp = reader.GetString(reader.GetOrdinal("SourceIp")),
+                SourceMac = reader.IsDBNull(reader.GetOrdinal("SourceMac")) ? null : reader.GetString(reader.GetOrdinal("SourceMac")),
+                TargetIp = reader.GetString(reader.GetOrdinal("TargetIp")),
+                TargetMac = reader.IsDBNull(reader.GetOrdinal("TargetMac")) ? null : reader.GetString(reader.GetOrdinal("TargetMac")),
+                TargetPort = reader.GetInt32(reader.GetOrdinal("TargetPort")),
+                TargetRateMbps = reader.GetDouble(reader.GetOrdinal("TargetRateMbps")),
+                PacketsSent = reader.GetInt64(reader.GetOrdinal("PacketsSent")),
+                DurationSeconds = reader.GetInt32(reader.GetOrdinal("DurationSeconds")),
+                StartTime = DateTime.Parse(reader.GetString(reader.GetOrdinal("StartTime"))),
+                StopTime = DateTime.Parse(reader.GetString(reader.GetOrdinal("StopTime"))),
+                Note = reader.IsDBNull(reader.GetOrdinal("Note")) ? null : reader.GetString(reader.GetOrdinal("Note")),
+                LogContent = reader.GetString(reader.GetOrdinal("LogContent")),
+                CreatedAt = DateTime.Parse(reader.GetString(reader.GetOrdinal("CreatedAt"))),
+                SyncedAt = reader.IsDBNull(reader.GetOrdinal("SyncedAt")) ? null : DateTime.Parse(reader.GetString(reader.GetOrdinal("SyncedAt"))),
+                IsSynced = reader.GetInt32(reader.GetOrdinal("IsSynced")) == 1,
+                Synced = reader.GetInt32(reader.GetOrdinal("IsSynced")) == 1
             };
+
+            // Map metadata fields (may not exist in older databases)
+            try
+            {
+                var hardwareIdOrdinal = reader.GetOrdinal("HardwareId");
+                if (!reader.IsDBNull(hardwareIdOrdinal))
+                    entry.HardwareId = reader.GetString(hardwareIdOrdinal);
+            }
+            catch { }
+
+            try
+            {
+                var machineNameOrdinal = reader.GetOrdinal("MachineName");
+                if (!reader.IsDBNull(machineNameOrdinal))
+                    entry.MachineName = reader.GetString(machineNameOrdinal);
+            }
+            catch { }
+
+            try
+            {
+                var usernameOrdinal = reader.GetOrdinal("Username");
+                if (!reader.IsDBNull(usernameOrdinal))
+                    entry.Username = reader.GetString(usernameOrdinal);
+            }
+            catch { }
+
+            try
+            {
+                var userIdOrdinal = reader.GetOrdinal("UserId");
+                if (!reader.IsDBNull(userIdOrdinal))
+                {
+                    var userIdStr = reader.GetString(userIdOrdinal);
+                    if (Guid.TryParse(userIdStr, out var userId))
+                        entry.UserId = userId;
+                }
+            }
+            catch { }
+
+            return entry;
         }
 
         public void Dispose()

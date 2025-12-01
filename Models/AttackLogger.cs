@@ -26,10 +26,21 @@ namespace Dorothy.Models
         private string _currentLogContent = string.Empty;
         private long? _currentLogId = null;
 
-        public AttackLogger(TextBox logArea, DatabaseService? databaseService = null)
+        private readonly string? _hardwareId;
+        private readonly string? _machineName;
+        private readonly string? _username;
+        private readonly Guid? _userId;
+
+        public AttackLogger(TextBox logArea, DatabaseService? databaseService = null, 
+                          string? hardwareId = null, string? machineName = null, 
+                          string? username = null, Guid? userId = null)
         {
             _logArea = logArea;
             _databaseService = databaseService;
+            _hardwareId = hardwareId;
+            _machineName = machineName ?? Environment.MachineName;
+            _username = username ?? Environment.UserName;
+            _userId = userId;
         }
 
         public void StartAttack(AttackType attackType, string sourceIp, byte[] sourceMac, 
@@ -148,7 +159,11 @@ namespace Dorothy.Models
                             LogContent = _currentLogContent,
                             CreatedAt = DateTime.Now,
                             IsSynced = false,
-                            Synced = false
+                            Synced = false,
+                            HardwareId = _hardwareId,
+                            MachineName = _machineName,
+                            Username = _username,
+                            UserId = _userId
                         };
 
                         await _databaseService.SaveAttackLogAsync(logEntry);

@@ -7,7 +7,6 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -65,14 +64,20 @@ namespace Dorothy.Views
         private string _logFileLocation = string.Empty;
         private int _fontSizeIndex = 1;
         private int _themeIndex = 0;
-        private string _supabaseUrl = string.Empty;
-        private string _supabaseAnonKey = string.Empty;
 
         // Database and Sync Services
         private readonly Services.DatabaseService _databaseService;
         private readonly Services.SupabaseSyncService _supabaseSyncService;
         private readonly Services.ToastNotificationService _toastService;
         private System.Windows.Threading.DispatcherTimer? _syncCheckTimer;
+        
+        // Metadata for tracking
+        private readonly string _hardwareId;
+        private readonly string _machineName;
+        private readonly string _username;
+        
+        // Track if we've shown sync notification this session
+        private bool _hasShownAttackLogSyncNotification = false;
 
         public MainWindow()
         {
@@ -83,8 +88,20 @@ namespace Dorothy.Views
             _supabaseSyncService = new Services.SupabaseSyncService(_databaseService);
             _toastService = new Services.ToastNotificationService(this);
             
-            // Initialize logger with database service
-            _attackLogger = new AttackLogger(LogTextBox, _databaseService);
+            // Initialize logger with database service and metadata
+            var licenseService = new Services.LicenseService();
+            _hardwareId = licenseService.HardwareId;
+            _machineName = Environment.MachineName;
+            _username = Environment.UserName;
+            
+            _attackLogger = new AttackLogger(
+                LogTextBox, 
+                _databaseService,
+                hardwareId: _hardwareId,
+                machineName: _machineName,
+                username: _username,
+                userId: null // Can be set if user authentication is implemented
+            );
             
             // Then initialize components that depend on logger
             _networkStorm = new NetworkStorm(_attackLogger);
@@ -392,7 +409,7 @@ namespace Dorothy.Views
 
         private void SettingsButton_Click(object sender, RoutedEventArgs e)
         {
-            var settingsWindow = new SettingsWindow(_logFileLocation, _fontSizeIndex, _themeIndex, _supabaseUrl, _supabaseAnonKey)
+            var settingsWindow = new SettingsWindow(_logFileLocation, _fontSizeIndex, _themeIndex)
             {
                 Owner = this
             };
@@ -402,14 +419,6 @@ namespace Dorothy.Views
                 _logFileLocation = settingsWindow.LogLocation;
                 _fontSizeIndex = settingsWindow.FontSizeIndex;
                 _themeIndex = settingsWindow.ThemeIndex;
-                _supabaseUrl = settingsWindow.SupabaseUrl;
-                _supabaseAnonKey = settingsWindow.SupabaseAnonKey;
-                
-                // Reinitialize Supabase if settings changed
-                if (!string.IsNullOrWhiteSpace(_supabaseUrl) && !string.IsNullOrWhiteSpace(_supabaseAnonKey))
-                {
-                    _supabaseSyncService.Initialize(_supabaseUrl, _supabaseAnonKey);
-                }
                 
                 SaveSettings();
                 ApplyUISettings();
@@ -438,20 +447,6 @@ namespace Dorothy.Views
                             int.TryParse(line.Substring("FontSizeIndex=".Length), out _fontSizeIndex);
                         else if (line.StartsWith("ThemeIndex="))
                             int.TryParse(line.Substring("ThemeIndex=".Length), out _themeIndex);
-                        else if (line.StartsWith("SupabaseUrl="))
-                            _supabaseUrl = line.Substring("SupabaseUrl=".Length);
-                        else if (line.StartsWith("SupabaseAnonKey="))
-                        {
-                            var encryptedKey = line.Substring("SupabaseAnonKey=".Length);
-                            // Try to decrypt (for new encrypted format) or use as-is (for old plain text format)
-                            _supabaseAnonKey = DecryptString(encryptedKey) ?? encryptedKey;
-                        }
-                    }
-                    
-                    // Initialize Supabase if configured
-                    if (!string.IsNullOrWhiteSpace(_supabaseUrl) && !string.IsNullOrWhiteSpace(_supabaseAnonKey))
-                    {
-                        _supabaseSyncService.Initialize(_supabaseUrl, _supabaseAnonKey);
                     }
                 }
                 else
@@ -459,6 +454,9 @@ namespace Dorothy.Views
                     // Default to installation directory
                     _logFileLocation = AppDomain.CurrentDomain.BaseDirectory;
                 }
+
+                // Initialize Supabase with hardcoded credentials (always configured)
+                _supabaseSyncService.Initialize(Services.SupabaseConfig.Url, Services.SupabaseConfig.AnonKey);
 
                 ApplyUISettings();
             }
@@ -487,9 +485,7 @@ namespace Dorothy.Views
                 {
                     $"LogLocation={_logFileLocation}",
                     $"FontSizeIndex={_fontSizeIndex}",
-                    $"ThemeIndex={_themeIndex}",
-                    $"SupabaseUrl={_supabaseUrl}",
-                    $"SupabaseAnonKey={EncryptString(_supabaseAnonKey)}"
+                    $"ThemeIndex={_themeIndex}"
                 };
 
                 System.IO.File.WriteAllLines(settingsFile, lines);
@@ -823,7 +819,8 @@ namespace Dorothy.Views
                         // Sync selected assets
                         if (syncWindow.SelectedAssetIds.Count > 0)
                         {
-                            var result = await _supabaseSyncService.SyncAssetsAsync(syncWindow.ProjectName, syncWindow.SelectedAssetIds);
+                            // Pass enhance data option to sync service
+                            var result = await _supabaseSyncService.SyncAssetsAsync(syncWindow.ProjectName, syncWindow.SelectedAssetIds, syncWindow.EnhanceData);
 
                             if (result.Success)
                             {
@@ -1532,6 +1529,23 @@ namespace Dorothy.Views
                 
                 _currentRunningAttackType = null; // Clear the running attack type
                 ResetStatistics();
+                
+                // Update sync status immediately to show cloud notification
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(500); // Reduced delay for faster notification
+                    await UpdateSyncStatus();
+                    
+                    // Show one-time notification per session about cloud sync
+                    if (!_hasShownAttackLogSyncNotification && _supabaseSyncService.IsConfigured)
+                    {
+                        _hasShownAttackLogSyncNotification = true;
+                        Dispatcher.Invoke(() =>
+                        {
+                            _toastService.ShowInfo("💾 Attack log saved. Click Cloud Sync button to upload to Supabase.");
+                        });
+                    }
+                });
             }
             catch (Exception ex)
             {
@@ -3384,7 +3398,14 @@ namespace Dorothy.Views
 
                 // Open network scan window
                 var networkScan = new NetworkScan(_attackLogger);
-                var scanWindow = new NetworkScanWindow(networkScan, _attackLogger, _databaseService, _supabaseSyncService);
+                var scanWindow = new NetworkScanWindow(
+                    networkScan, 
+                    _attackLogger, 
+                    _databaseService, 
+                    _supabaseSyncService,
+                    _hardwareId,
+                    _machineName,
+                    _username);
                 scanWindow.Owner = this;
                 scanWindow.Show();
 
@@ -3548,67 +3569,5 @@ namespace Dorothy.Views
             }
         }
 
-        /// <summary>
-        /// Encrypts a string using Windows DPAPI (Data Protection API).
-        /// The encrypted data can only be decrypted by the same Windows user account.
-        /// </summary>
-        private string EncryptString(string plainText)
-        {
-            if (string.IsNullOrEmpty(plainText))
-                return string.Empty;
-
-            try
-            {
-                byte[] plainBytes = Encoding.UTF8.GetBytes(plainText);
-                byte[] encryptedBytes = ProtectedData.Protect(
-                    plainBytes,
-                    null, // Optional entropy (additional data)
-                    DataProtectionScope.CurrentUser); // Only current user can decrypt
-
-                return Convert.ToBase64String(encryptedBytes);
-            }
-            catch (Exception ex)
-            {
-                _logger.Warn(ex, "Failed to encrypt Supabase key, storing as plain text");
-                return plainText; // Fallback to plain text if encryption fails
-            }
-        }
-
-        /// <summary>
-        /// Decrypts a string that was encrypted using Windows DPAPI.
-        /// Returns null if decryption fails (e.g., invalid format or different user).
-        /// </summary>
-        private string? DecryptString(string encryptedText)
-        {
-            if (string.IsNullOrEmpty(encryptedText))
-                return null;
-
-            try
-            {
-                // Check if it's base64 encoded (encrypted format)
-                byte[] encryptedBytes;
-                try
-                {
-                    encryptedBytes = Convert.FromBase64String(encryptedText);
-                }
-                catch
-                {
-                    // Not base64, likely plain text from old version
-                    return null;
-                }
-
-                byte[] decryptedBytes = ProtectedData.Unprotect(
-                    encryptedBytes,
-                    null, // Optional entropy (must match encryption)
-                    DataProtectionScope.CurrentUser);
-
-                return Encoding.UTF8.GetString(decryptedBytes);
-            }
-            catch (Exception ex)
-            {
-                _logger.Debug(ex, "Failed to decrypt Supabase key, treating as plain text");
-                return null; // Return null to use as plain text
-            }
-        }
     }
 } 

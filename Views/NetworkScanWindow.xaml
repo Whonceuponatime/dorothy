@@ -424,13 +424,13 @@
                       CanUserAddRows="False"
                       CanUserDeleteRows="False">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="IP Address" Binding="{Binding IpAddress}" Width="120"/>
-                    <DataGridTextColumn Header="MAC Address" Binding="{Binding MacAddress}" Width="130"/>
-                    <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="200"/>
-                    <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="120"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
-                    <DataGridTextColumn Header="RTT (ms)" Binding="{Binding RoundTripTime, Converter={StaticResource NullableLongConverter}}" Width="80"/>
-                    <DataGridTextColumn Header="Open Ports" Binding="{Binding OpenPortsDisplay}" Width="*"/>
+                    <DataGridTextColumn Header="IP Address" Binding="{Binding IpAddress}" Width="130" />
+                    <DataGridTextColumn Header="MAC Address" Binding="{Binding MacAddress}" Width="150" />
+                    <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="180" />
+                    <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="140" />
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" />
+                    <DataGridTextColumn Header="RTT (ms)" Binding="{Binding RoundTripTime, Converter={StaticResource NullableLongConverter}}" Width="85" />
+                    <DataGridTextColumn Header="Open Ports" Binding="{Binding OpenPortsDisplay}" Width="*" />
                 </DataGrid.Columns>
             </DataGrid>
         </Border>

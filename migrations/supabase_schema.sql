@@ -1,4 +1,5 @@
--- Supabase Database Schema
+-- Supabase Database Schema (Simplified)
+-- NOTE: For the COMPLETE schema with AUDIT LOGGING, use: supabase_schema_with_audit.sql
 -- Run this SQL in your Supabase SQL Editor to create the tables
 
 -- Assets table for network scan results
@@ -14,12 +15,19 @@ CREATE TABLE IF NOT EXISTS public.assets (
     synced BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     project_name TEXT NULL,
+    hardware_id TEXT NULL,
+    machine_name TEXT NULL,
+    username TEXT NULL,
+    user_id UUID NULL,
     CONSTRAINT assets_pkey PRIMARY KEY (id)
 ) TABLESPACE pg_default;
 
 CREATE INDEX IF NOT EXISTS idx_assets_synced ON public.assets USING btree (synced) TABLESPACE pg_default;
 CREATE INDEX IF NOT EXISTS idx_assets_host_ip ON public.assets USING btree (host_ip) TABLESPACE pg_default;
 CREATE INDEX IF NOT EXISTS idx_assets_project_name ON public.assets USING btree (project_name) TABLESPACE pg_default;
+CREATE INDEX IF NOT EXISTS idx_assets_hardware_id ON public.assets USING btree (hardware_id) TABLESPACE pg_default;
+CREATE INDEX IF NOT EXISTS idx_assets_user_id ON public.assets USING btree (user_id) TABLESPACE pg_default;
+CREATE INDEX IF NOT EXISTS idx_assets_username ON public.assets USING btree (username) TABLESPACE pg_default;
 
 -- Attack logs table
 CREATE TABLE IF NOT EXISTS public.attack_logs (
@@ -39,12 +47,19 @@ CREATE TABLE IF NOT EXISTS public.attack_logs (
     stop_time TIMESTAMP WITHOUT TIME ZONE NOT NULL,
     synced BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    hardware_id TEXT NULL,
+    machine_name TEXT NULL,
+    username TEXT NULL,
+    user_id UUID NULL,
     CONSTRAINT attack_logs_pkey PRIMARY KEY (id)
 ) TABLESPACE pg_default;
 
 CREATE INDEX IF NOT EXISTS idx_attack_logs_synced ON public.attack_logs USING btree (synced) TABLESPACE pg_default;
 CREATE INDEX IF NOT EXISTS idx_attack_logs_project_name ON public.attack_logs USING btree (project_name) TABLESPACE pg_default;
 CREATE INDEX IF NOT EXISTS idx_attack_logs_start_time ON public.attack_logs USING btree (start_time) TABLESPACE pg_default;
+CREATE INDEX IF NOT EXISTS idx_attack_logs_hardware_id ON public.attack_logs USING btree (hardware_id) TABLESPACE pg_default;
+CREATE INDEX IF NOT EXISTS idx_attack_logs_user_id ON public.attack_logs USING btree (user_id) TABLESPACE pg_default;
+CREATE INDEX IF NOT EXISTS idx_attack_logs_username ON public.attack_logs USING btree (username) TABLESPACE pg_default;
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.assets ENABLE ROW LEVEL SECURITY;

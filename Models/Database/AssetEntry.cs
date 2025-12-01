@@ -42,6 +42,18 @@ namespace Dorothy.Models.Database
         [Column("created_at")]
         public DateTime CreatedAt { get; set; }
 
+        [Column("hardware_id")]
+        public string? HardwareId { get; set; }
+
+        [Column("machine_name")]
+        public string? MachineName { get; set; }
+
+        [Column("username")]
+        public string? Username { get; set; }
+
+        [Column("user_id")]
+        public Guid? UserId { get; set; }
+
         // Local SQLite only field (not in Supabase schema)
         // Using both JsonIgnore and IgnoreDataMember to ensure exclusion
         [JsonIgnore]

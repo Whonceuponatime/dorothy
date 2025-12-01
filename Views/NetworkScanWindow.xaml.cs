@@ -30,13 +30,28 @@ namespace Dorothy.Views
         private string _networkAddress = string.Empty;
         private string _subnetMask = string.Empty;
 
-        public NetworkScanWindow(NetworkScan networkScan, AttackLogger attackLogger, DatabaseService? databaseService = null, SupabaseSyncService? supabaseSyncService = null)
+        // Metadata for asset tracking
+        private readonly string _hardwareId;
+        private readonly string _machineName;
+        private readonly string _username;
+
+        public NetworkScanWindow(
+            NetworkScan networkScan, 
+            AttackLogger attackLogger, 
+            DatabaseService? databaseService = null, 
+            SupabaseSyncService? supabaseSyncService = null,
+            string? hardwareId = null,
+            string? machineName = null,
+            string? username = null)
         {
             InitializeComponent();
             _networkScan = networkScan;
             _attackLogger = attackLogger;
             _databaseService = databaseService;
             _supabaseSyncService = supabaseSyncService;
+            _hardwareId = hardwareId ?? string.Empty;
+            _machineName = machineName ?? Environment.MachineName;
+            _username = username ?? Environment.UserName;
             
             // Wire up port scan mode radio button events (check for null in case XAML hasn't loaded yet)
             if (CommonPortsRadioButton != null)
@@ -609,7 +624,12 @@ namespace Dorothy.Views
                         PingTime = asset.RoundTripTime.HasValue ? (int)asset.RoundTripTime.Value : null,
                         ScanTime = DateTime.UtcNow,
                         CreatedAt = DateTime.UtcNow,
-                        Synced = false
+                        Synced = false,
+                        // Metadata for audit tracking
+                        HardwareId = _hardwareId,
+                        MachineName = _machineName,
+                        Username = _username,
+                        UserId = null // Can be set if user authentication is implemented
                     };
 
                     await _databaseService.SaveAssetAsync(assetEntry);
