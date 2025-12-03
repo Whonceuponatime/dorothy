@@ -17,20 +17,20 @@ namespace Dorothy.Views
     public partial class SettingsWindow : Window
     {
         public string LogLocation { get; private set; } = string.Empty;
-        public int FontSizeIndex { get; private set; } = 1;
+        public double FontSize { get; private set; } = 12.0;
         public int ThemeIndex { get; private set; } = 0;
 
-        public SettingsWindow(string currentLogLocation, int currentFontSizeIndex, int currentThemeIndex)
+        public SettingsWindow(string currentLogLocation, double currentFontSize, int currentThemeIndex)
         {
             InitializeComponent();
             LogLocation = currentLogLocation;
-            FontSizeIndex = currentFontSizeIndex;
+            FontSize = currentFontSize;
             ThemeIndex = currentThemeIndex;
 
             LogLocationTextBox.Text = string.IsNullOrEmpty(LogLocation) 
                 ? AppDomain.CurrentDomain.BaseDirectory 
                 : LogLocation;
-            FontSizeComboBox.SelectedIndex = FontSizeIndex;
+            FontSizeTextBox.Text = FontSize.ToString("F1");
             ThemeComboBox.SelectedIndex = ThemeIndex;
             
             // Load license information
@@ -55,7 +55,22 @@ namespace Dorothy.Views
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
             LogLocation = LogLocationTextBox.Text;
-            FontSizeIndex = FontSizeComboBox.SelectedIndex;
+            
+            // Parse font size from textbox
+            if (double.TryParse(FontSizeTextBox.Text, out double fontSize) && fontSize >= 8 && fontSize <= 24)
+            {
+                FontSize = fontSize;
+            }
+            else
+            {
+                MessageBox.Show(
+                    "Font size must be a number between 8 and 24.",
+                    "Invalid Font Size",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+            
             ThemeIndex = ThemeComboBox.SelectedIndex;
 
             // Validate log location
@@ -80,6 +95,87 @@ namespace Dorothy.Views
 
             DialogResult = true;
             Close();
+        }
+        
+        private void FontSizeTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+        {
+            var textBox = sender as TextBox;
+            if (textBox == null)
+            {
+                e.Handled = true;
+                return;
+            }
+            
+            // Allow only digits and decimal point
+            if (!char.IsDigit(e.Text, 0) && e.Text != ".")
+            {
+                e.Handled = true;
+                return;
+            }
+            
+            // Prevent multiple decimal points
+            if (e.Text == "." && textBox.Text.Contains("."))
+            {
+                e.Handled = true;
+                return;
+            }
+            
+            // Get the resulting text after insertion
+            string currentText = textBox.Text ?? string.Empty;
+            int caretIndex = textBox.CaretIndex;
+            string newText = currentText.Insert(caretIndex, e.Text);
+            
+            // Allow empty text (user is deleting/clearing)
+            if (string.IsNullOrEmpty(newText))
+            {
+                return; // Allow it
+            }
+            
+            // Allow partial input during typing (like "1", "12", "12.")
+            // Only block if we can parse a complete number and it's clearly out of range
+            if (double.TryParse(newText, out double value))
+            {
+                // Only block if value is clearly out of range
+                // Allow intermediate values during typing (e.g., allow "2" even though it's < 8, user might type "12")
+                if (value < 0 || value > 24)
+                {
+                    e.Handled = true;
+                    return;
+                }
+            }
+            // If it's not a valid number yet (partial input), allow it
+            // Examples: "1", "12", "12." are all valid partial inputs
+        }
+        
+        private void FontSizeTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            var textBox = sender as TextBox;
+            if (textBox == null) return;
+            
+            // Validate and provide visual feedback
+            if (double.TryParse(textBox.Text, out double value))
+            {
+                if (value >= 8 && value <= 24)
+                {
+                    textBox.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
+                    textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(209, 213, 219));
+                }
+                else
+                {
+                    textBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                    textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+                }
+            }
+            else if (string.IsNullOrEmpty(textBox.Text))
+            {
+                textBox.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
+                textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(209, 213, 219));
+            }
+            else
+            {
+                textBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+            }
         }
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)
@@ -190,7 +286,7 @@ namespace Dorothy.Views
             {
                 hwndOwner = ownerHandle,
                 pidlRoot = IntPtr.Zero,
-                pszDisplayName = new StringBuilder(260),
+                pszDisplayName = new string('\0', 260), // Pre-initialize with null characters to match buffer size
                 lpszTitle = description,
                 ulFlags = 0x00000040 | 0x00000010, // BIF_NEWDIALOGSTYLE | BIF_RETURNONLYFSDIRS
                 lpfn = BrowseCallbackProc,
@@ -241,7 +337,8 @@ namespace Dorothy.Views
         {
             public IntPtr hwndOwner;
             public IntPtr pidlRoot;
-            public StringBuilder pszDisplayName;
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+            public string pszDisplayName;
             [MarshalAs(UnmanagedType.LPTStr)]
             public string lpszTitle;
             public uint ulFlags;

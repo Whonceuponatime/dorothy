@@ -22,7 +22,11 @@
                        FontSize="22"
                        FontWeight="Bold"
                        Foreground="#111827"
-                       Margin="0,0,0,8"/>
+                       Margin="0,0,0,4"/>
+            <TextBlock Text="Application Info"
+                       FontSize="12"
+                       Foreground="#6B7280"
+                       Margin="0,0,0,0"/>
         </StackPanel>
 
         <!-- Content Card -->
@@ -36,7 +40,7 @@
                 <StackPanel>
                     <!-- Product Name and Version -->
                     <TextBlock x:Name="ProductVersionText"
-                               Text="SEACURE(TOOL) - Version 2.1.1"
+                               Text="SEACURE(TOOL) - Version 2.2.2"
                                FontSize="16"
                                FontWeight="SemiBold"
                                Foreground="#111827"
@@ -51,12 +55,36 @@
                                LineHeight="20"/>
 
                     <!-- Features -->
-                    <TextBlock Text="Features:"
+                    <TextBlock Text="Attack Types"
                                FontSize="12"
                                FontWeight="SemiBold"
                                Foreground="#374151"
-                               Margin="0,0,0,8"/>
-                    <TextBlock Text="• Multiple attack types: TCP SYN Flood, UDP Flood, ICMP Flood, ARP Spoofing&#x0a;• Ethernet-level attacks (Unicast, Multicast, Broadcast)&#x0a;• Configurable attack rates and parameters&#x0a;• Real-time statistics and logging&#x0a;• Network interface selection and gateway routing&#x0a;• Network scanning and asset inventory&#x0a;• Cloud sync with Supabase&#x0a;• Security logs with export capabilities"
+                               Margin="0,0,0,6"/>
+                    <TextBlock Text="• TCP SYN Flood, UDP Flood, ICMP Flood&#x0a;• ARP Spoofing&#x0a;• Ethernet-level attacks (Unicast, Multicast, Broadcast)&#x0a;• NMEA 0183 UDP attacks (Unicast, Multicast)"
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,16"
+                               LineHeight="20"/>
+                    
+                    <TextBlock Text="Capabilities"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#374151"
+                               Margin="0,0,0,6"/>
+                    <TextBlock Text="• Configurable attack rates and parameters&#x0a;• Real-time statistics and logging&#x0a;• Network interface selection and gateway routing&#x0a;• Network scanning and asset inventory"
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,16"
+                               LineHeight="20"/>
+                    
+                    <TextBlock Text="Integration"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="#374151"
+                               Margin="0,0,0,6"/>
+                    <TextBlock Text="• Cloud sync with Supabase&#x0a;• Security logs with export capabilities"
                                FontSize="12"
                                Foreground="#6B7280"
                                TextWrapping="Wrap"
@@ -91,12 +119,26 @@
                         </Hyperlink>
                     </TextBlock>
 
+                    <!-- Footer Separator -->
+                    <Border BorderBrush="#E5E7EB"
+                            BorderThickness="0,1,0,0"
+                            Margin="0,20,0,12"/>
+
                     <!-- Copyright -->
-                    <TextBlock Text="Copyright(C) SeaNet Co., Ltd. All right reserved"
-                               FontSize="11"
-                               Foreground="#9CA3AF"
-                               Margin="0,16,0,0"
-                               HorizontalAlignment="Center"/>
+                    <TextBlock HorizontalAlignment="Center"
+                               TextAlignment="Center"
+                               Margin="0,0,0,0">
+                        <Run Text="Copyright(C) SeaNet Co., Ltd. All right reserved" 
+                             FontSize="10" 
+                             Foreground="#9CA3AF"/>
+                        <LineBreak/>
+                        <Hyperlink NavigateUri="https://www.sea-net.co.kr/seacure"
+                                   FontSize="10"
+                                   Foreground="#2563EB"
+                                   RequestNavigate="WebsiteLink_RequestNavigate">
+                            <Run Text="www.sea-net.co.kr/seacure"/>
+                        </Hyperlink>
+                    </TextBlock>
                 </StackPanel>
             </ScrollViewer>
         </Border>

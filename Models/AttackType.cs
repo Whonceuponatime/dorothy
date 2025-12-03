@@ -19,6 +19,8 @@ namespace Dorothy.Models
         TcpRoutedFlood,
         EthernetUnicast,
         EthernetMulticast,
-        EthernetBroadcast
+        EthernetBroadcast,
+        Nmea0183UdpUnicast,
+        Nmea0183UdpMulticast
     }
 }

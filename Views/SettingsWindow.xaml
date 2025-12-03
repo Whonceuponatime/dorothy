@@ -86,17 +86,36 @@
                     
                     <!-- Font Size -->
                     <StackPanel Margin="0,0,0,12">
-                        <TextBlock Text="Font Size"
+                        <TextBlock Text="Font Size (8-24px)"
                                    FontSize="12"
                                    Foreground="#374151"
                                    Margin="0,0,0,4"/>
-                        <ComboBox x:Name="FontSizeComboBox"
-                                  Height="32"
-                                  SelectedIndex="1">
-                            <ComboBoxItem Content="Small (11px)"/>
-                            <ComboBoxItem Content="Medium (12px)"/>
-                            <ComboBoxItem Content="Large (14px)"/>
-                        </ComboBox>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="FontSizeTextBox"
+                                     Grid.Column="0"
+                                     Height="32"
+                                     Padding="8,6"
+                                     BorderBrush="#D1D5DB"
+                                     BorderThickness="1"
+                                     Background="White"
+                                     Margin="0,0,8,0"
+                                     PreviewTextInput="FontSizeTextBox_PreviewTextInput"
+                                     TextChanged="FontSizeTextBox_TextChanged"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="px"
+                                       FontSize="12"
+                                       Foreground="#6B7280"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,0,0"/>
+                        </Grid>
+                        <TextBlock Text="Enter a custom font size between 8 and 24 pixels"
+                                   FontSize="10"
+                                   Foreground="#9CA3AF"
+                                   Margin="0,4,0,0"/>
                     </StackPanel>
 
                     <!-- Theme -->

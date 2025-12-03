@@ -141,3 +141,4 @@ bin/
 *.MarkupCompile.lref
 project.assets.json
 project.nuget.cache
+.env

