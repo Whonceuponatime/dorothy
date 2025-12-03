@@ -48,7 +48,7 @@ namespace Dorothy.Views
                 Vendor = string.IsNullOrWhiteSpace(asset.Vendor) ? "Unknown" : asset.Vendor,
                 IsOnline = asset.IsOnline,
                 ScanTime = asset.ScanTime,
-                OpenPortsDisplay = "N/A", // Ports not stored in database
+                OpenPortsDisplay = string.IsNullOrWhiteSpace(asset.Ports) ? "N/A" : asset.Ports, // Use Ports column from database
                 IsSelected = true // Default to selected
             }).ToList();
 

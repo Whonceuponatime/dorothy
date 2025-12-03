@@ -1,10 +1,14 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NLog;
@@ -19,22 +23,43 @@ namespace Dorothy.Models
         public string CurrentIp { get; set; } = string.Empty;
         public int Found { get; set; }
         public NetworkAsset? NewAsset { get; set; }
+        public bool IsPortScanning { get; set; }
+        public int PortsScanned { get; set; }
+        public int TotalPorts { get; set; }
+        public OpenPort? NewPort { get; set; }
+        public string? PortScanIp { get; set; }
     }
 
     public class NetworkAsset
     {
         public string IpAddress { get; set; } = string.Empty;
         public string MacAddress { get; set; } = string.Empty;
-        public string Hostname { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty; // Device name (hostname) for offline use
         public string Vendor { get; set; } = string.Empty;
         public bool IsReachable { get; set; }
         public long? RoundTripTime { get; set; }
         public string Status { get; set; } = string.Empty;
         public List<OpenPort> OpenPorts { get; set; } = new List<OpenPort>();
         public bool PortScanPerformed { get; set; } = false; // Track if port scanning was attempted
+        
+        // Offline OS and service hints derived from banners (no internet required)
+        public HashSet<string> OsHints { get; set; } = new HashSet<string>();
+        public HashSet<string> ServiceHints { get; set; } = new HashSet<string>();
+        
         public string OpenPortsDisplay => OpenPorts.Count > 0 
-            ? string.Join(", ", OpenPorts.Select(p => $"{p.Port}/{p.Protocol}")) 
+            ? string.Join(", ", OpenPorts.Select(p => 
+                string.IsNullOrEmpty(p.Banner) 
+                    ? $"{p.Port}/{p.Protocol}" 
+                    : $"{p.Port}/{p.Protocol} [{p.Banner}]")) 
             : (PortScanPerformed ? "None" : "N/A");
+        
+        public string OsHintsDisplay => OsHints.Count > 0 
+            ? string.Join(", ", OsHints) 
+            : "Unknown";
+        
+        public string ServiceHintsDisplay => ServiceHints.Count > 0 
+            ? string.Join(", ", ServiceHints) 
+            : "Unknown";
     }
 
     public class OpenPort
@@ -77,6 +102,7 @@ namespace Dorothy.Models
         private bool _enableReverseDns = true;
         private bool _enableVendorLookup = true;
         private bool _enableBannerGrabbing = true;
+        private int _maxBannersPerHost = 20; // Cap banners per host to avoid stalling on large scans (offline optimization)
         
         // HttpClient removed - vendor lookups now use local OUI database only (offline)
 
@@ -127,6 +153,16 @@ namespace Dorothy.Models
             _portRangeStart = rangeStart;
             _portRangeEnd = rangeEnd;
             _selectedPorts = selectedPorts ?? new List<int>();
+            
+            // For Selected mode, use longer banner read timeout for very intense scanning
+            if (mode == PortScanMode.Selected)
+            {
+                _bannerReadTimeout = 3000; // 3 seconds for very intense banner grabbing
+            }
+            else
+            {
+                _bannerReadTimeout = 1000; // 1 second for other modes
+            }
         }
 
         public async Task<List<NetworkAsset>> ScanNetworkBySubnetAsync(string networkAddress, string subnetMask, CancellationToken cancellationToken = default, IProgress<ScanProgress>? progress = null)
@@ -206,7 +242,7 @@ namespace Dorothy.Models
                     totalHosts = ipRange.Count;
                     if (_attackLogger != null)
                     {
-                        _attackLogger.LogInfo($"🔍 Starting custom range scan...");
+                        _attackLogger.LogInfo($" Starting custom range scan...");
                         _attackLogger.LogInfo($"Range: {startIp} - {endIp} ({totalHosts} hosts)");
                     }
                 }
@@ -235,7 +271,7 @@ namespace Dorothy.Models
 
                     if (_attackLogger != null)
                     {
-                        _attackLogger.LogInfo($"🔍 Starting network scan...");
+                        _attackLogger.LogInfo($" Starting network scan...");
                         _attackLogger.LogInfo($"Network: {networkAddress}/{GetCidrNotation(maskBytes)}");
                         _attackLogger.LogInfo($"Scanning network range...");
                     }
@@ -289,7 +325,7 @@ namespace Dorothy.Models
                         NetworkAsset? foundAsset = null;
                         try
                         {
-                            var asset = await ScanHostAsync(ipString, cancellationToken, _intenseScan);
+                            var asset = await ScanHostAsync(ipString, cancellationToken, _intenseScan, progress);
                             if (asset != null)
                             {
                                 lock (lockObject)
@@ -389,7 +425,7 @@ namespace Dorothy.Models
             return assets;
         }
 
-        private async Task<NetworkAsset?> ScanHostAsync(string ipAddress, CancellationToken cancellationToken, bool intenseScan = false)
+        private async Task<NetworkAsset?> ScanHostAsync(string ipAddress, CancellationToken cancellationToken, bool intenseScan = false, IProgress<ScanProgress>? progress = null)
         {
             try
             {
@@ -427,6 +463,7 @@ namespace Dorothy.Models
                 };
 
                 // Get MAC address (non-blocking, with timeout)
+                // Always attempt MAC resolution for simple scan mode - needed for vendor lookup
                 try
                 {
                     var macTask = GetMacAddressAsync(ipAddress);
@@ -441,28 +478,25 @@ namespace Dorothy.Models
                             if (macBytes != null && macBytes.Length == 6)
                             {
                                 asset.MacAddress = BitConverter.ToString(macBytes).Replace("-", ":");
-                                _attackLogger.LogInfo($"✅ MAC address retrieved: {asset.MacAddress} for IP: {ipAddress}");
+                                _attackLogger.LogInfo($"MAC address retrieved: {asset.MacAddress} for IP: {ipAddress}");
                                 
-                                // Get vendor from local OUI database (fast, no timeout needed)
-                                if (_enableVendorLookup)
-                                {
+                                // Always get vendor from local OUI database in simple scan mode (fast, offline, no timeout needed)
+                                // This is important for offline use - vendor helps identify device type
                                     try
                                     {
-                                        _attackLogger.LogInfo($"🔍 Looking up vendor for MAC: {asset.MacAddress}");
+                                    _attackLogger.LogInfo($" Looking up vendor for MAC: {asset.MacAddress}");
                                         // Local OUI lookup is instant, no timeout needed
                                         asset.Vendor = await GetVendorFromMacAsync(asset.MacAddress);
-                                        _attackLogger.LogInfo($"✅ Vendor resolved for {asset.MacAddress}: {asset.Vendor}");
-                                    }
-                                    catch (Exception ex)
+                                    if (string.IsNullOrWhiteSpace(asset.Vendor) || asset.Vendor == "Unknown")
                                     {
-                                        _attackLogger.LogWarning($"❌ Failed to get vendor for MAC {asset.MacAddress}: {ex.Message}");
-                                        asset.Vendor = "Unknown";
+                                        asset.Vendor = "Unknown"; // Ensure it's set even if lookup fails
                                     }
+                                    _attackLogger.LogInfo($"Vendor resolved for {asset.MacAddress}: {asset.Vendor}");
                                 }
-                                else
+                                catch (Exception ex)
                                 {
-                                    _attackLogger.LogWarning($"⚠️ Vendor lookup disabled for {asset.MacAddress}");
-                                    asset.Vendor = "Unknown";
+                                    _attackLogger.LogWarning($"Failed to get vendor for MAC {asset.MacAddress}: {ex.Message}");
+                                    asset.Vendor = "Unknown"; // Always set a value for offline use
                                 }
                             }
                             else
@@ -479,59 +513,104 @@ namespace Dorothy.Models
                     }
                     else
                     {
-                        _attackLogger.LogWarning($"⚠️ MAC address not retrieved for IP: {ipAddress} (timeout or failed)");
+                        _attackLogger.LogWarning($" MAC address not retrieved for IP: {ipAddress} (timeout or failed)");
                         asset.MacAddress = "Unknown";
                         asset.Vendor = "Unknown";
                     }
                 }
                 catch (Exception ex)
                 {
-                    _attackLogger.LogWarning($"⚠️ Exception getting MAC address for IP: {ipAddress}: {ex.Message}");
+                    _attackLogger.LogWarning($" Exception getting MAC address for IP: {ipAddress}: {ex.Message}");
                     asset.MacAddress = "Unknown";
                     asset.Vendor = "Unknown";
                 }
 
-                // Get hostname using multiple methods (non-blocking, optional, with timeout)
+                // Get device name using multiple methods (non-blocking, optional, with timeout)
+                // This is important for offline use - store the device name
                 if (_enableReverseDns)
                 {
                     try
                     {
-                        _attackLogger.LogInfo($"🔍 Looking up hostname for IP: {ipAddress}");
-                        asset.Hostname = await ResolveHostnameMultiMethodAsync(ipAddress, cancellationToken);
-                        _attackLogger.LogInfo($"✅ Hostname resolved for {ipAddress}: {asset.Hostname}");
+                        _attackLogger.LogInfo($" Looking up device name for IP: {ipAddress}");
+                        asset.Name = await ResolveHostnameMultiMethodAsync(ipAddress, cancellationToken);
+                        if (string.IsNullOrWhiteSpace(asset.Name) || asset.Name == "Unknown")
+                        {
+                            asset.Name = ipAddress; // Fallback to IP if name cannot be resolved
+                        }
+                        _attackLogger.LogInfo($"Device name resolved for {ipAddress}: {asset.Name}");
                     }
                     catch (Exception ex)
-                        {
-                        _attackLogger.LogWarning($"❌ Failed to resolve hostname for {ipAddress}: {ex.Message}");
-                                asset.Hostname = "Unknown";
+                                {
+                        _attackLogger.LogWarning($"Failed to resolve device name for {ipAddress}: {ex.Message}");
+                        asset.Name = ipAddress; // Fallback to IP address for offline use
                             }
                         }
                         else
                         {
-                    _attackLogger.LogWarning($"⚠️ Hostname lookup disabled for {ipAddress}");
-                    asset.Hostname = "Unknown";
+                    _attackLogger.LogWarning($" Device name lookup disabled for {ipAddress}");
+                    asset.Name = ipAddress; // Use IP address as name for offline use
                 }
 
-                // Intense scan: Port scanning and banner grabbing
-                if (intenseScan && _portScanMode != PortScanMode.None)
+                // Port scanning: Common, All, Range, and Selected modes (not in Simple scan)
+                // All mode scans more ports than Common mode, but takes longer
+                // Range mode scans from 1 to 65535 (or specified range)
+                if (intenseScan && (_portScanMode == PortScanMode.All || _portScanMode == PortScanMode.Range || _portScanMode == PortScanMode.Selected))
                 {
                     try
                     {
-                        var openPorts = await ScanPortsAsync(ipAddress, cancellationToken);
+                        // Create progress callback for port scanning
+                        IProgress<ScanProgress>? portProgress = progress != null ? new Progress<ScanProgress>(p =>
+                        {
+                            p.IsPortScanning = true;
+                            p.PortScanIp = ipAddress;
+                            progress.Report(p);
+                        }) : null;
+                        
+                        var openPorts = await ScanPortsAsync(ipAddress, cancellationToken, portProgress);
                         asset.OpenPorts = openPorts ?? new List<OpenPort>();
                         asset.PortScanPerformed = true; // Mark that port scanning was performed
+                        
+                        // Update OS and service hints from banners (offline heuristics)
+                        foreach (var port in asset.OpenPorts)
+                        {
+                            if (!string.IsNullOrWhiteSpace(port.Banner))
+                            {
+                                UpdateOsAndServiceHints(asset, port.Banner, port.Port);
+                            }
+                        }
+                        
+                        // Report port scanning complete
+                        if (progress != null)
+                        {
+                            progress.Report(new ScanProgress
+                            {
+                                IsPortScanning = false,
+                                PortScanIp = ipAddress
+                            });
+                        }
                     }
                     catch (Exception ex)
                     {
                         Logger.Debug(ex, $"Error scanning ports for {ipAddress}");
                         asset.OpenPorts = new List<OpenPort>();
                         asset.PortScanPerformed = true; // Still mark as performed even if it failed
+                        
+                        // Report port scanning complete even on error
+                        if (progress != null)
+                        {
+                            progress.Report(new ScanProgress
+                            {
+                                IsPortScanning = false,
+                                PortScanIp = ipAddress
+                            });
+                        }
                     }
                 }
                 else
                 {
+                    // No port scanning for: Simple scan only
                     asset.OpenPorts = new List<OpenPort>();
-                    asset.PortScanPerformed = false; // Simple scan - no port scanning performed
+                    asset.PortScanPerformed = false; // No port scanning performed
                 }
 
                 return asset;
@@ -686,7 +765,7 @@ namespace Dorothy.Models
                     var dnsHostname = await HostnameResolver.ResolveHostnameAsync(ip, 1000);
                     if (!string.IsNullOrWhiteSpace(dnsHostname) && dnsHostname != ipAddress)
                     {
-                        _attackLogger.LogInfo($"✅ Hostname found via DNS/LLMNR: {dnsHostname}");
+                        _attackLogger.LogInfo($"Hostname found via DNS/LLMNR: {dnsHostname}");
                         return dnsHostname;
                     }
                 }
@@ -704,7 +783,7 @@ namespace Dorothy.Models
                     var netbiosHostname = await NetBiosNameQuery.QueryNetBiosNameAsync(ip, 800);
                     if (!string.IsNullOrWhiteSpace(netbiosHostname))
                     {
-                        _attackLogger.LogInfo($"✅ Hostname found via NetBIOS NBNS: {netbiosHostname}");
+                        _attackLogger.LogInfo($"Hostname found via NetBIOS NBNS: {netbiosHostname}");
                         return netbiosHostname;
                     }
                 }
@@ -720,7 +799,7 @@ namespace Dorothy.Models
                 var netbiosHostname = await GetNetBiosNameAsync(ipAddress, cancellationToken);
                 if (!string.IsNullOrWhiteSpace(netbiosHostname) && netbiosHostname != "Unknown")
                 {
-                    _attackLogger.LogInfo($"✅ Hostname found via nbtstat: {netbiosHostname}");
+                    _attackLogger.LogInfo($"Hostname found via nbtstat: {netbiosHostname}");
                     return netbiosHostname;
                 }
             }
@@ -735,7 +814,7 @@ namespace Dorothy.Models
                 var arpHostname = await GetHostnameFromArpTableAsync(ipAddress, cancellationToken);
                 if (!string.IsNullOrWhiteSpace(arpHostname) && arpHostname != "Unknown")
             {
-                    _attackLogger.LogInfo($"✅ Hostname found via ARP table: {arpHostname}");
+                    _attackLogger.LogInfo($"Hostname found via ARP table: {arpHostname}");
                     return arpHostname;
                 }
             }
@@ -752,7 +831,7 @@ namespace Dorothy.Models
             }
 
             // Offline: all offline methods failed - no hostname available
-            _attackLogger.LogWarning($"❌ Hostname not found for {ipAddress} (tried DNS/LLMNR, NetBIOS NBNS, nbtstat, ARP)");
+            _attackLogger.LogWarning($"Hostname not found for {ipAddress} (tried DNS/LLMNR, NetBIOS NBNS, nbtstat, ARP)");
             return "Unknown";
         }
 
@@ -921,7 +1000,7 @@ namespace Dorothy.Models
                         var hostname = pingMatch.Groups[1].Value.Trim();
                         if (!string.IsNullOrWhiteSpace(hostname) && hostname != ipAddress && !hostname.Contains("."))
                         {
-                            _attackLogger.LogInfo($"✅ Hostname found via ping -a: {hostname}");
+                            _attackLogger.LogInfo($"Hostname found via ping -a: {hostname}");
                             return hostname;
                         }
                     }
@@ -978,7 +1057,7 @@ namespace Dorothy.Models
                                     var name = parts[0].Trim();
                                     if (!string.IsNullOrWhiteSpace(name) && name.Length <= 15)
                                     {
-                                        _attackLogger.LogInfo($"✅ Hostname found via nbtstat cache: {name}");
+                                        _attackLogger.LogInfo($"Hostname found via nbtstat cache: {name}");
                                         return name;
                                     }
                                 }
@@ -1019,7 +1098,7 @@ namespace Dorothy.Models
                             }
                             if (!string.IsNullOrWhiteSpace(hostname) && hostname != ipAddress)
                             {
-                                _attackLogger.LogInfo($"✅ Hostname found via DNS/LLMNR: {hostname}");
+                                _attackLogger.LogInfo($"Hostname found via DNS/LLMNR: {hostname}");
                                 return hostname;
                             }
                         }
@@ -1126,11 +1205,11 @@ namespace Dorothy.Models
             
             if (vendor != "Unknown")
             {
-                _attackLogger.LogInfo($"✅ Vendor found in offline database: {vendor} (OUI: {oui})");
+                _attackLogger.LogInfo($"Vendor found in offline database: {vendor} (OUI: {oui})");
             }
             else
             {
-                _attackLogger.LogWarning($"❌ Vendor lookup FAILED: OUI {oui} not found in local database");
+                _attackLogger.LogWarning($"Vendor lookup FAILED: OUI {oui} not found in local database");
             }
             
             return Task.FromResult(vendor);
@@ -1471,12 +1550,12 @@ namespace Dorothy.Models
             // Try exact match first
             if (ouiDatabase.TryGetValue(oui, out var vendor))
             {
-                _attackLogger.LogInfo($"✅ Vendor lookup SUCCESS: OUI {oui} -> {vendor}");
+                _attackLogger.LogInfo($"Vendor lookup SUCCESS: OUI {oui} -> {vendor}");
                 return vendor;
             }
             
             // Log when vendor is not found for debugging
-            _attackLogger.LogWarning($"❌ Vendor lookup FAILED: OUI {oui} not found in database (database has {ouiDatabase.Count} entries)");
+            _attackLogger.LogWarning($"Vendor lookup FAILED: OUI {oui} not found in database (database has {ouiDatabase.Count} entries)");
             return "Unknown";
         }
 
@@ -1490,7 +1569,7 @@ namespace Dorothy.Models
             return 0;
         }
 
-        private async Task<List<OpenPort>> ScanPortsAsync(string ipAddress, CancellationToken cancellationToken)
+        private async Task<List<OpenPort>> ScanPortsAsync(string ipAddress, CancellationToken cancellationToken, IProgress<ScanProgress>? progress = null)
         {
             var openPorts = new List<OpenPort>();
             
@@ -1502,11 +1581,48 @@ namespace Dorothy.Models
             
             if (portsToScan == null || portsToScan.Count == 0)
                 return openPorts;
+            
+            // Use faster timeout for large range scans to speed things up
+            int originalTimeout = _tcpConnectTimeout;
+            bool isLargeRangeScan = portsToScan.Count > 10000;
+            if (isLargeRangeScan)
+            {
+                // Reduce timeout to 300ms for large range scans (most ports will be closed anyway)
+                _tcpConnectTimeout = 300;
+            }
 
-            // Use semaphore-limited concurrency pattern instead of creating thousands of tasks
-            int maxConcurrent = Math.Min(100, portsToScan.Count);
-            var semaphore = new SemaphoreSlim(maxConcurrent);
+            int totalPorts = portsToScan.Count;
+            int scannedPorts = 0;
+            int bannersGrabbed = 0; // Track banner count per host to avoid stalling (offline optimization)
             var lockObject = new object();
+            DateTime lastProgressReport = DateTime.MinValue;
+            const int minProgressIntervalMs = 100; // Report at most every 100ms to avoid UI flooding
+
+            // Optimize concurrency based on scan size
+            // For large range scans (65535 ports), use higher concurrency for speed
+            // For smaller scans, use moderate concurrency
+            int maxConcurrent;
+            if (totalPorts > 10000)
+            {
+                // Large range scan: use high concurrency (up to 500)
+                maxConcurrent = Math.Min(500, totalPorts);
+            }
+            else if (totalPorts > 1000)
+            {
+                // Medium scan: moderate concurrency
+                maxConcurrent = Math.Min(200, totalPorts);
+            }
+            else
+            {
+                // Small scan: standard concurrency
+                maxConcurrent = Math.Min(100, totalPorts);
+            }
+            
+            var semaphore = new SemaphoreSlim(maxConcurrent);
+            
+            // Adaptive progress reporting interval based on total ports
+            // For large scans, report more frequently to show progress
+            int progressInterval = totalPorts > 10000 ? 50 : (totalPorts > 1000 ? 25 : 10);
             
             // Process ports in batches to avoid creating too many tasks at once
             var portScanTasks = portsToScan.Select(async portInfo =>
@@ -1520,12 +1636,48 @@ namespace Dorothy.Models
                     if (cancellationToken.IsCancellationRequested)
                         return;
                     
-                    var openPort = await CheckPortAsync(ipAddress, portInfo.port, portInfo.protocol, cancellationToken);
-                    if (openPort != null)
+                    // Skip banner grabbing if we've hit the per-host limit (offline optimization)
+                    bool skipBanner = bannersGrabbed >= _maxBannersPerHost;
+                    var openPort = await CheckPortAsync(ipAddress, portInfo.port, portInfo.protocol, cancellationToken, skipBanner);
+                    
+                    lock (lockObject)
                     {
-                        lock (lockObject)
+                        scannedPorts++;
+                        bool shouldReport = false;
+                        
+                        if (openPort != null)
                         {
                             openPorts.Add(openPort);
+                            // Track banner count
+                            if (!string.IsNullOrWhiteSpace(openPort.Banner))
+                                bannersGrabbed++;
+                            // Always report when a port is found
+                            shouldReport = true;
+                        }
+                        else
+                        {
+                            // Report progress periodically, but throttle to avoid UI flooding
+                            var now = DateTime.UtcNow;
+                            bool timeElapsed = (now - lastProgressReport).TotalMilliseconds >= minProgressIntervalMs;
+                            bool intervalReached = scannedPorts % progressInterval == 0;
+                            
+                            if (timeElapsed && intervalReached)
+                            {
+                                shouldReport = true;
+                                lastProgressReport = now;
+                            }
+                        }
+                        
+                        if (shouldReport && progress != null)
+                        {
+                            progress.Report(new ScanProgress
+                            {
+                                IsPortScanning = true,
+                                PortScanIp = ipAddress,
+                                PortsScanned = scannedPorts,
+                                TotalPorts = totalPorts,
+                                NewPort = openPort
+                            });
                         }
                     }
                 }
@@ -1552,6 +1704,14 @@ namespace Dorothy.Models
             {
                 // Some tasks may have been cancelled, but we still want to return what we found
             }
+            finally
+            {
+                // Restore original timeout
+                if (isLargeRangeScan)
+                {
+                    _tcpConnectTimeout = originalTimeout;
+                }
+            }
 
             return openPorts.OrderBy(p => p.Port).ToList();
         }
@@ -1566,16 +1726,8 @@ namespace Dorothy.Models
                     return ports;
                     
                 case PortScanMode.Common:
-                    // Top 20 most common ports (faster scanning)
-                    ports.AddRange(new[]
-                    {
-                        (80, "TCP"), (443, "TCP"), (22, "TCP"), (21, "TCP"), (23, "TCP"),
-                        (25, "TCP"), (53, "TCP"), (53, "UDP"), (110, "TCP"), (143, "TCP"),
-                        (135, "TCP"), (139, "TCP"), (445, "TCP"), (993, "TCP"), (995, "TCP"),
-                        (1723, "TCP"), (3306, "TCP"), (3389, "TCP"), (5432, "TCP"), (8080, "TCP")
-                    });
-                    break;
-                    
+                    // Common mode removed - map to All mode
+                    // Fall through to All mode
                 case PortScanMode.All:
                     // All common ports (current behavior)
                     ports.AddRange(new[]
@@ -1607,15 +1759,13 @@ namespace Dorothy.Models
                     break;
                     
                 case PortScanMode.Range:
-                    if (_portRangeStart.HasValue && _portRangeEnd.HasValue)
-                    {
-                        int start = Math.Max(1, Math.Min(_portRangeStart.Value, _portRangeEnd.Value));
-                        int end = Math.Min(65535, Math.Max(_portRangeStart.Value, _portRangeEnd.Value));
+                    // Default to full range (1-65535) if not specified
+                    int start = _portRangeStart.HasValue ? Math.Max(1, Math.Min(_portRangeStart.Value, _portRangeEnd ?? 65535)) : 1;
+                    int end = _portRangeEnd.HasValue ? Math.Min(65535, Math.Max(_portRangeStart ?? 1, _portRangeEnd.Value)) : 65535;
                         
                         for (int port = start; port <= end; port++)
                         {
                             ports.Add((port, "TCP")); // Default to TCP for range scans
-                        }
                     }
                     break;
                     
@@ -1633,7 +1783,7 @@ namespace Dorothy.Models
             return ports;
         }
 
-        private async Task<OpenPort?> CheckPortAsync(string ipAddress, int port, string protocol, CancellationToken cancellationToken)
+        private async Task<OpenPort?> CheckPortAsync(string ipAddress, int port, string protocol, CancellationToken cancellationToken, bool skipBanner = false)
         {
             try
             {
@@ -1645,32 +1795,40 @@ namespace Dorothy.Models
                     using var client = new TcpClient();
                     try
                     {
-                        // Use ConnectAsync with configurable timeout
+                        // Optimize connection for speed: use ConnectAsync with timeout
+                        // For range scans, we want fast failures on closed ports
                         var connectTask = client.ConnectAsync(ipAddress, port);
-                        var timeoutTask = Task.Delay(_tcpConnectTimeout, cancellationToken);
+                        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        timeoutCts.CancelAfter(_tcpConnectTimeout);
                         
-                        var completedTask = await Task.WhenAny(connectTask, timeoutTask);
-                        
-                        if (cancellationToken.IsCancellationRequested)
-                            return null;
-
-                        if (completedTask == timeoutTask)
+                        try
+                        {
+                            await connectTask.WaitAsync(timeoutCts.Token);
+                        }
+                        catch (OperationCanceledException) when (timeoutCts.Token.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
                         {
                             // Timeout - port is likely closed or filtered
                             return null;
                         }
+                        
+                        if (cancellationToken.IsCancellationRequested)
+                            return null;
 
                         // Check if connection succeeded
                         if (client.Connected)
                         {
+                            string rawBanner = string.Empty;
+                            if (!skipBanner && _enableBannerGrabbing && ShouldGrabBanner(port))
+                            {
+                                rawBanner = await GrabBannerAsync(client, port, cancellationToken);
+                            }
+                            
                             var openPort = new OpenPort
                             {
                                 Port = port,
                                 Protocol = protocol,
                                 Service = GetServiceName(port),
-                                Banner = _enableBannerGrabbing && ShouldGrabBanner(port) 
-                                    ? await GrabBannerAsync(client, port, cancellationToken) 
-                                    : string.Empty
+                                Banner = FingerprintBanner(port, rawBanner)
                             };
                             return openPort;
                         }
@@ -1773,77 +1931,496 @@ namespace Dorothy.Models
             };
         }
 
+        // ===================== Banner Grabbing & Fingerprinting =====================
+
+        private string FingerprintBanner(int port, string banner)
+        {
+            if (string.IsNullOrWhiteSpace(banner))
+                return banner;
+
+            string lower = banner.ToLowerInvariant();
+
+            // HTTP/HTTPS
+            if (port is 80 or 8080 or 443)
+            {
+                // Example: "HTTP/1.1 200 OK" and "Server: nginx/1.18.0"
+                string status = null;
+                string server = null;
+
+                foreach (var line in banner.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    if (status == null && line.StartsWith("HTTP/", StringComparison.OrdinalIgnoreCase))
+                        status = line.Trim();
+
+                    if (server == null && line.StartsWith("Server:", StringComparison.OrdinalIgnoreCase))
+                        server = line.Trim();
+                }
+
+                if (status != null || server != null)
+                    return $"{status ?? "HTTP"} | {server ?? "Server header not exposed"}";
+            }
+
+            // SSH
+            if (port == 22 && lower.StartsWith("ssh-"))
+            {
+                // ssh-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.3
+                return $"SSH banner: {banner}";
+            }
+
+            // SMTP/POP3/IMAP
+            if (port is 25 or 110 or 143 || banner.StartsWith("220 ", StringComparison.OrdinalIgnoreCase) || banner.StartsWith("* OK", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"Mail service banner: {banner}";
+            }
+
+            // MySQL
+            if (port == 3306 && banner.Contains("mysql", StringComparison.OrdinalIgnoreCase))
+            {
+                return $"MySQL banner: {banner}";
+            }
+
+            // Generic fingerprint table
+            var known = new (string needle, string label)[]
+            {
+                ("openssh", "OpenSSH server"),
+                ("dropbear", "Dropbear SSH"),
+                ("nginx/", "nginx HTTP server"),
+                ("apache/", "Apache HTTP server"),
+                ("iis", "Microsoft IIS"),
+                ("postfix", "Postfix SMTP"),
+                ("exim", "Exim SMTP"),
+                ("dovecot", "Dovecot IMAP/POP3"),
+                ("vsftpd", "vsftpd FTP server"),
+                ("proftpd", "ProFTPD FTP server"),
+                ("pure-ftpd", "Pure-FTPd FTP server")
+            };
+
+            foreach (var (needle, label) in known)
+            {
+                if (lower.Contains(needle))
+                    return $"{label}: {banner}";
+            }
+
+            // Default: just return what we got
+            return banner;
+        }
+
+        private void UpdateOsAndServiceHints(NetworkAsset asset, string banner, int port)
+        {
+            if (string.IsNullOrWhiteSpace(banner))
+                return;
+
+            string lower = banner.ToLowerInvariant();
+
+            // OS hints (offline heuristics)
+            if (lower.Contains("ubuntu") || lower.Contains("debian") || lower.Contains("centos") || 
+                lower.Contains("rhel") || lower.Contains("red hat") || lower.Contains("fedora") ||
+                lower.Contains("suse") || lower.Contains("arch linux"))
+            {
+                asset.OsHints.Add("Linux");
+            }
+            else if (lower.Contains("microsoft-iis") || lower.Contains("windows") || 
+                     lower.Contains("win32") || lower.Contains("server") && lower.Contains("microsoft"))
+            {
+                asset.OsHints.Add("Windows");
+            }
+            else if (lower.Contains("freebsd") || lower.Contains("openbsd") || lower.Contains("netbsd"))
+            {
+                asset.OsHints.Add("BSD");
+            }
+
+            // Service hints (offline heuristics)
+            if (port is 80 or 8080 or 443 || lower.Contains("http") || lower.Contains("nginx") || 
+                lower.Contains("apache") || lower.Contains("iis"))
+            {
+                asset.ServiceHints.Add("HTTP(S)");
+            }
+
+            if (port == 22 || lower.Contains("ssh") || lower.Contains("openssh") || lower.Contains("dropbear"))
+            {
+                asset.ServiceHints.Add("SSH");
+            }
+
+            if (port is 25 or 587 || lower.Contains("smtp") || lower.Contains("postfix") || lower.Contains("exim"))
+            {
+                asset.ServiceHints.Add("SMTP");
+            }
+
+            if (port is 110 or 995 || lower.Contains("pop3") || lower.Contains("dovecot"))
+            {
+                asset.ServiceHints.Add("POP3");
+            }
+
+            if (port is 143 or 993 || lower.Contains("imap") || lower.Contains("dovecot"))
+            {
+                asset.ServiceHints.Add("IMAP");
+            }
+
+            if (port == 21 || lower.Contains("ftp") || lower.Contains("vsftpd") || 
+                lower.Contains("proftpd") || lower.Contains("pure-ftpd"))
+            {
+                asset.ServiceHints.Add("FTP");
+            }
+
+            if (port == 3306 || lower.Contains("mysql"))
+            {
+                asset.ServiceHints.Add("MySQL");
+            }
+
+            if (port == 5432 || lower.Contains("postgresql") || lower.Contains("postgres"))
+            {
+                asset.ServiceHints.Add("PostgreSQL");
+            }
+
+            if (port is 135 or 139 or 445 || lower.Contains("smb") || lower.Contains("netbios"))
+            {
+                asset.ServiceHints.Add("SMB/NetBIOS");
+            }
+
+            if (port == 3389 || lower.Contains("rdp"))
+            {
+                asset.ServiceHints.Add("RDP");
+            }
+        }
+
         private bool ShouldGrabBanner(int port)
         {
-            // Only grab banners for common ports to avoid delays
+            if (!_enableBannerGrabbing)
+                return false;
+
+            // Be aggressive in Selected / Intense modes
+            if (_portScanMode == PortScanMode.Selected ||
+                _intenseScan)
+                return true;
+
+            // Fallback: only banner-heavy ports
             return port switch
             {
-                21 or 22 or 25 or 80 or 110 or 143 or 443 or 3306 or 5432 => true,
+                21 or 22 or 23 or 25 or 53 or 80 or 110 or 135 or 139 or 143 or
+                3306 or 3389 or 5432 or 8080 => true,
                 _ => false
+            };
+        }
+
+        private int GetTimeoutForPort(int port, bool isSelectedMode)
+        {
+            // Protocol-specific timeouts (offline heuristics, no internet required)
+            int baseTimeout = isSelectedMode ? 3000 : _bannerReadTimeout;
+            
+            return port switch
+            {
+                // Fast protocols
+                80 or 8080 or 22 or 21 => Math.Min(baseTimeout, 1000), // HTTP, SSH, FTP
+                
+                // Mail protocols (can be slower)
+                25 or 110 or 143 or 587 or 993 or 995 => Math.Max(baseTimeout, 2000), // SMTP, POP3, IMAP
+                
+                // Database protocols
+                3306 or 5432 => Math.Min(baseTimeout, 1500), // MySQL, PostgreSQL
+                
+                // TLS protocols (handshake takes time)
+                443 or 993 or 995 => Math.Max(baseTimeout, 2000), // HTTPS, IMAPS, POP3S
+                
+                // Default
+                _ => baseTimeout
             };
         }
 
         private async Task<string> GrabBannerAsync(TcpClient client, int port, CancellationToken cancellationToken)
         {
+            if (!client.Connected)
+                return GetNoBannerHint(port);
+
+            int bannerTimeout = GetTimeoutForPort(port, _portScanMode == PortScanMode.Selected);
+
             try
             {
-                if (!client.Connected) return string.Empty;
-
                 var stream = client.GetStream();
-                stream.ReadTimeout = _bannerReadTimeout;
-                
-                // Send common probes based on port
-                byte[] probe = port switch
+                stream.ReadTimeout = bannerTimeout;
+
+                bool serverSpeaksFirst = port is 21 or 22 or 25 or 110 or 143 or 3306 or 5432;
+                bool tlsPort = port is 443 or 993 or 995;
+
+                var buffer = new byte[1024];
+
+                // 1) TLS ports: try full TLS handshake and show cert info
+                if (tlsPort)
                 {
-                    21 => System.Text.Encoding.ASCII.GetBytes("QUIT\r\n"), // FTP
-                    22 => System.Text.Encoding.ASCII.GetBytes("SSH-2.0-\r\n"), // SSH
-                    25 => System.Text.Encoding.ASCII.GetBytes("EHLO test\r\n"), // SMTP
-                    80 => System.Text.Encoding.ASCII.GetBytes("GET / HTTP/1.0\r\n\r\n"), // HTTP
-                    110 => System.Text.Encoding.ASCII.GetBytes("QUIT\r\n"), // POP3
-                    143 => System.Text.Encoding.ASCII.GetBytes("A1 LOGOUT\r\n"), // IMAP
-                    443 => System.Text.Encoding.ASCII.GetBytes("GET / HTTP/1.0\r\n\r\n"), // HTTPS
-                    3306 => new byte[] { 0x0a, 0x00, 0x00, 0x00, 0x0a }, // MySQL
-                    5432 => System.Text.Encoding.ASCII.GetBytes("\0\0\0\0"), // PostgreSQL
-                    _ => Array.Empty<byte>()
-                };
+                    string tlsInfo = await TryTlsFingerprintAsync(stream, port, bannerTimeout, cancellationToken);
+                    if (!string.IsNullOrEmpty(tlsInfo))
+                        return tlsInfo;
+
+                    // Fallback: at least show binary TLS handshake as hex
+                    int tlsBytes = await ReadWithTimeoutAsync(stream, buffer, 0, buffer.Length, bannerTimeout, cancellationToken);
+                    if (tlsBytes > 0)
+                        return NormalizeBanner(buffer, tlsBytes, forceHex: true, port);
+
+                    return GetNoBannerHint(port);
+                }
+
+                // 2) Non-TLS protocols where server usually talks first
+                if (serverSpeaksFirst)
+                {
+                    int initialBytes = await ReadWithTimeoutAsync(stream, buffer, 0, buffer.Length, bannerTimeout, cancellationToken);
+                    if (initialBytes > 0)
+                        return NormalizeBanner(buffer, initialBytes, forceHex: false, port);
+                    
+                    // Retry once for server-first protocols if we got nothing (offline heuristic)
+                    // Some servers are slow to respond
+                    await Task.Delay(100, cancellationToken);
+                    initialBytes = await ReadWithTimeoutAsync(stream, buffer, 0, buffer.Length, bannerTimeout, cancellationToken);
+                    if (initialBytes > 0)
+                        return NormalizeBanner(buffer, initialBytes, forceHex: false, port);
+                }
+
+                // 3) Send protocol-specific probe (if any), then read again
+                byte[] probe = GetProbeForPort(port);
 
                 if (probe.Length > 0)
                 {
                     await stream.WriteAsync(probe, 0, probe.Length, cancellationToken);
                 }
-
-                // Read response with timeout
-                var buffer = new byte[1024];
-                var readTask = stream.ReadAsync(buffer, 0, buffer.Length, cancellationToken);
-                var readTimeoutTask = Task.Delay(_bannerReadTimeout, cancellationToken);
-                var readCompleted = await Task.WhenAny(readTask, readTimeoutTask);
-                
-                if (readCompleted == readTimeoutTask || cancellationToken.IsCancellationRequested)
+                else
                 {
-                    return string.Empty; // Timeout or cancelled
+                    // generic poke delay
+                    await Task.Delay(100, cancellationToken);
                 }
-                
-                var bytesRead = await readTask;
-                
+
+                int bytesRead = await ReadWithTimeoutAsync(stream, buffer, 0, buffer.Length, bannerTimeout, cancellationToken);
                 if (bytesRead > 0)
+                    return NormalizeBanner(buffer, bytesRead, forceHex: false, port);
+            }
+            catch
+            {
+                // ignore we'll fall through to hint
+            }
+
+            // 4) Nothing useful read return a smart hint instead of blank
+            return GetNoBannerHint(port);
+        }
+
+        private static async Task<string> TryTlsFingerprintAsync(
+            NetworkStream baseStream,
+            int port,
+            int timeoutMs,
+            CancellationToken cancellationToken)
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(timeoutMs);
+
+            using var ssl = new SslStream(
+                baseStream,
+                leaveInnerStreamOpen: true,
+                (sender, cert, chain, errors) => true); // accept all certs
+
+            try
+            {
+                var options = new SslClientAuthenticationOptions
                 {
-                    var banner = System.Text.Encoding.ASCII.GetString(buffer, 0, bytesRead);
-                    // Clean up banner (remove newlines, limit length)
-                    banner = banner.Replace("\r", " ").Replace("\n", " ").Trim();
-                    if (banner.Length > 100)
+                    TargetHost = "localhost", // we just want the cert
+                    EnabledSslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13,
+                    CertificateRevocationCheckMode = X509RevocationMode.NoCheck
+                };
+
+                await ssl.AuthenticateAsClientAsync(options, cts.Token);
+
+                var cert = ssl.RemoteCertificate as X509Certificate2;
+                if (cert == null && ssl.RemoteCertificate != null)
+                    cert = new X509Certificate2(ssl.RemoteCertificate);
+
+                string protocol = ssl.SslProtocol.ToString();
+
+                if (cert != null)
+                {
+                    string subject = cert.GetNameInfo(X509NameType.SimpleName, false);
+                    string issuer = cert.GetNameInfo(X509NameType.SimpleName, true);
+                    string expires = cert.NotAfter.ToString("yyyy-MM-dd");
+
+                    return $"TLS {protocol} CN={subject}, Issuer={issuer}, Expires={expires}";
+                }
+
+                return $"TLS {protocol} (no certificate details)";
+            }
+            catch
+            {
+                // handshake failed or not actually TLS
+                return string.Empty;
+            }
+        }
+
+        private static async Task<int> ReadWithTimeoutAsync(
+            NetworkStream stream,
+            byte[] buffer,
+            int offset,
+            int maxBytes,
+            int timeoutMs,
+            CancellationToken cancellationToken)
+        {
+            int total = 0;
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(timeoutMs);
+
+            try
+            {
+                while (total < maxBytes && !cts.IsCancellationRequested)
+                {
+                    if (!stream.DataAvailable)
                     {
-                        banner = banner.Substring(0, 100) + "...";
+                        await Task.Delay(20, cts.Token);
+                        continue;
                     }
-                    return banner;
+
+                    int read = await stream.ReadAsync(buffer, offset + total, maxBytes - total, cts.Token);
+                    if (read <= 0)
+                        break;
+
+                    total += read;
                 }
             }
             catch
             {
-                // Failed to grab banner
+                // ignore return whatever we got
+            }
+
+            return total;
+        }
+
+        private static byte[] GetProbeForPort(int port)
+        {
+            return port switch
+            {
+                21  => Encoding.ASCII.GetBytes("QUIT\r\n"),                                   // FTP
+                22  => Encoding.ASCII.GetBytes("SSH-2.0-SEACURE-SCAN\r\n"),                  // SSH (optional)
+                23  => Encoding.ASCII.GetBytes("\r\n"),                                       // Telnet
+                25  => Encoding.ASCII.GetBytes("EHLO seacure.local\r\n"),                    // SMTP
+                53  => new byte[] { 0x00, 0x00, 0x01, 0x00 },                                // tiny DNS-ish poke
+                80  => Encoding.ASCII.GetBytes("GET / HTTP/1.0\r\nHost: localhost\r\n\r\n"), // HTTP
+                110 => Encoding.ASCII.GetBytes("QUIT\r\n"),                                   // POP3
+                135 => new byte[] { 0x00, 0x00, 0x00, 0x00 },                                // RPC mapper
+                139 => new byte[] { 0x00, 0x00, 0x00 },                                      // NetBIOS session
+                143 => Encoding.ASCII.GetBytes("A1 LOGOUT\r\n"),                             // IMAP
+                // 443/993/995: TLS handshake instead of plain probes
+                445 => new byte[] { 0x00, 0x00, 0x00 },                                      // SMB
+                3389 => new byte[]
+                {
+                    0x03, 0x00, 0x00, 0x13, 0x0e, 0xe0, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x01, 0x00, 0x08, 0x00, 0x03, 0x00, 0x00, 0x00
+                },                                                                            // RDP
+                3306 => new byte[] { 0x0a, 0x00, 0x00, 0x00, 0x0a },                         // MySQL
+                5432 => new byte[] { 0x00, 0x00, 0x00, 0x00 },                               // PostgreSQL
+                8080 => Encoding.ASCII.GetBytes("GET / HTTP/1.0\r\nHost: localhost\r\n\r\n"), // Alt HTTP
+                _   => Array.Empty<byte>()
+            };
+        }
+
+        private static string NormalizeBanner(byte[] buffer, int length, bool forceHex, int port)
+        {
+            if (length <= 0)
+                return string.Empty;
+
+            if (!forceHex)
+            {
+                try
+                {
+                    string s = Encoding.ASCII.GetString(buffer, 0, length);
+
+                    int controlCount = 0;
+                    foreach (char c in s)
+                    {
+                        if (c < 0x20 && c != '\r' && c != '\n' && c != '\t')
+                            controlCount++;
+                    }
+
+                    if (controlCount <= s.Length / 4)
+                    {
+                        s = s.Replace("\r", " ").Replace("\n", " ").Trim();
+                        if (s.Length > 100)
+                            s = s[..100] + "...";
+                        return s;
+                    }
+                }
+                catch
+                {
+                    // fall back to hex
+                }
+            }
+
+            // Binary / noisy hex with protocol hint
+            string hex = BitConverter.ToString(buffer, 0, length).Replace("-", " ");
+            string hint = GetBinaryProtocolHint(port, buffer, length);
+
+            return string.IsNullOrEmpty(hint) ? hex : $"{hint} | {hex}";
+        }
+
+        private static string GetBinaryProtocolHint(int port, byte[] buffer, int length)
+        {
+            if (length < 4)
+                return string.Empty;
+
+            // SMB / NetBIOS (139, 445) - Enhanced detection
+            if ((port == 445 || port == 139) && length >= 4)
+            {
+                // SMBv1: FF 53 4D 42 ("\xFFSMB")
+                if (buffer[0] == 0xFF && buffer[1] == 0x53 && buffer[2] == 0x4D && buffer[3] == 0x42)
+                    return "SMBv1 service detected (binary, legacy/vulnerable family)";
+                
+                // SMBv2/3: FE 53 4D 42 ("\xFESMB")
+                if (buffer[0] == 0xFE && buffer[1] == 0x53 && buffer[2] == 0x4D && buffer[3] == 0x42)
+                    return "SMBv2/3 service detected (binary)";
+
+                return "SMB / NetBIOS service detected (binary)";
+            }
+
+            // RDP (3389): TPKT header 03 00 - Enhanced detection
+            if (port == 3389 && length >= 2)
+            {
+                if (buffer[0] == 0x03 && buffer[1] == 0x00)
+                {
+                    // Check for valid TPKT length (bytes 2-3 are length)
+                    if (length >= 4)
+                    {
+                        int tpktLength = (buffer[2] << 8) | buffer[3];
+                        if (tpktLength > 0 && tpktLength <= 8192) // Reasonable RDP packet size
+                            return "RDP service detected (X.224/TLS negotiation, confirmed)";
+                    }
+                    return "RDP service detected (X.224/TLS negotiation)";
+                }
+            }
+
+            // MS RPC endpoint mapper (135): DCE/RPC header 05 00
+            if (port == 135 && length >= 2)
+            {
+                if (buffer[0] == 0x05 && buffer[1] == 0x00)
+                    return "MS RPC endpoint mapper detected (binary, DCE/RPC)";
+            }
+
+            // Generic TLS record (if we ever see it in raw)
+            if ((port == 443 || port == 993 || port == 995) && length >= 3)
+            {
+                if (buffer[0] == 0x16 && buffer[1] == 0x03)
+                    return "TLS service detected (binary handshake)";
             }
 
             return string.Empty;
         }
+
+        private static string GetNoBannerHint(int port)
+        {
+            return port switch
+            {
+                135 => "Open likely MS RPC endpoint mapper (no banner, requires DCE/RPC negotiation)",
+                139 => "Open likely NetBIOS/SMB over NetBIOS (no banner, requires SMB session)",
+                445 => "Open likely SMB over TCP (no banner, requires SMB negotiation)",
+                3389 => "Open likely RDP (no banner, requires full RDP handshake)",
+                443 => "Open likely HTTPS/TLS (no plain banner, TLS handshake required)",
+                993 => "Open likely IMAPS (no plain banner, TLS handshake required)",
+                995 => "Open likely POP3S (no plain banner, TLS handshake required)",
+                _   => string.Empty
+            };
+        }
+
+        // =================== End Banner Grabbing & Fingerprinting ===================
 
         private byte[] CalculateHostIp(byte[] networkStart, int hostIndex)
         {
@@ -1904,4 +2481,6 @@ namespace Dorothy.Models
         }
     }
 }
+
+
 

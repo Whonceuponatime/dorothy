@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -46,6 +46,8 @@ namespace Dorothy.Views
         private string _validationToken; // Session-based validation token
         private const string VALIDATION_TOKEN_FILE = "validation.token"; // Encrypted validation token file
         private bool _disclaimerAcknowledged = false; // Track if disclaimer has been shown and acknowledged
+        private bool _isHandlingTabChange = false; // Prevent re-entrancy during tab changes
+        private TabItem? _previousTab = null; // Track previous tab for proper navigation
         private const string DISCLAIMER_ACK_FILE = "disclaimer.ack"; // Disclaimer acknowledgment file
         private bool? _lastSubnetStatus;
         private string? _lastSubnetMessage;
@@ -85,6 +87,8 @@ namespace Dorothy.Views
         private bool _hasShownAttackLogSyncNotification = false;
         private Services.UIScalingService? _uiScalingService;
         private double _baseFontSize = 12;
+        private Services.UpdateCheckService? _updateCheckService;
+        private System.Windows.Threading.DispatcherTimer? _updateCheckTimer;
 
         public MainWindow()
         {
@@ -207,6 +211,21 @@ namespace Dorothy.Views
 
                 // Start sync status check
                 _ = Task.Run(async () => await UpdateSyncStatus());
+                
+                // Initialize update check service and start checking for updates
+                if (_supabaseSyncService.IsConfigured)
+                {
+                    _updateCheckService = new Services.UpdateCheckService(_supabaseSyncService.GetSupabaseClient());
+                    _ = Task.Run(async () => await CheckForUpdatesAsync());
+                    
+                    // Set up periodic update check (every 30 minutes)
+                    _updateCheckTimer = new System.Windows.Threading.DispatcherTimer
+                    {
+                        Interval = TimeSpan.FromMinutes(30)
+                    };
+                    _updateCheckTimer.Tick += async (s, e) => await CheckForUpdatesAsync();
+                    _updateCheckTimer.Start();
+                }
             }
             catch (Exception ex)
             {
@@ -856,11 +875,46 @@ namespace Dorothy.Views
 
         private void HelpButton_Click(object sender, RoutedEventArgs e)
         {
-            var aboutWindow = new AboutWindow
+            // Use existing update check service if available, otherwise create new one
+            var updateCheckService = _updateCheckService ?? 
+                (_supabaseSyncService.IsConfigured 
+                    ? new Services.UpdateCheckService(_supabaseSyncService.GetSupabaseClient()) 
+                    : null);
+            
+            var aboutWindow = new AboutWindow(updateCheckService)
             {
                 Owner = this
             };
             aboutWindow.ShowDialog();
+        }
+        
+        private async Task CheckForUpdatesAsync()
+        {
+            if (_updateCheckService == null)
+                return;
+                
+            try
+            {
+                var result = await _updateCheckService.CheckForUpdatesAsync();
+                
+                Dispatcher.Invoke(() =>
+                {
+                    if (result.IsOnline && result.IsUpdateAvailable)
+                    {
+                        // Show red alert badge on About button
+                        UpdateAvailableBadge.Visibility = Visibility.Visible;
+                    }
+                    else
+                    {
+                        // Hide badge if no update available or offline
+                        UpdateAvailableBadge.Visibility = Visibility.Collapsed;
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error checking for updates");
+            }
         }
 
         private void SaveLogButton_Click(object sender, RoutedEventArgs e)
@@ -953,6 +1007,7 @@ namespace Dorothy.Views
                 // Stop all timers first
                 _statsTimer?.Stop();
                 _syncCheckTimer?.Stop();
+                _updateCheckTimer?.Stop();
 
                 // Cancel any pending cancellation tokens
                 _targetIpDebounceTokenSource?.Cancel();
@@ -1180,15 +1235,15 @@ namespace Dorothy.Views
                             var message = "";
                             if (syncedLogsCount > 0 && syncedAssetsCount > 0)
                             {
-                                message = $"Sync complete – {syncedLogsCount} log(s) and {syncedAssetsCount} asset(s) synced successfully.";
+                                message = $"Sync complete ??{syncedLogsCount} log(s) and {syncedAssetsCount} asset(s) synced successfully.";
                             }
                             else if (syncedLogsCount > 0)
                             {
-                                message = $"Sync complete – {syncedLogsCount} log(s) synced successfully.";
+                                message = $"Sync complete ??{syncedLogsCount} log(s) synced successfully.";
                             }
                             else if (syncedAssetsCount > 0)
                             {
-                                message = $"Sync complete – {syncedAssetsCount} asset(s) synced successfully.";
+                                message = $"Sync complete ??{syncedAssetsCount} asset(s) synced successfully.";
                             }
                             _toastService.ShowSuccess(message);
                         }
@@ -1340,7 +1395,7 @@ namespace Dorothy.Views
                     if (fallbackCheckBox != null && (!fallbackCheckBox.IsChecked.HasValue || !fallbackCheckBox.IsChecked.Value))
                     {
                         fallbackCheckBox.IsChecked = true;
-                        _attackLogger.LogInfo("📝 Fallback mode enabled automatically due to ping failure - Manual MAC entry available");
+                        _attackLogger.LogInfo("?뱷 Fallback mode enabled automatically due to ping failure - Manual MAC entry available");
                     }
                 }
             }
@@ -1412,7 +1467,7 @@ namespace Dorothy.Views
                             }
                             else
                             {
-                                _attackLogger.LogInfo("🌐 Source and target are on different subnets - Gateway required");
+                                _attackLogger.LogInfo("?뙋 Source and target are on different subnets - Gateway required");
                                 if (string.IsNullOrWhiteSpace(GatewayIpTextBox.Text))
                                 {
                                     return false;
@@ -1463,7 +1518,7 @@ namespace Dorothy.Views
                     return;
                 }
 
-                _attackLogger.LogInfo($"🔍 Resolving MAC address for {targetIp}...");
+                _attackLogger.LogInfo($"?뵇 Resolving MAC address for {targetIp}...");
 
                 // First, try to ping the target to populate ARP cache
                 var pingResult = await _mainController.PingHostAsync(targetIp);
@@ -1485,7 +1540,7 @@ namespace Dorothy.Views
                         if (fallbackCheckBox != null && (!fallbackCheckBox.IsChecked.HasValue || !fallbackCheckBox.IsChecked.Value))
                         {
                             fallbackCheckBox.IsChecked = true;
-                            _attackLogger.LogInfo("📝 Fallback mode enabled - Please enter gateway MAC address manually");
+                            _attackLogger.LogInfo("?뱷 Fallback mode enabled - Please enter gateway MAC address manually");
                         }
                         return;
                     }
@@ -1516,7 +1571,7 @@ namespace Dorothy.Views
                         if (fallbackCheckBox != null && (!fallbackCheckBox.IsChecked.HasValue || !fallbackCheckBox.IsChecked.Value))
                         {
                             fallbackCheckBox.IsChecked = true;
-                            _attackLogger.LogInfo("📝 Fallback mode enabled - Please enter MAC address manually");
+                            _attackLogger.LogInfo("?뱷 Fallback mode enabled - Please enter MAC address manually");
                         }
                     }
                 }
@@ -1550,7 +1605,7 @@ namespace Dorothy.Views
                         if (fallbackCheckBox != null && (!fallbackCheckBox.IsChecked.HasValue || !fallbackCheckBox.IsChecked.Value))
                         {
                             fallbackCheckBox.IsChecked = true;
-                            _attackLogger.LogInfo("📝 Fallback mode enabled - Target MAC field is now editable for manual entry");
+                            _attackLogger.LogInfo("?뱷 Fallback mode enabled - Target MAC field is now editable for manual entry");
                         }
                     }
                 }
@@ -1912,7 +1967,7 @@ namespace Dorothy.Views
                         _hasShownAttackLogSyncNotification = true;
                         Dispatcher.Invoke(() =>
                         {
-                            _toastService.ShowInfo("💾 Attack log saved. Click Cloud Sync button to upload to Supabase.");
+                            _toastService.ShowInfo("?뮶 Attack log saved. Click Cloud Sync button to upload to Supabase.");
                         });
                     }
                 });
@@ -2568,12 +2623,17 @@ namespace Dorothy.Views
         
         private void ShowAdvancedSettingsDisclaimer()
         {
+            // Reset flag before showing dialog
+            _disclaimerAcknowledged = false;
+            
             var disclaimerDialog = new DisclaimerDialog
             {
                 Owner = this
             };
             
-            if (disclaimerDialog.ShowDialog() == true && disclaimerDialog.IsAuthorized)
+            // Show dialog and check result
+            bool? dialogResult = disclaimerDialog.ShowDialog();
+            if (dialogResult == true && disclaimerDialog.IsAuthorized)
             {
                 _disclaimerAcknowledged = true;
                 // Don't save acknowledgment - show every time
@@ -3523,16 +3583,16 @@ namespace Dorothy.Views
                 byte[] targetMacBytes = targetMac.Split(':').Select(b => Convert.ToByte(b, 16)).ToArray();
 
                 // Log comprehensive ARP Spoofing start
-                var arpStartMessage = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                                    $"⚡ Status: Attack Started\n" +
-                                    $"📡 Protocol: ARP Spoofing\n" +
-                                    $"📍 Source Host: {sourceIp}\n" +
-                                    $"🔌 Source MAC: {sourceMac}\n" +
-                                    $"🎯 Target Host: {targetIp}\n" +
-                                    $"🔌 Target MAC: {targetMac}\n" +
-                                    $"🎭 Spoofed MAC: {spoofedMac}\n" +
-                                    $"🕐 Start Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\n" +
-                                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+                var arpStartMessage = "?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺\n" +
+                                    $"??Status: Attack Started\n" +
+                                    $"?뱻 Protocol: ARP Spoofing\n" +
+                                    $"?뱧 Source Host: {sourceIp}\n" +
+                                    $"?뵆 Source MAC: {sourceMac}\n" +
+                                    $"?렞 Target Host: {targetIp}\n" +
+                                    $"?뵆 Target MAC: {targetMac}\n" +
+                                    $"?렚 Spoofed MAC: {spoofedMac}\n" +
+                                    $"?븧 Start Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\n" +
+                                    "?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺";
                 _attackLogger.LogInfo(arpStartMessage);
 
             await _mainController.StartArpSpoofingAsync(sourceIp, sourceMac, targetIp, targetMac, spoofedMac);
@@ -3662,22 +3722,73 @@ namespace Dorothy.Views
 
         private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            // Prevent re-entrancy during tab changes
+            if (_isHandlingTabChange)
+                return;
+            
             try
             {
                 if (e.Source is TabControl)
                 {
-                    if (MainTabControl.SelectedItem == AdvancedTab)
+                    TabItem? currentTab = MainTabControl.SelectedItem as TabItem;
+                    
+                    // Track the previous tab from the removed items (before the change)
+                    TabItem? previousTabFromEvent = null;
+                    if (e.RemovedItems.Count > 0)
                     {
+                        previousTabFromEvent = e.RemovedItems[0] as TabItem;
+                        // Only track if it's not Advanced tab
+                        if (previousTabFromEvent != null && previousTabFromEvent != AdvancedTab)
+                        {
+                            _previousTab = previousTabFromEvent;
+                        }
+                    }
+                    
+                    if (currentTab == AdvancedTab)
+                    {
+                        _isHandlingTabChange = true;
+                        
+                        // Always reset disclaimer flag when entering Advanced tab
+                        _disclaimerAcknowledged = false;
+                        
                         // Always show disclaimer when entering Advanced Settings tab
                         ShowAdvancedSettingsDisclaimer();
-                        // If user didn't acknowledge (clicked Back), switch back to Basic tab immediately
+                        
+                        // If user didn't acknowledge (clicked Back), switch back to previous tab
                         if (!_disclaimerAcknowledged)
                         {
-                            // Prevent the tab change event from firing again by directly setting the selection
-                            // and returning early to avoid re-triggering the disclaimer
-                            MainTabControl.SelectionChanged -= MainTabControl_SelectionChanged;
-                            MainTabControl.SelectedItem = MainTabControl.Items[0]; // Switch to Basic tab
-                            MainTabControl.SelectionChanged += MainTabControl_SelectionChanged;
+                            // Use the tracked previous tab, or use the one from the event, or default to Basic tab
+                            TabItem? targetTab = _previousTab ?? previousTabFromEvent;
+                            
+                            // If no previous tab tracked, default to Basic tab (first item)
+                            if (targetTab == null && MainTabControl.Items.Count > 0)
+                            {
+                                targetTab = MainTabControl.Items[0] as TabItem;
+                            }
+                            
+                            // Ensure we're not trying to switch to Advanced tab
+                            if (targetTab == AdvancedTab && MainTabControl.Items.Count > 0)
+                            {
+                                // Find first non-Advanced tab
+                                foreach (TabItem item in MainTabControl.Items)
+                                {
+                                    if (item != AdvancedTab)
+                                    {
+                                        targetTab = item;
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            // Switch to the target tab
+                            if (targetTab != null)
+                            {
+                                MainTabControl.SelectionChanged -= MainTabControl_SelectionChanged;
+                                MainTabControl.SelectedItem = targetTab;
+                                MainTabControl.SelectionChanged += MainTabControl_SelectionChanged;
+                            }
+                            
+                            _isHandlingTabChange = false;
                             return;
                         }
                         
@@ -3708,9 +3819,16 @@ namespace Dorothy.Views
                             AdvPasswordBox.PasswordChanged += PasswordBox_PasswordChanged;
                             ValidatePasswordAndUpdateUI();
                         }
+                        
+                        _isHandlingTabChange = false;
                     }
                     else
                     {
+                        _isHandlingTabChange = true;
+                        
+                        // Always reset disclaimer flag when leaving Advanced tab
+                        _disclaimerAcknowledged = false;
+                        
                         // Change badge back to LAB MODE when leaving Advanced Settings tab
                         UpdateLabModeBadge(false);
                         
@@ -3730,6 +3848,8 @@ namespace Dorothy.Views
                         // Basic Settings doesn't require password - but keep validation token for Advanced tab
                         // Don't clear validation token - it should persist across tab switches
                         ValidatePasswordAndUpdateUI();
+                        
+                        _isHandlingTabChange = false;
                     }
                 }
                 
@@ -3740,6 +3860,7 @@ namespace Dorothy.Views
             catch (Exception ex)
             {
                 _attackLogger.LogError($"Error syncing settings between tabs: {ex}");
+                _isHandlingTabChange = false;
             }
         }
         
@@ -3971,10 +4092,10 @@ namespace Dorothy.Views
                 var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                 var note = NoteTextBox.Text.Trim();
                 
-                var formattedNote = $"\n📝 USER NOTE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                var formattedNote = $"\n?뱷 USER NOTE ?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺\n" +
                                    $"Time: {timestamp}\n" +
                                    $"Note: {note}\n" +
-                                   $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━ END NOTE 📝\n";
+                                   $"?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺 END NOTE ?뱷\n";
 
                 _attackLogger.LogNote(formattedNote);
                 NoteTextBox.Text = NOTE_PLACEHOLDER;
@@ -4208,7 +4329,7 @@ namespace Dorothy.Views
                     progressBar.Visibility = Visibility.Visible;
                 }
 
-                _attackLogger.LogInfo($"🔍 Quick {protocol} port scan on {targetIp}...");
+                _attackLogger.LogInfo($"?뵇 Quick {protocol} port scan on {targetIp}...");
                 _attackLogger.LogInfo($"Scanning {portsToScan.Length} common {protocol} ports...");
 
                 // Quick port scan
@@ -4282,7 +4403,7 @@ namespace Dorothy.Views
                                 if (isOpen)
                                 {
                                     foundPort = port;
-                                    _attackLogger.LogSuccess($"✅ Found open {protocol} port: {port}");
+                                    _attackLogger.LogSuccess($"??Found open {protocol} port: {port}");
                                     cts.Cancel(); // Stop scanning once we find one
                                     break;
                                 }
@@ -4311,11 +4432,11 @@ namespace Dorothy.Views
                     if (foundPort.HasValue)
                     {
                         portTextBox.Text = foundPort.Value.ToString();
-                        _attackLogger.LogSuccess($"✅ Port {foundPort.Value} set in Target Port field");
+                        _attackLogger.LogSuccess($"??Port {foundPort.Value} set in Target Port field");
                     }
                     else
                     {
-                        _attackLogger.LogWarning($"⚠️ No open {protocol} ports found in common ports. Try scanning more ports or enter port manually.");
+                        _attackLogger.LogWarning($"?좑툘 No open {protocol} ports found in common ports. Try scanning more ports or enter port manually.");
                     }
 
                     if (progressBar != null)
@@ -4585,3 +4706,5 @@ namespace Dorothy.Views
 
     }
 } 
+                            
+                            // Switch to the target tab

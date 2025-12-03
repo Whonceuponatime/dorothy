@@ -54,6 +54,9 @@ namespace Dorothy.Models.Database
         [Column("user_id")]
         public Guid? UserId { get; set; }
 
+        [Column("ports")]
+        public string? Ports { get; set; }
+
         // Local SQLite only field (not in Supabase schema)
         // Using both JsonIgnore and IgnoreDataMember to ensure exclusion
         [JsonIgnore]
@@ -61,4 +64,3 @@ namespace Dorothy.Models.Database
         public DateTime? SyncedAt { get; set; }
     }
 }
-

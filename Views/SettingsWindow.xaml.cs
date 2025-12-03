@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -238,8 +238,8 @@ namespace Dorothy.Views
                 if (LicenseStatusTextBlock != null)
                 {
                     LicenseStatusTextBlock.Text = validationResult.IsValid
-                        ? "✅ Status: Authorized (Supabase)"
-                        : "❌ Status: Not Authorized - Contact Administrator";
+                        ? "??Status: Authorized (Supabase)"
+                        : "??Status: Not Authorized - Contact Administrator";
                     LicenseStatusTextBlock.Foreground = validationResult.IsValid
                         ? new SolidColorBrush(Color.FromRgb(34, 197, 94)) // Green
                         : new SolidColorBrush(Color.FromRgb(239, 68, 68)); // Red
@@ -257,7 +257,7 @@ namespace Dorothy.Views
                 // Silently fail - license info is optional
                 if (LicenseStatusTextBlock != null)
                 {
-                    LicenseStatusTextBlock.Text = "⚠️ Status: Unable to verify license";
+                    LicenseStatusTextBlock.Text = "?좑툘 Status: Unable to verify license";
                     LicenseStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(234, 179, 8)); // Yellow
                 }
             }
@@ -350,3 +350,5 @@ namespace Dorothy.Views
         private delegate int BrowseCallbackProcDelegate(IntPtr hwnd, uint uMsg, IntPtr lParam, IntPtr lpData);
     }
 }
+
+                // Silently fail - license info is optional

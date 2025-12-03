@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
@@ -216,7 +216,7 @@ namespace Dorothy.Models
                         }
 
                         GatewayMac = macAddr;
-                        _logger.LogInfo($"✅ Using gateway MAC for routed target {ipAddress}: {BitConverter.ToString(macAddr).Replace("-", ":")}");
+                        _logger.LogInfo($"??Using gateway MAC for routed target {ipAddress}: {BitConverter.ToString(macAddr).Replace("-", ":")}");
                         return macAddr;
                     }
                     else
@@ -277,7 +277,7 @@ namespace Dorothy.Models
                     _logger.LogError("Gateway MAC address is required for cross-subnet communication");
                     throw new InvalidOperationException("Gateway MAC address is required for cross-subnet communication");
                 }
-                _logger.LogInfo($"🌐 Using gateway MAC for external target: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
+                _logger.LogInfo($"?뙋 Using gateway MAC for external target: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
                 destinationMac = GatewayMac;
             }
             else
@@ -289,7 +289,7 @@ namespace Dorothy.Models
                     _logger.LogError("Could not resolve target MAC address for local subnet target");
                     throw new InvalidOperationException("Could not resolve target MAC address for local subnet target");
                 }
-                _logger.LogInfo($"📍 Using target MAC for local target: {BitConverter.ToString(destinationMac).Replace("-", ":")}");
+                _logger.LogInfo($"?뱧 Using target MAC for local target: {BitConverter.ToString(destinationMac).Replace("-", ":")}");
             }
 
             // Calculate bytes per second: megabits -> bits -> bytes

@@ -1,4 +1,4 @@
-<Window x:Class="Dorothy.Views.SettingsWindow"
+﻿<Window x:Class="Dorothy.Views.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Settings" 
@@ -159,7 +159,7 @@
                             Padding="10"
                             Margin="0,0,0,16">
                         <StackPanel>
-                            <TextBlock Text="✅ Pre-Configured"
+                            <TextBlock Text="??Pre-Configured"
                                        FontSize="11"
                                        FontWeight="SemiBold"
                                        Foreground="#059669"
@@ -188,7 +188,7 @@
                                            FontSize="10"
                                            Foreground="#6B7280"
                                            Margin="0,0,0,4"/>
-                                <TextBlock Text="Status: Pre-configured ✓"
+                                <TextBlock Text="Status: Pre-configured ✅"
                                            FontSize="10"
                                            Foreground="#059669"/>
                             </StackPanel>
@@ -209,7 +209,7 @@
                             Padding="10"
                             Margin="0,8,0,0">
                         <StackPanel>
-                            <TextBlock Text="🔐 Security Information"
+                            <TextBlock Text="?뵍 Security Information"
                                        FontSize="11"
                                        FontWeight="SemiBold"
                                        Foreground="#92400E"
@@ -220,11 +220,11 @@
                                        LineHeight="16">
                                 <Run Text="The Supabase anon key is obfuscated within the application code. While it can be extracted through reverse engineering, this is safe by design:"/>
                                 <LineBreak/><LineBreak/>
-                                <Run Text="• Supabase anon keys are meant to be public (used in web/mobile apps)"/>
+                                <Run Text="??Supabase anon keys are meant to be public (used in web/mobile apps)"/>
                                 <LineBreak/>
-                                <Run Text="• Security relies on Row Level Security (RLS) policies (server-side)"/>
+                                <Run Text="??Security relies on Row Level Security (RLS) policies (server-side)"/>
                                 <LineBreak/>
-                                <Run Text="• Hardware licensing prevents unauthorized application use"/>
+                                <Run Text="??Hardware licensing prevents unauthorized application use"/>
                                 <LineBreak/><LineBreak/>
                                 <Run Text="See SECURITY.md for detailed information."/>
                             </TextBlock>
@@ -272,7 +272,7 @@
                                        Foreground="#111827"
                                            TextWrapping="Wrap"
                                            Margin="0,0,0,4"/>
-                                <Button Content="📋 Copy to Clipboard"
+                                <Button Content="?뱥 Copy to Clipboard"
                                         FontSize="10"
                                         Padding="8,4"
                                         HorizontalAlignment="Left"
@@ -304,7 +304,7 @@
                             Padding="16"
                             CornerRadius="6">
                         <StackPanel>
-                            <TextBlock Text="ℹ️ License Not Authorized?"
+                            <TextBlock Text="?뱄툘 License Not Authorized?"
                                        FontSize="12"
                                        FontWeight="SemiBold"
                                        Foreground="#1E40AF"
@@ -334,7 +334,7 @@
                             CornerRadius="6"
                             Margin="0,16,0,0">
                         <StackPanel>
-                            <TextBlock Text="🔐 Centralized License Control"
+                            <TextBlock Text="?뵍 Centralized License Control"
                                    FontSize="11"
                                    FontWeight="SemiBold"
                                    Foreground="#374151"
@@ -371,4 +371,3 @@
         </StackPanel>
     </Grid>
 </Window>
-

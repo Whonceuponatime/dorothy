@@ -7,7 +7,7 @@
   "targets": {
     ".NETCoreApp,Version=v8.0": {},
     ".NETCoreApp,Version=v8.0/win-x64": {
-      "Dorothy/2.2.0": {
+      "Dorothy/2.2.5": {
         "dependencies": {
           "ClosedXML": "0.102.2",
           "Microsoft.Data.Sqlite": "8.0.0",
@@ -2187,7 +2187,7 @@
     }
   },
   "libraries": {
-    "Dorothy/2.2.0": {
+    "Dorothy/2.2.5": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

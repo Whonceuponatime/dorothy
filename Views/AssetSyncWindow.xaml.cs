@@ -33,6 +33,7 @@ namespace Dorothy.Views
                 PingTime = asset.PingTime,
                 ScanTime = asset.ScanTime,
                 ProjectName = asset.ProjectName ?? "None",
+                OpenPortsDisplay = string.IsNullOrWhiteSpace(asset.Ports) ? "N/A" : asset.Ports, // Use Ports column from database
                 IsSelected = true // Default to selected
             }).ToList();
 

@@ -4,16 +4,19 @@
         xmlns:local="clr-namespace:Dorothy.Views"
         Title="Network Scan - Asset Inventory" 
         Icon="pack://application:,,,/Resources/icon.ico"
-        Height="600" Width="1000"
+        Height="900" Width="1600"
+        MinHeight="700" MinWidth="1200"
         WindowStartupLocation="CenterOwner"
         Background="#F3F4F6">
     <Window.Resources>
         <local:NullableLongConverter x:Key="NullableLongConverter"/>
+        <local:EmptyBannerConverter x:Key="EmptyBannerConverter"/>
     </Window.Resources>
     <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="350"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -74,27 +77,146 @@
                                     Grid.Column="1"
                                     Margin="12,0,0,0">
                             <TextBlock Text="Scan Mode:"
-                                       FontSize="12"
-                                       Foreground="#6B7280"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="#111827"
                                        VerticalAlignment="Center"
-                                       Margin="0,0,8,0"/>
+                                       Margin="0,0,12,0"/>
                             <RadioButton x:Name="SimpleScanRadioButton"
                                          Content="Simple"
                                          IsChecked="True"
                                          GroupName="ScanMode"
-                                         FontSize="12"
-                                         Foreground="#374151"
-                                         Margin="0,0,12,0"
+                                         FontSize="14"
+                                         FontWeight="Medium"
+                                         Foreground="#111827"
+                                         Margin="0,0,16,0"
+                                         Padding="8,6"
                                          VerticalAlignment="Center"
-                                         Checked="ScanMode_Changed"/>
+                                         Height="36"
+                                         Checked="ScanMode_Changed">
+                                <RadioButton.Style>
+                                    <Style TargetType="RadioButton">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="RadioButton">
+                                                    <Border x:Name="RadioBorder"
+                                                            Background="White"
+                                                            BorderBrush="#D1D5DB"
+                                                            BorderThickness="2"
+                                                            CornerRadius="6"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Ellipse x:Name="RadioCircle"
+                                                                     Grid.Column="0"
+                                                                     Width="18"
+                                                                     Height="18"
+                                                                     Margin="0,0,8,0"
+                                                                     Stroke="#6B7280"
+                                                                     StrokeThickness="2"
+                                                                     Fill="White"/>
+                                                            <Ellipse x:Name="RadioCircleInner"
+                                                                     Grid.Column="0"
+                                                                     Width="10"
+                                                                     Height="10"
+                                                                     Margin="4,0,12,0"
+                                                                     Fill="#2563EB"
+                                                                     Visibility="Collapsed"/>
+                                                            <ContentPresenter Grid.Column="1"
+                                                                              VerticalAlignment="Center"
+                                                                              Content="{TemplateBinding Content}"/>
+                                                        </Grid>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="#2563EB"/>
+                                                            <Setter TargetName="RadioCircle" Property="StrokeThickness" Value="3"/>
+                                                            <Setter TargetName="RadioCircleInner" Property="Visibility" Value="Visible"/>
+                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#2563EB"/>
+                                                            <Setter TargetName="RadioBorder" Property="BorderThickness" Value="2"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="#2563EB"/>
+                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#93C5FD"/>
+                                                            <Setter TargetName="RadioBorder" Property="Background" Value="#EFF6FF"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </RadioButton.Style>
+                            </RadioButton>
                             <RadioButton x:Name="IntenseScanRadioButton"
                                          Content="Intense (Ports + Banners)"
                                          GroupName="ScanMode"
-                                         FontSize="12"
-                                         Foreground="#374151"
+                                         FontSize="14"
+                                         FontWeight="Medium"
+                                         Foreground="#111827"
+                                         Padding="8,6"
                                          VerticalAlignment="Center"
+                                         Height="36"
                                          ToolTip="Scans ports and grabs service banners. Select port scan mode below."
-                                         Checked="ScanMode_Changed"/>
+                                         Checked="ScanMode_Changed">
+                                <RadioButton.Style>
+                                    <Style TargetType="RadioButton">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="RadioButton">
+                                                    <Border x:Name="RadioBorder"
+                                                            Background="White"
+                                                            BorderBrush="#D1D5DB"
+                                                            BorderThickness="2"
+                                                            CornerRadius="6"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Ellipse x:Name="RadioCircle"
+                                                                     Grid.Column="0"
+                                                                     Width="18"
+                                                                     Height="18"
+                                                                     Margin="0,0,8,0"
+                                                                     Stroke="#6B7280"
+                                                                     StrokeThickness="2"
+                                                                     Fill="White"/>
+                                                            <Ellipse x:Name="RadioCircleInner"
+                                                                     Grid.Column="0"
+                                                                     Width="10"
+                                                                     Height="10"
+                                                                     Margin="4,0,12,0"
+                                                                     Fill="#2563EB"
+                                                                     Visibility="Collapsed"/>
+                                                            <ContentPresenter Grid.Column="1"
+                                                                              VerticalAlignment="Center"
+                                                                              Content="{TemplateBinding Content}"/>
+                                                        </Grid>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="#2563EB"/>
+                                                            <Setter TargetName="RadioCircle" Property="StrokeThickness" Value="3"/>
+                                                            <Setter TargetName="RadioCircleInner" Property="Visibility" Value="Visible"/>
+                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#2563EB"/>
+                                                            <Setter TargetName="RadioBorder" Property="BorderThickness" Value="2"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="#2563EB"/>
+                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#93C5FD"/>
+                                                            <Setter TargetName="RadioBorder" Property="Background" Value="#EFF6FF"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </RadioButton.Style>
+                            </RadioButton>
                         </StackPanel>
                     </Grid>
                     
@@ -114,34 +236,30 @@
                                        Foreground="#374151"
                                        Margin="0,0,0,8"/>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <RadioButton x:Name="CommonPortsRadioButton"
-                                             Content="Common (Top 20 - Fastest)"
+                                <RadioButton x:Name="AllPortsRadioButton"
+                                             Content="All Common Ports"
                                              IsChecked="True"
                                              GroupName="PortScanMode"
                                              FontSize="11"
                                              Foreground="#374151"
                                              Margin="0,0,12,0"
-                                             VerticalAlignment="Center"/>
-                                <RadioButton x:Name="AllPortsRadioButton"
-                                             Content="All Common (50+ ports)"
-                                             GroupName="PortScanMode"
-                                             FontSize="11"
-                                             Foreground="#374151"
-                                             Margin="0,0,12,0"
-                                             VerticalAlignment="Center"/>
+                                             VerticalAlignment="Center"
+                                             ToolTip="Scan 50+ common ports"/>
                                 <RadioButton x:Name="RangePortsRadioButton"
                                              Content="Range"
                                              GroupName="PortScanMode"
                                              FontSize="11"
                                              Foreground="#374151"
                                              Margin="0,0,12,0"
-                                             VerticalAlignment="Center"/>
+                                             VerticalAlignment="Center"
+                                             ToolTip="Scan a range of ports"/>
                                 <RadioButton x:Name="SelectedPortsRadioButton"
-                                             Content="Selected"
+                                             Content="Banner Grabbing"
                                              GroupName="PortScanMode"
                                              FontSize="11"
                                              Foreground="#374151"
-                                             VerticalAlignment="Center"/>
+                                             VerticalAlignment="Center"
+                                             ToolTip="Very intense scanning with banner grabbing on selected ports. Ports are auto-populated from previous scans."/>
                             </StackPanel>
                             
                             <!-- Port Range Input (visible when Range is selected) -->
@@ -179,19 +297,51 @@
                                          Background="White"
                                          FontSize="11"
                                          Margin="4,0,0,0"
-                                         Text="1024"
+                                         Text="65535"
                                          ToolTip="End port (1-65535)"/>
                             </StackPanel>
                             
-                            <!-- Selected Ports Input (visible when Selected is selected) -->
+                            <!-- Banner Grabbing Ports Input (visible when Banner Grabbing is selected) -->
                             <StackPanel x:Name="SelectedPortsPanel"
-                                        Orientation="Horizontal"
-                                        Visibility="Collapsed">
-                                <TextBlock Text="Ports (comma-separated):"
-                                           FontSize="11"
-                                           Foreground="#6B7280"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,8,0"/>
+                                        Orientation="Vertical"
+                                        Visibility="Collapsed"
+                                        Margin="0,0,0,8">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <TextBlock Text="Banner Grabbing Ports (comma-separated):"
+                                               FontSize="11"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"/>
+                                    <Button x:Name="PopulateFromScanButton"
+                                            Content="Use Discovered Ports"
+                                            Height="24"
+                                            Padding="6,2"
+                                            FontSize="10"
+                                            Click="PopulateFromScanButton_Click"
+                                            Background="#2563EB"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            ToolTip="Populate with ports discovered in previous scans"
+                                            Visibility="Collapsed">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}"
+                                                                    CornerRadius="4"
+                                                                    Padding="6,2">
+                                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                                  VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
                                 <TextBox x:Name="SelectedPortsTextBox"
                                          Height="28"
                                          Padding="6,4"
@@ -200,7 +350,13 @@
                                          Background="White"
                                          FontSize="11"
                                          Text="80,443,22,21,25"
-                                         ToolTip="Enter port numbers separated by commas (e.g., 80,443,22)"/>
+                                         ToolTip="Enter port numbers separated by commas (e.g., 80,443,22). Ports will be scanned with intense banner grabbing."/>
+                                <TextBlock Text="⚠️ Banner Grabbing mode performs very intense scanning with banner grabbing on all specified ports."
+                                           FontSize="10"
+                                           Foreground="#DC2626"
+                                           FontStyle="Italic"
+                                           Margin="0,4,0,0"
+                                           TextWrapping="Wrap"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -414,7 +570,8 @@
                 BorderBrush="#E5E7EB" 
                 BorderThickness="1" 
                 CornerRadius="8"
-                Background="White">
+                Background="White"
+                Margin="0,0,0,8">
             <DataGrid x:Name="ResultsDataGrid"
                       AutoGenerateColumns="False"
                       IsReadOnly="True"
@@ -422,21 +579,109 @@
                       HeadersVisibility="Column"
                       SelectionMode="Single"
                       CanUserAddRows="False"
-                      CanUserDeleteRows="False">
+                      CanUserDeleteRows="False"
+                      SelectionChanged="ResultsDataGrid_SelectionChanged">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="IP Address" Binding="{Binding IpAddress}" Width="130" />
-                    <DataGridTextColumn Header="MAC Address" Binding="{Binding MacAddress}" Width="150" />
-                    <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="180" />
-                    <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="140" />
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90" />
-                    <DataGridTextColumn Header="RTT (ms)" Binding="{Binding RoundTripTime, Converter={StaticResource NullableLongConverter}}" Width="85" />
+                    <DataGridTextColumn Header="IP Address" Binding="{Binding IpAddress}" Width="150" />
+                    <DataGridTextColumn Header="MAC Address" Binding="{Binding MacAddress}" Width="170" />
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="200" />
+                    <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="160" />
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100" />
+                    <DataGridTextColumn Header="RTT (ms)" Binding="{Binding RoundTripTime, Converter={StaticResource NullableLongConverter}}" Width="100" />
                     <DataGridTextColumn Header="Open Ports" Binding="{Binding OpenPortsDisplay}" Width="*" />
                 </DataGrid.Columns>
             </DataGrid>
         </Border>
 
+        <!-- Ports Grid -->
+        <Border x:Name="PortsDetailsBorder"
+                Grid.Row="2" 
+                BorderBrush="#E5E7EB" 
+                BorderThickness="1" 
+                CornerRadius="8"
+                Background="White"
+                Margin="0,8,0,0"
+                MaxHeight="350">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0" 
+                            Orientation="Horizontal" 
+                            Margin="12,12,12,8"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="Port Details" 
+                               FontSize="16" 
+                               FontWeight="SemiBold" 
+                               Foreground="#111827"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0"/>
+                    <TextBlock x:Name="PortsCountText"
+                               Text="(Select an asset to view ports)"
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               FontStyle="Italic"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+                <DataGrid x:Name="PortsDataGrid"
+                          Grid.Row="1"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          GridLinesVisibility="All"
+                          HeadersVisibility="Column"
+                          SelectionMode="Single"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          AlternatingRowBackground="#F9FAFB"
+                          RowHeight="32"
+                          FontSize="12"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Auto">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="80">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="HorizontalAlignment" Value="Center"/>
+                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Protocol" Binding="{Binding Protocol}" Width="90">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="HorizontalAlignment" Value="Center"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Service" Binding="{Binding Service}" Width="180">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextWrapping" Value="Wrap"/>
+                                    <Setter Property="Padding" Value="4,0"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="Banner" Width="*">
+                            <DataGridTextColumn.Binding>
+                                <Binding Path="Banner" Converter="{StaticResource EmptyBannerConverter}"/>
+                            </DataGridTextColumn.Binding>
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextWrapping" Value="Wrap"/>
+                                    <Setter Property="Padding" Value="4,0"/>
+                                    <Setter Property="FontFamily" Value="Consolas, Courier New"/>
+                                    <Setter Property="FontSize" Value="11"/>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+
         <!-- Footer Actions -->
-        <StackPanel Grid.Row="2" 
+        <StackPanel Grid.Row="3" 
                     Orientation="Horizontal" 
                     HorizontalAlignment="Right"
                     Margin="0,16,0,0">

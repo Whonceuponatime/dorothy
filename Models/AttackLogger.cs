@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -59,17 +59,17 @@ namespace Dorothy.Models
             _packetsSent = 0;
 
             var targetPortStr = targetPort > 0 ? $":{targetPort}" : "";
-            var message = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                         $"⚡ Status: Attack Started\n" +
+            var message = "════════════════════════════════════════════════════════\n" +
+                         $"✅ Status: Attack Started\n" +
                          $"📡 Protocol: {attackType}\n" +
                          $"📍 Source Host: {_sourceIp}\n" +
-                         $"🔌 Source MAC: {_sourceMac}\n" +
+                         $"🔗 Source MAC: {_sourceMac}\n" +
                          $"🎯 Target Host: {_targetIp}{targetPortStr}\n" +
-                         $"🔌 Target MAC: {_targetMac}\n" +
+                         $"🔗 Target MAC: {_targetMac}\n" +
                          $"⚡ Target Rate: {_targetBytesPerSecond * 8.0 / 1_000_000:F2} Mbps\n" +
-                         $"📋 Attack Type: {_attackType}\n" +
-                         $"🕐 Start Time: {_attackStartTime:yyyy-MM-dd HH:mm:ss}\n" +
-                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+                         $"🔥 Attack Type: {_attackType}\n" +
+                         $"⏰ Start Time: {_attackStartTime:yyyy-MM-dd HH:mm:ss}\n" +
+                         "════════════════════════════════════════════════════════";
             Log(message, LogLevel.Info, true);
         }
 
@@ -99,32 +99,32 @@ namespace Dorothy.Models
                 {
                     // User entered a unicast IP but we're targeting a multicast group
                     targetSection = $"📍 Destination IP: {destinationIpForLogging}\n" +
-                                   $"📡 Multicast IP: {_targetIp}{targetPortStr}\n" +
-                                   $"🔌 Multicast MAC: {_targetMac}\n";
+                                   $"🌐 Multicast IP: {_targetIp}{targetPortStr}\n" +
+                                   $"🔗 Multicast MAC: {_targetMac}\n";
                 }
                 else
                 {
                     // Direct multicast IP entry
-                    targetSection = $"📡 Multicast IP: {_targetIp}{targetPortStr}\n" +
-                                   $"🔌 Multicast MAC: {_targetMac}\n";
+                    targetSection = $"🌐 Multicast IP: {_targetIp}{targetPortStr}\n" +
+                                   $"🔗 Multicast MAC: {_targetMac}\n";
                 }
             }
             else
             {
                 targetSection = $"🎯 Target Host: {_targetIp}{targetPortStr}\n" +
-                               $"🔌 Target MAC: {_targetMac}\n";
+                               $"🔗 Target MAC: {_targetMac}\n";
             }
             
-            var message = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                         $"⚡ Status: Attack Started\n" +
+            var message = "════════════════════════════════════════════════════════\n" +
+                         $"✅ Status: Attack Started\n" +
                          $"📡 Protocol: {_protocol}\n" +
                          $"📍 Source Host: {_sourceIp}\n" +
-                         $"🔌 Source MAC: {_sourceMac}\n" +
+                         $"🔗 Source MAC: {_sourceMac}\n" +
                          targetSection +
                          $"⚡ Target Rate: {_targetBytesPerSecond * 8.0 / 1_000_000:F2} Mbps\n" +
-                         $"📋 Attack Type: {_attackType}\n" +
-                         $"🕐 Start Time: {_attackStartTime:yyyy-MM-dd HH:mm:ss}\n" +
-                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+                         $"🔥 Attack Type: {_attackType}\n" +
+                         $"⏰ Start Time: {_attackStartTime:yyyy-MM-dd HH:mm:ss}\n" +
+                         "════════════════════════════════════════════════════════";
             Log(message, LogLevel.Info, true);
         }
 
@@ -181,26 +181,26 @@ namespace Dorothy.Models
                     ipValue = "N/A (Layer 2 only)";
                 }
                 
-                targetSection = $"📡 {ipLabel}: {ipValue}\n" +
-                               $"🔌 Multicast MAC: {_targetMac}\n";
+                targetSection = $"🌐 {ipLabel}: {ipValue}\n" +
+                               $"🔗 Multicast MAC: {_targetMac}\n";
             }
             else
             {
                 // For non-multicast, show target host and target MAC
                 targetSection = $"🎯 Target Host: {_targetIp}{targetPortStr}\n" +
-                               $"🔌 Target MAC: {_targetMac}\n";
+                               $"🔗 Target MAC: {_targetMac}\n";
             }
 
-            var message = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                         $"⚡ Status: Attack Started\n" +
+            var message = "════════════════════════════════════════════════════════\n" +
+                         $"✅ Status: Attack Started\n" +
                          $"📡 Protocol: Ethernet {packetType}\n" +
                          $"📍 Source Host: {_sourceIp}\n" +
-                         $"🔌 Source MAC: {_sourceMac}\n" +
+                         $"🔗 Source MAC: {_sourceMac}\n" +
                          targetSection +
                          $"⚡ Target Rate: {_targetBytesPerSecond * 8.0 / 1_000_000:F2} Mbps\n" +
-                         $"📋 Attack Type: {_attackType}\n" +
-                         $"🕐 Start Time: {_attackStartTime:yyyy-MM-dd HH:mm:ss}\n" +
-                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+                         $"🔥 Attack Type: {_attackType}\n" +
+                         $"⏰ Start Time: {_attackStartTime:yyyy-MM-dd HH:mm:ss}\n" +
+                         "════════════════════════════════════════════════════════";
             Log(message, LogLevel.Info, true);
         }
 
@@ -250,32 +250,32 @@ namespace Dorothy.Models
                     ipValue = "N/A (Layer 2 only)";
                 }
                 
-                targetSection = $"📡 {ipLabel}: {ipValue}\n" +
-                               $"🔌 Multicast MAC: {_targetMac}\n";
+                targetSection = $"🌐 {ipLabel}: {ipValue}\n" +
+                               $"🔗 Multicast MAC: {_targetMac}\n";
             }
             else
             {
                 // For non-multicast, show target host and target MAC
                 targetSection = $"🎯 Target Host: {_targetIp}{targetPortStr}\n" +
-                               $"🔌 Target MAC: {_targetMac}\n";
+                               $"🔗 Target MAC: {_targetMac}\n";
             }
 
             // Check if this is an NMEA attack for special protocol label
             bool isNmeaAttackForProtocol = _protocol != null && _protocol.Contains("NMEA 0183");
             string protocolLabel = isNmeaAttackForProtocol ? _protocol : _attackType;
             
-            var message = "━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                         $"⏹️  Status: Attack Stopped\n" +
+            var message = "════════════════════════════════════════════════════════\n" +
+                         $"ℹ️  Status: Attack Stopped\n" +
                          $"📡 Protocol: {protocolLabel}\n" +
                          $"📍 Source Host: {_sourceIp}\n" +
-                         $"🔌 Source MAC: {_sourceMac}\n" +
+                         $"🔗 Source MAC: {_sourceMac}\n" +
                          targetSection +
                          $"⚡ Target Rate: {_targetBytesPerSecond * 8.0 / 1_000_000:F2} Mbps\n" +
                          $"📊 Packets Sent: {_packetsSent:N0}\n" +
                          $"⏱️  Duration: {durationStr}\n" +
-                         $"🕐 Start Time: {_attackStartTime:yyyy-MM-dd HH:mm:ss}\n" +
-                         $"🕐 Stop Time: {stopTime:yyyy-MM-dd HH:mm:ss}\n" +
-                         "━━━━━━━━━━━━━━━━━━━━━━━━━━━━";
+                         $"⏰ Start Time: {_attackStartTime:yyyy-MM-dd HH:mm:ss}\n" +
+                         $"⏰ Stop Time: {stopTime:yyyy-MM-dd HH:mm:ss}\n" +
+                         "════════════════════════════════════════════════════════";
             Log(message, LogLevel.Info, true);
 
             // Save to database if available
@@ -484,4 +484,4 @@ namespace Dorothy.Models
             return false;
         }
     }
-} 
+}

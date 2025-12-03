@@ -79,6 +79,14 @@ namespace Dorothy.Services
                     addColumn.ExecuteNonQuery();
                 }
 
+                if (!columns.Contains("Ports"))
+                {
+                    Logger.Info("Migrating Assets table: Adding Ports column");
+                    var addColumn = connection.CreateCommand();
+                    addColumn.CommandText = "ALTER TABLE Assets ADD COLUMN Ports TEXT";
+                    addColumn.ExecuteNonQuery();
+                }
+
                 Logger.Info("Database migration completed successfully");
             }
             catch (Exception ex)
@@ -139,7 +147,28 @@ namespace Dorothy.Services
                         HardwareId TEXT,
                         MachineName TEXT,
                         Username TEXT,
-                        UserId TEXT
+                        UserId TEXT,
+                        Ports TEXT
+                    );
+                    
+                    CREATE TABLE IF NOT EXISTS Ports (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        AssetId INTEGER,
+                        HostIp TEXT NOT NULL,
+                        Port INTEGER NOT NULL,
+                        Protocol TEXT NOT NULL DEFAULT 'TCP',
+                        Service TEXT,
+                        Banner TEXT,
+                        ScanTime TEXT NOT NULL,
+                        ProjectName TEXT,
+                        Synced INTEGER NOT NULL DEFAULT 0,
+                        CreatedAt TEXT NOT NULL,
+                        SyncedAt TEXT,
+                        HardwareId TEXT,
+                        MachineName TEXT,
+                        Username TEXT,
+                        UserId TEXT,
+                        FOREIGN KEY (AssetId) REFERENCES Assets(Id) ON DELETE CASCADE
                     );
                 ";
                 command.ExecuteNonQuery();
@@ -340,7 +369,32 @@ namespace Dorothy.Services
             }
         }
 
-        public async Task<long> SaveAssetAsync(AssetEntry asset)
+        public async Task<long?> GetAssetIdByHostIpAsync(string hostIp)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = "SELECT Id FROM Assets WHERE HostIp = @HostIp LIMIT 1";
+                command.Parameters.AddWithValue("@HostIp", hostIp);
+
+                var result = await command.ExecuteScalarAsync();
+                if (result != null && result != DBNull.Value)
+                {
+                    return Convert.ToInt64(result);
+                }
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to get asset ID by host IP");
+                return null;
+            }
+        }
+
+        public async Task MarkAssetAsUnsyncedAsync(long assetId)
         {
             try
             {
@@ -349,35 +403,407 @@ namespace Dorothy.Services
 
                 var command = connection.CreateCommand();
                 command.CommandText = @"
-                    INSERT INTO Assets 
-                    (HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, CreatedAt, Synced,
-                     HardwareId, MachineName, Username, UserId)
-                    VALUES 
-                    (@HostIp, @HostName, @MacAddress, @Vendor, @IsOnline, @PingTime, @ScanTime, @ProjectName, @CreatedAt, 0,
-                     @HardwareId, @MachineName, @Username, @UserId);
-                    SELECT last_insert_rowid();
+                    UPDATE Assets 
+                    SET Synced = 0, SyncedAt = NULL
+                    WHERE Id = @AssetId
                 ";
+                command.Parameters.AddWithValue("@AssetId", assetId);
 
-                command.Parameters.AddWithValue("@HostIp", asset.HostIp);
-                command.Parameters.AddWithValue("@HostName", asset.HostName ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@MacAddress", asset.MacAddress ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@Vendor", asset.Vendor ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@IsOnline", asset.IsOnline ? 1 : 0);
-                command.Parameters.AddWithValue("@PingTime", asset.PingTime ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@ScanTime", asset.ScanTime.ToString("O"));
-                command.Parameters.AddWithValue("@ProjectName", asset.ProjectName ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@CreatedAt", asset.CreatedAt.ToString("O"));
-                command.Parameters.AddWithValue("@HardwareId", asset.HardwareId ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@MachineName", asset.MachineName ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@Username", asset.Username ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@UserId", asset.UserId?.ToString() ?? (object)DBNull.Value);
+                await command.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to mark asset as unsynced");
+                throw;
+            }
+        }
 
-                var result = await command.ExecuteScalarAsync();
-                return Convert.ToInt64(result);
+        private async Task UpdateAssetPortsColumnAsync(long assetId, string hostIp)
+        {
+            try
+            {
+                // Get all ports for this host
+                var ports = await GetPortsByHostIpAsync(hostIp);
+                
+                // Generate ports display string - ONLY port numbers, NO banners
+                // Banners are stored separately in the ports table
+                string portsDisplay = null;
+                if (ports != null && ports.Count > 0)
+                {
+                    // Only include port/protocol, no banners
+                    portsDisplay = string.Join(", ", ports.OrderBy(p => p.Port).Select(p => $"{p.Port}/{p.Protocol}"));
+                }
+
+                // Update asset's Ports column
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    UPDATE Assets
+                    SET Ports = @Ports
+                    WHERE Id = @AssetId
+                ";
+                command.Parameters.AddWithValue("@AssetId", assetId);
+                command.Parameters.AddWithValue("@Ports", portsDisplay ?? (object)DBNull.Value);
+
+                await command.ExecuteNonQueryAsync();
+                Logger.Info($"Updated Ports column for asset {assetId} ({hostIp}): {portsDisplay ?? "None"}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, $"Failed to update Ports column for asset {assetId}");
+                // Don't throw - this is a non-critical update
+            }
+        }
+
+        public async Task<long> SaveAssetAsync(AssetEntry asset)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                // Check if asset already exists
+                var existingAssetId = await GetAssetIdByHostIpAsync(asset.HostIp);
+                
+                if (existingAssetId.HasValue)
+                {
+                    // Update existing asset and mark as unsynced
+                    var updateCommand = connection.CreateCommand();
+                    updateCommand.CommandText = @"
+                        UPDATE Assets 
+                        SET HostName = @HostName, MacAddress = @MacAddress, Vendor = @Vendor, 
+                            IsOnline = @IsOnline, PingTime = @PingTime, ScanTime = @ScanTime,
+                            Ports = @Ports, Synced = 0, SyncedAt = NULL
+                        WHERE Id = @Id
+                    ";
+
+                    updateCommand.Parameters.AddWithValue("@Id", existingAssetId.Value);
+                    updateCommand.Parameters.AddWithValue("@HostName", asset.HostName ?? (object)DBNull.Value);
+                    updateCommand.Parameters.AddWithValue("@MacAddress", asset.MacAddress ?? (object)DBNull.Value);
+                    updateCommand.Parameters.AddWithValue("@Vendor", asset.Vendor ?? (object)DBNull.Value);
+                    updateCommand.Parameters.AddWithValue("@IsOnline", asset.IsOnline ? 1 : 0);
+                    updateCommand.Parameters.AddWithValue("@PingTime", asset.PingTime ?? (object)DBNull.Value);
+                    updateCommand.Parameters.AddWithValue("@ScanTime", asset.ScanTime.ToString("O"));
+                    updateCommand.Parameters.AddWithValue("@Ports", asset.Ports ?? (object)DBNull.Value);
+
+                    await updateCommand.ExecuteNonQueryAsync();
+                    Logger.Info($"Updated existing asset {existingAssetId.Value} for {asset.HostIp} and marked as unsynced");
+                    return existingAssetId.Value;
+                }
+                else
+                {
+                    // Insert new asset
+                    var command = connection.CreateCommand();
+                    command.CommandText = @"
+                        INSERT INTO Assets 
+                        (HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, CreatedAt, Synced,
+                         HardwareId, MachineName, Username, UserId, Ports)
+                        VALUES 
+                        (@HostIp, @HostName, @MacAddress, @Vendor, @IsOnline, @PingTime, @ScanTime, @ProjectName, @CreatedAt, 0,
+                         @HardwareId, @MachineName, @Username, @UserId, @Ports);
+                        SELECT last_insert_rowid();
+                    ";
+
+                    command.Parameters.AddWithValue("@HostIp", asset.HostIp);
+                    command.Parameters.AddWithValue("@HostName", asset.HostName ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@MacAddress", asset.MacAddress ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@Vendor", asset.Vendor ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@IsOnline", asset.IsOnline ? 1 : 0);
+                    command.Parameters.AddWithValue("@PingTime", asset.PingTime ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@ScanTime", asset.ScanTime.ToString("O"));
+                    command.Parameters.AddWithValue("@ProjectName", asset.ProjectName ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@CreatedAt", asset.CreatedAt.ToString("O"));
+                    command.Parameters.AddWithValue("@HardwareId", asset.HardwareId ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@MachineName", asset.MachineName ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@Username", asset.Username ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@UserId", asset.UserId?.ToString() ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@Ports", asset.Ports ?? (object)DBNull.Value);
+
+                    var result = await command.ExecuteScalarAsync();
+                    return Convert.ToInt64(result);
+                }
             }
             catch (Exception ex)
             {
                 Logger.Error(ex, "Failed to save asset");
+                throw;
+            }
+        }
+
+        public async Task SavePortAsync(PortEntry port, bool markAssetUnsynced = true)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                // Check if port already exists for this asset/host
+                var checkCommand = connection.CreateCommand();
+                checkCommand.CommandText = @"
+                    SELECT Id FROM Ports 
+                    WHERE HostIp = @HostIp AND Port = @Port AND Protocol = @Protocol
+                    LIMIT 1
+                ";
+                checkCommand.Parameters.AddWithValue("@HostIp", port.HostIp);
+                checkCommand.Parameters.AddWithValue("@Port", port.Port);
+                checkCommand.Parameters.AddWithValue("@Protocol", port.Protocol);
+
+                var existingPortId = await checkCommand.ExecuteScalarAsync();
+
+                if (existingPortId != null && existingPortId != DBNull.Value)
+                {
+                    // Update existing port - always update banner even if it was previously empty
+                    var updateCommand = connection.CreateCommand();
+                    updateCommand.CommandText = @"
+                        UPDATE Ports 
+                        SET Service = @Service, Banner = @Banner, ScanTime = @ScanTime, Synced = 0
+                        WHERE Id = @Id
+                    ";
+                    updateCommand.Parameters.AddWithValue("@Id", Convert.ToInt64(existingPortId));
+                    updateCommand.Parameters.AddWithValue("@Service", port.Service ?? (object)DBNull.Value);
+                    // Always update banner - if it's empty/null, set to NULL; otherwise set to the banner value
+                    var bannerValue = string.IsNullOrWhiteSpace(port.Banner) ? (object)DBNull.Value : port.Banner.Trim();
+                    updateCommand.Parameters.AddWithValue("@Banner", bannerValue);
+                    updateCommand.Parameters.AddWithValue("@ScanTime", port.ScanTime.ToString("O"));
+
+                    await updateCommand.ExecuteNonQueryAsync();
+                    Logger.Info($"Updated existing port {port.Port}/{port.Protocol} for {port.HostIp} (Banner: {(string.IsNullOrWhiteSpace(port.Banner) ? "None" : port.Banner.Substring(0, Math.Min(50, port.Banner.Length)) + "...")})");
+                }
+                else
+                {
+                    // Insert new port
+                    var command = connection.CreateCommand();
+                    command.CommandText = @"
+                        INSERT INTO Ports 
+                        (AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName, CreatedAt, Synced,
+                         HardwareId, MachineName, Username, UserId)
+                        VALUES 
+                        (@AssetId, @HostIp, @Port, @Protocol, @Service, @Banner, @ScanTime, @ProjectName, @CreatedAt, 0,
+                         @HardwareId, @MachineName, @Username, @UserId);
+                    ";
+
+                    command.Parameters.AddWithValue("@AssetId", port.AssetId > 0 ? (object)port.AssetId : DBNull.Value);
+                    command.Parameters.AddWithValue("@HostIp", port.HostIp);
+                    command.Parameters.AddWithValue("@Port", port.Port);
+                    command.Parameters.AddWithValue("@Protocol", port.Protocol);
+                    command.Parameters.AddWithValue("@Service", port.Service ?? (object)DBNull.Value);
+                    // Always save banner - if it's empty/null, set to NULL; otherwise set to the trimmed banner value
+                    var bannerValue = string.IsNullOrWhiteSpace(port.Banner) ? (object)DBNull.Value : port.Banner.Trim();
+                    command.Parameters.AddWithValue("@Banner", bannerValue);
+                    command.Parameters.AddWithValue("@ScanTime", port.ScanTime.ToString("O"));
+                    command.Parameters.AddWithValue("@ProjectName", port.ProjectName ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@CreatedAt", port.CreatedAt.ToString("O"));
+                    command.Parameters.AddWithValue("@HardwareId", port.HardwareId ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@MachineName", port.MachineName ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@Username", port.Username ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@UserId", port.UserId?.ToString() ?? (object)DBNull.Value);
+
+                    await command.ExecuteNonQueryAsync();
+                    Logger.Info($"Inserted new port {port.Port}/{port.Protocol} for {port.HostIp}");
+                }
+
+                // Update asset's Ports column with all ports for this host
+                if (port.AssetId > 0)
+                {
+                    await UpdateAssetPortsColumnAsync(port.AssetId, port.HostIp);
+                }
+                else if (!string.IsNullOrEmpty(port.HostIp))
+                {
+                    // If AssetId is not set, try to find asset by HostIp and update it
+                    var assetId = await GetAssetIdByHostIpAsync(port.HostIp);
+                    if (assetId.HasValue)
+                    {
+                        await UpdateAssetPortsColumnAsync(assetId.Value, port.HostIp);
+                    }
+                }
+
+                // Mark asset as unsynced when ports are added/updated
+                if (markAssetUnsynced && port.AssetId > 0)
+                {
+                    await MarkAssetAsUnsyncedAsync(port.AssetId);
+                }
+                else if (markAssetUnsynced && !string.IsNullOrEmpty(port.HostIp))
+                {
+                    // If AssetId is not set, try to find asset by HostIp and mark as unsynced
+                    var assetId = await GetAssetIdByHostIpAsync(port.HostIp);
+                    if (assetId.HasValue)
+                    {
+                        await MarkAssetAsUnsyncedAsync(assetId.Value);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to save port");
+                throw;
+            }
+        }
+
+        public async Task<List<PortEntry>> GetPortsByHostIpAsync(string hostIp)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT Id, AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName, 
+                           CreatedAt, Synced, HardwareId, MachineName, Username, UserId
+                    FROM Ports
+                    WHERE HostIp = @HostIp
+                    ORDER BY Port ASC
+                ";
+
+                command.Parameters.AddWithValue("@HostIp", hostIp);
+
+                var ports = new List<PortEntry>();
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        ports.Add(new PortEntry
+                        {
+                            Id = reader.GetInt64(0),
+                            AssetId = reader.IsDBNull(1) ? 0 : reader.GetInt64(1),
+                            HostIp = reader.GetString(2),
+                            Port = reader.GetInt32(3),
+                            Protocol = reader.GetString(4),
+                            Service = reader.IsDBNull(5) ? null : reader.GetString(5),
+                            Banner = reader.IsDBNull(6) ? null : reader.GetString(6),
+                            ScanTime = DateTime.Parse(reader.GetString(7)),
+                            ProjectName = reader.IsDBNull(8) ? null : reader.GetString(8),
+                            CreatedAt = DateTime.Parse(reader.GetString(9)),
+                            Synced = reader.GetInt32(10) == 1,
+                            HardwareId = reader.IsDBNull(11) ? null : reader.GetString(11),
+                            MachineName = reader.IsDBNull(12) ? null : reader.GetString(12),
+                            Username = reader.IsDBNull(13) ? null : reader.GetString(13),
+                            UserId = reader.IsDBNull(14) ? null : (Guid.TryParse(reader.GetString(14), out var userId) ? userId : (Guid?)null)
+                        });
+                    }
+                }
+
+                return ports;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to get ports by host IP");
+                throw;
+            }
+        }
+
+        public async Task<List<PortEntry>> GetUnsyncedPortsByHostIpAsync(string hostIp)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT Id, AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName, 
+                           CreatedAt, Synced, HardwareId, MachineName, Username, UserId
+                    FROM Ports
+                    WHERE HostIp = @HostIp AND Synced = 0
+                    ORDER BY Port ASC
+                ";
+
+                command.Parameters.AddWithValue("@HostIp", hostIp);
+
+                var ports = new List<PortEntry>();
+                using (var reader = await command.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        ports.Add(new PortEntry
+                        {
+                            Id = reader.GetInt64(0),
+                            AssetId = reader.IsDBNull(1) ? 0 : reader.GetInt64(1),
+                            HostIp = reader.GetString(2),
+                            Port = reader.GetInt32(3),
+                            Protocol = reader.GetString(4),
+                            Service = reader.IsDBNull(5) ? null : reader.GetString(5),
+                            Banner = reader.IsDBNull(6) ? null : reader.GetString(6),
+                            ScanTime = DateTime.Parse(reader.GetString(7)),
+                            ProjectName = reader.IsDBNull(8) ? null : reader.GetString(8),
+                            CreatedAt = DateTime.Parse(reader.GetString(9)),
+                            Synced = reader.GetInt32(10) == 1,
+                            HardwareId = reader.IsDBNull(11) ? null : reader.GetString(11),
+                            MachineName = reader.IsDBNull(12) ? null : reader.GetString(12),
+                            Username = reader.IsDBNull(13) ? null : reader.GetString(13),
+                            UserId = reader.IsDBNull(14) ? null : (Guid.TryParse(reader.GetString(14), out var userId) ? userId : (Guid?)null)
+                        });
+                    }
+                }
+
+                return ports;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to get unsynced ports by host IP");
+                throw;
+            }
+        }
+
+        public async Task MarkPortsAsSyncedAsync(IEnumerable<long> portIds, DateTime syncedAt)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var idsList = portIds.ToList();
+                if (idsList.Count == 0) return;
+
+                // Check if SyncedAt column exists
+                var checkColumn = connection.CreateCommand();
+                checkColumn.CommandText = "PRAGMA table_info(Ports)";
+                var hasSyncedAt = false;
+                using (var reader = await checkColumn.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
+                    {
+                        if (reader.GetString(1) == "SyncedAt")
+                        {
+                            hasSyncedAt = true;
+                            break;
+                        }
+                    }
+                }
+
+                var placeholders = string.Join(",", idsList.Select((_, i) => $"@Id{i}"));
+                var command = connection.CreateCommand();
+                
+                if (hasSyncedAt)
+                {
+                    command.CommandText = $@"
+                        UPDATE Ports
+                        SET Synced = 1, SyncedAt = @SyncedAt
+                        WHERE Id IN ({placeholders})
+                    ";
+                    command.Parameters.AddWithValue("@SyncedAt", syncedAt.ToString("O"));
+                }
+                else
+                {
+                    command.CommandText = $@"
+                        UPDATE Ports
+                        SET Synced = 1
+                        WHERE Id IN ({placeholders})
+                    ";
+                }
+
+                for (int i = 0; i < idsList.Count; i++)
+                {
+                    command.Parameters.AddWithValue($"@Id{i}", idsList[i]);
+                }
+
+                await command.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to mark ports as synced");
                 throw;
             }
         }
@@ -392,7 +818,7 @@ namespace Dorothy.Services
                 var command = connection.CreateCommand();
                 string query = @"
                     SELECT Id, HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, Synced, CreatedAt, SyncedAt,
-                           HardwareId, MachineName, Username, UserId
+                           HardwareId, MachineName, Username, UserId, Ports
                     FROM Assets
                     WHERE Synced = 0";
                 
@@ -552,7 +978,8 @@ namespace Dorothy.Services
                 HardwareId = reader.IsDBNull(12) ? null : reader.GetString(12),
                 MachineName = reader.IsDBNull(13) ? null : reader.GetString(13),
                 Username = reader.IsDBNull(14) ? null : reader.GetString(14),
-                UserId = reader.IsDBNull(15) ? null : Guid.Parse(reader.GetString(15))
+                UserId = reader.IsDBNull(15) ? null : (Guid.TryParse(reader.GetString(15), out var userId) ? userId : (Guid?)null),
+                Ports = reader.FieldCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
             };
         }
 

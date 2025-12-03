@@ -25,6 +25,8 @@ namespace Dorothy.Services
 
         public bool IsConfigured => _supabaseClient != null;
 
+        public Client? GetSupabaseClient() => _supabaseClient;
+
         private void ReportProgress(string message)
         {
             Logger.Info(message);
@@ -356,16 +358,56 @@ namespace Dorothy.Services
                             macAddress = null;
                         }
 
+                        // Check if asset already exists in Supabase
+                        long supabaseAssetId = 0;
+                        try
+                        {
+                            var existingAsset = await _supabaseClient
+                                .From<AssetEntry>()
+                                .Select("id")
+                                .Where(x => x.HostIp == asset.HostIp)
+                                .Limit(1)
+                                .Get();
+
+                            if (existingAsset != null && existingAsset.Models != null && existingAsset.Models.Count > 0)
+                            {
+                                // Asset exists, use existing ID
+                                supabaseAssetId = existingAsset.Models[0].Id;
+                                
+                                // Update the existing asset
+                                // Note: Ports column will be updated after ports are synced (with port numbers only, no banners)
+                                await _supabaseClient
+                                    .From<AssetEntry>()
+                                    .Where(x => x.Id == supabaseAssetId)
+                                    .Set(x => x.HostName, hostName)
+                                    .Set(x => x.MacAddress, macAddress)
+                                    .Set(x => x.Vendor, vendor)
+                                    .Set(x => x.IsOnline, asset.IsOnline)
+                                    .Set(x => x.PingTime, asset.PingTime)
+                                    .Set(x => x.ScanTime, asset.ScanTime)
+                                    .Set(x => x.ProjectName, projectName ?? asset.ProjectName)
+                                    .Update();
+                            }
+                        }
+                        catch
+                        {
+                            // Asset doesn't exist or query failed, will insert new one
+                        }
+
+                        if (supabaseAssetId == 0)
+                        {
+                            // Asset doesn't exist, insert new one
                         var supabaseAsset = new AssetEntry
                         {
                             HostIp = asset.HostIp,
-                            HostName = hostName, // Convert "Unknown" to null
-                            MacAddress = macAddress, // Convert "Unknown" to null
-                            Vendor = vendor, // Convert "Unknown" to null
+                                HostName = hostName, // Convert "Unknown" to null
+                                MacAddress = macAddress, // Convert "Unknown" to null
+                                Vendor = vendor, // Convert "Unknown" to null
                             IsOnline = asset.IsOnline,
                             PingTime = asset.PingTime,
                             ScanTime = asset.ScanTime,
                             ProjectName = projectName ?? asset.ProjectName,
+                                // Ports column will be updated after ports are synced (with port numbers only, no banners)
                             Synced = true,
                             CreatedAt = asset.CreatedAt,
                             HardwareId = asset.HardwareId?.ToUpperInvariant(),
@@ -382,11 +424,172 @@ namespace Dorothy.Services
                             .Insert(supabaseAsset);
 
                         if (response != null && response.Models != null && response.Models.Count > 0)
-                        {
-                            lock (syncLock)
                             {
-                                syncedIds.Add(asset.Id);
-                                syncedCount++;
+                                supabaseAssetId = response.Models[0].Id;
+                            }
+                        }
+
+                        if (supabaseAssetId > 0)
+                        {
+                            // Sync ALL ports for this asset to Supabase ports table SEPARATELY
+                            // Ports are stored ONLY in the ports table with host_id foreign key
+                            // The assets.ports column is automatically updated by database trigger when ports are inserted/updated
+                            // This ensures complete separation: ports table = detailed port data, assets.ports = summary (auto-updated)
+                            try
+                            {
+                                var allPorts = await _databaseService.GetPortsByHostIpAsync(asset.HostIp);
+                                if (allPorts.Count > 0)
+                                {
+                                    var portSyncedIds = new List<long>();
+                                    foreach (var port in allPorts)
+                                    {
+                                        try
+                                        {
+                                            var supabasePort = new PortEntry
+                                            {
+                                                HostId = supabaseAssetId, // Link to the asset via host_id foreign key (maps to assets.id)
+                                                Port = port.Port,
+                                                Protocol = port.Protocol,
+                                                Service = port.Service,
+                                                Banner = port.Banner, // Banner information stored separately in ports table
+                                                Severity = "INFO", // Default - will be automatically calculated by database trigger based on port, protocol, service, and banner
+                                                ScanTime = port.ScanTime,
+                                                ProjectName = projectName ?? port.ProjectName,
+                                                Synced = true,
+                                                CreatedAt = port.CreatedAt,
+                                                HardwareId = port.HardwareId?.ToUpperInvariant(),
+                                                MachineName = port.MachineName,
+                                                Username = port.Username,
+                                                UserId = port.UserId
+                                            };
+
+                                            // Explicitly clear local-only property
+                                            supabasePort.SyncedAt = null;
+
+                                            // Check if port already exists (using unique constraint: host_id, port, protocol)
+                                            try
+                                            {
+                                                var existingPort = await _supabaseClient
+                                                    .From<PortEntry>()
+                                                    .Select("id")
+                                                    .Where(x => x.HostId == supabaseAssetId && x.Port == port.Port && x.Protocol == port.Protocol)
+                                                    .Limit(1)
+                                                    .Get();
+
+                                                if (existingPort != null && existingPort.Models != null && existingPort.Models.Count > 0)
+                                                {
+                                                    // Port exists, update it (including HostId to ensure proper linking)
+                                                    // Severity will be automatically recalculated by database trigger
+                                                    // Database trigger will also automatically update assets.ports column
+                                                    await _supabaseClient
+                                                        .From<PortEntry>()
+                                                        .Where(x => x.Id == existingPort.Models[0].Id)
+                                                        .Set(x => x.HostId, supabaseAssetId) // Update HostId to link to current asset
+                                                        .Set(x => x.Service, port.Service)
+                                                        .Set(x => x.Banner, port.Banner) // Banner stored separately in ports table
+                                                        .Set(x => x.ScanTime, port.ScanTime)
+                                                        .Set(x => x.ProjectName, projectName ?? port.ProjectName)
+                                                        .Update();
+                                                    
+                                                    portSyncedIds.Add(port.Id);
+                                                }
+                                                else
+                                                {
+                                                    // Port doesn't exist, insert new one
+                                                    // Database trigger will automatically:
+                                                    // 1. Calculate severity based on port, protocol, service, banner
+                                                    // 2. Update assets.ports column with summary
+                                                    var portResponse = await _supabaseClient
+                                                        .From<PortEntry>()
+                                                        .Insert(supabasePort);
+
+                                                    if (portResponse != null && portResponse.Models != null && portResponse.Models.Count > 0)
+                                                    {
+                                                        portSyncedIds.Add(port.Id);
+                                                    }
+                                                }
+                                            }
+                                            catch
+                                            {
+                                                // If check fails, try to insert (might be a new port)
+                                                try
+                                                {
+                                                    var portResponse = await _supabaseClient
+                                                        .From<PortEntry>()
+                                                        .Insert(supabasePort);
+
+                                                    if (portResponse != null && portResponse.Models != null && portResponse.Models.Count > 0)
+                                                    {
+                                                        portSyncedIds.Add(port.Id);
+                                                    }
+                                                }
+                                                catch
+                                                {
+                                                    // Port might already exist, skip it
+                                                    Logger.Warn($"Port {port.Port}/{port.Protocol} for {port.HostIp} might already exist in Supabase");
+                                                }
+                                            }
+                                        }
+                                        catch (Exception portEx)
+                                        {
+                                            Logger.Error(portEx, $"Failed to sync port {port.Port} for asset {asset.HostIp}");
+                                            // Continue with other ports
+                                        }
+                                    }
+
+                                    // Mark successfully synced ports (mark all ports as synced)
+                                    // This ensures all ports are marked as synced, even if they were already in Supabase
+                                    if (portSyncedIds.Count > 0)
+                                    {
+                                        await _databaseService.MarkPortsAsSyncedAsync(portSyncedIds, DateTime.UtcNow);
+                                        Logger.Info($"Synced {portSyncedIds.Count} port(s) for asset {asset.HostIp} to Supabase ports table (separate from assets table)");
+                                    }
+                                    
+                                    // Also mark any ports that were already synced but might not be in the list
+                                    // This handles the case where ports exist but weren't in the sync list
+                                    var allPortIds = allPorts.Select(p => p.Id).ToList();
+                                    if (allPortIds.Count > portSyncedIds.Count)
+                                    {
+                                        var alreadySyncedIds = allPortIds.Except(portSyncedIds).ToList();
+                                        if (alreadySyncedIds.Count > 0)
+                                        {
+                                            await _databaseService.MarkPortsAsSyncedAsync(alreadySyncedIds, DateTime.UtcNow);
+                                            Logger.Info($"Marked {alreadySyncedIds.Count} existing port(s) as synced for asset {asset.HostIp}");
+                                        }
+                                    }
+                                    
+                                    // Manually update assets.ports column with ONLY port numbers (NO BANNERS)
+                                    // Format: "80/TCP, 443/TCP, 22/TCP"
+                                    // Banners are stored separately in the ports table
+                                    try
+                                    {
+                                        var portsOnly = string.Join(", ", allPorts.OrderBy(p => p.Port).Select(p => $"{p.Port}/{p.Protocol}"));
+                                        
+                                        await _supabaseClient
+                                            .From<AssetEntry>()
+                                            .Where(x => x.Id == supabaseAssetId)
+                                            .Set(x => x.Ports, portsOnly)
+                                            .Update();
+                                        
+                                        Logger.Info($"Updated assets.ports column for {asset.HostIp} with port numbers only (no banners): {portsOnly}");
+                                    }
+                                    catch (Exception portsUpdateEx)
+                                    {
+                                        Logger.Error(portsUpdateEx, $"Failed to update assets.ports column for {asset.HostIp}");
+                                        // Don't fail the entire sync if ports column update fails
+                                    }
+                                }
+                            }
+                            catch (Exception portSyncEx)
+                            {
+                                Logger.Error(portSyncEx, $"Failed to sync ports for asset {asset.HostIp}");
+                                // Continue - asset is still synced even if ports fail
+                            }
+
+                            lock (syncLock)
+                        {
+                            syncedIds.Add(asset.Id);
+                            syncedCount++;
                             }
                         }
                     }
@@ -565,7 +768,7 @@ namespace Dorothy.Services
             {
                 // NetBIOS lookup failed, stay as unknown
             }
-            
+
             return "Unknown";
         }
 
