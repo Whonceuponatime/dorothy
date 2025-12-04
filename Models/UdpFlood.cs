@@ -86,9 +86,11 @@ namespace Dorothy.Models
                             // If we're behind budget, send packets (small burst)
                             if (bytesSent < allowedBytes)
                             {
-                                // Calculate how many packets we can send to catch up (but limit burst size)
+                                // Calculate how many packets we can send to catch up
+                                // Dynamically adjust burst size based on target rate for better throughput
                                 long bytesBehind = allowedBytes - bytesSent;
-                                int packetsToSend = Math.Min((int)(bytesBehind / totalPacketSize) + 1, 5); // Max 5 packets per iteration
+                                int maxBurst = targetMbps > 50 ? 50 : (targetMbps > 10 ? 20 : 10); // Higher burst for higher rates
+                                int packetsToSend = Math.Min((int)(bytesBehind / totalPacketSize) + 1, maxBurst);
                                 
                                 for (int i = 0; i < packetsToSend && bytesSent < allowedBytes; i++)
                                 {

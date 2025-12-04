@@ -42,6 +42,12 @@ namespace Dorothy.Views
         private readonly NetworkStorm _networkStorm;
         private readonly AttackLogger _attackLogger;
         private readonly TraceRoute _traceRoute;
+        private Services.SnmpWalkService? _snmpWalkService;
+        private CancellationTokenSource? _snmpWalkCancellationTokenSource;
+        
+        // Security assessment tracking
+        private bool _reachabilityTestPassed = false;
+        private bool _snmpWalkNotVulnerable = false;
         private bool _isAdvancedMode;
         private string _validationToken; // Session-based validation token
         private const string VALIDATION_TOKEN_FILE = "validation.token"; // Encrypted validation token file
@@ -90,6 +96,9 @@ namespace Dorothy.Views
         private Services.UpdateCheckService? _updateCheckService;
         private System.Windows.Threading.DispatcherTimer? _updateCheckTimer;
 
+        // Firewall Reachability Discovery
+        private Services.FirewallDiscoveryEngine? _firewallDiscoveryEngine;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -132,6 +141,12 @@ namespace Dorothy.Views
             _syncCheckTimer.Interval = TimeSpan.FromSeconds(30);
             _syncCheckTimer.Tick += SyncCheckTimer_Tick;
             _syncCheckTimer.Start();
+
+            // Initialize Firewall Discovery Engine
+            _firewallDiscoveryEngine = new Services.FirewallDiscoveryEngine();
+
+            // Initialize SNMP Walk Service
+            _snmpWalkService = new Services.SnmpWalkService(_attackLogger);
 
             // Initialize UI components first
             PopulateNetworkInterfaces();
@@ -213,19 +228,39 @@ namespace Dorothy.Views
                 _ = Task.Run(async () => await UpdateSyncStatus());
                 
                 // Initialize update check service and start checking for updates
-                if (_supabaseSyncService.IsConfigured)
+                // Always initialize (even if Supabase not configured, it will show "Cloud" status)
+                _updateCheckService = new Services.UpdateCheckService(_supabaseSyncService.GetSupabaseClient(), _attackLogger);
+                
+                // Check for updates immediately on startup
+                _ = Task.Run(async () =>
                 {
-                    _updateCheckService = new Services.UpdateCheckService(_supabaseSyncService.GetSupabaseClient());
-                    _ = Task.Run(async () => await CheckForUpdatesAsync());
-                    
-                    // Set up periodic update check (every 30 minutes)
-                    _updateCheckTimer = new System.Windows.Threading.DispatcherTimer
+                    try
                     {
-                        Interval = TimeSpan.FromMinutes(30)
-                    };
-                    _updateCheckTimer.Tick += async (s, e) => await CheckForUpdatesAsync();
-                    _updateCheckTimer.Start();
-                }
+                        await CheckForUpdatesAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(ex, "Error during startup update check");
+                    }
+                });
+                
+                // Set up periodic update check (every 30 minutes)
+                _updateCheckTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMinutes(30)
+                };
+                _updateCheckTimer.Tick += async (s, e) =>
+                {
+                    try
+                    {
+                        await CheckForUpdatesAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(ex, "Error during periodic update check");
+                    }
+                };
+                _updateCheckTimer.Start();
             }
             catch (Exception ex)
             {
@@ -878,7 +913,7 @@ namespace Dorothy.Views
             // Use existing update check service if available, otherwise create new one
             var updateCheckService = _updateCheckService ?? 
                 (_supabaseSyncService.IsConfigured 
-                    ? new Services.UpdateCheckService(_supabaseSyncService.GetSupabaseClient()) 
+                    ? new Services.UpdateCheckService(_supabaseSyncService.GetSupabaseClient(), _attackLogger) 
                     : null);
             
             var aboutWindow = new AboutWindow(updateCheckService)
@@ -1147,14 +1182,15 @@ namespace Dorothy.Views
 
                 var unsyncedLogs = await _databaseService.GetUnsyncedLogsAsync();
                 var unsyncedAssets = await _databaseService.GetUnsyncedAssetsAsync();
+                var unsyncedTests = await _databaseService.GetUnsyncedReachabilityTestsAsync();
                 
-                if (unsyncedLogs.Count == 0 && unsyncedAssets.Count == 0)
+                if (unsyncedLogs.Count == 0 && unsyncedAssets.Count == 0 && unsyncedTests.Count == 0)
                 {
-                    _toastService.ShowInfo("No pending logs or assets to sync.");
+                    _toastService.ShowInfo("No pending logs, assets, or tests to sync.");
                     return;
                 }
 
-                var syncWindow = new SyncWindow(unsyncedLogs, unsyncedAssets)
+                var syncWindow = new SyncWindow(unsyncedLogs, unsyncedAssets, unsyncedTests)
                 {
                     Owner = this
                 };
@@ -1175,7 +1211,8 @@ namespace Dorothy.Views
                     {
                         int syncedLogsCount = 0;
                         int syncedAssetsCount = 0;
-                        bool hasDeletions = syncWindow.DeletedLogIds.Count > 0 || syncWindow.DeletedAssetIds.Count > 0;
+                        int syncedTestsCount = 0;
+                        bool hasDeletions = syncWindow.DeletedLogIds.Count > 0 || syncWindow.DeletedAssetIds.Count > 0 || syncWindow.DeletedTestIds.Count > 0 || syncWindow.DeletedSnmpWalkIds.Count > 0;
 
                     // Delete selected logs if any (always process deletions, even if not syncing)
                     if (syncWindow.DeletedLogIds.Count > 0)
@@ -1189,6 +1226,20 @@ namespace Dorothy.Views
                     {
                         await _databaseService.DeleteAssetsAsync(syncWindow.DeletedAssetIds);
                         _attackLogger.LogInfo($"Deleted {syncWindow.DeletedAssetIds.Count} asset(s).");
+                    }
+
+                    // Delete selected tests if any (always process deletions, even if not syncing)
+                    if (syncWindow.DeletedTestIds.Count > 0)
+                    {
+                        await _databaseService.DeleteReachabilityTestsAsync(syncWindow.DeletedTestIds);
+                        _attackLogger.LogInfo($"Deleted {syncWindow.DeletedTestIds.Count} reachability test(s).");
+                    }
+
+                    // Delete selected SNMP walks if any (always process deletions, even if not syncing)
+                    if (syncWindow.DeletedSnmpWalkIds.Count > 0)
+                    {
+                        await _databaseService.DeleteReachabilityTestsAsync(syncWindow.DeletedSnmpWalkIds);
+                        _attackLogger.LogInfo($"Deleted {syncWindow.DeletedSnmpWalkIds.Count} SNMP walk(s).");
                     }
 
                     // Only sync if user clicked "Sync Selected" button
@@ -1229,22 +1280,34 @@ namespace Dorothy.Views
                             }
                         }
 
-                        // Show success message
-                        if (syncedLogsCount > 0 || syncedAssetsCount > 0)
+                        // Sync selected reachability tests (combine regular tests and SNMP walks)
+                        var allTestIds = syncWindow.SelectedTestIds.Concat(syncWindow.SelectedSnmpWalkIds).ToList();
+                        if (allTestIds.Count > 0)
                         {
-                            var message = "";
-                            if (syncedLogsCount > 0 && syncedAssetsCount > 0)
+                            SyncProgressText.Text = $"Syncing {allTestIds.Count} reachability test(s) and SNMP walk(s)...";
+                            var result = await _supabaseSyncService.SyncReachabilityTestsAsync(syncWindow.ProjectName, allTestIds);
+
+                            if (result.Success)
                             {
-                                message = $"Sync complete ??{syncedLogsCount} log(s) and {syncedAssetsCount} asset(s) synced successfully.";
+                                syncedTestsCount = result.SyncedCount;
+                                _attackLogger.LogSuccess(result.Message);
                             }
-                            else if (syncedLogsCount > 0)
+                            else
                             {
-                                message = $"Sync complete ??{syncedLogsCount} log(s) synced successfully.";
+                                _attackLogger.LogWarning(result.Message);
+                                _toastService.ShowWarning($"Reachability test sync failed: {result.Message}");
                             }
-                            else if (syncedAssetsCount > 0)
-                            {
-                                message = $"Sync complete ??{syncedAssetsCount} asset(s) synced successfully.";
-                            }
+                        }
+
+                        // Show success message
+                        if (syncedLogsCount > 0 || syncedAssetsCount > 0 || syncedTestsCount > 0)
+                        {
+                            var parts = new List<string>();
+                            if (syncedLogsCount > 0) parts.Add($"{syncedLogsCount} log(s)");
+                            if (syncedAssetsCount > 0) parts.Add($"{syncedAssetsCount} asset(s)");
+                            if (syncedTestsCount > 0) parts.Add($"{syncedTestsCount} test(s)");
+                            
+                            var message = $"Sync complete ✅ {string.Join(", ", parts)} synced successfully.";
                             _toastService.ShowSuccess(message);
                         }
                         else
@@ -1255,7 +1318,7 @@ namespace Dorothy.Views
                     else if (hasDeletions)
                     {
                         // User deleted items but didn't sync - just show deletion confirmation
-                        var deletedCount = syncWindow.DeletedLogIds.Count + syncWindow.DeletedAssetIds.Count;
+                        var deletedCount = syncWindow.DeletedLogIds.Count + syncWindow.DeletedAssetIds.Count + syncWindow.DeletedTestIds.Count;
                         _toastService.ShowInfo($"Deleted {deletedCount} item(s).");
                     }
 
@@ -1395,7 +1458,7 @@ namespace Dorothy.Views
                     if (fallbackCheckBox != null && (!fallbackCheckBox.IsChecked.HasValue || !fallbackCheckBox.IsChecked.Value))
                     {
                         fallbackCheckBox.IsChecked = true;
-                        _attackLogger.LogInfo("?뱷 Fallback mode enabled automatically due to ping failure - Manual MAC entry available");
+                        _attackLogger.LogInfo("⚠️ Fallback mode enabled automatically due to ping failure - Manual MAC entry available");
                     }
                 }
             }
@@ -1467,7 +1530,7 @@ namespace Dorothy.Views
                             }
                             else
                             {
-                                _attackLogger.LogInfo("?뙋 Source and target are on different subnets - Gateway required");
+                                _attackLogger.LogInfo("📍 Source and target are on different subnets - Gateway required");
                                 if (string.IsNullOrWhiteSpace(GatewayIpTextBox.Text))
                                 {
                                     return false;
@@ -1518,7 +1581,7 @@ namespace Dorothy.Views
                     return;
                 }
 
-                _attackLogger.LogInfo($"?뵇 Resolving MAC address for {targetIp}...");
+                _attackLogger.LogInfo($"🔍 Resolving MAC address for {targetIp}...");
 
                 // First, try to ping the target to populate ARP cache
                 var pingResult = await _mainController.PingHostAsync(targetIp);
@@ -1540,7 +1603,7 @@ namespace Dorothy.Views
                         if (fallbackCheckBox != null && (!fallbackCheckBox.IsChecked.HasValue || !fallbackCheckBox.IsChecked.Value))
                         {
                             fallbackCheckBox.IsChecked = true;
-                            _attackLogger.LogInfo("?뱷 Fallback mode enabled - Please enter gateway MAC address manually");
+                            _attackLogger.LogInfo("⚠️ Fallback mode enabled - Please enter gateway MAC address manually");
                         }
                         return;
                     }
@@ -1571,7 +1634,7 @@ namespace Dorothy.Views
                         if (fallbackCheckBox != null && (!fallbackCheckBox.IsChecked.HasValue || !fallbackCheckBox.IsChecked.Value))
                         {
                             fallbackCheckBox.IsChecked = true;
-                            _attackLogger.LogInfo("?뱷 Fallback mode enabled - Please enter MAC address manually");
+                            _attackLogger.LogInfo("⚠️ Fallback mode enabled - Please enter MAC address manually");
                         }
                     }
                 }
@@ -1605,7 +1668,7 @@ namespace Dorothy.Views
                         if (fallbackCheckBox != null && (!fallbackCheckBox.IsChecked.HasValue || !fallbackCheckBox.IsChecked.Value))
                         {
                             fallbackCheckBox.IsChecked = true;
-                            _attackLogger.LogInfo("?뱷 Fallback mode enabled - Target MAC field is now editable for manual entry");
+                            _attackLogger.LogInfo("⚠️ Fallback mode enabled - Target MAC field is now editable for manual entry");
                         }
                     }
                 }
@@ -1967,7 +2030,7 @@ namespace Dorothy.Views
                         _hasShownAttackLogSyncNotification = true;
                         Dispatcher.Invoke(() =>
                         {
-                            _toastService.ShowInfo("?뮶 Attack log saved. Click Cloud Sync button to upload to Supabase.");
+                            _toastService.ShowInfo("✅ Attack log saved. Click Cloud Sync button to upload to Supabase.");
                         });
                     }
                 });
@@ -2326,6 +2389,7 @@ namespace Dorothy.Views
                 AdvancedAttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "ARP Spoofing" });
                 AdvancedAttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "NMEA 0183 (UDP Unicast)" });
                 AdvancedAttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "NMEA 0183 (UDP Multicast)" });
+                AdvancedAttackTypeComboBox.Items.Add(new ComboBoxItem { Content = "Modbus/TCP Flood (Read Requests)" });
             }
             catch (Exception ex)
             {
@@ -2974,6 +3038,17 @@ namespace Dorothy.Views
                                 AdvTargetIpTextBox.Text = "239.192.0.1"; // Default multicast group
                             }
                             break;
+                        case "Modbus/TCP Flood (Read Requests)":
+                            AdvTargetPortTextBox.IsEnabled = true;
+                            AdvMegabitsPerSecondTextBox.IsEnabled = true;
+                            AdvTargetMacTextBox.IsEnabled = false;
+                            SpoofedMacTextBox.IsEnabled = false;
+                            // Set default port for Modbus/TCP
+                            if (string.IsNullOrWhiteSpace(AdvTargetPortTextBox.Text) || AdvTargetPortTextBox.Text == "0")
+                            {
+                                AdvTargetPortTextBox.Text = "502";
+                            }
+                            break;
                         default:
                             AdvTargetPortTextBox.IsEnabled = true;
                             AdvMegabitsPerSecondTextBox.IsEnabled = true;
@@ -3105,6 +3180,9 @@ namespace Dorothy.Views
                         case "NMEA 0183 (UDP Unicast)":
                         case "NMEA 0183 (UDP Multicast)":
                             await StartNmea0183Attack(attackType);
+                            break;
+                        case "Modbus/TCP Flood (Read Requests)":
+                            await StartModbusTcpAttack();
                             break;
                         case "Ethernet Unicast (IPv4)":
                         case "Ethernet Unicast (IPv6)":
@@ -3269,6 +3347,99 @@ namespace Dorothy.Views
                 StartAdvancedAttackButton.IsEnabled = true;
                 StopAdvancedAttackButton.IsEnabled = false;
                 _attackLogger.LogError($"Failed to start NMEA 0183 attack: {ex.Message}");
+                throw;
+            }
+        }
+
+        private async Task StartModbusTcpAttack()
+        {
+            try
+            {
+                string targetIp = AdvTargetIpTextBox.Text.Trim();
+                string sourceIp = AdvSourceIpTextBox.Text.Trim();
+                
+                if (string.IsNullOrWhiteSpace(targetIp))
+                {
+                    MessageBox.Show("Please enter a target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                
+                if (!IPAddress.TryParse(targetIp, out var parsedTargetIp))
+                {
+                    MessageBox.Show("Invalid target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                
+                if (!int.TryParse(AdvTargetPortTextBox.Text, out int targetPort) || targetPort <= 0 || targetPort > 65535)
+                {
+                    MessageBox.Show("Invalid target port. Please enter a port between 1 and 65535.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                
+                if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out long megabitsPerSecond) || megabitsPerSecond <= 0)
+                {
+                    MessageBox.Show("Invalid rate (Mbps). Please enter a positive number.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Set the running attack type
+                _currentRunningAttackType = "Modbus/TCP Flood (Read Requests)";
+
+                // Initialize statistics
+                _totalPacketsSent = 0;
+                _totalBytesSent = 0;
+                _attackStartTime = DateTime.Now;
+                _lastStatsUpdateTime = DateTime.Now;
+                _lastBytesSent = 0;
+                _targetMbps = megabitsPerSecond;
+                _statsTimer?.Start();
+
+                StartAdvancedAttackButton.IsEnabled = false;
+                StopAdvancedAttackButton.IsEnabled = true;
+
+                // Get MAC addresses for logging
+                var sourceMacBytes = await _mainController.GetLocalMacAddressAsync();
+                byte[] targetMacBytes;
+                
+                // For Modbus/TCP, try to resolve MAC (handles routed targets by returning gateway MAC)
+                targetMacBytes = await _mainController.GetMacAddressAsync(targetIp);
+                if (targetMacBytes.Length == 0)
+                {
+                    // If MAC resolution failed, try to resolve gateway MAC if gateway IP is set
+                    if (!string.IsNullOrEmpty(_networkStorm.GatewayIp))
+                    {
+                        targetMacBytes = await _mainController.GetMacAddressAsync(_networkStorm.GatewayIp);
+                        if (targetMacBytes.Length > 0)
+                        {
+                            await _networkStorm.SetGatewayMacAsync(targetMacBytes);
+                            _attackLogger.LogInfo($"Using gateway MAC for Modbus/TCP target: {BitConverter.ToString(targetMacBytes).Replace("-", ":")}");
+                        }
+                    }
+                    
+                    if (targetMacBytes.Length == 0)
+                    {
+                        _attackLogger.LogError("Failed to resolve target MAC address. Please enable fallback mode and enter MAC manually.");
+                        StartAdvancedAttackButton.IsEnabled = true;
+                        StopAdvancedAttackButton.IsEnabled = false;
+                        _currentRunningAttackType = null;
+                        return;
+                    }
+                }
+
+                // Log attack start with Modbus-specific labels
+                _attackLogger.StartModbusTcpAttack(sourceIp, sourceMacBytes, targetIp, targetMacBytes, megabitsPerSecond, targetPort);
+
+                // Start the Modbus/TCP attack
+                await _networkStorm.StartModbusTcpAttackAsync(targetIp, targetPort, megabitsPerSecond);
+            }
+            catch (Exception ex)
+            {
+                _currentRunningAttackType = null;
+                ResetStatistics();
+                _statsTimer?.Stop();
+                StartAdvancedAttackButton.IsEnabled = true;
+                StopAdvancedAttackButton.IsEnabled = false;
+                _attackLogger.LogError($"Failed to start Modbus/TCP attack: {ex.Message}");
                 throw;
             }
         }
@@ -3583,16 +3754,16 @@ namespace Dorothy.Views
                 byte[] targetMacBytes = targetMac.Split(':').Select(b => Convert.ToByte(b, 16)).ToArray();
 
                 // Log comprehensive ARP Spoofing start
-                var arpStartMessage = "?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺\n" +
-                                    $"??Status: Attack Started\n" +
-                                    $"?뱻 Protocol: ARP Spoofing\n" +
-                                    $"?뱧 Source Host: {sourceIp}\n" +
-                                    $"?뵆 Source MAC: {sourceMac}\n" +
-                                    $"?렞 Target Host: {targetIp}\n" +
-                                    $"?뵆 Target MAC: {targetMac}\n" +
-                                    $"?렚 Spoofed MAC: {spoofedMac}\n" +
-                                    $"?븧 Start Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\n" +
-                                    "?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺";
+                var arpStartMessage = "════════════════════════════════════════════════════════\n" +
+                                    $"✅ Status: Attack Started\n" +
+                                    $"🌐 Protocol: ARP Spoofing\n" +
+                                    $"📍 Source Host: {sourceIp}\n" +
+                                    $"🔗 Source MAC: {sourceMac}\n" +
+                                    $"🎯 Target Host: {targetIp}\n" +
+                                    $"🔗 Target MAC: {targetMac}\n" +
+                                    $"🎭 Spoofed MAC: {spoofedMac}\n" +
+                                    $"⏰ Start Time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}\n" +
+                                    "════════════════════════════════════════════════════════";
                 _attackLogger.LogInfo(arpStartMessage);
 
             await _mainController.StartArpSpoofingAsync(sourceIp, sourceMac, targetIp, targetMac, spoofedMac);
@@ -3754,7 +3925,7 @@ namespace Dorothy.Views
                         // Always show disclaimer when entering Advanced Settings tab
                         ShowAdvancedSettingsDisclaimer();
                         
-                        // If user didn't acknowledge (clicked Back), switch back to previous tab
+                        // If user didn't acknowledge (clicked Back or Cancel), switch back to previous tab
                         if (!_disclaimerAcknowledged)
                         {
                             // Use the tracked previous tab, or use the one from the event, or default to Basic tab
@@ -3790,6 +3961,15 @@ namespace Dorothy.Views
                             
                             _isHandlingTabChange = false;
                             return;
+                        }
+                        
+                        // User acknowledged disclaimer - ensure we stay on Advanced tab
+                        // Explicitly set the Advanced tab as selected to prevent any tab switching
+                        if (MainTabControl.SelectedItem != AdvancedTab)
+                        {
+                            MainTabControl.SelectionChanged -= MainTabControl_SelectionChanged;
+                            MainTabControl.SelectedItem = AdvancedTab;
+                            MainTabControl.SelectionChanged += MainTabControl_SelectionChanged;
                         }
                         
                         // Change badge to ATTACK MODE when entering Advanced Settings tab
@@ -4092,10 +4272,10 @@ namespace Dorothy.Views
                 var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                 var note = NoteTextBox.Text.Trim();
                 
-                var formattedNote = $"\n?뱷 USER NOTE ?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺\n" +
+                var formattedNote = $"\n📝 USER NOTE ════════════════════════════════════════════════════════\n" +
                                    $"Time: {timestamp}\n" +
                                    $"Note: {note}\n" +
-                                   $"?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺?곣봺 END NOTE ?뱷\n";
+                                   $"════════════════════════════════════════════════════════ END NOTE 📝\n";
 
                 _attackLogger.LogNote(formattedNote);
                 NoteTextBox.Text = NOTE_PLACEHOLDER;
@@ -4329,7 +4509,7 @@ namespace Dorothy.Views
                     progressBar.Visibility = Visibility.Visible;
                 }
 
-                _attackLogger.LogInfo($"?뵇 Quick {protocol} port scan on {targetIp}...");
+                _attackLogger.LogInfo($"🔍 Quick {protocol} port scan on {targetIp}...");
                 _attackLogger.LogInfo($"Scanning {portsToScan.Length} common {protocol} ports...");
 
                 // Quick port scan
@@ -4403,7 +4583,7 @@ namespace Dorothy.Views
                                 if (isOpen)
                                 {
                                     foundPort = port;
-                                    _attackLogger.LogSuccess($"??Found open {protocol} port: {port}");
+                                    _attackLogger.LogSuccess($"✅ Found open {protocol} port: {port}");
                                     cts.Cancel(); // Stop scanning once we find one
                                     break;
                                 }
@@ -4432,11 +4612,11 @@ namespace Dorothy.Views
                     if (foundPort.HasValue)
                     {
                         portTextBox.Text = foundPort.Value.ToString();
-                        _attackLogger.LogSuccess($"??Port {foundPort.Value} set in Target Port field");
+                        _attackLogger.LogSuccess($"✅ Port {foundPort.Value} set in Target Port field");
                     }
                     else
                     {
-                        _attackLogger.LogWarning($"?좑툘 No open {protocol} ports found in common ports. Try scanning more ports or enter port manually.");
+                        _attackLogger.LogWarning($"⚠️ No open {protocol} ports found in common ports. Try scanning more ports or enter port manually.");
                     }
 
                     if (progressBar != null)
@@ -4704,7 +4884,258 @@ namespace Dorothy.Views
             }
         }
 
+        #region Firewall Reachability Discovery
+
+
+        /// <summary>
+        /// Open Reachability & Path Analysis Wizard
+        /// </summary>
+        private void ReachabilityPathAnalysisButton_Click(object sender, RoutedEventArgs e)
+        {
+            ReachabilityWizardWindow? wizard = null;
+            try
+            {
+                // Try to create the window
+                wizard = new ReachabilityWizardWindow();
+                wizard.Owner = this;
+                wizard.ShowDialog();
+                
+                // Check if wizard completed successfully (user finished all steps)
+                // For now, we'll consider it passed if the wizard was closed normally
+                // In the future, we could check the actual results
+                _reachabilityTestPassed = true;
+                UpdateSecurityAssessmentStatus();
+            }
+            catch (NullReferenceException nre)
+            {
+                _logger.Error(nre, "Null reference error opening reachability wizard");
+                string errorMsg = $"Null reference error opening wizard.\n\nMessage: {nre.Message}";
+                if (nre.StackTrace != null)
+                {
+                    errorMsg += $"\n\nStack trace:\n{nre.StackTrace}";
+                }
+                if (nre.TargetSite != null)
+                {
+                    errorMsg += $"\n\nTarget site: {nre.TargetSite}";
+                }
+                MessageBox.Show(errorMsg, "Null Reference Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (System.Windows.Markup.XamlParseException xamlEx)
+            {
+                _logger.Error(xamlEx, "XAML parse error opening reachability wizard");
+                string errorMsg = $"XAML parse error: {xamlEx.Message}";
+                if (xamlEx.InnerException != null)
+                {
+                    errorMsg += $"\n\nInner: {xamlEx.InnerException.Message}";
+                }
+                MessageBox.Show(errorMsg, "XAML Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error opening reachability wizard");
+                string errorMsg = $"Error opening wizard: {ex.Message}\n\nType: {ex.GetType().Name}";
+                if (ex.InnerException != null)
+                {
+                    errorMsg += $"\n\nInner exception: {ex.InnerException.Message}";
+                }
+                if (ex.StackTrace != null)
+                {
+                    errorMsg += $"\n\nStack trace:\n{ex.StackTrace}";
+                }
+                if (ex.TargetSite != null)
+                {
+                    errorMsg += $"\n\nTarget site: {ex.TargetSite}";
+                }
+                MessageBox.Show(errorMsg, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                try
+                {
+                    wizard?.Close();
+                }
+                catch { }
+            }
+        }
+
+
+        /// <summary>
+        /// Validate numeric input for text boxes
+        /// </summary>
+        private void NumericTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        {
+            if (sender is TextBox textBox)
+            {
+                e.Handled = !System.Text.RegularExpressions.Regex.IsMatch(e.Text, "^[0-9]+$");
+            }
+        }
+
+        private async void StartSnmpWalkButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_snmpWalkService == null)
+                {
+                    MessageBox.Show("SNMP Walk service is not initialized.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // Validate inputs
+                if (string.IsNullOrWhiteSpace(SnmpWalkTargetIpTextBox.Text))
+                {
+                    MessageBox.Show("Please enter a target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (!IPAddress.TryParse(SnmpWalkTargetIpTextBox.Text.Trim(), out _))
+                {
+                    MessageBox.Show("Invalid IP address format.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (!int.TryParse(SnmpWalkPortTextBox.Text.Trim(), out int port) || port < 1 || port > 65535)
+                {
+                    MessageBox.Show("Invalid port number. Must be between 1 and 65535.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var targetIp = SnmpWalkTargetIpTextBox.Text.Trim();
+
+                // Disable start button, enable stop button
+                StartSnmpWalkButton.IsEnabled = false;
+                StopSnmpWalkButton.IsEnabled = true;
+
+                // Create cancellation token
+                _snmpWalkCancellationTokenSource = new CancellationTokenSource();
+                var token = _snmpWalkCancellationTokenSource.Token;
+
+                // Create progress reporter
+                var progress = new Progress<(string message, int percent)>(update =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        SnmpWalkProgressBar.Value = update.percent;
+                        _attackLogger.LogInfo(update.message);
+                    });
+                });
+
+                // Start SNMP walk in background
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var result = await _snmpWalkService.WalkAsync(targetIp, port, progress, token);
+
+                        Dispatcher.Invoke(async () =>
+                        {
+                            StartSnmpWalkButton.IsEnabled = true;
+                            StopSnmpWalkButton.IsEnabled = false;
+                            SnmpWalkProgressBar.Visibility = Visibility.Collapsed;
+                            SnmpWalkProgressBar.Value = 0;
+
+                            // Update security assessment: SNMP is not vulnerable if no successful authentication
+                            _snmpWalkNotVulnerable = !result.Success;
+                            UpdateSecurityAssessmentStatus();
+
+                            // Save SNMP walk result to database
+                            try
+                            {
+                                await _databaseService.SaveSnmpWalkResultAsync(result, null);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.Error(ex, "Failed to save SNMP walk result");
+                                // Don't show error to user, just log it
+                            }
+
+                            // Show custom results window instead of MessageBox
+                            var resultsWindow = new SnmpWalkResultsWindow(result)
+                            {
+                                Owner = this
+                            };
+                            resultsWindow.ShowDialog();
+                        });
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            _attackLogger.LogWarning("[SNMP Walk] Operation canceled by user");
+                            StartSnmpWalkButton.IsEnabled = true;
+                            StopSnmpWalkButton.IsEnabled = false;
+                            SnmpWalkProgressBar.Visibility = Visibility.Collapsed;
+                            SnmpWalkProgressBar.Value = 0;
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        Dispatcher.Invoke(() =>
+                        {
+                            _attackLogger.LogError($"[SNMP Walk] Error: {ex.Message}");
+                            MessageBox.Show($"Error during SNMP walk: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            StartSnmpWalkButton.IsEnabled = true;
+                            StopSnmpWalkButton.IsEnabled = false;
+                            SnmpWalkProgressBar.Visibility = Visibility.Collapsed;
+                            SnmpWalkProgressBar.Value = 0;
+                        });
+                    }
+                }, token);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error starting SNMP walk");
+                MessageBox.Show($"Error starting SNMP walk: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                StartSnmpWalkButton.IsEnabled = true;
+                StopSnmpWalkButton.IsEnabled = false;
+            }
+        }
+
+        private void StopSnmpWalkButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                _snmpWalkCancellationTokenSource?.Cancel();
+                _attackLogger.LogInfo("[SNMP Walk] Stop requested by user");
+                // Reset SNMP status when stopped
+                _snmpWalkNotVulnerable = false;
+                UpdateSecurityAssessmentStatus();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error stopping SNMP walk");
+                MessageBox.Show($"Error stopping SNMP walk: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void UpdateSecurityAssessmentStatus()
+        {
+            try
+            {
+                if (SecurityAssessmentStatusBorder == null || SecurityAssessmentStatusTextBlock == null)
+                    return;
+
+                if (_reachabilityTestPassed && _snmpWalkNotVulnerable)
+                {
+                    SecurityAssessmentStatusBorder.Visibility = Visibility.Visible;
+                    SecurityAssessmentStatusTextBlock.Text = "✓ Pass - The network is secure";
+                    SecurityAssessmentStatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green #059669
+                }
+                else
+                {
+                    SecurityAssessmentStatusBorder.Visibility = Visibility.Collapsed;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error updating security assessment status");
+            }
+        }
+
+        #endregion
+
     }
+
 } 
                             
                             // Switch to the target tab

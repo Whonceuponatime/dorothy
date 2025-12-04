@@ -32,7 +32,8 @@ namespace Dorothy.Models
         Unknown,
         ReachableIcmp,
         ReachableTcpOnly,
-        Unreachable
+        Unreachable,
+        UnknownError
     }
 
     /// <summary>
@@ -56,7 +57,19 @@ namespace Dorothy.Models
     {
         AllowedOpen,        // Connection success → port open and allowed
         ClosedNoFirewall,   // Connection refused → host reachable, port closed, no firewall drop
-        FilteredTimeout     // No response within timeout → probably silently filtered
+        FilteredTimeout,    // No response within timeout → probably silently filtered
+        UnknownError        // Local or unexpected error
+    }
+
+    /// <summary>
+    /// Alias for FirewallRuleAction to match MVP spec naming
+    /// </summary>
+    public enum FirewallAction
+    {
+        AllowedOpen = FirewallRuleAction.AllowedOpen,
+        ClosedNoFirewall = FirewallRuleAction.ClosedNoFirewall,
+        FilteredTimeout = FirewallRuleAction.FilteredTimeout,
+        UnknownError = FirewallRuleAction.UnknownError
     }
 
     /// <summary>
@@ -108,6 +121,7 @@ namespace Dorothy.Models
         public string CurrentStep { get; set; } = string.Empty;
     }
 }
+
 
 
 

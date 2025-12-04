@@ -216,7 +216,7 @@ namespace Dorothy.Models
                         }
 
                         GatewayMac = macAddr;
-                        _logger.LogInfo($"??Using gateway MAC for routed target {ipAddress}: {BitConverter.ToString(macAddr).Replace("-", ":")}");
+                        _logger.LogInfo($"📍 Using gateway MAC for routed target {ipAddress}: {BitConverter.ToString(macAddr).Replace("-", ":")}");
                         return macAddr;
                     }
                     else
@@ -277,7 +277,7 @@ namespace Dorothy.Models
                     _logger.LogError("Gateway MAC address is required for cross-subnet communication");
                     throw new InvalidOperationException("Gateway MAC address is required for cross-subnet communication");
                 }
-                _logger.LogInfo($"?뙋 Using gateway MAC for external target: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
+                _logger.LogInfo($"📍 Using gateway MAC for external target: {BitConverter.ToString(GatewayMac).Replace("-", ":")}");
                 destinationMac = GatewayMac;
             }
             else
@@ -289,7 +289,7 @@ namespace Dorothy.Models
                     _logger.LogError("Could not resolve target MAC address for local subnet target");
                     throw new InvalidOperationException("Could not resolve target MAC address for local subnet target");
                 }
-                _logger.LogInfo($"?뱧 Using target MAC for local target: {BitConverter.ToString(destinationMac).Replace("-", ":")}");
+                _logger.LogInfo($"📍 Using target MAC for local target: {BitConverter.ToString(destinationMac).Replace("-", ":")}");
             }
 
             // Calculate bytes per second: megabits -> bits -> bytes
@@ -673,6 +673,44 @@ namespace Dorothy.Models
             {
                 _isAttackRunning = false;
                 _logger.LogError($"Failed to start NMEA 0183 attack: {ex.Message}");
+                await StopAttackAsync();
+            }
+        }
+
+        public async Task StartModbusTcpAttackAsync(string targetIp, int targetPort, long megabitsPerSecond)
+        {
+            if (_isAttackRunning)
+            {
+                _logger.LogWarning("Attack already in progress");
+                return;
+            }
+
+            try
+            {
+                _cancellationSource = new CancellationTokenSource();
+                _isAttackRunning = true;
+
+                await Task.Run(async () =>
+                {
+                    try
+                    {
+                        var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond, isMulticast: false);
+                        
+                        using var modbusFlood = new ModbusTcpFlood(packetParams, _cancellationSource.Token);
+                        modbusFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                        await modbusFlood.StartAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Modbus/TCP attack failed: {ex.Message}");
+                        throw;
+                    }
+                }, _cancellationSource.Token);
+            }
+            catch (Exception ex)
+            {
+                _isAttackRunning = false;
+                _logger.LogError($"Failed to start Modbus/TCP attack: {ex.Message}");
                 await StopAttackAsync();
             }
         }

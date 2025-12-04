@@ -33,6 +33,20 @@ namespace Dorothy.Views
             FontSizeTextBox.Text = FontSize.ToString("F1");
             ThemeComboBox.SelectedIndex = ThemeIndex;
             
+            // Set Supabase URL from config
+            if (SupabaseUrlTextBlock != null)
+            {
+                try
+                {
+                    var supabaseUrl = Services.SupabaseConfig.Url;
+                    SupabaseUrlTextBlock.Text = $"Supabase URL: {supabaseUrl}";
+                }
+                catch
+                {
+                    SupabaseUrlTextBlock.Text = "Supabase URL: Not configured";
+                }
+            }
+            
             // Load license information
             LoadLicenseInfo();
         }
@@ -238,8 +252,8 @@ namespace Dorothy.Views
                 if (LicenseStatusTextBlock != null)
                 {
                     LicenseStatusTextBlock.Text = validationResult.IsValid
-                        ? "??Status: Authorized (Supabase)"
-                        : "??Status: Not Authorized - Contact Administrator";
+                        ? "[OK] Status: Authorized (Supabase)"
+                        : "[X] Status: Not Authorized - Contact Administrator";
                     LicenseStatusTextBlock.Foreground = validationResult.IsValid
                         ? new SolidColorBrush(Color.FromRgb(34, 197, 94)) // Green
                         : new SolidColorBrush(Color.FromRgb(239, 68, 68)); // Red
@@ -257,7 +271,7 @@ namespace Dorothy.Views
                 // Silently fail - license info is optional
                 if (LicenseStatusTextBlock != null)
                 {
-                    LicenseStatusTextBlock.Text = "?좑툘 Status: Unable to verify license";
+                    LicenseStatusTextBlock.Text = "[!] Status: Unable to verify license";
                     LicenseStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(234, 179, 8)); // Yellow
                 }
             }

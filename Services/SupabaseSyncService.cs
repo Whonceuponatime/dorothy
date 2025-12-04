@@ -1115,6 +1115,252 @@ namespace Dorothy.Services
 
             return ouiDatabase.TryGetValue(oui, out var vendor) ? vendor : "Unknown";
         }
+
+        public async Task<SyncResult> SyncReachabilityTestsAsync(string? projectName = null, List<long>? selectedIds = null)
+        {
+            if (_supabaseClient == null)
+            {
+                return new SyncResult
+                {
+                    Success = false,
+                    Message = "Supabase is not configured. Please configure it in Settings.",
+                    SyncedCount = 0
+                };
+            }
+
+            try
+            {
+                var unsyncedTests = await _databaseService.GetUnsyncedReachabilityTestsAsync(selectedIds);
+                if (unsyncedTests.Count == 0)
+                {
+                    return new SyncResult
+                    {
+                        Success = true,
+                        Message = "No pending reachability tests to sync.",
+                        SyncedCount = 0
+                    };
+                }
+
+                int syncedCount = 0;
+                var errors = new List<string>();
+                var syncedIds = new List<long>();
+
+                ReportProgress($"Syncing {unsyncedTests.Count} reachability test(s)...");
+
+                foreach (var test in unsyncedTests)
+                {
+                    try
+                    {
+                        // Insert main test record
+                        var supabaseTest = new ReachabilityTestEntry
+                        {
+                            ProjectName = projectName ?? test.ProjectName,
+                            AnalysisMode = test.AnalysisMode,
+                            VantagePointName = test.VantagePointName,
+                            SourceNicId = test.SourceNicId,
+                            SourceIp = test.SourceIp,
+                            TargetNetworkName = test.TargetNetworkName,
+                            TargetCidr = test.TargetCidr,
+                            BoundaryGatewayIp = test.BoundaryGatewayIp,
+                            BoundaryVendor = test.BoundaryVendor,
+                            ExternalTestIp = test.ExternalTestIp,
+                            Synced = true,
+                            CreatedAt = test.CreatedAt,
+                            HardwareId = test.HardwareId?.ToUpperInvariant(),
+                            MachineName = test.MachineName,
+                            Username = test.Username,
+                            UserId = test.UserId
+                        };
+
+                        supabaseTest.SyncedAt = null;
+                        supabaseTest.IsSynced = false;
+
+                        var testResponse = await _supabaseClient
+                            .From<ReachabilityTestEntry>()
+                            .Insert(supabaseTest);
+
+                        if (testResponse != null && testResponse.Models != null && testResponse.Models.Count > 0)
+                        {
+                            var supabaseTestId = testResponse.Models[0].Id;
+
+                            // Get child records from local database and sync them
+                            try
+                            {
+                                // Sync ICMP results
+                                var icmpResults = await _databaseService.GetReachabilityIcmpResultsAsync(test.Id);
+                                if (icmpResults.Count > 0)
+                                {
+                                    var supabaseIcmpResults = icmpResults.Select(r => new ReachabilityIcmpResultEntry
+                                    {
+                                        TestId = supabaseTestId, // Use Supabase test ID
+                                        TargetIp = r.TargetIp,
+                                        Role = r.Role,
+                                        Reachable = r.Reachable,
+                                        Sent = r.Sent,
+                                        Received = r.Received,
+                                        AvgRttMs = r.AvgRttMs,
+                                        CreatedAt = r.CreatedAt
+                                    }).ToList();
+
+                                    await _supabaseClient
+                                        .From<ReachabilityIcmpResultEntry>()
+                                        .Insert(supabaseIcmpResults);
+                                }
+
+                                // Sync TCP results
+                                var tcpResults = await _databaseService.GetReachabilityTcpResultsAsync(test.Id);
+                                if (tcpResults.Count > 0)
+                                {
+                                    var supabaseTcpResults = tcpResults.Select(r => new ReachabilityTcpResultEntry
+                                    {
+                                        TestId = supabaseTestId,
+                                        TargetIp = r.TargetIp,
+                                        Port = r.Port,
+                                        State = r.State,
+                                        RttMs = r.RttMs,
+                                        ErrorMessage = r.ErrorMessage,
+                                        CreatedAt = r.CreatedAt
+                                    }).ToList();
+
+                                    await _supabaseClient
+                                        .From<ReachabilityTcpResultEntry>()
+                                        .Insert(supabaseTcpResults);
+                                }
+
+                                // Sync path hops
+                                var pathHops = await _databaseService.GetReachabilityPathHopsAsync(test.Id);
+                                if (pathHops.Count > 0)
+                                {
+                                    var supabasePathHops = pathHops.Select(r => new ReachabilityPathHopEntry
+                                    {
+                                        TestId = supabaseTestId,
+                                        TargetIp = r.TargetIp,
+                                        HopNumber = r.HopNumber,
+                                        HopIp = r.HopIp,
+                                        RttMs = r.RttMs,
+                                        Hostname = r.Hostname,
+                                        CreatedAt = r.CreatedAt
+                                    }).ToList();
+
+                                    await _supabaseClient
+                                        .From<ReachabilityPathHopEntry>()
+                                        .Insert(supabasePathHops);
+                                }
+
+                                // Sync deeper scans
+                                var deeperScans = await _databaseService.GetReachabilityDeeperScansAsync(test.Id);
+                                if (deeperScans.Count > 0)
+                                {
+                                    var supabaseDeeperScans = deeperScans.Select(r => new ReachabilityDeeperScanEntry
+                                    {
+                                        TestId = supabaseTestId,
+                                        TargetIp = r.TargetIp,
+                                        PortStates = r.PortStates,
+                                        Summary = r.Summary,
+                                        CreatedAt = r.CreatedAt
+                                    }).ToList();
+
+                                    await _supabaseClient
+                                        .From<ReachabilityDeeperScanEntry>()
+                                        .Insert(supabaseDeeperScans);
+                                }
+
+                                // Sync SNMP walks
+                                var snmpWalks = await _databaseService.GetReachabilitySnmpWalksAsync(test.Id);
+                                if (snmpWalks.Count > 0)
+                                {
+                                    var supabaseSnmpWalks = snmpWalks.Select(r => new ReachabilitySnmpWalkEntry
+                                    {
+                                        TestId = supabaseTestId,
+                                        TargetIp = r.TargetIp,
+                                        Port = r.Port,
+                                        Success = r.Success,
+                                        SuccessfulCommunity = r.SuccessfulCommunity,
+                                        SuccessfulOids = r.SuccessfulOids,
+                                        Attempts = r.Attempts,
+                                        DurationMs = r.DurationMs,
+                                        CreatedAt = r.CreatedAt
+                                    }).ToList();
+
+                                    await _supabaseClient
+                                        .From<ReachabilitySnmpWalkEntry>()
+                                        .Insert(supabaseSnmpWalks);
+                                }
+
+                                Logger.Info($"Synced test {test.Id} with {icmpResults.Count} ICMP, {tcpResults.Count} TCP, {pathHops.Count} path hops, {deeperScans.Count} deeper scans, {snmpWalks.Count} SNMP walks");
+                            }
+                            catch (Exception childEx)
+                            {
+                                Logger.Error(childEx, $"Failed to sync child records for test {test.Id}");
+                                // Continue - we still mark the main test as synced
+                            }
+
+                            syncedIds.Add(test.Id);
+                            syncedCount++;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error(ex, $"Failed to sync reachability test {test.Id}");
+                        
+                        string errorMessage = ex.Message;
+                        if (ex.Message.Contains("row-level security policy", StringComparison.OrdinalIgnoreCase) ||
+                            ex.Message.Contains("42501", StringComparison.OrdinalIgnoreCase))
+                        {
+                            errorMessage = "RLS policy violation - Check Supabase RLS policies allow inserts with anon key";
+                        }
+                        
+                        errors.Add($"Test {test.Id}: {errorMessage}");
+                    }
+                }
+
+                // Mark all successfully synced tests
+                if (syncedIds.Count > 0)
+                {
+                    await _databaseService.MarkReachabilityTestsAsSyncedAsync(syncedIds, DateTime.UtcNow);
+                }
+
+                var rlsErrors = errors.Where(e => e.Contains("RLS policy violation", StringComparison.OrdinalIgnoreCase)).ToList();
+                var otherErrors = errors.Where(e => !e.Contains("RLS policy violation", StringComparison.OrdinalIgnoreCase)).ToList();
+                
+                string message;
+                if (syncedCount == unsyncedTests.Count)
+                {
+                    message = $"Successfully synced {syncedCount} reachability test(s).";
+                }
+                else
+                {
+                    var errorSummary = new List<string>();
+                    if (rlsErrors.Count > 0)
+                    {
+                        errorSummary.Add($"{rlsErrors.Count} RLS policy violation(s) - Check Supabase RLS policies");
+                    }
+                    if (otherErrors.Count > 0)
+                    {
+                        errorSummary.Add(string.Join("; ", otherErrors.Take(3)));
+                    }
+                    message = $"Synced {syncedCount} of {unsyncedTests.Count} test(s). {(errorSummary.Count > 0 ? string.Join(". ", errorSummary) : "")}";
+                }
+
+                return new SyncResult
+                {
+                    Success = syncedCount > 0,
+                    Message = message,
+                    SyncedCount = syncedCount,
+                    Errors = errors
+                };
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to sync reachability tests with Supabase");
+                return new SyncResult
+                {
+                    Success = false,
+                    Message = $"Sync failed: {ex.Message}",
+                    SyncedCount = 0
+                };
+            }
+        }
     }
 
     public class SyncResult

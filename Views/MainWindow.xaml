@@ -880,6 +880,7 @@
                                 <ComboBoxItem Content="ARP Spoofing"/>
                                 <ComboBoxItem Content="NMEA 0183 (UDP Unicast)"/>
                                 <ComboBoxItem Content="NMEA 0183 (UDP Multicast)"/>
+                                <ComboBoxItem Content="Modbus/TCP Flood (Read Requests)"/>
                             </ComboBox>
 
                             <Label Grid.Row="1" Grid.Column="0" Content="Mbps:" 
@@ -993,10 +994,105 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem x:Name="FirewallNetworksTab" Header="Firewall &amp; Networks">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <TextBlock Text="Firewall &amp; Networks Tab" Margin="20"/>
-                </ScrollViewer>
+            <TabItem x:Name="FirewallNetworksTab" Header="Reachability Tests">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Safety Disclaimer - Fixed at top of left panel -->
+                    <Border Grid.Row="0" 
+                            Style="{StaticResource CardStyle}" 
+                            HorizontalAlignment="Stretch" 
+                            Margin="0,0,0,12" 
+                            Background="#FEF3C7" 
+                            BorderBrush="#F59E0B">
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#92400E" Margin="0">
+                            <Run Text="⚠️ " FontWeight="Bold"/>
+                            <Run Text="Use only on networks and systems you are explicitly authorized to test. This feature performs active scanning."/>
+                        </TextBlock>
+                    </Border>
+                    
+                    <!-- Scrollable Content -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,2,0,0" HorizontalAlignment="Stretch">
+                        <StackPanel Grid.IsSharedSizeScope="True" HorizontalAlignment="Stretch" Margin="0,0,0,12">
+                            <!-- Path Analysis Wizard Button -->
+                            <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="Reachability &amp; Path Analysis" Style="{StaticResource CardHeaderStyle}"/>
+                                    <TextBlock Text="Guided wizard to analyze reachability and network path from your current location to a target network." 
+                                               FontSize="14" Foreground="#6B7280" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                                    <Button x:Name="ReachabilityPathAnalysisButton" 
+                                            Content="Reachability / Path Analysis..." 
+                                            Width="220" Height="36" 
+                                            Style="{StaticResource PrimaryButton}" 
+                                            Click="ReachabilityPathAnalysisButton_Click"
+                                            HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- SNMP Walk Attack -->
+                            <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="SNMP Walk Attack" Style="{StaticResource CardHeaderStyle}"/>
+                                    <TextBlock Text="Performs SNMP walk operations using 100 common community strings to test SNMP access." 
+                                               FontSize="14" Foreground="#6B7280" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <Label Grid.Row="0" Grid.Column="0" Content="Target IP:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,8"/>
+                                        <TextBox x:Name="SnmpWalkTargetIpTextBox" Grid.Row="0" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" Margin="0,0,0,8"/>
+
+                                        <Label Grid.Row="1" Grid.Column="0" Content="SNMP Port:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                        <TextBox x:Name="SnmpWalkPortTextBox" Grid.Row="1" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" Text="161"/>
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                        <Button x:Name="StartSnmpWalkButton" 
+                                                Content="Start SNMP Walk" 
+                                                Width="150" Height="36" 
+                                                Style="{StaticResource PrimaryButton}" 
+                                                Click="StartSnmpWalkButton_Click"
+                                                Margin="0,0,8,0"/>
+                                        <Button x:Name="StopSnmpWalkButton" 
+                                                Content="Stop" 
+                                                Width="100" Height="36" 
+                                                Style="{StaticResource DefaultButton}" 
+                                                Click="StopSnmpWalkButton_Click"
+                                                IsEnabled="False"/>
+                                    </StackPanel>
+                                    <ProgressBar x:Name="SnmpWalkProgressBar" Height="6" Margin="0,12,0,0" Visibility="Collapsed" Maximum="100" Value="0"/>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                    
+                    <!-- Security Assessment Status -->
+                    <Border Grid.Row="2" 
+                            Style="{StaticResource CardStyle}" 
+                            HorizontalAlignment="Stretch" 
+                            Margin="0,12,0,0"
+                            x:Name="SecurityAssessmentStatusBorder"
+                            Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="Security Assessment" Style="{StaticResource CardHeaderStyle}"/>
+                            <TextBlock x:Name="SecurityAssessmentStatusTextBlock" 
+                                       FontSize="14" 
+                                       Foreground="#059669" 
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
             </TabItem>
         </TabControl>
         

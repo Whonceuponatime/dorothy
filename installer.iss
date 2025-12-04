@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "2.2.5"
+  #define AppVersion "2.2.7"
 #endif
 
 [Setup]
@@ -43,6 +43,8 @@ Name: "uninstallshortcut"; Description: "Create uninstall shortcut in installati
 
 [Files]
 Source: "dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Note: Localization folders (cs, de, es, fr, it, ja, ko, pl, pt-BR, ru, tr, zh-Hans, zh-Hant) 
+; are excluded via SatelliteResourceLanguages=en in Dorothy.csproj
 
 [Icons]
 Name: "{group}\SEACURE(TOOL)"; Filename: "{app}\Dorothy.exe"

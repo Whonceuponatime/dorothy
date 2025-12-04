@@ -333,6 +333,223 @@
                     </Border>
                 </Grid>
             </TabItem>
+            
+            <TabItem Header="Reachability Tests" x:Name="ReachabilityTestsTab">
+                <Grid Margin="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Tests Count -->
+                    <TextBlock Grid.Row="0" 
+                               x:Name="ReachabilityTestsCountText"
+                               Text="0 pending tests"
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               Margin="0,0,0,8"/>
+                    
+                    <!-- Tests DataGrid -->
+                    <Border Grid.Row="1"
+                            Background="White"
+                            BorderBrush="#E5E7EB"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Select All -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+                                <CheckBox x:Name="SelectAllTestsCheckBox"
+                                          Content="Select All"
+                                          FontSize="14"
+                                          FontWeight="SemiBold"
+                                          Foreground="#111827"
+                                          Checked="SelectAllTestsCheckBox_Checked"
+                                          Unchecked="SelectAllTestsCheckBox_Unchecked"
+                                          Margin="0,0,16,0"/>
+                                <TextBlock x:Name="SelectedTestsCountText"
+                                           Text="0 selected"
+                                           FontSize="12"
+                                           Foreground="#6B7280"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <!-- DataGrid -->
+                            <DataGrid x:Name="ReachabilityTestsDataGrid"
+                                      Grid.Row="1"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      SelectionMode="Extended"
+                                      SelectionUnit="FullRow"
+                                      HeadersVisibility="Column"
+                                      GridLinesVisibility="None"
+                                      BorderThickness="0"
+                                      Background="White"
+                                      MaxHeight="400"
+                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                <DataGrid.ColumnHeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Foreground" Value="#111827"/>
+                                        <Setter Property="Background" Value="#F9FAFB"/>
+                                        <Setter Property="Padding" Value="8,6"/>
+                                    </Style>
+                                </DataGrid.ColumnHeaderStyle>
+                                <DataGrid.Columns>
+                                    <DataGridCheckBoxColumn Header="Sync" Binding="{Binding IsSelected}" Width="50"/>
+                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Right"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="Mode" Binding="{Binding AnalysisMode}" Width="120" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Vantage Point" Binding="{Binding VantagePointName}" Width="120" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Source IP" Binding="{Binding SourceIp}" Width="120" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Target Network" Binding="{Binding TargetNetworkName}" Width="150" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Target CIDR" Binding="{Binding TargetCidr}" Width="120" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Boundary IP" Binding="{Binding BoundaryGatewayIp}" Width="120" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Created" Binding="{Binding CreatedAt, StringFormat=yyyy-MM-dd HH:mm}" Width="140" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Project" Binding="{Binding ProjectName}" Width="100" IsReadOnly="True"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <!-- Action Buttons -->
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                                <Button x:Name="DeleteSelectedTestsButton"
+                                        Content="Delete Selected"
+                                        Width="120"
+                                        Height="32"
+                                        Margin="0,0,8,0"
+                                        Style="{StaticResource DefaultButton}"
+                                        Click="DeleteSelectedTestsButton_Click"/>
+                                <Button x:Name="SkipSelectedTestsButton"
+                                        Content="Skip Selected"
+                                        Width="120"
+                                        Height="32"
+                                        Margin="0,0,8,0"
+                                        Style="{StaticResource DefaultButton}"
+                                        Click="SkipSelectedTestsButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+            
+            <TabItem Header="SNMP Walks" x:Name="SnmpWalkTestsTab">
+                <Grid Margin="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- SNMP Walk Count -->
+                    <TextBlock Grid.Row="0" 
+                               x:Name="SnmpWalkTestsCountText"
+                               Text="0 pending SNMP walk(s)"
+                               FontSize="12"
+                               Foreground="#6B7280"
+                               Margin="0,0,0,8"/>
+                    
+                    <!-- SNMP Walk DataGrid -->
+                    <Border Grid.Row="1"
+                            Background="White"
+                            BorderBrush="#E5E7EB"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Select All -->
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
+                                <CheckBox x:Name="SelectAllSnmpWalkCheckBox"
+                                          Content="Select All"
+                                          FontSize="14"
+                                          FontWeight="SemiBold"
+                                          Foreground="#111827"
+                                          Checked="SelectAllSnmpWalkCheckBox_Checked"
+                                          Unchecked="SelectAllSnmpWalkCheckBox_Unchecked"
+                                          Margin="0,0,16,0"/>
+                                <TextBlock x:Name="SelectedSnmpWalkCountText"
+                                           Text="0 selected"
+                                           FontSize="12"
+                                           Foreground="#6B7280"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <!-- DataGrid -->
+                            <DataGrid x:Name="SnmpWalkTestsDataGrid"
+                                      Grid.Row="1"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      SelectionMode="Extended"
+                                      SelectionUnit="FullRow"
+                                      HeadersVisibility="Column"
+                                      GridLinesVisibility="None"
+                                      BorderThickness="0"
+                                      Background="White"
+                                      MaxHeight="400"
+                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                <DataGrid.ColumnHeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader">
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                        <Setter Property="Foreground" Value="#111827"/>
+                                        <Setter Property="Background" Value="#F9FAFB"/>
+                                        <Setter Property="Padding" Value="8,6"/>
+                                    </Style>
+                                </DataGrid.ColumnHeaderStyle>
+                                <DataGrid.Columns>
+                                    <DataGridCheckBoxColumn Header="Sync" Binding="{Binding IsSelected}" Width="50"/>
+                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True">
+                                        <DataGridTextColumn.ElementStyle>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="HorizontalAlignment" Value="Right"/>
+                                            </Style>
+                                        </DataGridTextColumn.ElementStyle>
+                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="Target IP" Binding="{Binding BoundaryGatewayIp}" Width="120" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Mode" Binding="{Binding AnalysisMode}" Width="120" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Created" Binding="{Binding CreatedAt, StringFormat=yyyy-MM-dd HH:mm}" Width="140" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Project" Binding="{Binding ProjectName}" Width="100" IsReadOnly="True"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <!-- Action Buttons -->
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                                <Button x:Name="DeleteSelectedSnmpWalkButton"
+                                        Content="Delete Selected"
+                                        Width="120"
+                                        Height="32"
+                                        Margin="0,0,8,0"
+                                        Style="{StaticResource DefaultButton}"
+                                        Click="DeleteSelectedSnmpWalkButton_Click"/>
+                                <Button x:Name="SkipSelectedSnmpWalkButton"
+                                        Content="Skip Selected"
+                                        Width="120"
+                                        Height="32"
+                                        Style="{StaticResource DefaultButton}"
+                                        Click="SkipSelectedSnmpWalkButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
         </TabControl>
 
         <!-- Summary and Buttons -->
@@ -343,7 +560,7 @@
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="TotalSelectedText"
                        Grid.Column="0"
-                       Text="0 logs, 0 assets selected"
+                       Text="0 logs, 0 assets, 0 tests selected"
                        FontSize="12"
                        Foreground="#9CA3AF"
                        VerticalAlignment="Center"
@@ -371,7 +588,7 @@
         
         <!-- Progress Overlay (hidden by default) -->
         <Grid x:Name="ProgressOverlay"
-              Grid.RowSpan="6"
+              Grid.RowSpan="5"
               Background="#AA000000"
               Visibility="Collapsed">
             <Border Background="White"

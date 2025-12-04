@@ -2088,18 +2088,15 @@ namespace Dorothy.Models
             if (!_enableBannerGrabbing)
                 return false;
 
-            // Be aggressive in Selected / Intense modes
-            if (_portScanMode == PortScanMode.Selected ||
-                _intenseScan)
+            // Only grab banners in Selected mode (explicit intense scan with banner grabbing)
+            // Normal port scans (All, Range, Common) should only show open ports and service names
+            // This allows users to quickly discover open ports without the overhead of banner grabbing
+            if (_portScanMode == PortScanMode.Selected)
                 return true;
 
-            // Fallback: only banner-heavy ports
-            return port switch
-            {
-                21 or 22 or 23 or 25 or 53 or 80 or 110 or 135 or 139 or 143 or
-                3306 or 3389 or 5432 or 8080 => true,
-                _ => false
-            };
+            // For all other modes (All, Range, Common), don't grab banners
+            // Just show open ports and service names for faster scanning
+            return false;
         }
 
         private int GetTimeoutForPort(int port, bool isSelectedMode)

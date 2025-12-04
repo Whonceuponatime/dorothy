@@ -127,7 +127,7 @@ namespace Dorothy.Views
                 // Redirect to releases page
                 Process.Start(new ProcessStartInfo
                 {
-                    FileName = "https://seacuredb-git-development-samuels-projects-59e1b517.vercel.app/network-data?tab=releases",
+                    FileName = "https://seacuredb.vercel.app/network-data?tab=releases",
                     UseShellExecute = true
                 });
             }

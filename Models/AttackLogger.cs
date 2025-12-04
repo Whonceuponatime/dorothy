@@ -128,6 +128,38 @@ namespace Dorothy.Models
             Log(message, LogLevel.Info, true);
         }
 
+        public void StartModbusTcpAttack(string sourceIp, byte[] sourceMac, 
+                          string targetIp, byte[] targetMac, long megabitsPerSecond, int targetPort = 502)
+        {
+            _attackStartTime = DateTime.Now;
+            _attackType = "ICS/OT Flood (Modbus/TCP Read Requests)";
+            _protocol = "TCP (Modbus/TCP)";
+            _sourceIp = sourceIp;
+            _sourceMac = BitConverter.ToString(sourceMac).Replace("-", ":");
+            _targetIp = targetIp;
+            _targetMac = BitConverter.ToString(targetMac).Replace("-", ":");
+            _targetPort = targetPort;
+            _targetBytesPerSecond = megabitsPerSecond * 1_000_000 / 8;
+            _packetsSent = 0;
+
+            var targetPortStr = targetPort > 0 ? $":{targetPort}" : "";
+            var message = "════════════════════════════════════════════════════════\n" +
+                         $"✅ Status: Attack Started\n" +
+                         $"📡 Protocol: {_protocol}\n" +
+                         $"📍 Source Host: {_sourceIp}\n" +
+                         $"🔗 Source MAC: {_sourceMac}\n" +
+                         $"🎯 Target Host: {_targetIp}{targetPortStr}\n" +
+                         $"🔗 Target MAC: {_targetMac}\n" +
+                         $"⚡ Target Rate: {_targetBytesPerSecond * 8.0 / 1_000_000:F2} Mbps\n" +
+                         $"🔥 Attack Type: {_attackType}\n" +
+                         $"📋 Function Code: 0x03 (Read Holding Registers - Non-destructive)\n" +
+                         $"🔧 Unit ID: 1 (default)\n" +
+                         $"⚠️  Note: Read-only requests (non-destructive)\n" +
+                         $"⏰ Start Time: {_attackStartTime:yyyy-MM-dd HH:mm:ss}\n" +
+                         "════════════════════════════════════════════════════════";
+            Log(message, LogLevel.Info, true);
+        }
+
         public void StartEthernetAttack(EthernetFlood.EthernetPacketType packetType, string sourceIp, byte[] sourceMac, 
                           string targetIp, byte[] targetMac, long megabitsPerSecond, int targetPort = 0)
         {

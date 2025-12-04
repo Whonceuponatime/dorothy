@@ -7,21 +7,26 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
     <AssemblyName>Dorothy</AssemblyName>
-    <Version>2.2.5</Version>
+    <Version>2.2.7</Version>
+    <AssemblyVersion>2.2.7.0</AssemblyVersion>
+    <FileVersion>2.2.7.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Platforms>x64</Platforms>
-    <PublishSingleFile>true</PublishSingleFile>
+    <PublishSingleFile>false</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <!-- Disable trimming since WPF doesn't support it -->
     <PublishTrimmed>false</PublishTrimmed>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <!-- Exclude unnecessary localization resources to reduce size -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Resources\**\*.*" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Lextm.SharpSnmpLib" Version="12.2.0" />
     <PackageReference Include="NLog" Version="5.2.8" />
     <PackageReference Include="PacketDotNet" Version="1.4.7" />
     <PackageReference Include="SharpPcap" Version="6.2.5" />
@@ -44,8 +49,7 @@
     </PropertyGroup>
     
     <!-- Publish to get self-contained executable (all DLLs must be in same folder as exe for WPF apps) -->
-    <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release --no-build -r win-x64 --self-contained true -p:PublishSingleFile=false" 
-          ContinueOnError="false" />
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release --no-build -r win-x64 --self-contained true -p:PublishSingleFile=false" ContinueOnError="false" />
     
     <!-- Create directory -->
     <MakeDir Directories="$(DistDir)" />
@@ -55,11 +59,7 @@
       <DistFiles Include="$(PublishDir)\**\*.*" />
     </ItemGroup>
     
-    <Copy SourceFiles="@(DistFiles)" 
-          DestinationFolder="$(DistDir)\%(RecursiveDir)"
-          SkipUnchangedFiles="true"
-          OverwriteReadOnlyFiles="true"
-          ContinueOnError="true" />
+    <Copy SourceFiles="@(DistFiles)" DestinationFolder="$(DistDir)\%(RecursiveDir)" SkipUnchangedFiles="true" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
   </Target>
 
   <!-- Create distributable after Publish -->
@@ -76,10 +76,6 @@
       <DistFiles Include="$(PublishDir)\**\*.*" />
     </ItemGroup>
     
-    <Copy SourceFiles="@(DistFiles)" 
-          DestinationFolder="$(DistDir)\%(RecursiveDir)"
-          SkipUnchangedFiles="true"
-          OverwriteReadOnlyFiles="true"
-          ContinueOnError="true" />
+    <Copy SourceFiles="@(DistFiles)" DestinationFolder="$(DistDir)\%(RecursiveDir)" SkipUnchangedFiles="true" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
   </Target>
 </Project>

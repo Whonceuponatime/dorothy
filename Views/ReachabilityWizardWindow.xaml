@@ -1,0 +1,470 @@
+<Window x:Class="Dorothy.Views.ReachabilityWizardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Reachability &amp; Path Analysis Wizard" 
+        Height="700" Width="900"
+        MinHeight="600" MinWidth="800"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        Background="#F3F4F6">
+    <Window.Resources>
+        <!-- Card Style -->
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="Margin" Value="0,0,0,12"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderBrush" Value="#E5E7EB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
+        </Style>
+
+        <!-- Card Header Style -->
+        <Style x:Key="CardHeaderStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+
+        <!-- Default Button Style -->
+        <Style x:Key="DefaultButton" TargetType="Button">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Background" Value="#F3F4F6"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#E5E7EB"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#D1D5DB"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#F3F4F6"/>
+                    <Setter Property="Foreground" Value="#9CA3AF"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Primary Button Style -->
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource DefaultButton}">
+            <Setter Property="Background" Value="#111827"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderBrush" Value="#111827"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#1F2937"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#0F172A"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#9CA3AF"/>
+                    <Setter Property="BorderBrush" Value="#9CA3AF"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Default TextBox Style -->
+        <Style x:Key="DefaultTextBox" TargetType="TextBox">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Style.Triggers>
+                <Trigger Property="IsFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="#2563EB"/>
+                    <Setter Property="BorderThickness" Value="2"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Default Label Style -->
+        <Style x:Key="DefaultLabel" TargetType="Label">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#374151"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+        </Style>
+
+        <!-- Default ComboBox Style -->
+        <Style x:Key="DefaultComboBox" TargetType="ComboBox">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Height" Value="32"/>
+            <Style.Triggers>
+                <Trigger Property="IsFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="#2563EB"/>
+                    <Setter Property="BorderThickness" Value="2"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Default CheckBox Style -->
+        <Style x:Key="DefaultCheckBox" TargetType="CheckBox">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#374151"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Default RadioButton Style -->
+        <Style x:Key="DefaultRadioButton" TargetType="RadioButton">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#374151"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </Window.Resources>
+    
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,20">
+            <TextBlock x:Name="StepTitleTextBlock" 
+                       Text="Step 1: Define Vantage Point &amp; Target Network" 
+                       FontSize="20" 
+                       FontWeight="Bold" 
+                       Foreground="#111827" 
+                       Margin="0,0,0,8"/>
+            <TextBlock x:Name="StepDescriptionTextBlock" 
+                       Text="Configure your vantage point and the target network you want to analyze." 
+                       FontSize="14" 
+                       Foreground="#6B7280" 
+                       TextWrapping="Wrap"/>
+        </StackPanel>
+
+        <!-- Content Area -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Grid.IsSharedSizeScope="True">
+                <!-- Step 1: Vantage Point & Target Network -->
+                <StackPanel x:Name="Step1Panel">
+                    <!-- Mode Selection Card -->
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Analysis Mode" Style="{StaticResource CardHeaderStyle}"/>
+                            <RadioButton x:Name="ModeARadioButton" Content="I know the remote network (CIDR / IPs)" Style="{StaticResource DefaultRadioButton}" Margin="0,0,0,8" IsChecked="True" Checked="ModeRadioButton_Checked"/>
+                            <RadioButton x:Name="ModeBRadioButton" Content="I don't know the remote network – analyze boundary device only" Style="{StaticResource DefaultRadioButton}" Checked="ModeRadioButton_Checked"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Vantage Point Card -->
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Vantage Point" Style="{StaticResource CardHeaderStyle}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <Label Grid.Row="0" Grid.Column="0" Content="Vantage Point Name:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,8"/>
+                                <TextBox x:Name="VantagePointNameTextBox" Grid.Row="0" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" Margin="0,0,0,8" Text="LAN-Host"/>
+
+                                <Label Grid.Row="1" Grid.Column="0" Content="Source NIC:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <ComboBox x:Name="SourceNicComboBox" Grid.Row="1" Grid.Column="1" Style="{StaticResource DefaultComboBox}" SelectionChanged="SourceNicComboBox_SelectionChanged"/>
+                            </Grid>
+                            
+                            <!-- Boundary Device Preview -->
+                            <Border x:Name="BoundaryPreviewBorder" 
+                                    Background="#F3F4F6" 
+                                    BorderBrush="#E5E7EB" 
+                                    BorderThickness="1" 
+                                    CornerRadius="6" 
+                                    Padding="12" 
+                                    Margin="0,12,0,0"
+                                    Visibility="Collapsed">
+                                <StackPanel>
+                                    <TextBlock Text="Boundary Device" FontSize="14" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,8"/>
+                                    <TextBlock x:Name="BoundaryInfoTextBlock" FontSize="12" Foreground="#6B7280" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Target Network Card (Mode A only) -->
+                    <Border x:Name="TargetNetworkCard" Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Target Network" Style="{StaticResource CardHeaderStyle}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <Label Grid.Row="0" Grid.Column="0" Content="Target Network Name:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,8"/>
+                                <TextBox x:Name="TargetNetworkNameTextBox" Grid.Row="0" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" Margin="0,0,0,8" Text="Remote LAN"/>
+
+                                <Label Grid.Row="1" Grid.Column="0" Content="Target CIDR:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox x:Name="TargetCidrTextBox" Grid.Row="1" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" Text="192.168.10.0/24"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- External Test IP Card (Mode B only) -->
+                    <Border x:Name="ExternalTestIpCard" Style="{StaticResource CardStyle}" Visibility="Collapsed">
+                        <StackPanel>
+                            <TextBlock Text="External Test Target" Style="{StaticResource CardHeaderStyle}"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Label Content="External Test IP:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox x:Name="ExternalTestIpTextBox" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" Text="8.8.8.8"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Known Inside IPs Card (Mode A only) -->
+                    <Border x:Name="KnownInsideIpsCard" Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Known Inside IPs (Optional)" Style="{StaticResource CardHeaderStyle}"/>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <Label Grid.Row="0" Grid.Column="0" Content="IP:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,8"/>
+                                <TextBox x:Name="InsideIpTextBox" Grid.Row="0" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" Margin="0,0,8,8"/>
+                                <Button x:Name="AddInsideIpButton" Grid.Row="0" Grid.Column="2" Content="Add" Width="80" Height="32" Style="{StaticResource DefaultButton}" Margin="0,0,0,8" Click="AddInsideIpButton_Click"/>
+
+                                <Label Grid.Row="1" Grid.Column="0" Content="Label:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox x:Name="InsideIpLabelTextBox" Grid.Row="1" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" Margin="0,0,8,0"/>
+                            </Grid>
+
+                            <DataGrid x:Name="InsideIpsDataGrid"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      HeadersVisibility="Column"
+                                      MaxHeight="150">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="IP" Binding="{Binding AssetIpString}" Width="*" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="*" IsReadOnly="True"/>
+                                    <DataGridTemplateColumn Header="Action" Width="Auto">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Button Content="Remove" Style="{StaticResource DefaultButton}" Click="RemoveInsideIpButton_Click" Tag="{Binding}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Step 2: ICMP Reachability -->
+                <StackPanel x:Name="Step2Panel" Visibility="Collapsed">
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="ICMP Reachability" Style="{StaticResource CardHeaderStyle}"/>
+                            <TextBlock Text="We send ICMP echo (ping) to the target network gateway candidates and any known inside IPs to see if they respond." 
+                                       FontSize="14" Foreground="#6B7280" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                            <Button x:Name="RunIcmpChecksButton" Content="Run ICMP Checks" Width="150" Height="32" Style="{StaticResource PrimaryButton}" Margin="0,0,0,12" Click="RunIcmpChecksButton_Click"/>
+                            <ProgressBar x:Name="IcmpProgressBar" Height="6" Margin="0,0,0,12" Visibility="Collapsed" Maximum="100" Value="0"/>
+                            <DataGrid x:Name="IcmpResultsDataGrid"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      HeadersVisibility="Column"
+                                      MaxHeight="300">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="*" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="IP" Binding="{Binding TargetIpString}" Width="*" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Reachable" Binding="{Binding Reachable}" Width="*" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Sent/Received" Binding="{Binding Sent}" Width="*" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Avg RTT (ms)" Binding="{Binding AvgRttMs}" Width="*" IsReadOnly="True"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <TextBlock x:Name="IcmpStatusTextBlock" FontSize="12" Foreground="#6B7280" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Step 3: TCP Reachability -->
+                <StackPanel x:Name="Step3Panel" Visibility="Collapsed">
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="TCP Reachability" Style="{StaticResource CardHeaderStyle}"/>
+                            <TextBlock Text="We check basic TCP connectivity to common service ports. This detects reachability even if ICMP is blocked." 
+                                       FontSize="14" Foreground="#6B7280" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Label Content="Probe Ports:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox x:Name="TcpProbePortsTextBox" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" Text="22,23,25,53,80,110,135,139,143,443,445,993,995,1433,1521,3306,3389,5432,5900,8080,8443"/>
+                            </Grid>
+                            <Button x:Name="RunTcpChecksButton" Content="Run TCP Checks" Width="150" Height="32" Style="{StaticResource PrimaryButton}" Margin="0,0,0,12" Click="RunTcpChecksButton_Click"/>
+                            <ProgressBar x:Name="TcpProgressBar" Height="6" Margin="0,0,0,12" Visibility="Collapsed" Maximum="100" Value="0"/>
+                            <DataGrid x:Name="TcpResultsDataGrid"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      HeadersVisibility="Column"
+                                      MaxHeight="300">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="IP" Binding="{Binding TargetIpString}" Width="*" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="*" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="State" Binding="{Binding State}" Width="*" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="RTT (ms)" Binding="{Binding RttMs}" Width="*" IsReadOnly="True"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Step 4: Path Analysis -->
+                <StackPanel x:Name="Step4Panel" Visibility="Collapsed">
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Path Analysis" Style="{StaticResource CardHeaderStyle}"/>
+                            <TextBlock Text="We trace the path towards the target network to identify the boundary device and where traffic stops." 
+                                       FontSize="14" Foreground="#6B7280" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Label Content="Target IP:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox x:Name="PathTargetIpTextBox" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" IsReadOnly="True"/>
+                            </Grid>
+                            <ProgressBar x:Name="PathProgressBar" Height="6" Margin="0,0,0,12" Visibility="Collapsed" Maximum="100" Value="0"/>
+                            <DataGrid x:Name="PathHopsDataGrid"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      HeadersVisibility="Column"
+                                      MaxHeight="300">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Hop" Binding="{Binding HopNumber}" Width="Auto" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="IP" Binding="{Binding HopIpString}" Width="*" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="RTT (ms)" Binding="{Binding RttMs}" Width="*" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="*" IsReadOnly="True"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <TextBlock x:Name="PathNotesTextBlock" FontSize="12" Foreground="#6B7280" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Step 5: Deeper Scan & Summary -->
+                <StackPanel x:Name="Step5Panel" Visibility="Collapsed">
+                    <!-- Deeper Scan Card -->
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Optional Deeper Scan" Style="{StaticResource CardHeaderStyle}"/>
+                            <CheckBox x:Name="EnableDeeperScanCheckBox" Content="Enable deeper scan" Style="{StaticResource DefaultCheckBox}" Margin="0,0,0,12"/>
+                            <Grid Margin="0,0,0,12" IsEnabled="{Binding IsChecked, ElementName=EnableDeeperScanCheckBox}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Label Content="Ports to scan:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBox x:Name="DeeperScanPortsTextBox" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" Text="22,23,25,53,80,110,135,139,143,443,445,502,993,995,1433,1521,3306,3389,5432,5900,8080,8443"/>
+                            </Grid>
+                            <Button x:Name="RunDeeperScanButton" Content="Run deeper scan" Width="150" Height="32" Style="{StaticResource PrimaryButton}" Margin="0,0,0,12" 
+                                    IsEnabled="{Binding IsChecked, ElementName=EnableDeeperScanCheckBox}" Click="RunDeeperScanButton_Click"/>
+                            <ProgressBar x:Name="DeeperScanProgressBar" Height="6" Margin="0,0,0,12" Visibility="Collapsed" Maximum="100" Value="0"/>
+                            <DataGrid x:Name="DeeperScanResultsDataGrid"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      HeadersVisibility="Column"
+                                      MaxHeight="200"
+                                      IsEnabled="{Binding IsChecked, ElementName=EnableDeeperScanCheckBox}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="IP" Binding="{Binding TargetIpString}" Width="*" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Open Ports" Binding="{Binding OpenPortsString}" Width="*" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Closed" Binding="{Binding ClosedCount}" Width="Auto" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Filtered" Binding="{Binding FilteredCount}" Width="Auto" IsReadOnly="True"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Summary Card -->
+                    <Border Style="{StaticResource CardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Analysis Summary" Style="{StaticResource CardHeaderStyle}"/>
+                            <TextBlock x:Name="SummaryTextBlock" 
+                                       FontSize="14" 
+                                       Foreground="#111827" 
+                                       TextWrapping="Wrap" 
+                                       Margin="0"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Bottom Navigation Bar -->
+        <Border Grid.Row="2" 
+                Background="White" 
+                BorderBrush="#E5E7EB" 
+                BorderThickness="0,1,0,0" 
+                Padding="0,12,0,0" 
+                Margin="0,20,0,0">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="StatusLabel" 
+                           Text="Step 1 of 5" 
+                           FontSize="12" 
+                           Foreground="#6B7280" 
+                           VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button x:Name="BackButton" Content="Back" Width="100" Height="32" Style="{StaticResource DefaultButton}" Margin="0,0,8,0" IsEnabled="False" Click="BackButton_Click"/>
+                    <Button x:Name="NextButton" Content="Next" Width="100" Height="32" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Click="NextButton_Click"/>
+                    <Button x:Name="CancelButton" Content="Cancel" Width="100" Height="32" Style="{StaticResource DefaultButton}" Click="CancelButton_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
+
