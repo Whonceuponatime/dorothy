@@ -1149,7 +1149,7 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error opening Task Manager: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error opening Task Manager: {ex.Message}");
                 _attackLogger.LogError($"Error opening Task Manager: {ex.Message}");
             }
         }
@@ -1414,7 +1414,7 @@ namespace Dorothy.Views
 
                 if (string.IsNullOrWhiteSpace(targetIp))
                 {
-                    MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "Please enter a target IP address.");
                     return;
                 }
 
@@ -1568,7 +1568,7 @@ namespace Dorothy.Views
 
                 if (string.IsNullOrWhiteSpace(targetIp))
                 {
-                    MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "Please enter a target IP address.");
                     return;
                 }
 
@@ -1700,7 +1700,7 @@ namespace Dorothy.Views
 
                 if (string.IsNullOrEmpty(attackType))
                 {
-                    MessageBox.Show("Please select an attack type.", "Missing Attack Type", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Missing Attack Type", "Please select an attack type.");
                     return;
                 }
 
@@ -1730,7 +1730,7 @@ namespace Dorothy.Views
                         break;
 
                     default:
-                        MessageBox.Show($"Unsupported attack type: {attackType}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        await ShowMessageAsync("Error", $"Unsupported attack type: {attackType}");
                         break;
                 }
             }
@@ -1788,15 +1788,14 @@ namespace Dorothy.Views
                             if (string.IsNullOrWhiteSpace(gatewayIp))
                             {
                                 _attackLogger.LogError("Gateway IP is required for cross-subnet targets. Please configure gateway or use a target on the same subnet.");
-                                MessageBox.Show("Gateway IP is required for targets on different subnets.\nPlease configure the gateway IP address.", 
-                                    "Gateway Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                                await ShowMessageAsync("Gateway Required", "Gateway IP is required for targets on different subnets.\nPlease configure the gateway IP address.");
                                 return false;
                             }
 
                             if (!IPAddress.TryParse(gatewayIp, out _))
                             {
                                 _attackLogger.LogError("Invalid gateway IP address format.");
-                                MessageBox.Show("Invalid gateway IP address format.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                                await ShowMessageAsync("Validation Error", "Invalid gateway IP address format.");
                                 return false;
                             }
                         }
@@ -1827,12 +1826,12 @@ namespace Dorothy.Views
                     sourceIp = AdvSourceIpTextBox.Text.Trim();
                     if (!int.TryParse(AdvTargetPortTextBox.Text, out targetPort))
                     {
-                        MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        await ShowMessageAsync("Validation Error", "Invalid target port.");
                         return;
                     }
                     if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out megabitsPerSecond))
                     {
-                        MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        await ShowMessageAsync("Validation Error", "Invalid rate (Mbps).");
                         return;
                     }
                 }
@@ -1842,12 +1841,12 @@ namespace Dorothy.Views
                     sourceIp = SourceIpTextBox.Text.Trim();
                     if (!int.TryParse(TargetPortTextBox.Text, out targetPort))
                     {
-                        MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        await ShowMessageAsync("Validation Error", "Invalid target port.");
                         return;
                     }
                     if (!long.TryParse(MegabitsPerSecondTextBox.Text, out megabitsPerSecond))
                     {
-                        MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        await ShowMessageAsync("Validation Error", "Invalid rate (Mbps).");
                         return;
                     }
                 }
@@ -1908,12 +1907,12 @@ namespace Dorothy.Views
                     sourceIp = AdvSourceIpTextBox.Text.Trim();
                     if (!int.TryParse(AdvTargetPortTextBox.Text, out targetPort))
                     {
-                        MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        await ShowMessageAsync("Validation Error", "Invalid target port.");
                     return;
                 }
                     if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out megabitsPerSecond))
                 {
-                        MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        await ShowMessageAsync("Validation Error", "Invalid rate (Mbps).");
                     return;
                 }
                 }
@@ -1923,12 +1922,12 @@ namespace Dorothy.Views
                     sourceIp = SourceIpTextBox.Text.Trim();
                     if (!int.TryParse(TargetPortTextBox.Text, out targetPort))
                     {
-                        MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        await ShowMessageAsync("Validation Error", "Invalid target port.");
                     return;
                 }
                     if (!long.TryParse(MegabitsPerSecondTextBox.Text, out megabitsPerSecond))
                     {
-                        MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        await ShowMessageAsync("Validation Error", "Invalid rate (Mbps).");
                         return;
                     }
                 }
@@ -2028,7 +2027,7 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error: {ex.Message}");
                 _attackLogger.LogError($"Error stopping attack: {ex}");
                 _currentRunningAttackType = null;
                 ResetStatistics();
@@ -2112,7 +2111,7 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error: {ex.Message}");
                 _attackLogger.LogError($"Error populating network interfaces: {ex}");
             }
         }
@@ -2384,7 +2383,7 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error populating attack types: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error populating attack types: {ex.Message}");
                 _attackLogger.LogError($"Error populating attack types: {ex}");
             }
         }
@@ -2792,7 +2791,7 @@ namespace Dorothy.Views
             {
                 if (string.IsNullOrWhiteSpace(GatewayIpTextBox.Text))
                 {
-                    MessageBox.Show("Please enter a gateway IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "Please enter a gateway IP address.");
                     return;
                 }
 
@@ -2802,19 +2801,19 @@ namespace Dorothy.Views
 
                 if (!IPAddress.TryParse(gatewayIp, out _))
                 {
-                    MessageBox.Show("Please enter a valid gateway IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "Please enter a valid gateway IP address.");
                     return;
                 }
 
                 if (!IPAddress.TryParse(sourceIp, out _))
                 {
-                    MessageBox.Show("Please enter a valid source IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "Please enter a valid source IP address.");
                     return;
                 }
 
                 if (!IPAddress.TryParse(targetIp, out _))
                 {
-                    MessageBox.Show("Please enter a valid target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "Please enter a valid target IP address.");
                     return;
                 }
 
@@ -2840,18 +2839,18 @@ namespace Dorothy.Views
                 if (process.ExitCode == 0)
                 {
                     _attackLogger.LogInfo($"Route added successfully: {targetIp} via {gatewayIp}");
-                    MessageBox.Show("Route added successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    await ShowMessageAsync("Success", "Route added successfully.");
                 }
                 else
                 {
                     var errorMessage = !string.IsNullOrEmpty(error) ? error : output;
                     _attackLogger.LogError($"Failed to add route: {errorMessage}");
-                    MessageBox.Show($"Failed to add route: {errorMessage}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", $"Failed to add route: {errorMessage}");
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error: {ex.Message}");
                 _attackLogger.LogError($"Error adding route: {ex}");
             }
         }
@@ -3203,7 +3202,7 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error: {ex.Message}");
                 _attackLogger.LogError($"Error starting advanced attack: {ex}");
             }
         }
@@ -3351,25 +3350,25 @@ namespace Dorothy.Views
                 
                 if (string.IsNullOrWhiteSpace(targetIp))
                 {
-                    MessageBox.Show("Please enter a target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Please enter a target IP address.");
                     return;
                 }
                 
                 if (!IPAddress.TryParse(targetIp, out var parsedTargetIp))
                 {
-                    MessageBox.Show("Invalid target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid target IP address.");
                     return;
                 }
                 
                 if (!int.TryParse(AdvTargetPortTextBox.Text, out int targetPort) || targetPort <= 0 || targetPort > 65535)
                 {
-                    MessageBox.Show("Invalid target port. Please enter a port between 1 and 65535.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid target port. Please enter a port between 1 and 65535.");
                     return;
                 }
                 
                 if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out long megabitsPerSecond) || megabitsPerSecond <= 0)
                 {
-                    MessageBox.Show("Invalid rate (Mbps). Please enter a positive number.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid rate (Mbps). Please enter a positive number.");
                     return;
                 }
 
@@ -3443,12 +3442,12 @@ namespace Dorothy.Views
                 string sourceIp = SourceIpTextBox.Text.Trim();
                 if (!int.TryParse(TargetPortTextBox.Text, out int targetPort))
                 {
-                    MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid target port.");
                     return;
                 }
                 if (!long.TryParse(MegabitsPerSecondTextBox.Text, out long megabitsPerSecond))
                 {
-                    MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid rate (Mbps).");
                     return;
                 }
 
@@ -3548,12 +3547,12 @@ namespace Dorothy.Views
                 string sourceIp = AdvSourceIpTextBox.Text.Trim();
                 if (!int.TryParse(AdvTargetPortTextBox.Text, out int targetPort))
                 {
-                    MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid target port.");
                     return;
                 }
                 if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out long megabitsPerSecond))
                 {
-                    MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid rate (Mbps).");
                     return;
                 }
 
@@ -3616,7 +3615,7 @@ namespace Dorothy.Views
                 // Check if password has been validated (one-time validation per session)
                 if (string.IsNullOrEmpty(_validationToken) || !IsValidationTokenValid(_validationToken))
                 {
-                    MessageBox.Show("Please validate your password first by clicking the 'Validate' button.", "Authentication Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Authentication Required", "Please validate your password first by clicking the 'Validate' button.");
                     AdvPasswordBox?.Focus();
                     return;
                 }
@@ -3661,7 +3660,7 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error: {ex.Message}");
                 _attackLogger.LogError($"Error stopping advanced attack: {ex}");
                 // Reset button states on error
                 StartAdvancedAttackButton.IsEnabled = true;
@@ -3703,11 +3702,7 @@ namespace Dorothy.Views
 
                 if (missingFields.Any())
                 {
-                    MessageBox.Show(
-                        $"Please fill in all required fields:\n{string.Join("\n", missingFields)}", 
-                        "Missing Fields", 
-                        MessageBoxButton.OK, 
-                        MessageBoxImage.Warning);
+                    await ShowMessageAsync("Missing Fields", $"Please fill in all required fields:\n{string.Join("\n", missingFields)}");
                 return;
             }
 
@@ -3724,9 +3719,7 @@ namespace Dorothy.Views
 
                 if (selectedInterface?.Interface.OperationalStatus != OperationalStatus.Up)
                 {
-                    MessageBox.Show(
-                        "Selected network interface is not active.\nPlease check your network connection.", 
-                        "Network Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Network Error", "Selected network interface is not active.\nPlease check your network connection.");
                 return;
             }
 
@@ -4250,13 +4243,13 @@ namespace Dorothy.Views
             NoteTextBox.Foreground = SystemColors.GrayTextBrush;
         }
 
-        private void AddNoteButton_Click(object sender, RoutedEventArgs e)
+        private async void AddNoteButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(NoteTextBox.Text) || NoteTextBox.Text == NOTE_PLACEHOLDER)
                 {
-                    MessageBox.Show("Please enter a note before adding.", "Empty Note", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Empty Note", "Please enter a note before adding.");
                     return;
                 }
 
@@ -4275,7 +4268,7 @@ namespace Dorothy.Views
             catch (Exception ex)
             {
                 _attackLogger.LogError($"Error adding note: {ex.Message}");
-                MessageBox.Show($"Error adding note: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error adding note: {ex.Message}");
             }
         }
 
@@ -4310,13 +4303,13 @@ namespace Dorothy.Views
 
                 if (string.IsNullOrWhiteSpace(targetIp))
                 {
-                    MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "Please enter a target IP address.");
                     return;
                 }
 
                 if (!IPAddress.TryParse(targetIp, out _))
                 {
-                    MessageBox.Show("Please enter a valid IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "Please enter a valid IP address.");
                     return;
                 }
 
@@ -4339,7 +4332,7 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error executing trace route: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error executing trace route: {ex.Message}");
                 _attackLogger.LogError($"Trace route failed: {ex}");
                 UpdateStatusBadge("Error", "error");
             }
@@ -4360,13 +4353,13 @@ namespace Dorothy.Views
 
                 if (string.IsNullOrWhiteSpace(targetIp))
                 {
-                    MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "Please enter a target IP address.");
                     return;
                 }
 
                 if (!IPAddress.TryParse(targetIp, out _))
                 {
-                    MessageBox.Show("Please enter a valid IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "Please enter a valid IP address.");
                     return;
                 }
 
@@ -4377,7 +4370,7 @@ namespace Dorothy.Views
 
                 if (string.IsNullOrEmpty(attackType))
                 {
-                    MessageBox.Show("Please select an attack type first.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "Please select an attack type first.");
                     return;
                 }
 
