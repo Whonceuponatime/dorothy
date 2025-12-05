@@ -69,28 +69,42 @@ Reference implementation:
 
 ## Quick Start
 
-### Setup and Installation
+### One-Command Setup (Recommended)
 
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd dorothy
-   ```
+**Just run this one script - it does everything:**
 
-2. **Run the all-in-one setup script:**
-   ```bash
-   chmod +x setup.sh
-   ./setup.sh
-   ```
-   
-   This will build, publish, and set up the `dorothy` command for Raspberry Pi (ARM64).
+```bash
+chmod +x setup.sh
+./setup.sh
+```
 
-3. **Run the application:**
-   ```bash
-   dorothy
-   ```
+That's it! This single script will:
+- Clean previous builds
+- Restore NuGet packages
+- Build the project
+- Publish for Raspberry Pi (ARM64)
+- Set up the `dorothy` command
+- Source your bashrc
 
-For detailed build and setup instructions, see [BUILD_AND_RUN_GUIDE.md](BUILD_AND_RUN_GUIDE.md).
+**Then run the application:**
+```bash
+dorothy
+```
+
+---
+
+### Other Scripts (Optional - Only if you need them)
+
+If you need more control, you can use these individual scripts:
+
+- **`build.sh`** - Just builds the project (for development)
+- **`run.sh`** - Just runs the built application
+- **`publish.sh [linux-arm64|linux-x64]`** - Just publishes (without setup)
+- **`setup-dorothy-command.sh [runtime]`** - Just sets up the command (after publishing)
+
+**But you don't need these - just use `setup.sh`!**
+
+For more details, see [BUILD_AND_RUN_GUIDE.md](BUILD_AND_RUN_GUIDE.md).
 
 ## Usage Guidelines
 This tool should only be used by authorized personnel in maritime environments for:
