@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\DoSNetworkStorm-seacure\\Dorothy.csproj": {}
+    "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\dorothy\\Dorothy.csproj": {}
   },
   "projects": {
-    "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\DoSNetworkStorm-seacure\\Dorothy.csproj": {
+    "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\dorothy\\Dorothy.csproj": {
       "version": "2.3.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\DoSNetworkStorm-seacure\\Dorothy.csproj",
+        "projectUniqueName": "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\dorothy\\Dorothy.csproj",
         "projectName": "Dorothy",
-        "projectPath": "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\DoSNetworkStorm-seacure\\Dorothy.csproj",
+        "projectPath": "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\dorothy\\Dorothy.csproj",
         "packagesPath": "C:\\Users\\SAMSUNG\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\DoSNetworkStorm-seacure\\obj\\",
+        "outputPath": "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\dorothy\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\SAMSUNG\\AppData\\Roaming\\NuGet\\NuGet.Config"
