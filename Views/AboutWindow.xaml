@@ -231,30 +231,26 @@
                         Foreground="White"
                         BorderThickness="0"
                         Cursor="Hand">
-                    <Button.Style>
-                        <Style TargetType="Button">
+                    <Button.Styles>
+                        <Style Selector="Button">
                             <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}"
-                                                CornerRadius="6"
-                                                Padding="12,8">
-                                            <ContentPresenter HorizontalAlignment="Center"
-                                                              VerticalAlignment="Center"/>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="6"
+                                            Padding="12,8">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
                             </Setter>
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#1F2937"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter Property="Background" Value="#0F172A"/>
-                                </Trigger>
-                            </Style.Triggers>
                         </Style>
-                    </Button.Style>
+                        <Style Selector="Button:pointerover">
+                            <Setter Property="Background" Value="#1F2937"/>
+                        </Style>
+                        <Style Selector="Button:pressed">
+                            <Setter Property="Background" Value="#0F172A"/>
+                        </Style>
+                    </Button.Styles>
                 </Button>
             </StackPanel>
         </StackPanel>
