@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:models="clr-namespace:Dorothy.Models;assembly=Dorothy"
         x:Class="Dorothy.Views.ReachabilityWizardWindow"
         Title="Reachability &amp; Path Analysis Wizard" 
         Height="700" Width="900"
@@ -262,7 +263,7 @@
                                     <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="*" IsReadOnly="True"/>
                                     <DataGridTemplateColumn Header="Action" Width="Auto">
                                         <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
+                                            <DataTemplate x:DataType="models:InsideAssetDefinition">
                                                 <Button Content="Remove" Style="{StaticResource DefaultButton}" Click="RemoveInsideIpButton_Click" Tag="{Binding}"/>
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
