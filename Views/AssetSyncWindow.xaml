@@ -120,8 +120,7 @@
                           GridLinesVisibility="All"
                           HeadersVisibility="Column"
                           SelectionMode="Extended"
-                          CanUserAddRows="False"
-                          CanUserDeleteRows="False">
+                          >
                     <DataGrid.Columns>
                         <DataGridTemplateColumn Header="" Width="40">
                             <DataGridTemplateColumn.CellTemplate>

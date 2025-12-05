@@ -550,8 +550,6 @@
                       GridLinesVisibility="All"
                       HeadersVisibility="Column"
                       SelectionMode="Single"
-                      CanUserAddRows="False"
-                      CanUserDeleteRows="False"
                       SelectionChanged="ResultsDataGrid_SelectionChanged">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="IP Address" Binding="{Binding IpAddress}" Width="150" />
@@ -603,8 +601,6 @@
                           GridLinesVisibility="All"
                           HeadersVisibility="Column"
                           SelectionMode="Single"
-                          CanUserAddRows="False"
-                          CanUserDeleteRows="False"
                           AlternatingRowBackground="#F9FAFB"
                           RowHeight="32"
                           FontSize="12"

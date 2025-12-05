@@ -255,8 +255,6 @@
 
                             <DataGrid x:Name="InsideIpsDataGrid"
                                       AutoGenerateColumns="False"
-                                      CanUserAddRows="False"
-                                      CanUserDeleteRows="False"
                                       HeadersVisibility="Column"
                                       MaxHeight="150">
                                 <DataGrid.Columns>
@@ -286,8 +284,6 @@
                             <ProgressBar x:Name="IcmpProgressBar" Height="6" Margin="0,0,0,12" IsVisible="False" Maximum="100" Value="0"/>
                             <DataGrid x:Name="IcmpResultsDataGrid"
                                       AutoGenerateColumns="False"
-                                      CanUserAddRows="False"
-                                      CanUserDeleteRows="False"
                                       HeadersVisibility="Column"
                                       MaxHeight="300">
                                 <DataGrid.Columns>
@@ -322,8 +318,6 @@
                             <ProgressBar x:Name="TcpProgressBar" Height="6" Margin="0,0,0,12" IsVisible="False" Maximum="100" Value="0"/>
                             <DataGrid x:Name="TcpResultsDataGrid"
                                       AutoGenerateColumns="False"
-                                      CanUserAddRows="False"
-                                      CanUserDeleteRows="False"
                                       HeadersVisibility="Column"
                                       MaxHeight="300">
                                 <DataGrid.Columns>
@@ -355,8 +349,6 @@
                             <ProgressBar x:Name="PathProgressBar" Height="6" Margin="0,0,0,12" IsVisible="False" Maximum="100" Value="0"/>
                             <DataGrid x:Name="PathHopsDataGrid"
                                       AutoGenerateColumns="False"
-                                      CanUserAddRows="False"
-                                      CanUserDeleteRows="False"
                                       HeadersVisibility="Column"
                                       MaxHeight="300">
                                 <DataGrid.Columns>
@@ -391,8 +383,6 @@
                             <ProgressBar x:Name="DeeperScanProgressBar" Height="6" Margin="0,0,0,12" IsVisible="False" Maximum="100" Value="0"/>
                             <DataGrid x:Name="DeeperScanResultsDataGrid"
                                       AutoGenerateColumns="False"
-                                      CanUserAddRows="False"
-                                      CanUserDeleteRows="False"
                                       HeadersVisibility="Column"
                                       MaxHeight="200"
                                       IsEnabled="{Binding IsChecked, ElementName=EnableDeeperScanCheckBox}">
