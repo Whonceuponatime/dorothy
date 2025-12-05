@@ -49,8 +49,8 @@
   </ItemGroup>
   
   <!-- Create distributable after Build - automatically publishes for self-contained executable -->
-  <!-- Disabled for cross-platform builds - use dotnet publish directly instead -->
-  <Target Name="CreateDistributionAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' AND '$(RuntimeIdentifier)' != '' AND '$(SkipAutoPublish)' != 'true'">
+  <!-- Disabled during Publish to avoid conflicts - use dotnet publish directly instead -->
+  <Target Name="CreateDistributionAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' AND '$(IsPublishing)' != 'true' AND '$(SkipAutoPublish)' != 'true'">
     <PropertyGroup>
       <DistDir>$(ProjectDir)dist</DistDir>
       <PublishDir>$(OutputPath)publish</PublishDir>
