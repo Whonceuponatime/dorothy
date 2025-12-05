@@ -346,13 +346,13 @@ namespace Dorothy.Views
         {
             try
             {
-                if (string.IsNullOrWhiteSpace(InsideIpTextBox.Text))
+                if (string.IsNullOrWhiteSpace(InsideIpTextBox?.Text))
                 {
                     await ShowMessageAsync("Invalid Input", "Please enter an IP address.");
                     return;
                 }
 
-                if (!IPAddress.TryParse(InsideIpTextBox.Text, out IPAddress? ip))
+                if (!IPAddress.TryParse(InsideIpTextBox?.Text, out IPAddress? ip))
                 {
                     await ShowMessageAsync("Invalid Input", "Invalid IP address format.");
                     return;
@@ -361,12 +361,12 @@ namespace Dorothy.Views
                 var asset = new InsideAssetDefinition
                 {
                     AssetIp = ip,
-                    Label = InsideIpLabelTextBox.Text?.Trim() ?? string.Empty
+                    Label = InsideIpLabelTextBox?.Text?.Trim() ?? string.Empty
                 };
 
                 _insideAssets.Add(asset);
-                InsideIpTextBox.Clear();
-                InsideIpLabelTextBox.Clear();
+                InsideIpTextBox?.Clear();
+                InsideIpLabelTextBox?.Clear();
             }
             catch (Exception ex)
             {
@@ -533,25 +533,25 @@ namespace Dorothy.Views
 
         private async Task<bool> ValidateStep1()
         {
-            if (SourceNicComboBox.SelectedItem == null)
+            if (SourceNicComboBox?.SelectedItem == null)
             {
                 await ShowMessageAsync("Validation Error", "Please select a source NIC.");
                 return false;
             }
 
-            bool isModeA = ModeARadioButton.IsChecked == true;
+            bool isModeA = ModeARadioButton?.IsChecked == true;
 
             if (isModeA)
             {
                 // Mode A: Validate CIDR
-                if (string.IsNullOrWhiteSpace(TargetCidrTextBox.Text))
+                if (string.IsNullOrWhiteSpace(TargetCidrTextBox?.Text))
                 {
                     await ShowMessageAsync("Validation Error", "Please enter a target CIDR.");
                     return false;
                 }
 
                 // Validate CIDR format
-                var cidrParts = TargetCidrTextBox.Text.Trim().Split('/');
+                var cidrParts = TargetCidrTextBox?.Text?.Trim().Split('/') ?? Array.Empty<string>();
                 if (cidrParts.Length != 2)
                 {
                     await ShowMessageAsync("Validation Error", "Invalid CIDR format. Expected format: X.Y.Z.W/N");
@@ -573,9 +573,9 @@ namespace Dorothy.Views
             else
             {
                 // Mode B: Validate external test IP (optional, but if provided must be valid)
-                if (!string.IsNullOrWhiteSpace(ExternalTestIpTextBox.Text))
+                if (!string.IsNullOrWhiteSpace(ExternalTestIpTextBox?.Text))
                 {
-                    if (!IPAddress.TryParse(ExternalTestIpTextBox.Text.Trim(), out _))
+                    if (!IPAddress.TryParse(ExternalTestIpTextBox.Text?.Trim(), out _))
                     {
                         await ShowMessageAsync("Validation Error", "Invalid external test IP address.");
                         return false;
@@ -588,11 +588,11 @@ namespace Dorothy.Views
 
         private void BuildContext()
         {
-            var selectedNic = SourceNicComboBox.SelectedItem as dynamic;
+            var selectedNic = SourceNicComboBox?.SelectedItem as dynamic;
             var ipAddress = selectedNic?.IpAddress as IPAddress;
             var nicId = selectedNic?.Id ?? string.Empty;
 
-            bool isModeA = ModeARadioButton.IsChecked == true;
+            bool isModeA = ModeARadioButton?.IsChecked == true;
 
             // Discover boundary device
             IPAddress? boundaryIp = null;
@@ -624,11 +624,11 @@ namespace Dorothy.Views
             _context = new AnalysisContext
             {
                 Mode = isModeA ? AnalysisMode.RemoteNetworkKnown : AnalysisMode.BoundaryOnly,
-                VantagePointName = VantagePointNameTextBox.Text.Trim(),
+                VantagePointName = VantagePointNameTextBox?.Text?.Trim() ?? string.Empty,
                 SourceNicId = nicId,
                 SourceIp = ipAddress ?? IPAddress.None,
-                TargetNetworkName = isModeA ? TargetNetworkNameTextBox.Text.Trim() : string.Empty,
-                TargetCidr = isModeA ? TargetCidrTextBox.Text.Trim() : string.Empty,
+                TargetNetworkName = isModeA ? TargetNetworkNameTextBox?.Text?.Trim() ?? string.Empty : string.Empty,
+                TargetCidr = isModeA ? TargetCidrTextBox?.Text?.Trim() ?? string.Empty : string.Empty,
                 InsideAssets = isModeA ? _insideAssets.ToList() : new List<InsideAssetDefinition>(),
                 BoundaryGatewayIp = boundaryIp,
                 BoundaryVendor = boundaryVendor,
@@ -774,7 +774,8 @@ namespace Dorothy.Views
             {
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    IcmpStatusTextBlock.Text = "ICMP checks canceled.";
+                    if (IcmpStatusTextBlock != null)
+                        IcmpStatusTextBlock.Text = "ICMP checks canceled.";
                 });
             }
             catch (Exception ex)
@@ -815,7 +816,8 @@ namespace Dorothy.Views
                 // Button state is managed by RunTcpChecksButton_Click wrapper
 
                 // Parse probe ports
-                var portStrings = TcpProbePortsTextBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                var portText = TcpProbePortsTextBox?.Text ?? string.Empty;
+                var portStrings = portText.Split(',', StringSplitOptions.RemoveEmptyEntries);
                 var ports = new List<int>();
                 foreach (var portStr in portStrings)
                 {
@@ -961,13 +963,15 @@ namespace Dorothy.Views
                     if (result != null)
                     {
                         _pathResult = result; // Store the path result for saving
-                        PathTargetIpTextBox.Text = result.TargetIpString;
+                        if (PathTargetIpTextBox != null)
+                            PathTargetIpTextBox.Text = result.TargetIpString;
                         _pathHops.Clear();
                         foreach (var hop in result.Hops)
                         {
                             _pathHops.Add(hop);
                         }
-                        PathNotesTextBlock.Text = result.Notes ?? "Path analysis completed.";
+                        if (PathNotesTextBlock != null)
+                            PathNotesTextBlock.Text = result.Notes ?? "Path analysis completed.";
                         _step4Completed = true;
                     }
                     else

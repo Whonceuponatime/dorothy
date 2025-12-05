@@ -100,7 +100,8 @@ namespace Dorothy.Views
             // Show/hide sync button based on availability
             if (_databaseService == null || _supabaseSyncService == null)
             {
-                SyncAssetsButton.IsVisible = false;
+                if (SyncAssetsButton != null)
+                    SyncAssetsButton.IsVisible = false;
             }
             else
             {
@@ -221,7 +222,8 @@ namespace Dorothy.Views
                 // Populate ports DataGrid with ports from selected asset
                 if (selectedAsset.OpenPorts != null && selectedAsset.OpenPorts.Count > 0)
                 {
-                    PortsDataGrid.ItemsSource = selectedAsset.OpenPorts.OrderBy(p => p.Port).ToList();
+                    if (PortsDataGrid != null)
+                        PortsDataGrid.ItemsSource = selectedAsset.OpenPorts.OrderBy(p => p.Port).ToList();
                     
                     // Update ports count text
                     if (PortsCountText != null)
@@ -233,7 +235,8 @@ namespace Dorothy.Views
                 }
                 else
                 {
-                    PortsDataGrid.ItemsSource = null;
+                    if (PortsDataGrid != null)
+                        PortsDataGrid.ItemsSource = null;
                     if (PortsCountText != null)
                     {
                         PortsCountText.Text = $"(No ports found for {selectedAsset.IpAddress})";
@@ -253,7 +256,8 @@ namespace Dorothy.Views
                 
                 if (allPorts.Count > 0)
                 {
-                    PortsDataGrid.ItemsSource = allPorts;
+                    if (PortsDataGrid != null)
+                        PortsDataGrid.ItemsSource = allPorts;
                     if (PortsCountText != null)
                     {
                         var deviceCount = _foundAssets.Count(a => a.OpenPorts != null && a.OpenPorts.Count > 0);
@@ -264,7 +268,8 @@ namespace Dorothy.Views
                 }
                 else
                 {
-                    PortsDataGrid.ItemsSource = null;
+                    if (PortsDataGrid != null)
+                        PortsDataGrid.ItemsSource = null;
                     if (PortsCountText != null)
                     {
                         PortsCountText.Text = "(No ports found)";
@@ -461,8 +466,10 @@ namespace Dorothy.Views
             }
             
             // Hide range config panel and show progress section
-            RangeConfigPanel.IsVisible = false;
-            StartScanButton.IsEnabled = false;
+            if (RangeConfigPanel != null)
+                RangeConfigPanel.IsVisible = false;
+            if (StartScanButton != null)
+                StartScanButton.IsEnabled = false;
             
             // Ensure progress section is visible
             var progressSection = this.FindControl<Control>("ProgressSection");
@@ -621,7 +628,8 @@ namespace Dorothy.Views
                             }
                             else if (PortsDataGrid != null)
                             {
-                                PortsDataGrid.ItemsSource = null;
+                                if (PortsDataGrid != null)
+                        PortsDataGrid.ItemsSource = null;
                                 if (PortsCountText != null)
                                 {
                                     PortsCountText.Text = "(No ports found)";
@@ -873,7 +881,8 @@ namespace Dorothy.Views
                                                 .ToList();
                                             
                                             PortsDataGrid.ItemsSource = allPorts;
-                                            PortsDataGrid.ItemsSource = null;
+                                            if (PortsDataGrid != null)
+                        PortsDataGrid.ItemsSource = null;
                                             PortsDataGrid.ItemsSource = allPorts;
                                             
                                             // Update ports count text
@@ -1326,6 +1335,7 @@ namespace Dorothy.Views
                     // Clear ports DataGrid
                     if (PortsDataGrid != null)
                     {
+                        if (PortsDataGrid != null)
                         PortsDataGrid.ItemsSource = null;
                     }
                     

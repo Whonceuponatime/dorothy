@@ -237,8 +237,11 @@ namespace Dorothy.Views
             }
 
             // Set placeholder text
-            NoteTextBox.Text = NOTE_PLACEHOLDER;
-            NoteTextBox.Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128));
+            if (NoteTextBox != null)
+            {
+                NoteTextBox.Text = NOTE_PLACEHOLDER;
+                NoteTextBox.Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128));
+            }
         }
 
         private void MainWindow_Loaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -755,7 +758,7 @@ namespace Dorothy.Views
                 
                 // Get attack type
                 string attackType = "None";
-                if (MainTabControl.SelectedItem == AdvancedTab)
+                if (MainTabControl?.SelectedItem == AdvancedTab)
                 {
                     var advType = (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
                     if (!string.IsNullOrEmpty(advType))
@@ -770,7 +773,7 @@ namespace Dorothy.Views
 
                 // Get Mbps
                 string mbps = "0";
-                if (MainTabControl.SelectedItem == AdvancedTab)
+                if (MainTabControl?.SelectedItem == AdvancedTab)
                 {
                     mbps = AdvMegabitsPerSecondTextBox.Text;
                 }
@@ -786,7 +789,7 @@ namespace Dorothy.Views
 
                 // Get NIC
                 string nicName = "";
-                if (MainTabControl.SelectedItem == AdvancedTab)
+                if (MainTabControl?.SelectedItem == AdvancedTab)
                 {
                     var advNic = AdvNetworkInterfaceComboBox.SelectedItem as dynamic;
                     nicName = advNic?.Interface?.Description ?? "";
@@ -805,7 +808,7 @@ namespace Dorothy.Views
                 // Get Target
                 string targetIp = "";
                 string targetPort = "";
-                if (MainTabControl.SelectedItem == AdvancedTab)
+                if (MainTabControl?.SelectedItem == AdvancedTab)
                 {
                     targetIp = AdvTargetIpTextBox.Text;
                     targetPort = AdvTargetPortTextBox.Text;
@@ -1099,7 +1102,7 @@ namespace Dorothy.Views
                     : TargetIpTextBox.Text.Trim();
                 
                 string attackType = "None";
-                if (MainTabControl.SelectedItem == AdvancedTab)
+                if (MainTabControl?.SelectedItem == AdvancedTab)
                 {
                     var advType = (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
                     if (!string.IsNullOrEmpty(advType))
@@ -1227,7 +1230,7 @@ namespace Dorothy.Views
                         string fileName = GenerateLogFileName();
                         string fullPath = System.IO.Path.Combine(logLocation, fileName);
 
-                        System.IO.File.WriteAllText(fullPath, LogTextBox.Text);
+                        System.IO.File.WriteAllText(fullPath, LogTextBox?.Text ?? string.Empty);
                         _logger.Info($"Log auto-saved to: {fullPath}");
                     }
                     catch (Exception ex)
@@ -1252,7 +1255,7 @@ namespace Dorothy.Views
 
         private void ClearLogButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            LogTextBox.Clear();
+            LogTextBox?.Clear();
         }
 
         private async void TaskManagerButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -1898,7 +1901,7 @@ namespace Dorothy.Views
                         if (!sameSubnet)
                         {
                             // Check if gateway is set
-                            var gatewayIp = GatewayIpTextBox.Text.Trim();
+                            var gatewayIp = GatewayIpTextBox?.Text?.Trim() ?? string.Empty;
                             if (string.IsNullOrWhiteSpace(gatewayIp))
                             {
                                 _attackLogger.LogError("Gateway IP is required for cross-subnet targets. Please configure gateway or use a target on the same subnet.");
@@ -1934,16 +1937,16 @@ namespace Dorothy.Views
                 int targetPort;
                 long megabitsPerSecond;
 
-                if (MainTabControl.SelectedItem == AdvancedTab)
+                if (MainTabControl?.SelectedItem == AdvancedTab)
                 {
-                    targetIp = AdvTargetIpTextBox.Text.Trim();
-                    sourceIp = AdvSourceIpTextBox.Text.Trim();
-                    if (!int.TryParse(AdvTargetPortTextBox.Text, out targetPort))
+                    targetIp = AdvTargetIpTextBox?.Text?.Trim() ?? string.Empty;
+                    sourceIp = AdvSourceIpTextBox?.Text?.Trim() ?? string.Empty;
+                    if (!int.TryParse(AdvTargetPortTextBox?.Text, out targetPort))
                     {
                         await ShowMessageAsync("Validation Error", "Invalid target port.");
                         return;
                     }
-                    if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out megabitsPerSecond))
+                    if (!long.TryParse(AdvMegabitsPerSecondTextBox?.Text, out megabitsPerSecond))
                     {
                         await ShowMessageAsync("Validation Error", "Invalid rate (Mbps).");
                         return;
@@ -1951,14 +1954,14 @@ namespace Dorothy.Views
                 }
                 else
                 {
-                    targetIp = TargetIpTextBox.Text.Trim();
-                    sourceIp = SourceIpTextBox.Text.Trim();
-                    if (!int.TryParse(TargetPortTextBox.Text, out targetPort))
+                    targetIp = TargetIpTextBox?.Text?.Trim() ?? string.Empty;
+                    sourceIp = SourceIpTextBox?.Text?.Trim() ?? string.Empty;
+                    if (!int.TryParse(TargetPortTextBox?.Text, out targetPort))
                     {
                         await ShowMessageAsync("Validation Error", "Invalid target port.");
                         return;
                     }
-                    if (!long.TryParse(MegabitsPerSecondTextBox.Text, out megabitsPerSecond))
+                    if (!long.TryParse(MegabitsPerSecondTextBox?.Text, out megabitsPerSecond))
                     {
                         await ShowMessageAsync("Validation Error", "Invalid rate (Mbps).");
                         return;
@@ -2015,7 +2018,7 @@ namespace Dorothy.Views
                 int targetPort;
                 long megabitsPerSecond;
 
-                if (MainTabControl.SelectedItem == AdvancedTab)
+                if (MainTabControl?.SelectedItem == AdvancedTab)
                 {
                     targetIp = AdvTargetIpTextBox.Text.Trim();
                     sourceIp = AdvSourceIpTextBox.Text.Trim();
@@ -3037,10 +3040,10 @@ namespace Dorothy.Views
                     if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem && 
                         selectedItem.Content.ToString() == "ARP Spoofing")
                     {
-                        if (sender == TargetMacTextBox)
-                            AdvTargetMacTextBox.Text = textBox.Text;
-                        else
-                            TargetMacTextBox.Text = textBox.Text;
+                    if (sender == TargetMacTextBox && AdvTargetMacTextBox != null)
+                        AdvTargetMacTextBox.Text = textBox.Text;
+                    else if (TargetMacTextBox != null)
+                        TargetMacTextBox.Text = textBox.Text;
                     }
                             }
                             else
@@ -3100,39 +3103,55 @@ namespace Dorothy.Views
                     switch (attackType)
                     {
                         case "ARP Spoofing":
-                            AdvTargetPortTextBox.IsEnabled = false;
-                            AdvMegabitsPerSecondTextBox.IsEnabled = false;
-                            AdvTargetMacTextBox.IsEnabled = true;
-                            SpoofedMacTextBox.IsEnabled = true;  // Enable spoofed MAC only for ARP Spoofing
+                            if (AdvTargetPortTextBox != null)
+                                AdvTargetPortTextBox.IsEnabled = false;
+                            if (AdvMegabitsPerSecondTextBox != null)
+                                AdvMegabitsPerSecondTextBox.IsEnabled = false;
+                            if (AdvTargetMacTextBox != null)
+                                AdvTargetMacTextBox.IsEnabled = true;
+                            if (SpoofedMacTextBox != null)
+                                SpoofedMacTextBox.IsEnabled = true;  // Enable spoofed MAC only for ARP Spoofing
                             // Sync all target information with basic settings
-                            AdvTargetIpTextBox.Text = TargetIpTextBox.Text;
-                            AdvTargetMacTextBox.Text = TargetMacTextBox.Text;
-                            AdvSourceIpTextBox.Text = SourceIpTextBox.Text;
-                            AdvSourceMacTextBox.Text = SourceMacTextBox.Text;
+                            if (AdvTargetIpTextBox != null && TargetIpTextBox != null)
+                                AdvTargetIpTextBox.Text = TargetIpTextBox.Text;
+                            if (AdvTargetMacTextBox != null && TargetMacTextBox != null)
+                                AdvTargetMacTextBox.Text = TargetMacTextBox.Text;
+                            if (AdvSourceIpTextBox != null && SourceIpTextBox != null)
+                                AdvSourceIpTextBox.Text = SourceIpTextBox.Text;
+                            if (AdvSourceMacTextBox != null && SourceMacTextBox != null)
+                                AdvSourceMacTextBox.Text = SourceMacTextBox.Text;
                             break;
                         case "NMEA 0183 (UDP Unicast)":
-                            AdvTargetPortTextBox.IsEnabled = true;
-                            AdvMegabitsPerSecondTextBox.IsEnabled = true;
-                            AdvTargetMacTextBox.IsEnabled = false;
-                            SpoofedMacTextBox.IsEnabled = false;
+                            if (AdvTargetPortTextBox != null)
+                                AdvTargetPortTextBox.IsEnabled = true;
+                            if (AdvMegabitsPerSecondTextBox != null)
+                                AdvMegabitsPerSecondTextBox.IsEnabled = true;
+                            if (AdvTargetMacTextBox != null)
+                                AdvTargetMacTextBox.IsEnabled = false;
+                            if (SpoofedMacTextBox != null)
+                                SpoofedMacTextBox.IsEnabled = false;
                             // Set default port for NMEA 0183
-                            if (string.IsNullOrWhiteSpace(AdvTargetPortTextBox.Text) || AdvTargetPortTextBox.Text == "0")
+                            if (AdvTargetPortTextBox != null && (string.IsNullOrWhiteSpace(AdvTargetPortTextBox.Text) || AdvTargetPortTextBox.Text == "0"))
                             {
                                 AdvTargetPortTextBox.Text = "10110";
                             }
                             // Default target IP is blank (user must enter)
                             break;
                         case "NMEA 0183 (UDP Multicast)":
-                            AdvTargetPortTextBox.IsEnabled = true;
-                            AdvMegabitsPerSecondTextBox.IsEnabled = true;
-                            AdvTargetMacTextBox.IsEnabled = false;
-                            SpoofedMacTextBox.IsEnabled = false;
+                            if (AdvTargetPortTextBox != null)
+                                AdvTargetPortTextBox.IsEnabled = true;
+                            if (AdvMegabitsPerSecondTextBox != null)
+                                AdvMegabitsPerSecondTextBox.IsEnabled = true;
+                            if (AdvTargetMacTextBox != null)
+                                AdvTargetMacTextBox.IsEnabled = false;
+                            if (SpoofedMacTextBox != null)
+                                SpoofedMacTextBox.IsEnabled = false;
                             // Set default port and multicast IP for NMEA 0183
-                            if (string.IsNullOrWhiteSpace(AdvTargetPortTextBox.Text) || AdvTargetPortTextBox.Text == "0")
+                            if (AdvTargetPortTextBox != null && (string.IsNullOrWhiteSpace(AdvTargetPortTextBox.Text) || AdvTargetPortTextBox.Text == "0"))
                             {
                                 AdvTargetPortTextBox.Text = "10110";
                             }
-                            if (string.IsNullOrWhiteSpace(AdvTargetIpTextBox.Text))
+                            if (AdvTargetIpTextBox != null && string.IsNullOrWhiteSpace(AdvTargetIpTextBox.Text))
                             {
                                 AdvTargetIpTextBox.Text = "239.192.0.1"; // Default multicast group
                             }
@@ -3387,8 +3406,10 @@ namespace Dorothy.Views
                 _targetMbps = megabitsPerSecond;
                 _statsTimer?.Start();
 
-                StartAdvancedAttackButton.IsEnabled = false;
-                StopAdvancedAttackButton.IsEnabled = true;
+                if (StartAdvancedAttackButton != null)
+                    StartAdvancedAttackButton.IsEnabled = false;
+                if (StopAdvancedAttackButton != null)
+                    StopAdvancedAttackButton.IsEnabled = true;
 
                 // Get MAC addresses for logging
                 var sourceMacBytes = await _mainController.GetLocalMacAddressAsync();
@@ -3493,8 +3514,10 @@ namespace Dorothy.Views
                 _targetMbps = megabitsPerSecond;
                 _statsTimer?.Start();
 
-                StartAdvancedAttackButton.IsEnabled = false;
-                StopAdvancedAttackButton.IsEnabled = true;
+                if (StartAdvancedAttackButton != null)
+                    StartAdvancedAttackButton.IsEnabled = false;
+                if (StopAdvancedAttackButton != null)
+                    StopAdvancedAttackButton.IsEnabled = true;
 
                 // Get MAC addresses for logging
                 var sourceMacBytes = await _mainController.GetLocalMacAddressAsync();
@@ -3680,8 +3703,10 @@ namespace Dorothy.Views
                     return;
                 }
 
-                StartAdvancedAttackButton.IsEnabled = false;
-                StopAdvancedAttackButton.IsEnabled = true;
+                if (StartAdvancedAttackButton != null)
+                    StartAdvancedAttackButton.IsEnabled = false;
+                if (StopAdvancedAttackButton != null)
+                    StopAdvancedAttackButton.IsEnabled = true;
 
                 var sourceMacBytes = await _mainController.GetLocalMacAddressAsync();
                 var localSourceIp = await _mainController.GetLocalIpAddressAsync();
@@ -3784,7 +3809,7 @@ namespace Dorothy.Views
                 string sourceIp, sourceMac, targetIp, targetMac, spoofedMac;
 
                 // Check which tab is active and get values accordingly
-                if (MainTabControl.SelectedItem == AdvancedTab)
+                if (MainTabControl?.SelectedItem == AdvancedTab)
                 {
                     sourceIp = AdvSourceIpTextBox.Text.Trim();
                     sourceMac = AdvSourceMacTextBox.Text.Trim();
@@ -4401,7 +4426,7 @@ namespace Dorothy.Views
             try
             {
                 string targetIp;
-                if (MainTabControl.SelectedItem == AdvancedTab)
+                if (MainTabControl?.SelectedItem == AdvancedTab)
                 {
                     targetIp = AdvTargetIpTextBox.Text.Trim();
                 }
