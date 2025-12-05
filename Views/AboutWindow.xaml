@@ -83,22 +83,20 @@
                                     Cursor="Hand"
                                     Click="DownloadUpdateButton_Click"
                                     HorizontalAlignment="Left">
-                                <Button.Style>
-                                    <Style TargetType="Button">
+                                <Button.Styles>
+                                    <Style Selector="Button">
                                         <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border Background="{TemplateBinding Background}"
-                                                            CornerRadius="6"
-                                                            Padding="12,8">
-                                                        <ContentPresenter HorizontalAlignment="Center"
-                                                                          VerticalAlignment="Center"/>
-                                                    </Border>
-                                                </ControlTemplate>
-                                            </Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                                        CornerRadius="6"
+                                                        Padding="12,8">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
                                         </Setter>
                                     </Style>
-                                </Button.Style>
+                                </Button.Styles>
                             </Button>
                         </StackPanel>
                     </Border>
