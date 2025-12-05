@@ -158,7 +158,7 @@ namespace Dorothy.Views
 
             // Set placeholder text
             NoteTextBox.Text = NOTE_PLACEHOLDER;
-            NoteTextBox.Foreground = SystemColors.GrayTextBrush;
+            NoteTextBox.Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128));
         }
 
         private void MainWindow_Loaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -182,7 +182,7 @@ namespace Dorothy.Views
                         {
                             AdvValidatePasswordButton.IsEnabled = false;
                         }
-                    }, System.Windows.Threading.DispatcherPriority.Normal);
+                    });
                     
                     _attackLogger.LogInfo("🔓 Previous validation restored - Attack controls enabled");
                 }
@@ -344,23 +344,23 @@ namespace Dorothy.Views
         /// <summary>
         /// Handles keyboard shortcuts for zoom (Ctrl + Plus/Minus/0)
         /// </summary>
-        private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        private void Window_KeyDown(object? sender, KeyEventArgs e)
         {
             if (_uiScalingService == null) return;
             
-            if (e.KeyboardDevice.Modifiers == System.Windows.Input.ModifierKeys.Control)
+            if (e.KeyModifiers == KeyModifiers.Control)
             {
-                if (e.Key == System.Windows.Input.Key.Add || e.Key == System.Windows.Input.Key.OemPlus)
+                if (e.Key == Key.Add || e.Key == Key.OemPlus)
                 {
                     _uiScalingService.ZoomIn();
                     e.Handled = true;
                 }
-                else if (e.Key == System.Windows.Input.Key.Subtract || e.Key == System.Windows.Input.Key.OemMinus)
+                else if (e.Key == Key.Subtract || e.Key == Key.OemMinus)
                 {
                     _uiScalingService.ZoomOut();
                     e.Handled = true;
                 }
-                else if (e.Key == System.Windows.Input.Key.D0 || e.Key == System.Windows.Input.Key.NumPad0)
+                else if (e.Key == Key.D0 || e.Key == Key.NumPad0)
                 {
                     _uiScalingService.ResetZoom();
                     e.Handled = true;
@@ -368,7 +368,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
+        private void Window_SizeChanged(object? sender, SizeChangedEventArgs e)
         {
             // Window size changed - no special handling needed
         }
@@ -1022,7 +1022,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        private void Window_Closing(object? sender, WindowClosingEventArgs e)
         {
             try
             {
@@ -1538,7 +1538,7 @@ namespace Dorothy.Views
                         }
                         else
                         {
-                            GatewayIpTextBox.Background = SystemColors.WindowBrush;
+                            GatewayIpTextBox.Background = new SolidColorBrush(Colors.White);
                         }
 
                         return true;
@@ -1554,7 +1554,7 @@ namespace Dorothy.Views
             }
         }
 
-        private async void ResolveMacButton_Click(object sender, RoutedEventArgs e)
+        private async void ResolveMacButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var button = sender as Button;
             try
@@ -1686,7 +1686,7 @@ namespace Dorothy.Views
             }
         }
 
-        private async void StartButton_Click(object sender, RoutedEventArgs e)
+        private async void StartButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -1972,7 +1972,7 @@ namespace Dorothy.Views
             }
         }
 
-        private async void StopButton_Click(object sender, RoutedEventArgs e)
+        private async void StopButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -2142,7 +2142,7 @@ namespace Dorothy.Views
             }
         }
         
-        private void MegabitsPerSecondTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+        private void MegabitsPerSecondTextBox_PreviewTextInput(object? sender, TextInputEventArgs e)
         {
             var textBox = sender as TextBox;
             if (textBox == null)
@@ -2152,7 +2152,7 @@ namespace Dorothy.Views
             }
             
             // Allow only digits and decimal point
-            if (!char.IsDigit(e.Text, 0) && e.Text != ".")
+            if (!string.IsNullOrEmpty(e.Text) && !char.IsDigit(e.Text[0]) && e.Text != ".")
             {
                 e.Handled = true;
                 return;
@@ -2215,7 +2215,7 @@ namespace Dorothy.Views
             }
         }
         
-        private void AdvMegabitsPerSecondTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+        private void AdvMegabitsPerSecondTextBox_PreviewTextInput(object? sender, TextInputEventArgs e)
         {
             var textBox = sender as TextBox;
             if (textBox == null)
@@ -2225,7 +2225,7 @@ namespace Dorothy.Views
             }
             
             // Allow only digits and decimal point
-            if (!char.IsDigit(e.Text, 0) && e.Text != ".")
+            if (!string.IsNullOrEmpty(e.Text) && !char.IsDigit(e.Text[0]) && e.Text != ".")
             {
                 e.Handled = true;
                 return;
@@ -2388,7 +2388,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void NetworkInterfaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void NetworkInterfaceComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             // Check if this call is from syncing (prevent duplicate processing) - CHECK FIRST!
             // This must be the very first check to prevent any duplicate processing
@@ -2785,7 +2785,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void AddRouteButton_Click(object sender, RoutedEventArgs e)
+        private async void AddRouteButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -2861,13 +2861,13 @@ namespace Dorothy.Views
             {
                 if (string.IsNullOrWhiteSpace(SourceIpTextBox.Text))
                 {
-                    SourceIpTextBox.Background = SystemColors.WindowBrush;
+                    SourceIpTextBox.Background = new SolidColorBrush(Colors.White);
                     return;
                 }
 
                 if (IPAddress.TryParse(SourceIpTextBox.Text, out _))
                 {
-                    SourceIpTextBox.Background = SystemColors.WindowBrush;
+                    SourceIpTextBox.Background = new SolidColorBrush(Colors.White);
                 }
                 else
                 {
@@ -2888,14 +2888,14 @@ namespace Dorothy.Views
             {
                 if (string.IsNullOrWhiteSpace(TargetIpTextBox.Text))
                 {
-                    TargetIpTextBox.Background = SystemColors.WindowBrush;
+                    TargetIpTextBox.Background = new SolidColorBrush(Colors.White);
                     UpdateProfileSummary();
                     return;
                 }
 
                 if (IPAddress.TryParse(TargetIpTextBox.Text, out _))
                 {
-                    TargetIpTextBox.Background = SystemColors.WindowBrush;
+                    TargetIpTextBox.Background = new SolidColorBrush(Colors.White);
                 }
                 else
                 {
@@ -2916,14 +2916,14 @@ namespace Dorothy.Views
                 var textBox = sender as TextBox;
                 if (string.IsNullOrWhiteSpace(textBox.Text))
                 {
-                    textBox.Background = SystemColors.WindowBrush;
+                    textBox.Background = new SolidColorBrush(Colors.White);
                     return;
                 }
 
                 var macRegex = new Regex("^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$");
                 if (macRegex.IsMatch(textBox.Text))
                 {
-                    textBox.Background = SystemColors.WindowBrush;
+                    textBox.Background = new SolidColorBrush(Colors.White);
                     // Sync between basic and advanced if ARP Spoofing is selected
                     if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem && 
                         selectedItem.Content.ToString() == "ARP Spoofing")
@@ -2945,7 +2945,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void AttackTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void AttackTypeComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             UpdateProfileSummary();
         }
@@ -2958,14 +2958,14 @@ namespace Dorothy.Views
                 {
                     if (string.IsNullOrWhiteSpace(textBox.Text))
                     {
-                        textBox.Background = SystemColors.WindowBrush;
+                        textBox.Background = new SolidColorBrush(Colors.White);
                         UpdateProfileSummary();
                         return;
                     }
 
                     if (IPAddress.TryParse(textBox.Text, out _))
                     {
-                        textBox.Background = SystemColors.WindowBrush;
+                        textBox.Background = new SolidColorBrush(Colors.White);
                     }
                     else
                     {
@@ -2980,7 +2980,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void AdvancedAttackTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void AdvancedAttackTypeComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             try
             {
@@ -3065,7 +3065,7 @@ namespace Dorothy.Views
 
                     if (string.IsNullOrWhiteSpace(textBox.Text))
                     {
-                        textBox.Background = SystemColors.WindowBrush;
+                        textBox.Background = new SolidColorBrush(Colors.White);
                         return;
                     }
 
@@ -3132,7 +3132,7 @@ namespace Dorothy.Views
                     }
                     else if (isPartial)
                     {
-                        textBox.Background = SystemColors.WindowBrush;
+                        textBox.Background = new SolidColorBrush(Colors.White);
                     }
                     else
                     {
@@ -3146,7 +3146,7 @@ namespace Dorothy.Views
             }
         }
 
-        private async void StartAdvancedAttack_Click(object sender, RoutedEventArgs e)
+        private async void StartAdvancedAttack_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -3608,7 +3608,7 @@ namespace Dorothy.Views
             }
         }
 
-        private async void StopAdvancedAttack_Click(object sender, RoutedEventArgs e)
+        private async void StopAdvancedAttack_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -3842,7 +3842,7 @@ namespace Dorothy.Views
                         }
                         else
                         {
-                            GatewayIpTextBox.Background = SystemColors.WindowBrush;
+                            GatewayIpTextBox.Background = new SolidColorBrush(Colors.White);
                             // Auto-populate gateway if empty
                             if (string.IsNullOrWhiteSpace(GatewayIpTextBox.Text))
                             {
@@ -3875,7 +3875,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void MainTabControl_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             // Prevent re-entrancy during tab changes
             if (_isHandlingTabChange)
@@ -4028,7 +4028,7 @@ namespace Dorothy.Views
             }
         }
         
-        private void PasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+        private void PasswordBox_PasswordChanged(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             // Don't auto-validate on password change - user must click Validate button
             // This ensures explicit validation is required
@@ -4040,7 +4040,7 @@ namespace Dorothy.Views
             }
         }
         
-        private void PasswordBox_KeyDown(object sender, KeyEventArgs e)
+        private void PasswordBox_KeyDown(object? sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
             {
@@ -4049,7 +4049,7 @@ namespace Dorothy.Views
             }
         }
         
-        private void ValidatePasswordButton_Click(object sender, RoutedEventArgs e)
+        private async void ValidatePasswordButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             // Only validate password for Advanced Settings tab
             if (MainTabControl.SelectedItem == AdvancedTab && AdvPasswordBox != null)
@@ -4095,7 +4095,7 @@ namespace Dorothy.Views
                     {
                         AdvValidatePasswordButton.IsEnabled = false;
                     }
-                }, System.Windows.Threading.DispatcherPriority.Normal);
+                });
                 
                 // Show success feedback - inline message and toast
                 if (passwordBox != null)
@@ -4215,17 +4215,17 @@ namespace Dorothy.Views
             }
         }
 
-        private void NoteTextBox_GotFocus(object sender, RoutedEventArgs e)
+        private void NoteTextBox_GotFocus(object? sender, Avalonia.Interactivity.GotFocusEventArgs e)
         {
             var textBox = (TextBox)sender;
             if (textBox.Text == NOTE_PLACEHOLDER)
             {
                 textBox.Text = string.Empty;
-                textBox.Foreground = SystemColors.WindowTextBrush;
+                textBox.Foreground = new SolidColorBrush(Color.FromRgb(0, 0, 0));
             }
         }
 
-        private void NoteTextBox_LostFocus(object sender, RoutedEventArgs e)
+        private void NoteTextBox_LostFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var textBox = (TextBox)sender;
             if (string.IsNullOrWhiteSpace(textBox.Text))
@@ -4235,12 +4235,12 @@ namespace Dorothy.Views
             }
         }
 
-        protected override void OnSourceInitialized(EventArgs e)
+        protected override void OnOpened(EventArgs e)
         {
-            base.OnSourceInitialized(e);
+            base.OnOpened(e);
             // Initialize placeholder text
             NoteTextBox.Text = NOTE_PLACEHOLDER;
-            NoteTextBox.Foreground = SystemColors.GrayTextBrush;
+            NoteTextBox.Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128));
         }
 
         private async void AddNoteButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -4263,7 +4263,7 @@ namespace Dorothy.Views
 
                 _attackLogger.LogNote(formattedNote);
                 NoteTextBox.Text = NOTE_PLACEHOLDER;
-                NoteTextBox.Foreground = SystemColors.GrayTextBrush;
+                NoteTextBox.Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128));
             }
             catch (Exception ex)
             {
@@ -4277,17 +4277,17 @@ namespace Dorothy.Views
         {
             base.OnKeyDown(e);
             
-            if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.Control)
             {
                 if (NoteTextBox.IsFocused)
                 {
-                    AddNoteButton_Click(this, new RoutedEventArgs());
+                    AddNoteButton_Click(this, new Avalonia.Interactivity.RoutedEventArgs());
                     e.Handled = true;
                 }
             }
         }
 
-        private async void TraceRouteButton_Click(object sender, RoutedEventArgs e)
+        private async void TraceRouteButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -4338,7 +4338,7 @@ namespace Dorothy.Views
             }
         }
 
-        private async void ScanButton_Click(object sender, RoutedEventArgs e)
+        private async void ScanButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var button = sender as Button;
             var progressBar = button == ScanButton ? ScanProgressBar : AdvScanProgressBar;
@@ -4643,7 +4643,7 @@ namespace Dorothy.Views
                             }
         }
 
-        private async void NetworkScanButton_Click(object sender, RoutedEventArgs e)
+        private async void NetworkScanButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -4718,11 +4718,11 @@ namespace Dorothy.Views
             }
         }
 
-        private void MacFallbackCheckBox_Checked(object sender, RoutedEventArgs e)
+        private void MacFallbackCheckBox_Checked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
-                var checkBox = sender as System.Windows.Controls.CheckBox;
+                var checkBox = sender as CheckBox;
                 if (checkBox == MacFallbackCheckBox)
                 {
                     TargetMacTextBox.IsReadOnly = false;
@@ -4740,11 +4740,11 @@ namespace Dorothy.Views
             }
         }
 
-        private void MacFallbackCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        private void MacFallbackCheckBox_Unchecked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
-                var checkBox = sender as System.Windows.Controls.CheckBox;
+                var checkBox = sender as CheckBox;
                 if (checkBox == MacFallbackCheckBox)
                 {
                     TargetMacTextBox.IsReadOnly = true;
@@ -4762,7 +4762,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void RefreshSourceIpButton_Click(object sender, RoutedEventArgs e)
+        private async void RefreshSourceIpButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -4871,7 +4871,7 @@ namespace Dorothy.Views
         /// <summary>
         /// Open Reachability & Path Analysis Wizard
         /// </summary>
-        private void ReachabilityPathAnalysisButton_Click(object sender, RoutedEventArgs e)
+        private void ReachabilityPathAnalysisButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             ReachabilityWizardWindow? wizard = null;
             try
@@ -4951,7 +4951,7 @@ namespace Dorothy.Views
             }
         }
 
-        private async void StartSnmpWalkButton_Click(object sender, RoutedEventArgs e)
+        private async void StartSnmpWalkButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
