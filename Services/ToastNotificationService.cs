@@ -1,9 +1,9 @@
 using System;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Threading;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.Animation;
+using Avalonia.Threading;
 
 namespace Dorothy.Services
 {
@@ -46,12 +46,11 @@ namespace Dorothy.Services
         {
             if (_toastContainer == null)
             {
-                // Fallback to MessageBox if container not initialized
-                MessageBox.Show(message, "Notification", MessageBoxButton.OK, MessageBoxImage.Information);
+                // Fallback - just return if container not initialized
                 return;
             }
 
-            _parentWindow.Dispatcher.Invoke(() =>
+            _ = Dispatcher.UIThread.InvokeAsync(() =>
             {
                 var toast = new Border
                 {
@@ -89,7 +88,7 @@ namespace Dorothy.Services
                     Background = Brushes.Transparent,
                     BorderThickness = new Thickness(0),
                     Padding = new Thickness(8, 0, 0, 0),
-                    Cursor = System.Windows.Input.Cursors.Hand,
+                    Cursor = new Cursor(StandardCursorType.Hand),
                     VerticalAlignment = VerticalAlignment.Center
                 };
 
@@ -127,19 +126,30 @@ namespace Dorothy.Services
 
         private void DismissToast(Border toast)
         {
-            var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(250));
-            var slideOut = new DoubleAnimation(0, 400, TimeSpan.FromMilliseconds(250));
-
-            fadeOut.Completed += (s, e) =>
+            // Simple fade out animation
+            _ = Task.Run(async () =>
             {
-                if (_toastContainer != null && _toastContainer.Children.Contains(toast))
+                for (int i = 10; i >= 0; i--)
                 {
-                    _toastContainer.Children.Remove(toast);
+                    await Task.Delay(25);
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        toast.Opacity = i / 10.0;
+                        if (toast.RenderTransform is TranslateTransform transform)
+                        {
+                            transform.X = 400 * (1 - i / 10.0);
+                        }
+                    });
                 }
-            };
-
-            toast.BeginAnimation(UIElement.OpacityProperty, fadeOut);
-            toast.RenderTransform.BeginAnimation(TranslateTransform.XProperty, slideOut);
+                
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if (_toastContainer != null && _toastContainer.Children.Contains(toast))
+                    {
+                        _toastContainer.Children.Remove(toast);
+                    }
+                });
+            });
         }
     }
 }

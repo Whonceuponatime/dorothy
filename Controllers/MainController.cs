@@ -2,19 +2,20 @@ using System;
 using System.Linq;
 using System.Net.NetworkInformation;
 using System.Threading.Tasks;
-using System.Windows.Controls;
+using Avalonia.Controls;
 using NLog;
 using Dorothy.Models;
-using System.Windows;
+using Avalonia;
 using System.Text.RegularExpressions;
 using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading;
-using System.Windows.Media;
-using System.Windows.Shapes;
+using Avalonia.Media;
+using Avalonia.Shapes;
 using System.Collections.Generic;
 using System.Net.Sockets;  // For AddressFamily
 using System.Diagnostics;
+using Avalonia.Threading;
 
 namespace Dorothy.Controllers
 {
@@ -52,7 +53,7 @@ namespace Dorothy.Controllers
 
         private void UpdateStatusBadge(string status, string statusType)
         {
-            _mainWindow.Dispatcher.Invoke(() =>
+            _ = Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _statusBadgeText.Text = status;
                 
@@ -61,26 +62,26 @@ namespace Dorothy.Controllers
                 {
                     case "ready":
                     case "idle":
-                        _statusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D1FAE5"));
-                        _statusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
-                        _statusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+                        _statusBadge.Background = new SolidColorBrush(Color.Parse("#D1FAE5"));
+                        _statusBadgeText.Foreground = new SolidColorBrush(Color.Parse("#059669"));
+                        _statusDot.Fill = new SolidColorBrush(Color.Parse("#059669"));
                         break;
                     case "attacking":
                     case "running":
                     case "active":
-                        _statusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEE2E2"));
-                        _statusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
-                        _statusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
+                        _statusBadge.Background = new SolidColorBrush(Color.Parse("#FEE2E2"));
+                        _statusBadgeText.Foreground = new SolidColorBrush(Color.Parse("#E45757"));
+                        _statusDot.Fill = new SolidColorBrush(Color.Parse("#E45757"));
                         break;
                     case "error":
-                        _statusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEE2E2"));
-                        _statusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
-                        _statusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
+                        _statusBadge.Background = new SolidColorBrush(Color.Parse("#FEE2E2"));
+                        _statusBadgeText.Foreground = new SolidColorBrush(Color.Parse("#E45757"));
+                        _statusDot.Fill = new SolidColorBrush(Color.Parse("#E45757"));
                         break;
                     default:
-                        _statusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D1FAE5"));
-                        _statusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
-                        _statusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+                        _statusBadge.Background = new SolidColorBrush(Color.Parse("#D1FAE5"));
+                        _statusBadgeText.Foreground = new SolidColorBrush(Color.Parse("#059669"));
+                        _statusDot.Fill = new SolidColorBrush(Color.Parse("#059669"));
                         break;
                 }
             });
@@ -412,10 +413,14 @@ namespace Dorothy.Controllers
 
         private void LogMessage(string message)
         {
-            _logTextBox.Dispatcher.Invoke(() =>
+            _ = Dispatcher.UIThread.InvokeAsync(() =>
             {
-                _logTextBox.AppendText($"{message}{Environment.NewLine}");
-                _logTextBox.ScrollToEnd();
+                _logTextBox.Text += $"{message}{Environment.NewLine}";
+                // Scroll to end - Avalonia TextBox doesn't have ScrollToEnd, need to use ScrollViewer
+                if (_logTextBox.Parent is ScrollViewer scrollViewer)
+                {
+                    scrollViewer.Offset = new Vector(scrollViewer.Offset.X, scrollViewer.Extent.Height);
+                }
             });
         }
 
