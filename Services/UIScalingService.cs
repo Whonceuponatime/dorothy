@@ -1,8 +1,7 @@
 ﻿using System;
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Interop;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
 
 namespace Dorothy.Services
 {
@@ -44,12 +43,18 @@ namespace Dorothy.Services
         {
             try
             {
-                var source = PresentationSource.FromVisual(Application.Current.MainWindow);
-                if (source?.CompositionTarget != null)
+                var app = Application.Current;
+                if (app?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
                 {
-                    var dpiX = source.CompositionTarget.TransformToDevice.M11;
-                    var dpiY = source.CompositionTarget.TransformToDevice.M22;
-                    return (dpiX + dpiY) / 2.0;
+                    var mainWindow = desktop.MainWindow;
+                    if (mainWindow != null)
+                    {
+                        var screen = mainWindow.Screens.Primary;
+                        if (screen != null)
+                        {
+                            return screen.PixelDensity;
+                        }
+                    }
                 }
             }
             catch
@@ -57,8 +62,8 @@ namespace Dorothy.Services
                 // Fallback if window not yet created
             }
 
-            // Fallback: use system parameters
-            return SystemParameters.PrimaryScreenHeight / 1080.0; // Assume 1080p baseline
+            // Fallback: assume 1.0 scale
+            return 1.0;
         }
 
         /// <summary>
@@ -68,12 +73,10 @@ namespace Dorothy.Services
         {
             try
             {
-                var source = PresentationSource.FromVisual(window);
-                if (source?.CompositionTarget != null)
+                var screen = window.Screens.ScreenFromVisual(window);
+                if (screen != null)
                 {
-                    var dpiX = source.CompositionTarget.TransformToDevice.M11;
-                    var dpiY = source.CompositionTarget.TransformToDevice.M22;
-                    return (dpiX + dpiY) / 2.0;
+                    return screen.PixelDensity;
                 }
             }
             catch
@@ -89,17 +92,38 @@ namespace Dorothy.Services
         /// </summary>
         public double CalculateResponsiveScale(double baseWidth = 1920, double baseHeight = 1080)
         {
-            var screenWidth = SystemParameters.PrimaryScreenWidth;
-            var screenHeight = SystemParameters.PrimaryScreenHeight;
+            try
+            {
+                var app = Application.Current;
+                if (app?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    var mainWindow = desktop.MainWindow;
+                    if (mainWindow != null)
+                    {
+                        var screen = mainWindow.Screens.Primary;
+                        if (screen != null)
+                        {
+                            var screenWidth = screen.Bounds.Width;
+                            var screenHeight = screen.Bounds.Height;
 
-            var widthScale = screenWidth / baseWidth;
-            var heightScale = screenHeight / baseHeight;
+                            var widthScale = screenWidth / baseWidth;
+                            var heightScale = screenHeight / baseHeight;
 
-            // Use the smaller scale to ensure everything fits
-            var scale = Math.Min(widthScale, heightScale);
+                            // Use the smaller scale to ensure everything fits
+                            var scale = Math.Min(widthScale, heightScale);
 
-            // Clamp between reasonable bounds
-            return Math.Max(0.6, Math.Min(1.5, scale));
+                            // Clamp between reasonable bounds
+                            return Math.Max(0.6, Math.Min(1.5, scale));
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback
+            }
+
+            return 1.0;
         }
 
         /// <summary>
@@ -135,9 +159,9 @@ namespace Dorothy.Services
         }
 
         /// <summary>
-        /// Applies scaling transform to a FrameworkElement
+        /// Applies scaling transform to a Control
         /// </summary>
-        public void ApplyScaleTransform(FrameworkElement element, double? scale = null)
+        public void ApplyScaleTransform(Control element, double? scale = null)
         {
             var scaleValue = scale ?? CurrentScaleFactor;
             
@@ -145,7 +169,7 @@ namespace Dorothy.Services
             {
                 scaleTransform = new ScaleTransform();
                 element.RenderTransform = scaleTransform;
-                element.RenderTransformOrigin = new Point(0.5, 0.5);
+                element.RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative);
             }
 
             scaleTransform.ScaleX = scaleValue;
@@ -199,17 +223,38 @@ namespace Dorothy.Services
         /// </summary>
         public ScreenCategory GetScreenCategory()
         {
-            var screenWidth = SystemParameters.PrimaryScreenWidth;
-            var screenHeight = SystemParameters.PrimaryScreenHeight;
+            try
+            {
+                var app = Application.Current;
+                if (app?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    var mainWindow = desktop.MainWindow;
+                    if (mainWindow != null)
+                    {
+                        var screen = mainWindow.Screens.Primary;
+                        if (screen != null)
+                        {
+                            var screenWidth = screen.Bounds.Width;
+                            var screenHeight = screen.Bounds.Height;
 
-            if (screenWidth < 1366 || screenHeight < 768)
-                return ScreenCategory.Small;
-            if (screenWidth < 1600 || screenHeight < 900)
-                return ScreenCategory.Medium;
-            if (screenWidth < 2560 || screenHeight < 1440)
-                return ScreenCategory.Large;
-            
-            return ScreenCategory.ExtraLarge;
+                            if (screenWidth < 1366 || screenHeight < 768)
+                                return ScreenCategory.Small;
+                            if (screenWidth < 1600 || screenHeight < 900)
+                                return ScreenCategory.Medium;
+                            if (screenWidth < 2560 || screenHeight < 1440)
+                                return ScreenCategory.Large;
+                            
+                            return ScreenCategory.ExtraLarge;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback
+            }
+
+            return ScreenCategory.Medium;
         }
 
         /// <summary>
