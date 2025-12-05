@@ -479,7 +479,7 @@ namespace Dorothy.Models
                     // Fallback to TextBox scroll if no ScrollViewer found
                     _logArea.ScrollToEnd();
                 }
-            }), System.Windows.Threading.DispatcherPriority.Loaded);
+            });
         }
         
         private static T? FindVisualParent<T>(DependencyObject child) where T : DependencyObject
