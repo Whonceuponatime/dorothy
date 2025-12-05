@@ -20,9 +20,17 @@
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <!-- Define WINDOWS constant only on Windows -->
     <DefineConstants Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(DefineConstants);WINDOWS</DefineConstants>
+    <!-- Enable Avalonia XAML compilation -->
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Resources\**\*.*" />
+  </ItemGroup>
+  <!-- Include XAML files as AvaloniaResource -->
+  <ItemGroup>
+    <AvaloniaResource Include="App.xaml" />
+    <AvaloniaResource Include="Resources\Styles.xaml" />
+    <AvaloniaResource Include="Views\**\*.xaml" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.0.10" />
