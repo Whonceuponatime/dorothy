@@ -1,6 +1,8 @@
 using System;
 using System.IO;
-using System.Windows;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
 
 namespace Dorothy.Views
 {
@@ -10,20 +12,18 @@ namespace Dorothy.Views
 
         public DisclaimerWindow()
         {
-            InitializeComponent();
+            AvaloniaXamlLoader.Load(this);
         }
 
-        private void AcceptButton_Click(object sender, RoutedEventArgs e)
+        private void AcceptButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             DontShowAgain = DontShowAgainCheckBox.IsChecked ?? false;
-            DialogResult = true;
-            Close();
+            Close(true);
         }
 
-        private void ExitButton_Click(object sender, RoutedEventArgs e)
+        private void ExitButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            DialogResult = false;
-            Close();
+            Close(false);
         }
     }
 }

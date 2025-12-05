@@ -1,5 +1,8 @@
 ﻿using System;
-using System.Windows;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+using Avalonia.Markup.Xaml;
 using Dorothy.Services;
 
 namespace Dorothy.Views
@@ -10,7 +13,7 @@ namespace Dorothy.Views
 
         public UIScalingWindow()
         {
-            InitializeComponent();
+            AvaloniaXamlLoader.Load(this);
             _scalingService = UIScalingService.Instance;
             
             // Initialize slider with current scale
@@ -30,7 +33,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void ScaleSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        private void ScaleSlider_ValueChanged(object? sender, Avalonia.Controls.Primitives.RangeBaseValueChangedEventArgs e)
         {
             if (e.NewValue > 0)
             {
@@ -39,25 +42,25 @@ namespace Dorothy.Views
             }
         }
 
-        private void ZoomInButton_Click(object sender, RoutedEventArgs e)
+        private void ZoomInButton_Click(object? sender, RoutedEventArgs e)
         {
             _scalingService.ZoomIn();
             ScaleSlider.Value = _scalingService.CurrentScaleFactor;
         }
 
-        private void ZoomOutButton_Click(object sender, RoutedEventArgs e)
+        private void ZoomOutButton_Click(object? sender, RoutedEventArgs e)
         {
             _scalingService.ZoomOut();
             ScaleSlider.Value = _scalingService.CurrentScaleFactor;
         }
 
-        private void ResetButton_Click(object sender, RoutedEventArgs e)
+        private void ResetButton_Click(object? sender, RoutedEventArgs e)
         {
             _scalingService.ResetZoom();
             ScaleSlider.Value = _scalingService.CurrentScaleFactor;
         }
 
-        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        private void CloseButton_Click(object? sender, RoutedEventArgs e)
         {
             Close();
         }

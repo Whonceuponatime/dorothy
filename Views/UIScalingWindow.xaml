@@ -1,11 +1,11 @@
-<Window x:Class="Dorothy.Views.UIScalingWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Dorothy.Views.UIScalingWindow"
         Title="UI Scaling Settings" 
         Height="300" 
         Width="400"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize">
+        CanResize="False">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>

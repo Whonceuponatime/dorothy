@@ -1,11 +1,11 @@
-<Window x:Class="Dorothy.Views.DisclaimerWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Dorothy.Views.DisclaimerWindow"
         Title="Authorized Use Only" 
         Height="500" 
         Width="600"
         WindowStartupLocation="CenterScreen"
-        ResizeMode="NoResize"
+        CanResize="False"
         Background="#F3F4F6"
         ShowInTaskbar="False">
     <Grid Margin="24">
