@@ -178,7 +178,7 @@
                                 VerticalAlignment="Center">
                             <Button.Styles>
                                 <Style Selector="Button:pointerover">
-                                    <Setter Property="TextDecorations" Value="Underline"/>
+                                    <Setter Property="Opacity" Value="0.8"/>
                                 </Style>
                             </Button.Styles>
                         </Button>
@@ -207,7 +207,7 @@
                                 HorizontalContentAlignment="Center">
                             <Button.Styles>
                                 <Style Selector="Button:pointerover">
-                                    <Setter Property="TextDecorations" Value="Underline"/>
+                                    <Setter Property="Opacity" Value="0.8"/>
                                 </Style>
                             </Button.Styles>
                         </Button>
