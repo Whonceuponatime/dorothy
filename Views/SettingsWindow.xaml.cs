@@ -1,15 +1,13 @@
 ﻿using System;
 using System.IO;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Interop;
-using System.Windows.Media;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Markup.Xaml;
+using Avalonia.Media;
 using Dorothy.Models.Database;
 using Dorothy.Services;
-using Microsoft.Win32;
 using Supabase;
 
 namespace Dorothy.Views
@@ -22,7 +20,7 @@ namespace Dorothy.Views
 
         public SettingsWindow(string currentLogLocation, double currentFontSize, int currentThemeIndex)
         {
-            InitializeComponent();
+            AvaloniaXamlLoader.Load(this);
             LogLocation = currentLogLocation;
             FontSize = currentFontSize;
             ThemeIndex = currentThemeIndex;
@@ -51,24 +49,18 @@ namespace Dorothy.Views
             LoadLicenseInfo();
         }
 
-        private void BrowseLogLocationButton_Click(object sender, RoutedEventArgs e)
+        private async void BrowseLogLocationButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            var selectedPath = ShowFolderBrowserDialog("Select folder for log files", LogLocationTextBox.Text);
+            var selectedPath = await FileDialogHelper.ShowFolderDialogAsync(this, LogLocationTextBox.Text);
             if (!string.IsNullOrEmpty(selectedPath))
             {
                 LogLocationTextBox.Text = selectedPath;
             }
         }
 
-        private string ShowFolderBrowserDialog(string description, string initialPath)
-            {
-            var hwnd = new WindowInteropHelper(this).Handle;
-            return FolderBrowser.ShowDialog(hwnd, description, initialPath);
-        }
-
-        private void SaveButton_Click(object sender, RoutedEventArgs e)
+        private async void SaveButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            LogLocation = LogLocationTextBox.Text;
+            LogLocation = LogLocationTextBox.Text ?? string.Empty;
             
             // Parse font size from textbox
             if (double.TryParse(FontSizeTextBox.Text, out double fontSize) && fontSize >= 8 && fontSize <= 24)
@@ -77,11 +69,15 @@ namespace Dorothy.Views
             }
             else
             {
-                MessageBox.Show(
-                    "Font size must be a number between 8 and 24.",
-                    "Invalid Font Size",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                var msgBox = new Window
+                {
+                    Title = "Invalid Font Size",
+                    Content = new TextBlock { Text = "Font size must be a number between 8 and 24." },
+                    Width = 350,
+                    Height = 150,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
                 return;
             }
             
@@ -96,22 +92,25 @@ namespace Dorothy.Views
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show(
-                        $"Cannot create directory: {ex.Message}",
-                        "Error",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error);
+                    var msgBox = new Window
+                    {
+                        Title = "Error",
+                        Content = new TextBlock { Text = $"Cannot create directory: {ex.Message}" },
+                        Width = 400,
+                        Height = 200,
+                        WindowStartupLocation = WindowStartupLocation.CenterOwner
+                    };
+                    await msgBox.ShowDialog(this);
                     return;
                 }
             }
 
             // Supabase credentials are hardcoded - no validation needed
 
-            DialogResult = true;
-            Close();
+            Close(true);
         }
         
-        private void FontSizeTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+        private void FontSizeTextBox_OnTextInput(object? sender, TextInputEventArgs e)
         {
             var textBox = sender as TextBox;
             if (textBox == null)
@@ -121,14 +120,14 @@ namespace Dorothy.Views
             }
             
             // Allow only digits and decimal point
-            if (!char.IsDigit(e.Text, 0) && e.Text != ".")
+            if (!char.IsDigit(e.Text?[0] ?? '\0') && e.Text != ".")
             {
                 e.Handled = true;
                 return;
             }
             
             // Prevent multiple decimal points
-            if (e.Text == "." && textBox.Text.Contains("."))
+            if (e.Text == "." && (textBox.Text?.Contains(".") ?? false))
             {
                 e.Handled = true;
                 return;
@@ -137,7 +136,7 @@ namespace Dorothy.Views
             // Get the resulting text after insertion
             string currentText = textBox.Text ?? string.Empty;
             int caretIndex = textBox.CaretIndex;
-            string newText = currentText.Insert(caretIndex, e.Text);
+            string newText = currentText.Insert(caretIndex, e.Text ?? "");
             
             // Allow empty text (user is deleting/clearing)
             if (string.IsNullOrEmpty(newText))
@@ -161,7 +160,7 @@ namespace Dorothy.Views
             // Examples: "1", "12", "12." are all valid partial inputs
         }
         
-        private void FontSizeTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private void FontSizeTextBox_TextChanged(object? sender, Avalonia.Controls.TextChangedEventArgs e)
         {
             var textBox = sender as TextBox;
             if (textBox == null) return;
@@ -192,35 +191,50 @@ namespace Dorothy.Views
             }
         }
 
-        private void CancelButton_Click(object sender, RoutedEventArgs e)
+        private void CancelButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            DialogResult = false;
-            Close();
+            Close(false);
         }
 
         // Supabase URL and Anon Key are now hardcoded - no UI handlers needed
 
-        private void CopyHardwareIdButton_Click(object sender, RoutedEventArgs e)
+        private async void CopyHardwareIdButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
                 if (CurrentHardwareIdTextBlock != null && !string.IsNullOrEmpty(CurrentHardwareIdTextBlock.Text))
                 {
-                    Clipboard.SetText(CurrentHardwareIdTextBlock.Text);
-                    MessageBox.Show(
-                        "Hardware ID copied to clipboard!\n\nYou can now send this to your administrator for authorization.",
-                        "Copied",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
+                    if (Application.Current?.Clipboard != null)
+                    {
+                        await Application.Current.Clipboard.SetTextAsync(CurrentHardwareIdTextBlock.Text);
+                    }
+                    
+                    var msgBox = new Window
+                    {
+                        Title = "Copied",
+                        Content = new TextBlock 
+                        { 
+                            Text = "Hardware ID copied to clipboard!\n\nYou can now send this to your administrator for authorization.",
+                            TextWrapping = Avalonia.Media.TextWrapping.Wrap
+                        },
+                        Width = 400,
+                        Height = 200,
+                        WindowStartupLocation = WindowStartupLocation.CenterOwner
+                    };
+                    await msgBox.ShowDialog(this);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
-                    $"Failed to copy to clipboard: {ex.Message}",
-                    "Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
+                var msgBox = new Window
+                {
+                    Title = "Error",
+                    Content = new TextBlock { Text = $"Failed to copy to clipboard: {ex.Message}" },
+                    Width = 400,
+                    Height = 200,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
             }
         }
 
@@ -279,90 +293,7 @@ namespace Dorothy.Views
 
     }
 
-    // Pure WPF folder browser using Windows API
-    public static class FolderBrowser
-    {
-        [DllImport("shell32.dll", CharSet = CharSet.Auto)]
-        private static extern int SHBrowseForFolder(ref BROWSEINFO lpbi);
-
-        [DllImport("shell32.dll", CharSet = CharSet.Auto)]
-        private static extern bool SHGetPathFromIDList(IntPtr pidl, StringBuilder pszPath);
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
-
-        private const uint BFFM_SETSELECTION = 0x400 + 103;
-        private const uint BFFM_INITIALIZED = 1;
-
-        public static string ShowDialog(IntPtr ownerHandle, string description, string initialPath)
-        {
-            var bi = new BROWSEINFO
-            {
-                hwndOwner = ownerHandle,
-                pidlRoot = IntPtr.Zero,
-                pszDisplayName = new string('\0', 260), // Pre-initialize with null characters to match buffer size
-                lpszTitle = description,
-                ulFlags = 0x00000040 | 0x00000010, // BIF_NEWDIALOGSTYLE | BIF_RETURNONLYFSDIRS
-                lpfn = BrowseCallbackProc,
-                lParam = IntPtr.Zero,
-                iImage = 0
-            };
-
-            if (!string.IsNullOrEmpty(initialPath))
-            {
-                bi.lParam = Marshal.StringToHGlobalAuto(initialPath);
-            }
-
-            IntPtr pidl = (IntPtr)SHBrowseForFolder(ref bi);
-
-            if (bi.lParam != IntPtr.Zero)
-            {
-                Marshal.FreeHGlobal(bi.lParam);
-            }
-
-            if (pidl == IntPtr.Zero)
-            {
-                return string.Empty;
-            }
-
-            var path = new StringBuilder(260);
-            if (SHGetPathFromIDList(pidl, path))
-            {
-                Marshal.FreeCoTaskMem(pidl);
-                return path.ToString();
-            }
-
-            Marshal.FreeCoTaskMem(pidl);
-            return string.Empty;
-        }
-
-        private static int BrowseCallbackProc(IntPtr hwnd, uint uMsg, IntPtr lParam, IntPtr lpData)
-        {
-            if (uMsg == BFFM_INITIALIZED && lpData != IntPtr.Zero)
-            {
-                string path = Marshal.PtrToStringAuto(lpData);
-                SendMessage(hwnd, BFFM_SETSELECTION, new IntPtr(1), lpData);
-            }
-            return 0;
-        }
-
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
-        private struct BROWSEINFO
-        {
-            public IntPtr hwndOwner;
-            public IntPtr pidlRoot;
-            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
-            public string pszDisplayName;
-            [MarshalAs(UnmanagedType.LPTStr)]
-            public string lpszTitle;
-            public uint ulFlags;
-            public BrowseCallbackProcDelegate lpfn;
-            public IntPtr lParam;
-            public int iImage;
-        }
-
-        private delegate int BrowseCallbackProcDelegate(IntPtr hwnd, uint uMsg, IntPtr lParam, IntPtr lpData);
-    }
+    // FolderBrowser removed - using FileDialogHelper for cross-platform support
 }
 
                 // Silently fail - license info is optional
