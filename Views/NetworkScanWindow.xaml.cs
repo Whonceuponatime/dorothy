@@ -4,15 +4,15 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Media.Animation;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
+using Avalonia.Media;
+using Avalonia.Threading;
 using Dorothy.Models;
 using Dorothy.Models.Database;
 using Dorothy.Services;
 using ClosedXML.Excel;
-using Microsoft.Win32;
 
 namespace Dorothy.Views
 {
@@ -46,7 +46,7 @@ namespace Dorothy.Views
             string? machineName = null,
             string? username = null)
         {
-            InitializeComponent();
+            AvaloniaXamlLoader.Load(this);
             _networkScan = networkScan;
             _attackLogger = attackLogger;
             _databaseService = databaseService;
@@ -66,7 +66,7 @@ namespace Dorothy.Views
             // Show/hide sync button based on availability
             if (_databaseService == null || _supabaseSyncService == null)
             {
-                SyncAssetsButton.Visibility = Visibility.Collapsed;
+                SyncAssetsButton.IsVisible = false;
             }
             else
             {
@@ -74,14 +74,14 @@ namespace Dorothy.Views
             }
         }
         
-        private void ScanMode_Changed(object sender, RoutedEventArgs e)
+        private void ScanMode_Changed(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             // Show/hide port scan mode panel based on scan mode
             if (PortScanModePanel != null)
             {
                 if (IntenseScanRadioButton?.IsChecked == true)
                 {
-                    PortScanModePanel.Visibility = Visibility.Visible;
+                    PortScanModePanel.IsVisible = true;
                     // Determine current port scan mode from radio buttons
                     if (AllPortsRadioButton?.IsChecked == true)
                         _currentPortScanMode = PortScanMode.All;
@@ -92,7 +92,7 @@ namespace Dorothy.Views
                 }
                 else
                 {
-                    PortScanModePanel.Visibility = Visibility.Collapsed;
+                    PortScanModePanel.IsVisible = false;
                     _currentPortScanMode = PortScanMode.None; // Simple scan - no ports
                 }
             }
@@ -101,15 +101,15 @@ namespace Dorothy.Views
             UpdatePortDetailsVisibility();
         }
         
-        private void PortScanMode_Changed(object sender, RoutedEventArgs e)
+        private void PortScanMode_Changed(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             // Show/hide port range and selected ports panels based on selection
             if (PortRangePanel != null && SelectedPortsPanel != null)
             {
                 if (RangePortsRadioButton?.IsChecked == true)
                 {
-                    PortRangePanel.Visibility = Visibility.Visible;
-                    SelectedPortsPanel.Visibility = Visibility.Collapsed;
+                    PortRangePanel.IsVisible = true;
+                    SelectedPortsPanel.IsVisible = false;
                     _currentPortScanMode = PortScanMode.Range;
                     
                     // Set default range to 1-65535 if text boxes are empty
@@ -124,22 +124,20 @@ namespace Dorothy.Views
                 }
                 else if (SelectedPortsRadioButton?.IsChecked == true)
                 {
-                    PortRangePanel.Visibility = Visibility.Collapsed;
-                    SelectedPortsPanel.Visibility = Visibility.Visible;
+                    PortRangePanel.IsVisible = false;
+                    SelectedPortsPanel.IsVisible = true;
                     _currentPortScanMode = PortScanMode.Selected;
                     
                     // Show "Use Discovered Ports" button if we have discovered ports
                     if (PopulateFromScanButton != null)
                     {
-                        PopulateFromScanButton.Visibility = _discoveredPorts.Count > 0 
-                            ? Visibility.Visible 
-                            : Visibility.Collapsed;
+                        PopulateFromScanButton.IsVisible = _discoveredPorts.Count > 0;
                     }
                 }
                 else if (AllPortsRadioButton?.IsChecked == true)
                 {
-                    PortRangePanel.Visibility = Visibility.Collapsed;
-                    SelectedPortsPanel.Visibility = Visibility.Collapsed;
+                    PortRangePanel.IsVisible = false;
+                    SelectedPortsPanel.IsVisible = false;
                     _currentPortScanMode = PortScanMode.All;
                 }
             }
@@ -157,7 +155,7 @@ namespace Dorothy.Views
                                    _currentPortScanMode == PortScanMode.Selected;
             
             // Hide/show the entire Port Details section (Border containing the DataGrid)
-            var portsDetailsBorder = this.FindName("PortsDetailsBorder") as Border;
+            var portsDetailsBorder = this.FindControl<Border>("PortsDetailsBorder");
             if (portsDetailsBorder != null)
             {
                 portsDetailsBorder.Visibility = shouldShowPorts ? Visibility.Visible : Visibility.Collapsed;
@@ -170,7 +168,7 @@ namespace Dorothy.Views
             }
         }
         
-        private void PopulateFromScanButton_Click(object sender, RoutedEventArgs e)
+        private void PopulateFromScanButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             // Populate SelectedPortsTextBox with discovered ports from previous scans
             if (SelectedPortsTextBox != null && _discoveredPorts.Count > 0)
@@ -180,7 +178,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void ResultsDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void ResultsDataGrid_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             if (PortsDataGrid == null) return;
 
@@ -195,8 +193,8 @@ namespace Dorothy.Views
                     if (PortsCountText != null)
                     {
                         PortsCountText.Text = $"({selectedAsset.OpenPorts.Count} port{(selectedAsset.OpenPorts.Count == 1 ? "" : "s")} from {selectedAsset.IpAddress})";
-                        PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                            System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green color
+                        PortsCountText.Foreground = new SolidColorBrush(
+                            Color.FromRgb(5, 150, 105)); // Green color
                     }
                 }
                 else
@@ -205,8 +203,8 @@ namespace Dorothy.Views
                     if (PortsCountText != null)
                     {
                         PortsCountText.Text = $"(No ports found for {selectedAsset.IpAddress})";
-                        PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                            System.Windows.Media.Color.FromRgb(107, 114, 128)); // Gray color
+                        PortsCountText.Foreground = new SolidColorBrush(
+                            Color.FromRgb(107, 114, 128)); // Gray color
                     }
                 }
             }
@@ -226,8 +224,8 @@ namespace Dorothy.Views
                     {
                         var deviceCount = _foundAssets.Count(a => a.OpenPorts != null && a.OpenPorts.Count > 0);
                         PortsCountText.Text = $"({allPorts.Count} port{(allPorts.Count == 1 ? "" : "s")} from {deviceCount} device{(deviceCount == 1 ? "" : "s")})";
-                        PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                            System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green color
+                        PortsCountText.Foreground = new SolidColorBrush(
+                            Color.FromRgb(5, 150, 105)); // Green color
                     }
                 }
                 else
@@ -236,8 +234,8 @@ namespace Dorothy.Views
                     if (PortsCountText != null)
                     {
                         PortsCountText.Text = "(No ports found)";
-                        PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                            System.Windows.Media.Color.FromRgb(107, 114, 128)); // Gray color
+                        PortsCountText.Foreground = new SolidColorBrush(
+                            Color.FromRgb(107, 114, 128)); // Gray color
                     }
                 }
             }
@@ -317,7 +315,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void QuickRangeButton_Click(object sender, RoutedEventArgs e)
+        private void QuickRangeButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             if (sender is Button button && button.Tag is string tag)
             {
@@ -343,20 +341,20 @@ namespace Dorothy.Views
             }
         }
 
-        private async void StartScanButton_Click(object sender, RoutedEventArgs e)
+        private async void StartScanButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var startIp = StartIpTextBox.Text.Trim();
             var endIp = EndIpTextBox.Text.Trim();
             
             if (string.IsNullOrWhiteSpace(startIp) || string.IsNullOrWhiteSpace(endIp))
             {
-                MessageBox.Show("Please enter both start and end IP addresses.", "Invalid Range", MessageBoxButton.OK, MessageBoxImage.Warning);
+                _ = ShowMessageAsync("Invalid Range", "Please enter both start and end IP addresses.");
                 return;
             }
             
             if (!System.Net.IPAddress.TryParse(startIp, out _) || !System.Net.IPAddress.TryParse(endIp, out _))
             {
-                MessageBox.Show("Please enter valid IP addresses.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
+                _ = ShowMessageAsync("Invalid IP", "Please enter valid IP addresses.");
                 return;
             }
             
@@ -429,14 +427,14 @@ namespace Dorothy.Views
             }
             
             // Hide range config panel and show progress section
-            RangeConfigPanel.Visibility = Visibility.Collapsed;
+            RangeConfigPanel.IsVisible = false;
             StartScanButton.IsEnabled = false;
             
             // Ensure progress section is visible
-            var progressSection = FindName("ProgressSection") as FrameworkElement;
+            var progressSection = this.FindControl<Control>("ProgressSection");
             if (progressSection != null)
             {
-                progressSection.Visibility = Visibility.Visible;
+                progressSection.IsVisible = true;
             }
             
             await StartCustomRangeScanAsync(startIp, endIp);
@@ -448,29 +446,29 @@ namespace Dorothy.Views
             {
                 if (string.IsNullOrEmpty(startIp) || string.IsNullOrEmpty(endIp))
                 {
-                    MessageBox.Show("Start IP and End IP are required.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    _ = ShowMessageAsync("Invalid Input", "Start IP and End IP are required.");
                     return;
                 }
                 
                 if (_networkScan == null)
                 {
-                    MessageBox.Show("Network scan instance is not initialized.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    _ = ShowMessageAsync("Error", "Network scan instance is not initialized.");
                     return;
                 }
                 
                 _cancellationTokenSource = new CancellationTokenSource();
                 
                 // Show loading UI immediately and ensure visibility
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     try
                     {
                         if (LoadingIndicator != null)
-                            LoadingIndicator.Visibility = Visibility.Visible;
+                            LoadingIndicator.IsVisible = true;
                         if (CancelScanButton != null)
-                            CancelScanButton.Visibility = Visibility.Visible;
+                            CancelScanButton.IsVisible = true;
                         if (BackButton != null)
-                            BackButton.Visibility = Visibility.Collapsed;
+                            BackButton.IsVisible = false;
                         if (CloseButton != null)
                             CloseButton.IsEnabled = false;
                         if (ExportExcelButton != null)
@@ -479,30 +477,30 @@ namespace Dorothy.Views
                         // Ensure progress section is visible
                         if (StatusTextBlock != null)
                         {
-                            StatusTextBlock.Visibility = Visibility.Visible;
+                            StatusTextBlock.IsVisible = true;
                             StatusTextBlock.Text = "Initializing scan...";
-                            StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 24, 39));
+                            StatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39));
                         }
                         if (ProgressTextBlock != null)
                         {
-                            ProgressTextBlock.Visibility = Visibility.Visible;
+                            ProgressTextBlock.IsVisible = true;
                             ProgressTextBlock.Text = "0 / 0";
                         }
                         if (ScanProgressBar != null)
                         {
-                            ScanProgressBar.Visibility = Visibility.Visible;
+                            ScanProgressBar.IsVisible = true;
                             ScanProgressBar.Value = 0;
                             ScanProgressBar.Maximum = 100;
                         }
                         if (CurrentIpTextBlock != null)
                         {
-                            CurrentIpTextBlock.Visibility = Visibility.Visible;
+                            CurrentIpTextBlock.IsVisible = true;
                             CurrentIpTextBlock.Text = "Preparing scan...";
-                            CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175));
+                            CurrentIpTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175));
                         }
                         if (FoundCountTextBlock != null)
                         {
-                            FoundCountTextBlock.Visibility = Visibility.Visible;
+                            FoundCountTextBlock.IsVisible = true;
                             FoundCountTextBlock.Text = "0";
                         }
                         
@@ -514,7 +512,7 @@ namespace Dorothy.Views
                     {
                         System.Diagnostics.Debug.WriteLine($"Error updating UI: {ex.Message}");
                     }
-                }, System.Windows.Threading.DispatcherPriority.Send);
+                });
                 
                 // Small delay to ensure UI is updated before starting scan
                 await Task.Delay(150);
@@ -552,7 +550,7 @@ namespace Dorothy.Views
                 }
                 
                 // Final refresh to ensure all items are displayed
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     try
                     {
@@ -583,8 +581,8 @@ namespace Dorothy.Views
                                 if (PortsCountText != null)
                                 {
                                     PortsCountText.Text = $"({allPorts.Count} port{(allPorts.Count == 1 ? "" : "s")} from {_assets.Count(a => a.OpenPorts != null && a.OpenPorts.Count > 0)} device{(allPorts.Count == 1 ? "" : "s")})";
-                                    PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                                        System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green color
+                                    PortsCountText.Foreground = new SolidColorBrush(
+                                        Color.FromRgb(5, 150, 105)); // Green color
                                 }
                             }
                             else if (PortsDataGrid != null)
@@ -593,8 +591,8 @@ namespace Dorothy.Views
                                 if (PortsCountText != null)
                                 {
                                     PortsCountText.Text = "(No ports found)";
-                                    PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                                        System.Windows.Media.Color.FromRgb(107, 114, 128)); // Gray color
+                                    PortsCountText.Foreground = new SolidColorBrush(
+                                        Color.FromRgb(107, 114, 128)); // Gray color
                                 }
                             }
                             
@@ -613,9 +611,7 @@ namespace Dorothy.Views
                         // Update the "Use Discovered Ports" button visibility if Banner Grabbing mode is active
                         if (PopulateFromScanButton != null && SelectedPortsRadioButton?.IsChecked == true)
                         {
-                            PopulateFromScanButton.Visibility = _discoveredPorts.Count > 0 
-                                ? Visibility.Visible 
-                                : Visibility.Collapsed;
+                            PopulateFromScanButton.IsVisible = _discoveredPorts.Count > 0;
                         }
                         
                         // Update the DataGrid items source to ensure it's bound correctly
@@ -623,14 +619,15 @@ namespace Dorothy.Views
                         {
                             ResultsDataGrid.ItemsSource = null; // Clear first
                             ResultsDataGrid.ItemsSource = _foundAssets; // Rebind
-                            ResultsDataGrid.Items.Refresh();
+                            ResultsDataGrid.ItemsSource = null;
+                            ResultsDataGrid.ItemsSource = _foundAssets;
                         }
                         
                         // Clear progress indicators and show completion message
                         if (StatusTextBlock != null)
                         {
                             StatusTextBlock.Text = $"✅ Scan Complete! Found {(_assets?.Count ?? 0)} active device(s).";
-                            StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(5, 150, 105));
+                            StatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(5, 150, 105));
                         }
                         if (ProgressTextBlock != null)
                             ProgressTextBlock.Text = "Done";
@@ -639,7 +636,7 @@ namespace Dorothy.Views
                         if (CurrentIpTextBlock != null)
                         {
                             CurrentIpTextBlock.Text = "Scan finished successfully.";
-                            CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(5, 150, 105));
+                            CurrentIpTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(5, 150, 105));
                         }
                         
                         // Update found count display
@@ -653,11 +650,11 @@ namespace Dorothy.Views
                         
                         // Hide loading UI and show back button
                         if (LoadingIndicator != null)
-                            LoadingIndicator.Visibility = Visibility.Collapsed;
+                            LoadingIndicator.IsVisible = false;
                         if (CancelScanButton != null)
-                            CancelScanButton.Visibility = Visibility.Collapsed;
+                            CancelScanButton.IsVisible = false;
                         if (BackButton != null)
-                            BackButton.Visibility = Visibility.Visible;
+                            BackButton.IsVisible = true;
                         if (CloseButton != null)
                             CloseButton.IsEnabled = true;
                         
@@ -671,34 +668,34 @@ namespace Dorothy.Views
                     {
                         System.Diagnostics.Debug.WriteLine($"Error in final UI update: {ex.Message}");
                     }
-                }, System.Windows.Threading.DispatcherPriority.Send);
+                });
             }
             catch (OperationCanceledException)
             {
                 _scanCompleted = true;
                 await Task.Delay(100); // Wait for pending progress updates
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     try
                     {
                         if (StatusTextBlock != null)
                         {
                             StatusTextBlock.Text = "⚠️ Scan Cancelled";
-                            StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(245, 158, 11));
+                            StatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(245, 158, 11));
                         }
                         if (ProgressTextBlock != null)
                             ProgressTextBlock.Text = "Cancelled";
                         if (CurrentIpTextBlock != null)
                         {
                             CurrentIpTextBlock.Text = "Scan was cancelled by user.";
-                            CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(107, 114, 128));
+                            CurrentIpTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128));
                         }
                         if (LoadingIndicator != null)
-                            LoadingIndicator.Visibility = Visibility.Collapsed;
+                            LoadingIndicator.IsVisible = false;
                         if (CancelScanButton != null)
-                            CancelScanButton.Visibility = Visibility.Collapsed;
+                            CancelScanButton.IsVisible = false;
                         if (BackButton != null)
-                            BackButton.Visibility = Visibility.Visible;
+                            BackButton.IsVisible = true;
                         if (CloseButton != null)
                             CloseButton.IsEnabled = true;
                     }
@@ -706,44 +703,44 @@ namespace Dorothy.Views
                     {
                         System.Diagnostics.Debug.WriteLine($"Error updating UI on cancel: {uiEx.Message}");
                     }
-                }, System.Windows.Threading.DispatcherPriority.Send);
+                });
             }
             catch (Exception ex)
             {
                 _scanCompleted = true;
                 await Task.Delay(100); // Wait for pending progress updates
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     try
                     {
                         if (StatusTextBlock != null)
                         {
                             StatusTextBlock.Text = $"❌ Scan Failed: {ex.Message}";
-                            StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
+                            StatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68));
                         }
                         if (ProgressTextBlock != null)
                             ProgressTextBlock.Text = "Failed";
                         if (CurrentIpTextBlock != null)
                         {
                             CurrentIpTextBlock.Text = $"Error: {ex.Message}";
-                            CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
+                            CurrentIpTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68));
                         }
                         if (LoadingIndicator != null)
-                            LoadingIndicator.Visibility = Visibility.Collapsed;
+                            LoadingIndicator.IsVisible = false;
                         if (CancelScanButton != null)
-                            CancelScanButton.Visibility = Visibility.Collapsed;
+                            CancelScanButton.IsVisible = false;
                         if (BackButton != null)
-                            BackButton.Visibility = Visibility.Visible;
+                            BackButton.IsVisible = true;
                         if (CloseButton != null)
                             CloseButton.IsEnabled = true;
-                        MessageBox.Show($"Network scan failed: {ex.Message}\n\nStack trace: {ex.StackTrace}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        _ = ShowMessageAsync("Error", $"Network scan failed: {ex.Message}\n\nStack trace: {ex.StackTrace}");
                     }
                     catch (Exception uiEx)
                     {
                         System.Diagnostics.Debug.WriteLine($"Error updating UI on error: {uiEx.Message}");
-                        MessageBox.Show($"Network scan failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        _ = ShowMessageAsync("Error", $"Network scan failed: {ex.Message}");
                     }
-                }, System.Windows.Threading.DispatcherPriority.Send);
+                });
             }
         }
 
@@ -758,8 +755,8 @@ namespace Dorothy.Views
                 if (_scanCompleted)
                     return;
 
-                // Use BeginInvoke for better performance and responsiveness
-                Dispatcher.BeginInvoke(new Action(() =>
+                // Use InvokeAsync for better performance and responsiveness
+                _ = Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     try
                     {
@@ -773,14 +770,14 @@ namespace Dorothy.Views
                             // Show port scanning indicator
                             if (LoadingIndicator != null)
                             {
-                                LoadingIndicator.Visibility = Visibility.Visible;
+                                LoadingIndicator.IsVisible = true;
                             }
                             
                             // Update status to show port scanning
                             if (StatusTextBlock != null)
                             {
                                 StatusTextBlock.Text = $"Scanning ports on {progress.PortScanIp}...";
-                                StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(37, 99, 235)); // Blue
+                                StatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(37, 99, 235)); // Blue
                             }
                             
                             // Update current IP text to show port scanning progress
@@ -794,7 +791,7 @@ namespace Dorothy.Views
                                 {
                                     CurrentIpTextBlock.Text = $"Port scanning: {progress.PortScanIp}...";
                                 }
-                                CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(37, 99, 235)); // Blue
+                                CurrentIpTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(37, 99, 235)); // Blue
                             }
                             
                             // Update progress bar for port scanning
@@ -824,7 +821,8 @@ namespace Dorothy.Views
                                         _discoveredPorts.Add(progress.NewPort.Port);
                                         
                                         // Update the asset in the list
-                                        ResultsDataGrid.Items.Refresh();
+                                        ResultsDataGrid.ItemsSource = null;
+                            ResultsDataGrid.ItemsSource = _foundAssets;
                                         
                                         // Update ports DataGrid if this asset is selected or if we're showing all ports
                                         if (PortsDataGrid != null && 
@@ -841,15 +839,16 @@ namespace Dorothy.Views
                                                 .ToList();
                                             
                                             PortsDataGrid.ItemsSource = allPorts;
-                                            PortsDataGrid.Items.Refresh();
+                                            PortsDataGrid.ItemsSource = null;
+                                            PortsDataGrid.ItemsSource = allPorts;
                                             
                                             // Update ports count text
                                             if (PortsCountText != null)
                                             {
                                                 var deviceCount = _foundAssets.Count(a => a.OpenPorts != null && a.OpenPorts.Count > 0);
                                                 PortsCountText.Text = $"({allPorts.Count} port{(allPorts.Count == 1 ? "" : "s")} from {deviceCount} device{(deviceCount == 1 ? "" : "s")})";
-                                                PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                                                    System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green color
+                                                PortsCountText.Foreground = new SolidColorBrush(
+                                                    Color.FromRgb(5, 150, 105)); // Green color
                                             }
                                         }
                                     }
@@ -862,14 +861,14 @@ namespace Dorothy.Views
                             // Reset status text color to default during scanning
                             if (StatusTextBlock != null)
                             {
-                                StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 24, 39)); // Default dark gray
+                                StatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39)); // Default dark gray
                                 StatusTextBlock.Text = $"Scanning network...";
                             }
                             
                             if (CurrentIpTextBlock != null)
                             {
                                 CurrentIpTextBlock.Text = $"Scanning: {progress.CurrentIp ?? "..."}";
-                                CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)); // Default light gray
+                                CurrentIpTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(156, 163, 175)); // Default light gray
                             }
                             
                             if (ProgressTextBlock != null)
@@ -898,7 +897,8 @@ namespace Dorothy.Views
                                     }
                                 }
                                 
-                                ResultsDataGrid.Items.Refresh();
+                                ResultsDataGrid.ItemsSource = null;
+                            ResultsDataGrid.ItemsSource = _foundAssets;
                                 
                                 // Auto-scroll to the newest item
                                 if (ResultsDataGrid.Items.Count > 0)
@@ -912,7 +912,7 @@ namespace Dorothy.Views
                     {
                         System.Diagnostics.Debug.WriteLine($"Error in UpdateProgress UI update: {ex.Message}");
                     }
-                }), System.Windows.Threading.DispatcherPriority.Normal);
+                });
             }
             catch
             {
@@ -920,7 +920,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void CancelScanButton_Click(object sender, RoutedEventArgs e)
+        private void CancelScanButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             _cancellationTokenSource?.Cancel();
             CancelScanButton.IsEnabled = false;
@@ -1021,17 +1021,17 @@ namespace Dorothy.Views
             {
                 var pendingCount = await _supabaseSyncService.GetPendingAssetsCountAsync();
                 
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (pendingCount > 0)
                     {
-                        AssetsSyncBadge.Visibility = Visibility.Visible;
+                        AssetsSyncBadge.IsVisible = true;
                         AssetsSyncBadgeText.Text = pendingCount > 99 ? "99+" : pendingCount.ToString();
                         SyncAssetsButton.ToolTip = $"{pendingCount} asset(s) pending sync - Click to sync";
                     }
                     else
                     {
-                        AssetsSyncBadge.Visibility = Visibility.Collapsed;
+                        AssetsSyncBadge.IsVisible = false;
                         SyncAssetsButton.ToolTip = "Sync assets to cloud";
                     }
                 });
@@ -1042,11 +1042,11 @@ namespace Dorothy.Views
             }
         }
 
-        private async void SyncAssetsButton_Click(object sender, RoutedEventArgs e)
+        private async void SyncAssetsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             if (_databaseService == null || _supabaseSyncService == null)
             {
-                MessageBox.Show("Database services are not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                await ShowMessageAsync("Error", "Database services are not available.");
                 return;
             }
 
@@ -1054,14 +1054,14 @@ namespace Dorothy.Views
             {
                 if (!_supabaseSyncService.IsConfigured)
                 {
-                    MessageBox.Show("Supabase is not configured. Please configure it in Settings first.", "Not Configured", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Not Configured", "Supabase is not configured. Please configure it in Settings first.");
                     return;
                 }
 
                 var unsyncedAssets = await _databaseService.GetUnsyncedAssetsAsync();
                 if (unsyncedAssets == null || unsyncedAssets.Count == 0)
                 {
-                    MessageBox.Show("No pending assets to sync.", "No Pending Assets", MessageBoxButton.OK, MessageBoxImage.Information);
+                    await ShowMessageAsync("No Pending Assets", "No pending assets to sync.");
                     return;
                 }
 
@@ -1071,7 +1071,8 @@ namespace Dorothy.Views
                     Owner = this
                 };
 
-                if (syncWindow.ShowDialog() == true && syncWindow.ShouldSync)
+                var dialogResult = await syncWindow.ShowDialog<bool?>(this);
+                if (dialogResult == true && syncWindow.ShouldSync)
                 {
                     // Delete selected assets if any
                     if (syncWindow.DeletedIds.Count > 0)
@@ -1093,14 +1094,14 @@ namespace Dorothy.Views
                             _attackLogger.LogSuccess(result.Message);
                             if (result.SyncedCount > 0)
                             {
-                                MessageBox.Show($"Sync complete – {result.SyncedCount} asset(s) synced successfully.", "Sync Successful", MessageBoxButton.OK, MessageBoxImage.Information);
+                                await ShowMessageAsync("Sync Successful", $"Sync complete – {result.SyncedCount} asset(s) synced successfully.");
                                 _ = Task.Run(async () => await UpdateAssetsSyncStatus());
                             }
                         }
                         else
                         {
                             _attackLogger.LogWarning(result.Message);
-                            MessageBox.Show(result.Message, "Sync Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            await ShowMessageAsync("Sync Warning", result.Message);
                         }
 
                         SyncAssetsButton.IsEnabled = true;
@@ -1114,30 +1115,59 @@ namespace Dorothy.Views
             catch (Exception ex)
             {
                 _attackLogger.LogError($"Asset sync failed: {ex.Message}");
-                MessageBox.Show($"Asset sync failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Asset sync failed: {ex.Message}");
             }
         }
 
-        private void ExportExcelButton_Click(object sender, RoutedEventArgs e)
+        private async Task ShowMessageAsync(string title, string message)
+        {
+            var msgBox = new Window
+            {
+                Title = title,
+                Content = new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                Width = 400,
+                Height = 200,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            await msgBox.ShowDialog(this);
+        }
+
+        private async void ExportExcelButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
-                var saveDialog = new SaveFileDialog
-                {
-                    Filter = "Excel Files (*.xlsx)|*.xlsx|All Files (*.*)|*.*",
-                    FileName = $"NetworkScan_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx",
-                    DefaultExt = "xlsx"
-                };
+                var fileName = await FileDialogHelper.ShowSaveFileDialogAsync(
+                    this,
+                    "Export Network Scan Results",
+                    $"NetworkScan_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx",
+                    "xlsx",
+                    new[] { ("Excel Files", new[] { "*.xlsx" }), ("All Files", new[] { "*.*" }) });
 
-                if (saveDialog.ShowDialog() == true)
+                if (!string.IsNullOrEmpty(fileName))
                 {
-                    ExportToExcel(saveDialog.FileName);
-                    MessageBox.Show($"Network scan results exported to:\n{saveDialog.FileName}", "Export Successful", MessageBoxButton.OK, MessageBoxImage.Information);
+                    ExportToExcel(fileName);
+                    var msgBox = new Window
+                    {
+                        Title = "Export Successful",
+                        Content = new TextBlock { Text = $"Network scan results exported to:\n{fileName}" },
+                        Width = 500,
+                        Height = 200,
+                        WindowStartupLocation = WindowStartupLocation.CenterOwner
+                    };
+                    await msgBox.ShowDialog(this);
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Failed to export to Excel: {ex.Message}", "Export Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                var msgBox = new Window
+                {
+                    Title = "Export Error",
+                    Content = new TextBlock { Text = $"Failed to export to Excel: {ex.Message}" },
+                    Width = 400,
+                    Height = 200,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
             }
         }
 
@@ -1208,18 +1238,18 @@ namespace Dorothy.Views
             workbook.SaveAs(filePath);
         }
 
-        private void BackButton_Click(object sender, RoutedEventArgs e)
+        private async void BackButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             _cancellationTokenSource?.Cancel();
             
             // Restore the initial state - show configuration panel, hide results
-            Dispatcher.Invoke(() =>
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 try
                 {
                     // Show the scan configuration panel
                     if (RangeConfigPanel != null)
-                        RangeConfigPanel.Visibility = Visibility.Visible;
+                        RangeConfigPanel.IsVisible = true;
                     
                     // Re-enable the start scan button
                     if (StartScanButton != null)
@@ -1227,13 +1257,13 @@ namespace Dorothy.Views
                     
                     // Hide the back button (only show after scan completes)
                     if (BackButton != null)
-                        BackButton.Visibility = Visibility.Collapsed;
+                        BackButton.IsVisible = false;
                     
                     // Reset progress indicators
                     if (StatusTextBlock != null)
                     {
                         StatusTextBlock.Text = "Ready to scan";
-                        StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 24, 39));
+                        StatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(17, 24, 39));
                     }
                     if (ProgressTextBlock != null)
                         ProgressTextBlock.Text = "0 / 0";
@@ -1247,9 +1277,9 @@ namespace Dorothy.Views
                     if (FoundCountTextBlock != null)
                         FoundCountTextBlock.Text = "0";
                     if (LoadingIndicator != null)
-                        LoadingIndicator.Visibility = Visibility.Collapsed;
+                        LoadingIndicator.IsVisible = false;
                     if (CancelScanButton != null)
-                        CancelScanButton.Visibility = Visibility.Collapsed;
+                        CancelScanButton.IsVisible = false;
                     
                     // Clear the results
                     _foundAssets.Clear();
@@ -1276,7 +1306,7 @@ namespace Dorothy.Views
             });
         }
 
-        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        private void CloseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             _cancellationTokenSource?.Cancel();
             Close();
@@ -1324,4 +1354,5 @@ namespace Dorothy.Views
         }
     }
 }
+
 

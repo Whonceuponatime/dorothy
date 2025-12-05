@@ -1,9 +1,9 @@
-<Window x:Class="Dorothy.Views.NetworkScanWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Dorothy.Views"
+        x:Class="Dorothy.Views.NetworkScanWindow"
         Title="Network Scan - Asset Inventory" 
-        Icon="pack://application:,,,/Resources/icon.ico"
+        Icon="/Resources/icon.ico"
         Height="900" Width="1600"
         MinHeight="700" MinWidth="1200"
         WindowStartupLocation="CenterOwner"
@@ -33,7 +33,7 @@
                 <Border x:Name="LoadingIndicator"
                         Width="20"
                         Height="20"
-                        Visibility="Collapsed">
+                        IsVisible="False">
                     <Border.RenderTransform>
                         <RotateTransform/>
                     </Border.RenderTransform>
@@ -228,7 +228,7 @@
                             CornerRadius="6"
                             Padding="12"
                             Margin="0,12,0,0"
-                            Visibility="Collapsed">
+                            IsVisible="False">
                         <StackPanel>
                             <TextBlock Text="Port Scan Mode:"
                                        FontSize="12"
@@ -323,7 +323,7 @@
                                             BorderThickness="0"
                                             Cursor="Hand"
                                             ToolTip="Populate with ports discovered in previous scans"
-                                            Visibility="Collapsed">
+                                            IsVisible="False">
                                         <Button.Style>
                                             <Style TargetType="Button">
                                                 <Setter Property="Template">
