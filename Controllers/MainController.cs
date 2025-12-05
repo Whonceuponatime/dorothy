@@ -11,7 +11,7 @@ using System.Net;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Avalonia.Media;
-using Avalonia.Shapes;
+using Avalonia.Controls.Shapes;
 using System.Collections.Generic;
 using System.Net.Sockets;  // For AddressFamily
 using System.Diagnostics;

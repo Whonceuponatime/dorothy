@@ -680,7 +680,7 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem x:Name="AdvancedTab" Header="Advanced Settings" PreviewMouseDown="AdvancedTab_PreviewMouseDown">
+            <TabItem x:Name="AdvancedTab" Header="Advanced Settings">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,2,0,0" HorizontalAlignment="Stretch">
                     <StackPanel Grid.IsSharedSizeScope="True" HorizontalAlignment="Stretch">
                         <!-- Network Configuration Card -->

@@ -880,7 +880,7 @@ namespace Dorothy.Views
             }
         }
         
-        private void ApplyFontSizeToElement(FrameworkElement element, double fontSize)
+        private void ApplyFontSizeToElement(Control element, double fontSize)
         {
             if (element != null)
             {
@@ -2530,11 +2530,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void AdvancedTab_PreviewMouseDown(object sender, MouseButtonEventArgs e)
-        {
-            // Password check is now handled in MainTabControl_SelectionChanged
-            // This handler is kept for any future use but no longer blocks access
-        }
+        // PreviewMouseDown handler removed - password check is now handled in MainTabControl_SelectionChanged
         
         private bool ValidatePassword(string inputPassword)
         {
@@ -4213,7 +4209,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void NoteTextBox_GotFocus(object? sender, Avalonia.Interactivity.GotFocusEventArgs e)
+        private void NoteTextBox_GotFocus(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var textBox = (TextBox)sender;
             if (textBox.Text == NOTE_PLACEHOLDER)
@@ -4939,7 +4935,7 @@ namespace Dorothy.Views
         /// <summary>
         /// Validate numeric input for text boxes
         /// </summary>
-        private void NumericTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
+        private void NumericTextBox_PreviewTextInput(object? sender, TextInputEventArgs e)
         {
             if (sender is TextBox textBox)
             {

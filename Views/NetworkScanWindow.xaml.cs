@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data.Converters;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -1312,7 +1313,7 @@ namespace Dorothy.Views
             Close();
         }
 
-        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+        protected override void OnClosing(WindowClosingEventArgs e)
         {
             _cancellationTokenSource?.Cancel();
             base.OnClosing(e);
