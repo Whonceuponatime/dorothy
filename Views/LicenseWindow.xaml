@@ -8,28 +8,6 @@
         CanResize="False"
         Icon="/Resources/icon.ico"
         Background="#F9FAFB">
-    <Window.Resources>
-        <!-- Default Button Style -->
-        <Style x:Key="DefaultButton" TargetType="Button">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="Background" Value="#2563EB"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                CornerRadius="4"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </Window.Resources>
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -113,20 +91,29 @@
                     Height="36"
                     Margin="0,0,8,0"
                     Click="CopyIdButton_Click"
-                    Style="{StaticResource DefaultButton}"/>
+                    Background="#2563EB"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Cursor="Hand"/>
             <Button x:Name="RestartButton"
                     Content="🔄 Restart Application"
                     Width="180"
                     Height="36"
                     Margin="0,0,8,0"
                     Click="RestartButton_Click"
-                    Style="{StaticResource DefaultButton}"/>
+                    Background="#2563EB"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Cursor="Hand"/>
             <Button x:Name="ExitButton"
                     Content="Exit"
                     Width="100"
                     Height="36"
                     Click="ExitButton_Click"
-                    Style="{StaticResource DefaultButton}"/>
+                    Background="#2563EB"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Cursor="Hand"/>
         </StackPanel>
     </Grid>
 </Window>
