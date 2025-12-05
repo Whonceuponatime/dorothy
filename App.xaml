@@ -3,11 +3,7 @@
              x:Class="Dorothy.App"
              RequestedThemeVariant="Default">
     <Application.Resources>
-        <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="/Resources/Styles.xaml"/>
-            </ResourceDictionary.MergedDictionaries>
-        </ResourceDictionary>
+        <!-- Styles are defined inline in MainWindow.xaml -->
     </Application.Resources>
     <Application.Styles>
         <FluentTheme />
