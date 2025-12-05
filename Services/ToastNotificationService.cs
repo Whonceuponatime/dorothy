@@ -4,6 +4,8 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Animation;
 using Avalonia.Threading;
+using Avalonia.Layout;
+using Avalonia.Input;
 
 namespace Dorothy.Services
 {
@@ -54,7 +56,7 @@ namespace Dorothy.Services
             {
                 var toast = new Border
                 {
-                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(backgroundColor)),
+                    Background = new SolidColorBrush(Color.Parse(backgroundColor)),
                     CornerRadius = new CornerRadius(8),
                     Padding = new Thickness(16, 12, 16, 12),
                     Margin = new Thickness(0, 0, 0, 12),

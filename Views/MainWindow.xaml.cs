@@ -104,6 +104,61 @@ namespace Dorothy.Views
         private Avalonia.Controls.Shapes.Ellipse? StatusDot => this.FindControl<Avalonia.Controls.Shapes.Ellipse>("StatusDot");
         private ComboBox? AttackTypeComboBox => this.FindControl<ComboBox>("AttackTypeComboBox");
         private ComboBox? AdvancedAttackTypeComboBox => this.FindControl<ComboBox>("AdvancedAttackTypeComboBox");
+        private TextBox? NoteTextBox => this.FindControl<TextBox>("NoteTextBox");
+        private Button? CloudSyncButton => this.FindControl<Button>("CloudSyncButton");
+        private Border? SyncLoadingOverlay => this.FindControl<Border>("SyncLoadingOverlay");
+        private TextBlock? SyncProgressText => this.FindControl<TextBlock>("SyncProgressText");
+        private TabControl? MainTabControl => this.FindControl<TabControl>("MainTabControl");
+        private TabItem? AdvancedTab => this.FindControl<TabItem>("AdvancedTab");
+        private Panel? ToastContainer => this.FindControl<Panel>("ToastContainer");
+        private Grid? MainContentGrid => this.FindControl<Grid>("MainContentGrid");
+        private Border? HeaderBar => this.FindControl<Border>("HeaderBar");
+        private Image? LogoImage => this.FindControl<Image>("LogoImage");
+        private TextBlock? PacketsSentText => this.FindControl<TextBlock>("PacketsSentText");
+        private TextBlock? ElapsedTimeText => this.FindControl<TextBlock>("ElapsedTimeText");
+        private TextBlock? MbpsSentText => this.FindControl<TextBlock>("MbpsSentText");
+        private TextBlock? ProfileSummaryText => this.FindControl<TextBlock>("ProfileSummaryText");
+        private Border? UpdateAvailableBadge => this.FindControl<Border>("UpdateAvailableBadge");
+        private Button? AdvValidatePasswordButton => this.FindControl<Button>("AdvValidatePasswordButton");
+        private TextBox? TargetIpTextBox => this.FindControl<TextBox>("TargetIpTextBox");
+        private TextBox? TargetMacTextBox => this.FindControl<TextBox>("TargetMacTextBox");
+        private TextBox? SourceIpTextBox => this.FindControl<TextBox>("SourceIpTextBox");
+        private TextBox? SourceMacTextBox => this.FindControl<TextBox>("SourceMacTextBox");
+        private TextBox? GatewayIpTextBox => this.FindControl<TextBox>("GatewayIpTextBox");
+        private TextBox? TargetPortTextBox => this.FindControl<TextBox>("TargetPortTextBox");
+        private TextBox? MegabitsPerSecondTextBox => this.FindControl<TextBox>("MegabitsPerSecondTextBox");
+        private TextBox? AdvTargetIpTextBox => this.FindControl<TextBox>("AdvTargetIpTextBox");
+        private TextBox? AdvTargetMacTextBox => this.FindControl<TextBox>("AdvTargetMacTextBox");
+        private TextBox? AdvSourceIpTextBox => this.FindControl<TextBox>("AdvSourceIpTextBox");
+        private TextBox? AdvSourceMacTextBox => this.FindControl<TextBox>("AdvSourceMacTextBox");
+        private TextBox? AdvGatewayIpTextBox => this.FindControl<TextBox>("AdvGatewayIpTextBox");
+        private TextBox? AdvTargetPortTextBox => this.FindControl<TextBox>("AdvTargetPortTextBox");
+        private TextBox? AdvMegabitsPerSecondTextBox => this.FindControl<TextBox>("AdvMegabitsPerSecondTextBox");
+        private ComboBox? NetworkInterfaceComboBox => this.FindControl<ComboBox>("NetworkInterfaceComboBox");
+        private ComboBox? AdvNetworkInterfaceComboBox => this.FindControl<ComboBox>("AdvNetworkInterfaceComboBox");
+        private Button? PingButton => this.FindControl<Button>("PingButton");
+        private CheckBox? MacFallbackCheckBox => this.FindControl<CheckBox>("MacFallbackCheckBox");
+        private CheckBox? AdvMacFallbackCheckBox => this.FindControl<CheckBox>("AdvMacFallbackCheckBox");
+        private Button? ResolveMacButton => this.FindControl<Button>("ResolveMacButton");
+        private TextBox? SpoofedMacTextBox => this.FindControl<TextBox>("SpoofedMacTextBox");
+        private PasswordBox? AdvPasswordBox => this.FindControl<PasswordBox>("AdvPasswordBox");
+        private TextBlock? PasswordFeedbackText => this.FindControl<TextBlock>("PasswordFeedbackText");
+        private Button? StartAdvancedAttackButton => this.FindControl<Button>("StartAdvancedAttackButton");
+        private Button? StopAdvancedAttackButton => this.FindControl<Button>("StopAdvancedAttackButton");
+        private Button? ScanButton => this.FindControl<Button>("ScanButton");
+        private ProgressBar? ScanProgressBar => this.FindControl<ProgressBar>("ScanProgressBar");
+        private ProgressBar? AdvScanProgressBar => this.FindControl<ProgressBar>("AdvScanProgressBar");
+        private TextBox? SnmpWalkTargetIpTextBox => this.FindControl<TextBox>("SnmpWalkTargetIpTextBox");
+        private TextBox? SnmpWalkPortTextBox => this.FindControl<TextBox>("SnmpWalkPortTextBox");
+        private Button? StartSnmpWalkButton => this.FindControl<Button>("StartSnmpWalkButton");
+        private Button? StopSnmpWalkButton => this.FindControl<Button>("StopSnmpWalkButton");
+        private ProgressBar? SnmpWalkProgressBar => this.FindControl<ProgressBar>("SnmpWalkProgressBar");
+        private Border? SecurityAssessmentStatusBorder => this.FindControl<Border>("SecurityAssessmentStatusBorder");
+        private TextBlock? SecurityAssessmentStatusTextBlock => this.FindControl<TextBlock>("SecurityAssessmentStatusTextBlock");
+        private Border? LabModeBadge => this.FindControl<Border>("LabModeBadge");
+        private TextBlock? LabModeText => this.FindControl<TextBlock>("LabModeText");
+        private Border? CloudSyncNotificationBadge => this.FindControl<Border>("CloudSyncNotificationBadge");
+        private TextBlock? CloudSyncNotificationText => this.FindControl<TextBlock>("CloudSyncNotificationText");
 
         public MainWindow()
         {
@@ -322,8 +377,12 @@ namespace Dorothy.Views
                 {
                     if (screenCategory == Services.ScreenCategory.Small)
                     {
-                        this.Width = Math.Min(SystemParameters.PrimaryScreenWidth * 0.95, 1200);
-                        this.Height = Math.Min(SystemParameters.PrimaryScreenHeight * 0.95, 800);
+                        var screen = this.Screens.Primary;
+                        if (screen != null)
+                        {
+                            this.Width = Math.Min(screen.Bounds.Width * 0.95, 1200);
+                            this.Height = Math.Min(screen.Bounds.Height * 0.95, 800);
+                        }
                     }
                 }
                 
@@ -403,8 +462,9 @@ namespace Dorothy.Views
             try
             {
                 // Get primary screen dimensions
-                var screenWidth = SystemParameters.PrimaryScreenWidth;
-                var screenHeight = SystemParameters.PrimaryScreenHeight;
+                var screen = this.Screens.Primary;
+                var screenWidth = screen?.Bounds.Width ?? 1920;
+                var screenHeight = screen?.Bounds.Height ?? 1080;
                 
                 // Calculate scale factor based on screen size
                 // Use 1920x1080 as baseline (scale = 1.0)
@@ -579,15 +639,15 @@ namespace Dorothy.Views
                 case "idle":
                     if (StatusBadge != null)
                     {
-                        StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D1FAE5"));
+                        StatusBadge.Background = new SolidColorBrush(Color.Parse("#D1FAE5"));
                     }
                     if (StatusBadgeText != null)
                     {
-                        StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+                        StatusBadgeText.Foreground = new SolidColorBrush(Color.Parse("#059669"));
                     }
                     if (StatusDot != null)
                     {
-                        StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+                        StatusDot.Fill = new SolidColorBrush(Color.Parse("#059669"));
                     }
                     break;
                 case "attacking":
@@ -595,34 +655,34 @@ namespace Dorothy.Views
                 case "active":
                     if (StatusBadge != null)
                     {
-                        StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEE2E2"));
+                        StatusBadge.Background = new SolidColorBrush(Color.Parse("#FEE2E2"));
                     }
                     if (StatusBadgeText != null)
                     {
-                        StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
+                        StatusBadgeText.Foreground = new SolidColorBrush(Color.Parse("#E45757"));
                     }
                     if (StatusDot != null)
                     {
-                        StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
+                        StatusDot.Fill = new SolidColorBrush(Color.Parse("#E45757"));
                     }
                     break;
                 case "error":
-                    StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEE2E2"));
-                    StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
-                    StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
+                    StatusBadge.Background = new SolidColorBrush(Color.Parse("#FEE2E2"));
+                    StatusBadgeText.Foreground = new SolidColorBrush(Color.Parse("#E45757"));
+                    StatusDot.Fill = new SolidColorBrush(Color.Parse("#E45757"));
                     break;
                 default:
                     if (StatusBadge != null)
                     {
-                        StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D1FAE5"));
+                        StatusBadge.Background = new SolidColorBrush(Color.Parse("#D1FAE5"));
                     }
                     if (StatusBadgeText != null)
                     {
-                        StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+                        StatusBadgeText.Foreground = new SolidColorBrush(Color.Parse("#059669"));
                     }
                     if (StatusDot != null)
                     {
-                        StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+                        StatusDot.Fill = new SolidColorBrush(Color.Parse("#059669"));
                     }
                     break;
             }
@@ -2222,7 +2282,7 @@ namespace Dorothy.Views
             // Build the new text that would result from this input
             string currentText = textBox.Text ?? "";
             int selectionStart = textBox.SelectionStart;
-            int selectionLength = textBox.SelectionLength;
+            int selectionLength = textBox.SelectionEnd > textBox.SelectionStart ? textBox.SelectionEnd - textBox.SelectionStart : 0;
             
             // Remove selected text and insert new text
             string newText = currentText.Substring(0, selectionStart) + 
@@ -2295,7 +2355,7 @@ namespace Dorothy.Views
             // Build the new text that would result from this input
             string currentText = textBox.Text ?? "";
             int selectionStart = textBox.SelectionStart;
-            int selectionLength = textBox.SelectionLength;
+            int selectionLength = textBox.SelectionEnd > textBox.SelectionStart ? textBox.SelectionEnd - textBox.SelectionStart : 0;
             
             // Remove selected text and insert new text
             string newText = currentText.Substring(0, selectionStart) + 
