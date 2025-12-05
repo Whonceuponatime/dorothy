@@ -161,7 +161,7 @@ namespace Dorothy.Views
             NoteTextBox.Foreground = SystemColors.GrayTextBrush;
         }
 
-        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        private void MainWindow_Loaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -260,10 +260,7 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error during initialization: {ex.Message}\n\n{ex.StackTrace}", 
-                    "Initialization Error", 
-                    MessageBoxButton.OK, 
-                    MessageBoxImage.Error);
+                _ = ShowMessageAsync("Initialization Error", $"Error during initialization: {ex.Message}\n\n{ex.StackTrace}");
             }
         }
 
@@ -725,7 +722,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void SettingsButton_Click(object sender, RoutedEventArgs e)
+        private async void SettingsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var settingsWindow = new SettingsWindow(_logFileLocation, _fontSize, _themeIndex)
             {
@@ -825,11 +822,7 @@ namespace Dorothy.Views
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error saving settings");
-                MessageBox.Show(
-                    $"Error saving settings: {ex.Message}",
-                    "Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Warning);
+                _ = ShowMessageAsync("Error", $"Error saving settings: {ex.Message}");
             }
         }
 
@@ -904,7 +897,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void HelpButton_Click(object sender, RoutedEventArgs e)
+        private void HelpButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             // Use existing update check service if available, otherwise create new one
             var updateCheckService = _updateCheckService ?? 
@@ -948,7 +941,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void SaveLogButton_Click(object sender, RoutedEventArgs e)
+        private async void SaveLogButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -1143,12 +1136,12 @@ namespace Dorothy.Views
             }
         }
 
-        private void ClearLogButton_Click(object sender, RoutedEventArgs e)
+        private void ClearLogButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             LogTextBox.Clear();
         }
 
-        private void TaskManagerButton_Click(object sender, RoutedEventArgs e)
+        private async void TaskManagerButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -1161,7 +1154,7 @@ namespace Dorothy.Views
             }
         }
 
-        private async void CloudSyncButton_Click(object sender, RoutedEventArgs e)
+        private async void CloudSyncButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             await OpenSyncDialogAsync();
         }
@@ -1406,7 +1399,7 @@ namespace Dorothy.Views
             }
         }
 
-        private async void PingButton_Click(object sender, RoutedEventArgs e)
+        private async void PingButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
             {
                 var button = sender as Button;
                 if (button == null) return;
@@ -1428,7 +1421,7 @@ namespace Dorothy.Views
                 // Check subnet and gateway requirement before pinging
                 if (!CheckSubnetAndGatewayRequirement(targetIp))
                 {
-                    MessageBox.Show("Gateway IP is required for targets on different subnets.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Error", "Gateway IP is required for targets on different subnets.");
                     return;
                 }
 
