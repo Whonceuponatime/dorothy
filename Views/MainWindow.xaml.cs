@@ -1348,7 +1348,7 @@ namespace Dorothy.Views
 
         private void OnSyncProgressChanged(string message)
         {
-            Dispatcher.Invoke(() =>
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 SyncProgressText.Text = message;
             });
@@ -4082,7 +4082,7 @@ namespace Dorothy.Views
                 ValidatePasswordAndUpdateUI();
                 
                 // Force UI update on UI thread to ensure buttons are enabled and Validate button is disabled
-                Application.Current.Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (StartAdvancedAttackButton != null)
                     {
@@ -4591,7 +4591,7 @@ namespace Dorothy.Views
                     }
                 });
 
-                Application.Current.Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (foundPort.HasValue)
                     {
