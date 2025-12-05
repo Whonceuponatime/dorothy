@@ -352,7 +352,8 @@ namespace Dorothy.Models
                     catch (Exception ex)
                     {
                         // Log error but don't block UI
-                        System.Diagnostics.Debug.WriteLine($"Failed to save attack log to database: {ex.Message}");
+                        LogError($"Failed to save attack log to database: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine($"Failed to save attack log to database: {ex.Message}\n{ex.StackTrace}");
                     }
                 });
             }

@@ -440,6 +440,67 @@ namespace Dorothy.Services
                     Logger.Info("Ports table does not exist yet - will be created with all columns");
                 }
 
+                // Check if AttackLogs table needs migration (add metadata columns)
+                var checkAttackLogsTableExists = connection.CreateCommand();
+                checkAttackLogsTableExists.CommandText = @"
+                    SELECT name FROM sqlite_master 
+                    WHERE type='table' AND name='AttackLogs';
+                ";
+                var attackLogsTableExists = checkAttackLogsTableExists.ExecuteScalar() != null;
+
+                if (attackLogsTableExists)
+                {
+                    var attackLogsColumns = new HashSet<string>();
+                    try
+                    {
+                        var attackLogsCheckCommand = connection.CreateCommand();
+                        attackLogsCheckCommand.CommandText = "PRAGMA table_info(AttackLogs)";
+                        
+                        using (var attackLogsReader = attackLogsCheckCommand.ExecuteReader())
+                        {
+                            while (attackLogsReader.Read())
+                            {
+                                attackLogsColumns.Add(attackLogsReader.GetString(1)); // Column name is at index 1
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warn(ex, "Failed to check AttackLogs table columns, will attempt to add all columns");
+                        // If check fails, assume columns don't exist and try to add them
+                        attackLogsColumns.Clear();
+                    }
+
+                    // Add missing columns to AttackLogs table - always try to add, handle "column already exists" gracefully
+                    var attackLogsColumnsToAdd = new[] { "HardwareId", "MachineName", "Username", "UserId" };
+                    foreach (var columnName in attackLogsColumnsToAdd)
+                    {
+                        // Always try to add the column - if it already exists, SQLite will throw an error which we'll catch
+                        // This is safer than relying on the column check which might fail
+                        try
+                        {
+                            var addColumn = connection.CreateCommand();
+                            addColumn.CommandText = $"ALTER TABLE AttackLogs ADD COLUMN {columnName} TEXT";
+                            addColumn.ExecuteNonQuery();
+                            Logger.Info($"Successfully added {columnName} column to AttackLogs table");
+                        }
+                        catch (Microsoft.Data.Sqlite.SqliteException sqlEx) when (sqlEx.Message.Contains("duplicate column") || sqlEx.Message.Contains("already exists") || sqlEx.SqliteErrorCode == 1)
+                        {
+                            // Column already exists - this is fine, just log it
+                            Logger.Debug($"{columnName} column already exists in AttackLogs table");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Warn(ex, $"Failed to add {columnName} column to AttackLogs table (may already exist)");
+                            // Don't throw - continue with other columns
+                        }
+                    }
+                }
+                else
+                {
+                    Logger.Info("AttackLogs table does not exist yet - will be created with all columns");
+                }
+
                 Logger.Info("Database migration completed successfully");
             }
             catch (Exception ex)
@@ -1965,6 +2026,26 @@ namespace Dorothy.Services
             {
                 Logger.Error(ex, "Failed to get unsynced reachability tests");
                 throw;
+            }
+        }
+
+        public async Task<int> GetUnsyncedReachabilityTestsCountAsync()
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = "SELECT COUNT(*) FROM ReachabilityTests WHERE IsSynced = 0";
+
+                var result = await command.ExecuteScalarAsync();
+                return Convert.ToInt32(result);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to get unsynced reachability tests count");
+                return 0;
             }
         }
 

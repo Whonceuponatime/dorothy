@@ -672,6 +672,11 @@ namespace Dorothy.Services
             return await _databaseService.GetUnsyncedAssetsCountAsync();
         }
 
+        public async Task<int> GetPendingReachabilityTestsCountAsync()
+        {
+            return await _databaseService.GetUnsyncedReachabilityTestsCountAsync();
+        }
+
         /// <summary>
         /// Resolves hostname from IP address using DNS lookup (online).
         /// Returns original value or "Unknown" if lookup fails.

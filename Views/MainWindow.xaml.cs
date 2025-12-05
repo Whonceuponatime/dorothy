@@ -1381,7 +1381,8 @@ namespace Dorothy.Views
 
                 var pendingLogsCount = await _supabaseSyncService.GetPendingSyncCountAsync();
                 var pendingAssetsCount = await _supabaseSyncService.GetPendingAssetsCountAsync();
-                var totalPending = pendingLogsCount + pendingAssetsCount;
+                var pendingTestsCount = await _supabaseSyncService.GetPendingReachabilityTestsCountAsync();
+                var totalPending = pendingLogsCount + pendingAssetsCount + pendingTestsCount;
                 
                 Dispatcher.Invoke(() =>
                 {
@@ -1393,6 +1394,7 @@ namespace Dorothy.Views
                         var tooltipParts = new List<string>();
                         if (pendingLogsCount > 0) tooltipParts.Add($"{pendingLogsCount} log(s)");
                         if (pendingAssetsCount > 0) tooltipParts.Add($"{pendingAssetsCount} asset(s)");
+                        if (pendingTestsCount > 0) tooltipParts.Add($"{pendingTestsCount} test(s)");
                         CloudSyncButton.ToolTip = $"{string.Join(", ", tooltipParts)} pending sync - Click to sync";
                     }
                     else
