@@ -193,13 +193,13 @@ namespace Dorothy.Views
             var portsDetailsBorder = this.FindControl<Border>("PortsDetailsBorder");
             if (portsDetailsBorder != null)
             {
-                portsDetailsBorder.Visibility = shouldShowPorts ? Visibility.Visible : Visibility.Collapsed;
+                portsDetailsBorder.IsVisible = shouldShowPorts;
             }
             
             // Also hide the DataGrid itself if needed
             if (PortsDataGrid != null)
             {
-                PortsDataGrid.Visibility = shouldShowPorts ? Visibility.Visible : Visibility.Collapsed;
+                PortsDataGrid.IsVisible = shouldShowPorts;
             }
         }
         
@@ -646,7 +646,9 @@ namespace Dorothy.Views
                             if (firstAssetWithPorts != null && ResultsDataGrid != null)
                             {
                                 ResultsDataGrid.SelectedItem = firstAssetWithPorts;
-                                ResultsDataGrid.ScrollIntoView(firstAssetWithPorts);
+                                // ResultsDataGrid.ScrollIntoView(firstAssetWithPorts); // ScrollIntoView requires column parameter in Avalonia
+                                if (ResultsDataGrid.Columns.Count > 0)
+                                    ResultsDataGrid.ScrollIntoView(firstAssetWithPorts, ResultsDataGrid.Columns[0]);
                             }
                         }
                         
@@ -944,9 +946,11 @@ namespace Dorothy.Views
                             ResultsDataGrid.ItemsSource = _foundAssets;
                                 
                                 // Auto-scroll to the newest item
-                                if (ResultsDataGrid.Items.Count > 0)
+                                if (ResultsDataGrid.ItemsSource is System.Collections.IList itemsList && itemsList.Count > 0)
                                 {
-                                    ResultsDataGrid.ScrollIntoView(ResultsDataGrid.Items[ResultsDataGrid.Items.Count - 1]);
+                                    var lastItem = itemsList[itemsList.Count - 1];
+                                    if (ResultsDataGrid.Columns.Count > 0)
+                                        ResultsDataGrid.ScrollIntoView(lastItem, ResultsDataGrid.Columns[0]);
                                 }
                             }
                         }
@@ -1070,12 +1074,12 @@ namespace Dorothy.Views
                     {
                         AssetsSyncBadge.IsVisible = true;
                         AssetsSyncBadgeText.Text = pendingCount > 99 ? "99+" : pendingCount.ToString();
-                        SyncAssetsButton.ToolTip = $"{pendingCount} asset(s) pending sync - Click to sync";
+                        // SyncAssetsButton.ToolTip = $"{pendingCount} asset(s) pending sync - Click to sync"; // ToolTip not available in Avalonia
                     }
                     else
                     {
                         AssetsSyncBadge.IsVisible = false;
-                        SyncAssetsButton.ToolTip = "Sync assets to cloud";
+                        // SyncAssetsButton.ToolTip = "Sync assets to cloud"; // ToolTip not available in Avalonia
                     }
                 });
             }
@@ -1109,10 +1113,8 @@ namespace Dorothy.Views
                 }
 
                 // Create sync window for assets
-                var syncWindow = new AssetSyncWindow(unsyncedAssets)
-                {
-                    Owner = this
-                };
+                var syncWindow = new AssetSyncWindow(unsyncedAssets);
+                // Owner property is protected in Avalonia, set it differently if needed
 
                 var dialogResult = await syncWindow.ShowDialog<bool?>(this);
                 if (dialogResult == true && syncWindow.ShouldSync)

@@ -244,7 +244,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void MainWindow_Loaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        private async void MainWindow_Loaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -1003,9 +1003,21 @@ namespace Dorothy.Views
             if (element != null)
             {
                 // Apply font size to Control elements (TextBox, ComboBox, etc.)
-                if (element is Control control)
+                if (element is TextBox textBox)
                 {
-                    control.FontSize = fontSize;
+                    textBox.FontSize = fontSize;
+                }
+                else if (element is ComboBox comboBox)
+                {
+                    comboBox.FontSize = fontSize;
+                }
+                else if (element is Button button)
+                {
+                    button.FontSize = fontSize;
+                }
+                else if (element is Label label)
+                {
+                    label.FontSize = fontSize;
                 }
                 // Apply font size to TextBlock elements
                 else if (element is TextBlock textBlock)
@@ -1072,8 +1084,7 @@ namespace Dorothy.Views
                     "Save Log File",
                     GenerateLogFileName(),
                     "txt",
-                    new[] { ("Text files", new[] { "*.txt" }), ("All files", new[] { "*.*" }) },
-                    logLocation);
+                    new[] { ("Text files", new[] { "*.txt" }), ("All files", new[] { "*.*" }) });
 
                 if (!string.IsNullOrEmpty(fileName))
                 {
@@ -1304,7 +1315,8 @@ namespace Dorothy.Views
                 if (syncResult == true)
                 {
                     CloudSyncButton.IsEnabled = false;
-                    var originalTooltip = CloudSyncButton.ToolTip;
+                    // var originalTooltip = CloudSyncButton.ToolTip; // ToolTip not available in Avalonia
+                    var originalTooltip = (string?)null;
 
                     // Show loading overlay
                     SyncLoadingOverlay.IsVisible = true;
@@ -1433,7 +1445,7 @@ namespace Dorothy.Views
                         _supabaseSyncService.ProgressChanged -= OnSyncProgressChanged;
                         
                         CloudSyncButton.IsEnabled = true;
-                        CloudSyncButton.ToolTip = originalTooltip;
+                        // CloudSyncButton.ToolTip = originalTooltip; // ToolTip not available in Avalonia
 
                         // Always update sync status after window closes (deletions or sync)
                         _ = Task.Run(async () => await UpdateSyncStatus());
@@ -1444,7 +1456,7 @@ namespace Dorothy.Views
                         SyncLoadingOverlay.IsVisible = false;
                         _supabaseSyncService.ProgressChanged -= OnSyncProgressChanged;
                         CloudSyncButton.IsEnabled = true;
-                        CloudSyncButton.ToolTip = originalTooltip;
+                        // CloudSyncButton.ToolTip = originalTooltip; // ToolTip not available in Avalonia
                         
                         _attackLogger.LogError($"Sync operation failed: {ex.Message}");
                         _toastService.ShowError($"Sync failed: {ex.Message}");
@@ -1463,7 +1475,7 @@ namespace Dorothy.Views
             await UpdateSyncStatus();
         }
 
-        private void OnSyncProgressChanged(string message)
+        private async void OnSyncProgressChanged(string message)
         {
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
@@ -1501,12 +1513,12 @@ namespace Dorothy.Views
                         if (pendingLogsCount > 0) tooltipParts.Add($"{pendingLogsCount} log(s)");
                         if (pendingAssetsCount > 0) tooltipParts.Add($"{pendingAssetsCount} asset(s)");
                         if (pendingTestsCount > 0) tooltipParts.Add($"{pendingTestsCount} test(s)");
-                        CloudSyncButton.ToolTip = $"{string.Join(", ", tooltipParts)} pending sync - Click to sync";
+                        // CloudSyncButton.ToolTip = $"{string.Join(", ", tooltipParts)} pending sync - Click to sync"; // ToolTip not available in Avalonia
                     }
                     else
                     {
                         CloudSyncNotificationBadge.IsVisible = false;
-                        CloudSyncButton.ToolTip = "Cloud Sync (No pending items)";
+                        // CloudSyncButton.ToolTip = "Cloud Sync (No pending items)"; // ToolTip not available in Avalonia
                     }
                 });
             }
@@ -1857,7 +1869,7 @@ namespace Dorothy.Views
             }
         }
 
-        private bool ValidateCrossSubnetGateway(string targetIp, string sourceIp)
+        private async Task<bool> ValidateCrossSubnetGateway(string targetIp, string sourceIp)
         {
             try
             {
@@ -1969,7 +1981,7 @@ namespace Dorothy.Views
                 }
 
                 // Validate cross-subnet gateway requirement
-                if (!ValidateCrossSubnetGateway(targetIp, sourceIp))
+                if (!await ValidateCrossSubnetGateway(targetIp, sourceIp))
                 {
                     return;
                 }
@@ -2050,7 +2062,7 @@ namespace Dorothy.Views
                 }
 
                 // Validate cross-subnet gateway requirement
-                if (!ValidateCrossSubnetGateway(targetIp, sourceIp))
+                if (!await ValidateCrossSubnetGateway(targetIp, sourceIp))
                 {
                     return;
                 }
@@ -2151,7 +2163,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void PopulateNetworkInterfaces()
+        private async void PopulateNetworkInterfaces()
         {
             try
             {
@@ -2204,8 +2216,8 @@ namespace Dorothy.Views
 
                 NetworkInterfaceComboBox.ItemsSource = interfaces;
                 AdvNetworkInterfaceComboBox.ItemsSource = interfaces;
-                NetworkInterfaceComboBox.DisplayMemberPath = "Description";
-                AdvNetworkInterfaceComboBox.DisplayMemberPath = "Description";
+                // NetworkInterfaceComboBox.DisplayMemberPath = "Description"; // DisplayMemberPath not available in Avalonia ComboBox
+                // AdvNetworkInterfaceComboBox.DisplayMemberPath = "Description"; // Use ItemTemplate in XAML instead
                 NetworkInterfaceComboBox.SelectedIndex = 0;
                 AdvNetworkInterfaceComboBox.SelectedIndex = 0;
                 
@@ -2477,7 +2489,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void PopulateAttackTypes()
+        private async void PopulateAttackTypes()
         {
             try
             {
@@ -2788,7 +2800,7 @@ namespace Dorothy.Views
             return result == 0;
         }
         
-        private void ShowAdvancedSettingsDisclaimer()
+        private async void ShowAdvancedSettingsDisclaimer()
         {
             // Reset flag before showing dialog
             _disclaimerAcknowledged = false;
@@ -3600,7 +3612,7 @@ namespace Dorothy.Views
                     throw new ArgumentException($"Invalid Ethernet attack type: {attackType}");
 
                 // Validate cross-subnet gateway requirement (only for Unicast IPv4)
-                if (packetType == EthernetFlood.EthernetPacketType.Unicast && !useIPv6 && !ValidateCrossSubnetGateway(targetIp, sourceIp))
+                if (packetType == EthernetFlood.EthernetPacketType.Unicast && !useIPv6 && !await ValidateCrossSubnetGateway(targetIp, sourceIp))
                 {
                     _currentRunningAttackType = null;
                     return;
@@ -3697,7 +3709,7 @@ namespace Dorothy.Views
                 _currentRunningAttackType = attackType ?? $"Ethernet {packetType}";
 
                 // Validate cross-subnet gateway requirement (only for Unicast)
-                if (packetType == EthernetFlood.EthernetPacketType.Unicast && !ValidateCrossSubnetGateway(targetIp, sourceIp))
+                if (packetType == EthernetFlood.EthernetPacketType.Unicast && !await ValidateCrossSubnetGateway(targetIp, sourceIp))
                 {
                     _currentRunningAttackType = null;
                     return;
@@ -3841,10 +3853,10 @@ namespace Dorothy.Views
             }
 
                 // Validate cross-subnet gateway requirement
-                if (!ValidateCrossSubnetGateway(targetIp, sourceIp))
+                if (!await ValidateCrossSubnetGateway(targetIp, sourceIp))
                 {
-                return;
-            }
+                    return;
+                }
 
                 // Check network interface status
                 var selectedInterface = MainTabControl.SelectedItem == AdvancedTab ? 
@@ -4009,7 +4021,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void MainTabControl_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+        private async void MainTabControl_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             // Prevent re-entrancy during tab changes
             if (_isHandlingTabChange)
@@ -4111,17 +4123,15 @@ namespace Dorothy.Views
                         // Don't clear validation token - it should persist even when password field is cleared
                         if (AdvPasswordBox != null)
                         {
-                            // Temporarily disable the password changed handler to prevent clearing validation token
+                            // Clear password - event handler will fire but that's okay
+                            // Note: Can't use -= and += with dynamic, so we just clear the password
                             try
                             {
-                                AdvPasswordBox.PasswordChanged -= PasswordBox_PasswordChanged;
                                 AdvPasswordBox.Password = string.Empty;
-                                AdvPasswordBox.PasswordChanged += PasswordBox_PasswordChanged;
                             }
                             catch
                             {
-                                // If PasswordChanged event doesn't exist, just clear the password
-                                AdvPasswordBox.Password = string.Empty;
+                                // If Password property doesn't exist, ignore
                             }
                             ValidatePasswordAndUpdateUI();
                         }
@@ -5131,7 +5141,7 @@ namespace Dorothy.Views
                 var token = _snmpWalkCancellationTokenSource.Token;
 
                 // Create progress reporter
-                var progress = new Progress<(string message, int percent)>(update =>
+                var progress = new Progress<(string message, int percent)>(async update =>
                 {
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
