@@ -163,17 +163,28 @@
                     </Border>
 
                     <!-- Website Link -->
-                    <TextBlock Margin="0,20,0,0">
-                        <Run Text="For more information, visit: " 
-                             FontSize="12" 
-                             Foreground="#6B7280"/>
-                        <Hyperlink x:Name="WebsiteLink"
-                                   FontSize="12"
-                                   Foreground="#2563EB"
-                                   Click="WebsiteLink_Click">
-                            <Run Text="https://www.sea-net.co.kr/seacure"/>
-                        </Hyperlink>
-                    </TextBlock>
+                    <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                        <TextBlock Text="For more information, visit: " 
+                                   FontSize="12" 
+                                   Foreground="#6B7280"/>
+                        <Button x:Name="WebsiteLink"
+                                Content="https://www.sea-net.co.kr/seacure"
+                                FontSize="12"
+                                Foreground="#2563EB"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="4,0"
+                                Cursor="Hand"
+                                Click="WebsiteLink_Click"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center">
+                            <Button.Styles>
+                                <Style Selector="Button:pointerover">
+                                    <Setter Property="TextDecorations" Value="Underline"/>
+                                </Style>
+                            </Button.Styles>
+                        </Button>
+                    </StackPanel>
 
                     <!-- Footer Separator -->
                     <Border BorderBrush="#E5E7EB"
@@ -181,19 +192,28 @@
                             Margin="0,20,0,12"/>
 
                     <!-- Copyright -->
-                    <TextBlock HorizontalAlignment="Center"
-                               TextAlignment="Center"
-                               Margin="0,0,0,0">
-                        <Run Text="Copyright(C) SeaNet Co., Ltd. All right reserved" 
-                             FontSize="10" 
-                             Foreground="#9CA3AF"/>
-                        <LineBreak/>
-                        <Hyperlink FontSize="10"
-                                   Foreground="#2563EB"
-                                   Click="WebsiteLink_Click">
-                            <Run Text="www.sea-net.co.kr/seacure"/>
-                        </Hyperlink>
-                    </TextBlock>
+                    <StackPanel HorizontalAlignment="Center" Margin="0,0,0,0">
+                        <TextBlock Text="Copyright(C) SeaNet Co., Ltd. All right reserved" 
+                                   FontSize="10" 
+                                   Foreground="#9CA3AF"
+                                   HorizontalAlignment="Center"/>
+                        <Button Content="www.sea-net.co.kr/seacure"
+                                FontSize="10"
+                                Foreground="#2563EB"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Padding="0"
+                                Cursor="Hand"
+                                Click="WebsiteLink_Click"
+                                HorizontalAlignment="Center"
+                                HorizontalContentAlignment="Center">
+                            <Button.Styles>
+                                <Style Selector="Button:pointerover">
+                                    <Setter Property="TextDecorations" Value="Underline"/>
+                                </Style>
+                            </Button.Styles>
+                        </Button>
+                    </StackPanel>
                 </StackPanel>
             </ScrollViewer>
         </Border>
