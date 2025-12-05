@@ -176,7 +176,7 @@ namespace Dorothy.Views
                     ValidatePasswordAndUpdateUI();
                     
                     // Disable Validate button since validation is already active
-                    Application.Current.Dispatcher.Invoke(() =>
+                    await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         if (AdvValidatePasswordButton != null)
                         {
@@ -921,7 +921,7 @@ namespace Dorothy.Views
             {
                 var result = await _updateCheckService.CheckForUpdatesAsync();
                 
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (result.IsOnline && result.IsUpdateAvailable)
                     {
@@ -1360,9 +1360,9 @@ namespace Dorothy.Views
             {
                 if (!_supabaseSyncService.IsConfigured)
                 {
-                    Dispatcher.Invoke(() =>
+                    await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        CloudSyncNotificationBadge.Visibility = Visibility.Collapsed;
+                        CloudSyncNotificationBadge.IsVisible = false;
                         CloudSyncButton.ToolTip = "Cloud Sync (Not Configured)";
                     });
                     return;
@@ -1373,7 +1373,7 @@ namespace Dorothy.Views
                 var pendingTestsCount = await _supabaseSyncService.GetPendingReachabilityTestsCountAsync();
                 var totalPending = pendingLogsCount + pendingAssetsCount + pendingTestsCount;
                 
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (totalPending > 0)
                     {
@@ -1388,7 +1388,7 @@ namespace Dorothy.Views
                     }
                     else
                     {
-                        CloudSyncNotificationBadge.Visibility = Visibility.Collapsed;
+                        CloudSyncNotificationBadge.IsVisible = false;
                         CloudSyncButton.ToolTip = "Cloud Sync (No pending items)";
                     }
                 });
@@ -2018,7 +2018,7 @@ namespace Dorothy.Views
                     if (!_hasShownAttackLogSyncNotification && _supabaseSyncService.IsConfigured)
                     {
                         _hasShownAttackLogSyncNotification = true;
-                        Dispatcher.Invoke(() =>
+                        await Dispatcher.UIThread.InvokeAsync(() =>
                         {
                             _toastService.ShowInfo("✅ Attack log saved. Click Cloud Sync button to upload to Supabase.");
                         });
@@ -3154,7 +3154,7 @@ namespace Dorothy.Views
                 // Check if password has been validated (one-time validation per session)
                 if (string.IsNullOrEmpty(_validationToken) || !IsValidationTokenValid(_validationToken))
                 {
-                    MessageBox.Show("Please validate your password first by clicking the 'Validate' button.", "Authentication Required", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Authentication Required", "Please validate your password first by clicking the 'Validate' button.");
                     AdvPasswordBox?.Focus();
                     return;
                 }
@@ -3195,7 +3195,7 @@ namespace Dorothy.Views
                             await StartEthernetAttack(packetType);
                             break;
                         default:
-                            MessageBox.Show($"Unsupported attack type: {attackType}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            await ShowMessageAsync("Error", $"Unsupported attack type: {attackType}");
                             break;
                     }
                 }
@@ -3216,25 +3216,25 @@ namespace Dorothy.Views
                 
                 if (string.IsNullOrWhiteSpace(targetIp))
                 {
-                    MessageBox.Show("Please enter a target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Please enter a target IP address.");
                     return;
                 }
                 
                 if (!IPAddress.TryParse(targetIp, out var parsedTargetIp))
                 {
-                    MessageBox.Show("Invalid target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid target IP address.");
                     return;
                 }
                 
                 if (!int.TryParse(AdvTargetPortTextBox.Text, out int targetPort) || targetPort <= 0 || targetPort > 65535)
                 {
-                    MessageBox.Show("Invalid target port. Please enter a port between 1 and 65535.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid target port. Please enter a port between 1 and 65535.");
                     return;
                 }
                 
                 if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out long megabitsPerSecond) || megabitsPerSecond <= 0)
                 {
-                    MessageBox.Show("Invalid rate (Mbps). Please enter a positive number.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid rate (Mbps). Please enter a positive number.");
                     return;
                 }
 
@@ -4136,7 +4136,7 @@ namespace Dorothy.Views
                 if (PasswordFeedbackText != null)
                 {
                     PasswordFeedbackText.Text = "Incorrect password. Please try again.";
-                    PasswordFeedbackText.Visibility = Visibility.Visible;
+                    PasswordFeedbackText.IsVisible = true;
                 }
             }
         }
@@ -4439,13 +4439,13 @@ namespace Dorothy.Views
                 else if (attackType.Contains("ICMP") || attackType == "ICMP Flood")
                 {
                     // ICMP doesn't use ports
-                    MessageBox.Show("ICMP Flood does not use ports. Port scanning is not applicable.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                    await ShowMessageAsync("Info", "ICMP Flood does not use ports. Port scanning is not applicable.");
                     return;
                 }
                 else if (attackType.Contains("Ethernet") || attackType == "ARP Spoofing" || attackType == "Broadcast")
                 {
                     // These don't use ports
-                    MessageBox.Show($"{attackType} does not use ports. Port scanning is not applicable.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                    await ShowMessageAsync("Info", $"{attackType} does not use ports. Port scanning is not applicable.");
                     return;
                 }
                 else
@@ -4490,7 +4490,7 @@ namespace Dorothy.Views
                     progressBar.Value = 0;
                     progressBar.Maximum = portsToScan.Length;
                     progressBar.IsIndeterminate = false;
-                    progressBar.Visibility = Visibility.Visible;
+                    progressBar.IsVisible = true;
                 }
 
                 _attackLogger.LogInfo($"🔍 Quick {protocol} port scan on {targetIp}...");
@@ -4556,7 +4556,7 @@ namespace Dorothy.Views
                                     }
                                 }
                                 
-                                Application.Current.Dispatcher.Invoke(() =>
+                                await Dispatcher.UIThread.InvokeAsync(() =>
                                 {
                                     if (progressBar != null)
                                     {
@@ -4575,7 +4575,7 @@ namespace Dorothy.Views
                             catch (Exception ex)
                             {
                                 // Port is likely closed or filtered, continue
-                                Application.Current.Dispatcher.Invoke(() =>
+                                await Dispatcher.UIThread.InvokeAsync(() =>
                                 {
                                     if (progressBar != null)
                                     {
@@ -4606,21 +4606,21 @@ namespace Dorothy.Views
                     if (progressBar != null)
                     {
                         progressBar.Value = 0;
-                        progressBar.Visibility = Visibility.Collapsed;
+                        progressBar.IsVisible = false;
                                     }
                                 });
                             }
             catch (Exception ex)
             {
                 _attackLogger.LogError($"Port scan failed: {ex.Message}");
-                MessageBox.Show($"Error during port scan: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error during port scan: {ex.Message}");
                 
-                Application.Current.Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (progressBar != null)
                     {
                         progressBar.Value = 0;
-                        progressBar.Visibility = Visibility.Collapsed;
+                        progressBar.IsVisible = false;
                     }
                 });
             }
@@ -4632,12 +4632,12 @@ namespace Dorothy.Views
                     button.Content = "Scan";
                 }
                 
-                                Application.Current.Dispatcher.Invoke(() =>
+                                await Dispatcher.UIThread.InvokeAsync(() =>
                                 {
                                     if (progressBar != null)
                                     {
                         progressBar.Value = 0;
-                        progressBar.Visibility = Visibility.Collapsed;
+                        progressBar.IsVisible = false;
                                     }
                                 });
                             }
@@ -4654,13 +4654,13 @@ namespace Dorothy.Views
 
                 if (string.IsNullOrWhiteSpace(sourceIp))
                 {
-                    MessageBox.Show("Please select a network interface first to determine the network to scan.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "Please select a network interface first to determine the network to scan.");
                     return;
                 }
 
                 if (!IPAddress.TryParse(sourceIp, out var sourceIpObj))
                 {
-                    MessageBox.Show("Please enter a valid source IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "Please enter a valid source IP address.");
                     return;
                 }
 
@@ -4714,7 +4714,7 @@ namespace Dorothy.Views
                     catch (Exception ex)
                     {
                 _attackLogger.LogError($"Network scan failed: {ex.Message}");
-                MessageBox.Show($"Error during network scan: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error during network scan: {ex.Message}");
             }
         }
 
@@ -4848,23 +4848,20 @@ namespace Dorothy.Views
                         else
                         {
                             _attackLogger.LogWarning("Selected network interface does not have an IPv4 address");
-                            MessageBox.Show("Selected network interface does not have an IPv4 address.", 
-                                "No IPv4 Address", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            await ShowMessageAsync("No IPv4 Address", "Selected network interface does not have an IPv4 address.");
                         }
                     }
                 }
                 else
                 {
                     _attackLogger.LogWarning("No network interface selected");
-                    MessageBox.Show("Please select a network interface first.", 
-                        "No Interface Selected", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("No Interface Selected", "Please select a network interface first.");
                 }
             }
             catch (Exception ex)
             {
                 _attackLogger.LogError($"Error refreshing source IP: {ex.Message}");
-                MessageBox.Show($"Error refreshing source IP: {ex.Message}", 
-                    "Refresh Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Refresh Error", $"Error refreshing source IP: {ex.Message}");
             }
         }
 
@@ -4902,9 +4899,9 @@ namespace Dorothy.Views
                 {
                     errorMsg += $"\n\nTarget site: {nre.TargetSite}";
                 }
-                MessageBox.Show(errorMsg, "Null Reference Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Null Reference Error", errorMsg);
             }
-            catch (System.Windows.Markup.XamlParseException xamlEx)
+            catch (Avalonia.Markup.Xaml.XamlLoadException xamlEx)
             {
                 _logger.Error(xamlEx, "XAML parse error opening reachability wizard");
                 string errorMsg = $"XAML parse error: {xamlEx.Message}";
@@ -4912,7 +4909,7 @@ namespace Dorothy.Views
                 {
                     errorMsg += $"\n\nInner: {xamlEx.InnerException.Message}";
                 }
-                MessageBox.Show(errorMsg, "XAML Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("XAML Error", errorMsg);
             }
             catch (Exception ex)
             {
@@ -4930,7 +4927,7 @@ namespace Dorothy.Views
                 {
                     errorMsg += $"\n\nTarget site: {ex.TargetSite}";
                 }
-                MessageBox.Show(errorMsg, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", errorMsg);
             }
             finally
             {
@@ -4960,26 +4957,26 @@ namespace Dorothy.Views
             {
                 if (_snmpWalkService == null)
                 {
-                    MessageBox.Show("SNMP Walk service is not initialized.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", "SNMP Walk service is not initialized.");
                     return;
                 }
 
                 // Validate inputs
                 if (string.IsNullOrWhiteSpace(SnmpWalkTargetIpTextBox.Text))
                 {
-                    MessageBox.Show("Please enter a target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Please enter a target IP address.");
                     return;
                 }
 
                 if (!IPAddress.TryParse(SnmpWalkTargetIpTextBox.Text.Trim(), out _))
                 {
-                    MessageBox.Show("Invalid IP address format.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid IP address format.");
                     return;
                 }
 
                 if (!int.TryParse(SnmpWalkPortTextBox.Text.Trim(), out int port) || port < 1 || port > 65535)
                 {
-                    MessageBox.Show("Invalid port number. Must be between 1 and 65535.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid port number. Must be between 1 and 65535.");
                     return;
                 }
 
@@ -4996,7 +4993,7 @@ namespace Dorothy.Views
                 // Create progress reporter
                 var progress = new Progress<(string message, int percent)>(update =>
                 {
-                    Dispatcher.Invoke(() =>
+                    await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         SnmpWalkProgressBar.Value = update.percent;
                         _attackLogger.LogInfo(update.message);
@@ -5010,11 +5007,11 @@ namespace Dorothy.Views
                     {
                         var result = await _snmpWalkService.WalkAsync(targetIp, port, progress, token);
 
-                        Dispatcher.Invoke(async () =>
+                        await Dispatcher.UIThread.InvokeAsync(async () =>
                         {
                             StartSnmpWalkButton.IsEnabled = true;
                             StopSnmpWalkButton.IsEnabled = false;
-                            SnmpWalkProgressBar.Visibility = Visibility.Collapsed;
+                            SnmpWalkProgressBar.IsVisible = false;
                             SnmpWalkProgressBar.Value = 0;
 
                             // Update security assessment: SNMP is not vulnerable if no successful authentication
@@ -5042,24 +5039,24 @@ namespace Dorothy.Views
                     }
                     catch (OperationCanceledException)
                     {
-                        Dispatcher.Invoke(() =>
+                        await Dispatcher.UIThread.InvokeAsync(() =>
                         {
                             _attackLogger.LogWarning("[SNMP Walk] Operation canceled by user");
                             StartSnmpWalkButton.IsEnabled = true;
                             StopSnmpWalkButton.IsEnabled = false;
-                            SnmpWalkProgressBar.Visibility = Visibility.Collapsed;
+                            SnmpWalkProgressBar.IsVisible = false;
                             SnmpWalkProgressBar.Value = 0;
                         });
                     }
                     catch (Exception ex)
                     {
-                        Dispatcher.Invoke(() =>
+                        await Dispatcher.UIThread.InvokeAsync(async () =>
                         {
                             _attackLogger.LogError($"[SNMP Walk] Error: {ex.Message}");
-                            MessageBox.Show($"Error during SNMP walk: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            await ShowMessageAsync("Error", $"Error during SNMP walk: {ex.Message}");
                             StartSnmpWalkButton.IsEnabled = true;
                             StopSnmpWalkButton.IsEnabled = false;
-                            SnmpWalkProgressBar.Visibility = Visibility.Collapsed;
+                            SnmpWalkProgressBar.IsVisible = false;
                             SnmpWalkProgressBar.Value = 0;
                         });
                     }
@@ -5068,13 +5065,13 @@ namespace Dorothy.Views
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error starting SNMP walk");
-                MessageBox.Show($"Error starting SNMP walk: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error starting SNMP walk: {ex.Message}");
                 StartSnmpWalkButton.IsEnabled = true;
                 StopSnmpWalkButton.IsEnabled = false;
             }
         }
 
-        private void StopSnmpWalkButton_Click(object sender, RoutedEventArgs e)
+        private async void StopSnmpWalkButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -5087,7 +5084,7 @@ namespace Dorothy.Views
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error stopping SNMP walk");
-                MessageBox.Show($"Error stopping SNMP walk: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error stopping SNMP walk: {ex.Message}");
             }
         }
 
