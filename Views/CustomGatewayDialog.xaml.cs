@@ -1,11 +1,8 @@
 using System;
 using System.Net;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Shapes;
-using System.Windows.Threading;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
 
 namespace Dorothy.Views
 {
@@ -15,26 +12,34 @@ namespace Dorothy.Views
 
         public CustomGatewayDialog(string currentGateway)
         {
-            InitializeComponent();
+            AvaloniaXamlLoader.Load(this);
             GatewayIpTextBox.Text = currentGateway;
         }
 
-        private void OkButton_Click(object sender, RoutedEventArgs e)
+        private async void OkButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             if (IPAddress.TryParse(GatewayIpTextBox.Text, out _))
             {
                 GatewayIp = GatewayIpTextBox.Text;
-                DialogResult = true;
+                Close(true);
             }
             else
             {
-                MessageBox.Show("Please enter a valid IP address.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
+                var msgBox = new Window
+                {
+                    Title = "Invalid IP",
+                    Content = new TextBlock { Text = "Please enter a valid IP address." },
+                    Width = 300,
+                    Height = 150,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
             }
         }
 
-        private void CancelButton_Click(object sender, RoutedEventArgs e)
+        private void CancelButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            DialogResult = false;
+            Close(false);
         }
     }
 } 

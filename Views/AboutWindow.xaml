@@ -1,12 +1,12 @@
-<Window x:Class="Dorothy.Views.AboutWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Dorothy.Views.AboutWindow"
         Title="About SEACURE(TOOL)" 
-        Icon="pack://application:,,,/Resources/icon.ico"
+        Icon="/Resources/icon.ico"
         Height="500" 
         Width="600"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
+        CanResize="False"
         Background="#F3F4F6"
         ShowInTaskbar="False">
     <Grid Margin="24">
@@ -168,10 +168,9 @@
                              FontSize="12" 
                              Foreground="#6B7280"/>
                         <Hyperlink x:Name="WebsiteLink"
-                                   NavigateUri="https://www.sea-net.co.kr/seacure"
                                    FontSize="12"
                                    Foreground="#2563EB"
-                                   RequestNavigate="WebsiteLink_RequestNavigate">
+                                   Click="WebsiteLink_Click">
                             <Run Text="https://www.sea-net.co.kr/seacure"/>
                         </Hyperlink>
                     </TextBlock>
@@ -189,10 +188,9 @@
                              FontSize="10" 
                              Foreground="#9CA3AF"/>
                         <LineBreak/>
-                        <Hyperlink NavigateUri="https://www.sea-net.co.kr/seacure"
-                                   FontSize="10"
+                        <Hyperlink FontSize="10"
                                    Foreground="#2563EB"
-                                   RequestNavigate="WebsiteLink_RequestNavigate">
+                                   Click="WebsiteLink_Click">
                             <Run Text="www.sea-net.co.kr/seacure"/>
                         </Hyperlink>
                     </TextBlock>

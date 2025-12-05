@@ -1,12 +1,12 @@
-<Window x:Class="Dorothy.Views.DisclaimerDialog"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Dorothy.Views.DisclaimerDialog"
         Title="Advanced Settings – Authorization Required" 
-        Icon="pack://application:,,,/Resources/icon.ico"
+        Icon="/Resources/icon.ico"
         Height="500" 
         Width="700"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
+        CanResize="False"
         Background="#F3F4F6"
         ShowInTaskbar="False">
     <Grid Margin="24">

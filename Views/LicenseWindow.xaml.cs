@@ -1,7 +1,10 @@
 using System;
 using System.Diagnostics;
-using System.Windows;
-using System.Windows.Controls;
+using System.Threading;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 
 namespace Dorothy.Views
 {
@@ -15,7 +18,7 @@ namespace Dorothy.Views
 
         public LicenseWindow(string hardwareId, string statusMessage)
         {
-            InitializeComponent();
+            AvaloniaXamlLoader.Load(this);
             _hardwareId = hardwareId;
             _statusMessage = statusMessage;
             
@@ -24,15 +27,18 @@ namespace Dorothy.Views
             StatusTextBlock.Text = _statusMessage;
         }
 
-        private void CopyIdButton_Click(object sender, RoutedEventArgs e)
+        private async void CopyIdButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var button = sender as Button;
             if (button == null) return;
 
             try
             {
-                // Use Clipboard.SetText directly - WPF handles STA thread automatically
-                Clipboard.SetText(_hardwareId);
+                // Use Avalonia clipboard
+                if (Application.Current?.Clipboard != null)
+                {
+                    await Application.Current.Clipboard.SetTextAsync(_hardwareId);
+                }
                 
                 // Immediate visual feedback
                 var originalContent = button.Content;
@@ -40,7 +46,7 @@ namespace Dorothy.Views
                 button.IsEnabled = false;
                 
                 // Reset button after 2 seconds
-                var timer = new System.Windows.Threading.DispatcherTimer();
+                var timer = new DispatcherTimer();
                 timer.Interval = TimeSpan.FromSeconds(2);
                 timer.Tick += (s, args) =>
                 {
@@ -53,12 +59,19 @@ namespace Dorothy.Views
             catch (Exception ex)
             {
                 // If clipboard fails, show in message box as fallback
-                MessageBox.Show($"Hardware ID:\n\n{_hardwareId}\n", 
-                    "Hardware ID", MessageBoxButton.OK, MessageBoxImage.Information);
+                var msgBox = new Window
+                {
+                    Title = "Hardware ID",
+                    Content = new TextBlock { Text = $"Hardware ID:\n\n{_hardwareId}\n" },
+                    Width = 400,
+                    Height = 200,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
             }
         }
 
-        private void RestartButton_Click(object sender, RoutedEventArgs e)
+        private void RestartButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -87,22 +100,28 @@ namespace Dorothy.Views
                 Process.Start(startInfo);
                 
                 // Close the current application
-                Application.Current.Shutdown();
+                if (Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                {
+                    desktop.Shutdown();
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
-                    $"Failed to restart application: {ex.Message}",
-                    "Restart Error",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
+                var msgBox = new Window
+                {
+                    Title = "Restart Error",
+                    Content = new TextBlock { Text = $"Failed to restart application: {ex.Message}" },
+                    Width = 400,
+                    Height = 200,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                _ = msgBox.ShowDialog(this);
             }
         }
 
-        private void ExitButton_Click(object sender, RoutedEventArgs e)
+        private void ExitButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            DialogResult = false;
-            Close();
+            Close(false);
         }
     }
 }

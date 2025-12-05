@@ -1,8 +1,11 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Navigation;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
+using Avalonia.Media;
+using Avalonia.Threading;
 using Dorothy.Services;
 
 namespace Dorothy.Views
@@ -13,7 +16,7 @@ namespace Dorothy.Views
 
         public AboutWindow(UpdateCheckService? updateCheckService = null)
         {
-            InitializeComponent();
+            AvaloniaXamlLoader.Load(this);
             _updateCheckService = updateCheckService;
             
             // Set version from assembly
@@ -35,9 +38,8 @@ namespace Dorothy.Views
                 var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
                 string currentVersion = version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "Unknown";
                 VersionStatusText.Text = $"Cloud (v{currentVersion})";
-                VersionStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromRgb(107, 114, 128)); // Gray
-                VersionStatusText.Visibility = Visibility.Visible;
+                VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128)); // Gray
+                VersionStatusText.IsVisible = true;
                 return;
             }
 
@@ -45,7 +47,7 @@ namespace Dorothy.Views
             {
                 var result = await _updateCheckService.CheckForUpdatesAsync();
                 
-                Dispatcher.Invoke(() =>
+                Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (result.IsOnline)
                     {
@@ -53,87 +55,114 @@ namespace Dorothy.Views
                         {
                             // Update available
                             VersionStatusText.Text = $"Not Latest (v{result.LatestVersion})";
-                            VersionStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-                                System.Windows.Media.Color.FromRgb(239, 68, 68)); // Red
-                            VersionStatusText.Visibility = Visibility.Visible;
+                            VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // Red
+                            VersionStatusText.IsVisible = true;
                             
                             // Show update message
                             UpdateMessageText.Text = $"Update available! Latest version: {result.LatestVersion}\nCurrent version: {result.CurrentVersion}";
-                            UpdateAvailableBorder.Visibility = Visibility.Visible;
+                            UpdateAvailableBorder.IsVisible = true;
                         }
                         else
                         {
                             // Latest version
                             VersionStatusText.Text = $"Latest (v{result.CurrentVersion})";
-                            VersionStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-                                System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green
-                            VersionStatusText.Visibility = Visibility.Visible;
-                            UpdateAvailableBorder.Visibility = Visibility.Collapsed;
+                            VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(5, 150, 105)); // Green
+                            VersionStatusText.IsVisible = true;
+                            UpdateAvailableBorder.IsVisible = false;
                         }
                     }
                     else
                     {
                         // Offline - show current version
                         VersionStatusText.Text = $"Cloud (v{result.CurrentVersion})";
-                        VersionStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-                            System.Windows.Media.Color.FromRgb(107, 114, 128)); // Gray
-                        VersionStatusText.Visibility = Visibility.Visible;
-                        UpdateAvailableBorder.Visibility = Visibility.Collapsed;
+                        VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128)); // Gray
+                        VersionStatusText.IsVisible = true;
+                        UpdateAvailableBorder.IsVisible = false;
                     }
                 });
             }
             catch (Exception ex)
             {
                 // Error checking updates - show as offline with current version
-                Dispatcher.Invoke(() =>
+                Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
                     string currentVersion = version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "Unknown";
                     VersionStatusText.Text = $"Cloud (v{currentVersion})";
-                    VersionStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-                        System.Windows.Media.Color.FromRgb(107, 114, 128)); // Gray
-                    VersionStatusText.Visibility = Visibility.Visible;
+                    VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128)); // Gray
+                    VersionStatusText.IsVisible = true;
                 });
             }
         }
 
-        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        private void CloseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            DialogResult = true;
-            Close();
+            Close(true);
         }
 
-        private void WebsiteLink_RequestNavigate(object sender, RequestNavigateEventArgs e)
+        private void WebsiteLink_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
-                Process.Start(new ProcessStartInfo
+                var url = "https://www.sea-net.co.kr/seacure";
+                if (OperatingSystem.IsWindows())
                 {
-                    FileName = e.Uri.AbsoluteUri,
-                    UseShellExecute = true
-                });
-                e.Handled = true;
+                    Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+                }
+                else if (OperatingSystem.IsLinux())
+                {
+                    Process.Start("xdg-open", url);
+                }
+                else if (OperatingSystem.IsMacOS())
+                {
+                    Process.Start("open", url);
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error opening website: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                // Use Avalonia message box
+                var msgBox = new Window
+                {
+                    Title = "Error",
+                    Content = new TextBlock { Text = $"Error opening website: {ex.Message}" },
+                    Width = 400,
+                    Height = 200,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                msgBox.ShowDialog(this);
             }
         }
 
-        private void DownloadUpdateButton_Click(object sender, RoutedEventArgs e)
+        private void DownloadUpdateButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
-                // Redirect to releases page
-                Process.Start(new ProcessStartInfo
+                var url = "https://seacuredb.vercel.app/network-data?tab=releases";
+                if (OperatingSystem.IsWindows())
                 {
-                    FileName = "https://seacuredb.vercel.app/network-data?tab=releases",
-                    UseShellExecute = true
-                });
+                    Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+                }
+                else if (OperatingSystem.IsLinux())
+                {
+                    Process.Start("xdg-open", url);
+                }
+                else if (OperatingSystem.IsMacOS())
+                {
+                    Process.Start("open", url);
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error opening update page: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                // Use Avalonia message box
+                var msgBox = new Window
+                {
+                    Title = "Error",
+                    Content = new TextBlock { Text = $"Error opening update page: {ex.Message}" },
+                    Width = 400,
+                    Height = 200,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                msgBox.ShowDialog(this);
             }
         }
     }

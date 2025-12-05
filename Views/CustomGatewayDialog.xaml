@@ -1,8 +1,8 @@
-<Window x:Class="Dorothy.Views.CustomGatewayDialog"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Dorothy.Views.CustomGatewayDialog"
         Title="Custom Gateway IP" 
-        Icon="pack://application:,,,/Resources/icon.ico"
+        Icon="/Resources/icon.ico"
         Height="150" Width="300"
         WindowStartupLocation="CenterOwner">
     <StackPanel Margin="10">

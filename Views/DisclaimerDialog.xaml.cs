@@ -1,4 +1,6 @@
-﻿using System.Windows;
+﻿using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
 
 namespace Dorothy.Views
 {
@@ -8,31 +10,26 @@ namespace Dorothy.Views
 
         public DisclaimerDialog()
         {
-            InitializeComponent();
+            AvaloniaXamlLoader.Load(this);
         }
 
-        private void BackButton_Click(object sender, RoutedEventArgs e)
+        private void BackButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             IsAuthorized = false;
-            DialogResult = false;
-            Close();
+            Close(false);
         }
         
-        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+        protected override void OnClosing(WindowClosingEventArgs e)
         {
             // If dialog is closed without clicking Acknowledged, ensure IsAuthorized is false
-            if (DialogResult != true)
-            {
-                IsAuthorized = false;
-            }
+            // Note: In Avalonia, we check the result after closing
             base.OnClosing(e);
         }
 
-        private void ContinueButton_Click(object sender, RoutedEventArgs e)
+        private void ContinueButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             IsAuthorized = true;
-            DialogResult = true;
-            Close();
+            Close(true);
         }
     }
 }

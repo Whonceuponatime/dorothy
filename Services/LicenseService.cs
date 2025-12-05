@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Management;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Dorothy.Models.Database;
@@ -28,7 +25,7 @@ namespace Dorothy.Services
 
         public LicenseService(Supabase.Client? supabaseClient = null, Guid? userId = null)
         {
-            _hardwareId = GenerateHardwareId();
+            _hardwareId = PlatformHardwareId.GenerateHardwareId();
             _supabaseClient = supabaseClient;
             _userId = userId;
             
@@ -460,137 +457,7 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Generates a unique hardware fingerprint based on static hardware identifiers:
-        /// - CPU Processor ID
-        /// - Motherboard Serial Number
-        /// - Hard Drive Serial Numbers (primary physical disks)
-        /// - BIOS Serial Number
-        /// These are much more reliable than MAC addresses which can be spoofed or change.
-        /// </summary>
-        private string GenerateHardwareId()
-        {
-            var components = new List<string>();
-
-            try
-            {
-                // CPU Processor ID (static, unique per CPU)
-                using (var searcher = new ManagementObjectSearcher("SELECT ProcessorId FROM Win32_Processor"))
-                {
-                    foreach (ManagementObject obj in searcher.Get())
-                    {
-                        var processorId = obj["ProcessorId"]?.ToString();
-                        if (!string.IsNullOrWhiteSpace(processorId) && processorId != "To Be Filled By O.E.M.")
-                        {
-                            components.Add($"CPU:{processorId}");
-                            break; // Use first valid CPU
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Debug(ex, "Could not retrieve CPU Processor ID");
-            }
-
-            try
-            {
-                // Motherboard Serial Number (static, unique per motherboard)
-                using (var searcher = new ManagementObjectSearcher("SELECT SerialNumber FROM Win32_BaseBoard"))
-                {
-                    foreach (ManagementObject obj in searcher.Get())
-                    {
-                        var serialNumber = obj["SerialNumber"]?.ToString();
-                        if (!string.IsNullOrWhiteSpace(serialNumber) && serialNumber != "To Be Filled By O.E.M.")
-                        {
-                            components.Add($"MB:{serialNumber}");
-                            break;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Debug(ex, "Could not retrieve motherboard serial number");
-            }
-
-            try
-            {
-                // Hard Drive Serial Numbers (static, unique per physical disk)
-                // Get all physical disk drives (exclude removable/virtual drives)
-                using (var searcher = new ManagementObjectSearcher("SELECT SerialNumber, MediaType, InterfaceType FROM Win32_DiskDrive WHERE MediaType='Fixed hard disk media' OR InterfaceType='IDE' OR InterfaceType='SATA' OR InterfaceType='SCSI' OR InterfaceType='NVMe'"))
-                {
-                    var diskSerials = new List<string>();
-                    foreach (ManagementObject obj in searcher.Get())
-                    {
-                        var serialNumber = obj["SerialNumber"]?.ToString();
-                        if (!string.IsNullOrWhiteSpace(serialNumber) && 
-                            serialNumber.Trim() != "" &&
-                            !serialNumber.Contains("0000") &&
-                            serialNumber.Length > 5) // Valid serials are usually longer
-                        {
-                            diskSerials.Add(serialNumber.Trim());
-                        }
-                    }
-                    
-                    // Add all valid disk serials (sorted for consistency)
-                    foreach (var serial in diskSerials.OrderBy(s => s))
-                    {
-                        components.Add($"HDD:{serial}");
-                    }
-                    
-                    if (diskSerials.Count > 0)
-                    {
-                        Logger.Debug($"Found {diskSerials.Count} hard drive serial(s) for hardware ID generation");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Debug(ex, "Could not retrieve hard drive serial numbers");
-            }
-
-            try
-            {
-                // BIOS Serial Number (static, unique per system)
-                using (var searcher = new ManagementObjectSearcher("SELECT SerialNumber FROM Win32_BIOS"))
-                {
-                    foreach (ManagementObject obj in searcher.Get())
-                    {
-                        var biosSerial = obj["SerialNumber"]?.ToString();
-                        if (!string.IsNullOrWhiteSpace(biosSerial) && 
-                            biosSerial != "To Be Filled By O.E.M." &&
-                            biosSerial.Trim().Length > 3)
-                        {
-                            components.Add($"BIOS:{biosSerial.Trim()}");
-                            break;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Debug(ex, "Could not retrieve BIOS serial number");
-            }
-
-            // If we couldn't get any components, use a fallback
-            if (components.Count == 0)
-            {
-                components.Add(Environment.MachineName);
-                components.Add(Environment.UserName);
-            }
-
-            // Create a hash of all components
-            var combined = string.Join("|", components);
-            using (var sha256 = SHA256.Create())
-            {
-                var hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(combined));
-                var hashString = BitConverter.ToString(hashBytes).Replace("-", "").ToUpper();
-                
-                // Return first 32 characters as hardware ID
-                return hashString.Substring(0, Math.Min(32, hashString.Length));
-            }
-        }
+        // Hardware ID generation is now handled by PlatformHardwareId for cross-platform support
     }
 
     /// <summary>

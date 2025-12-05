@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <UseWPF>true</UseWPF>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
@@ -10,13 +9,11 @@
     <Version>2.3.0</Version>
     <AssemblyVersion>2.3.0.0</AssemblyVersion>
     <FileVersion>2.3.0.0</FileVersion>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Platforms>x64</Platforms>
     <PublishSingleFile>false</PublishSingleFile>
     <SelfContained>true</SelfContained>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <!-- Disable trimming since WPF doesn't support it -->
+    <!-- Support multiple RIDs for cross-platform -->
+    <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64;osx-x64</RuntimeIdentifiers>
     <PublishTrimmed>false</PublishTrimmed>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <!-- Exclude unnecessary localization resources to reduce size -->
@@ -26,6 +23,10 @@
     <Resource Include="Resources\**\*.*" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.0.10" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.0.10" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.0.10" />
+    <PackageReference Include="Avalonia.ReactiveUI" Version="11.0.10" />
     <PackageReference Include="Lextm.SharpSnmpLib" Version="12.2.0" />
     <PackageReference Include="NLog" Version="5.2.8" />
     <PackageReference Include="PacketDotNet" Version="1.4.7" />
@@ -34,27 +35,32 @@
     <PackageReference Include="ClosedXML" Version="0.102.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     <PackageReference Include="Supabase" Version="1.1.1" />
-    <PackageReference Include="System.Management" Version="8.0.0" />
+    <!-- System.Management is Windows-only, will need alternative for Linux -->
+    <PackageReference Include="System.Management" Version="8.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
   </ItemGroup>
-  <ItemGroup Condition="Exists('Resources\wpcap.dll')">
+  <!-- Windows-specific wpcap.dll (for Windows builds) -->
+  <ItemGroup Condition="Exists('Resources\wpcap.dll') AND $([MSBuild]::IsOSPlatform('Windows'))">
     <None Include="Resources\wpcap.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+  
   <!-- Create distributable after Build - automatically publishes for self-contained executable -->
   <Target Name="CreateDistributionAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <PropertyGroup>
       <DistDir>$(ProjectDir)dist</DistDir>
       <PublishDir>$(OutputPath)publish</PublishDir>
+      <CurrentRID Condition="'$(RuntimeIdentifier)' == ''">$(RuntimeIdentifiers.Split(';')[0])</CurrentRID>
+      <CurrentRID Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</CurrentRID>
     </PropertyGroup>
     
-    <!-- Publish to get self-contained executable (all DLLs must be in same folder as exe for WPF apps) -->
-    <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release --no-build -r win-x64 --self-contained true -p:PublishSingleFile=false" ContinueOnError="false" />
+    <!-- Publish to get self-contained executable -->
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release --no-build -r $(CurrentRID) --self-contained true -p:PublishSingleFile=false" ContinueOnError="false" />
     
     <!-- Create directory -->
     <MakeDir Directories="$(DistDir)" />
     
-    <!-- Copy all files to root (WPF apps require all DLLs in same folder, cannot use single-file) -->
+    <!-- Copy all files to root -->
     <ItemGroup>
       <DistFiles Include="$(PublishDir)\**\*.*" />
     </ItemGroup>
@@ -71,7 +77,7 @@
     <!-- Create directory -->
     <MakeDir Directories="$(DistDir)" />
     
-    <!-- Copy all files to root (WPF apps require all DLLs in same folder, cannot use single-file) -->
+    <!-- Copy all files to root -->
     <ItemGroup>
       <DistFiles Include="$(PublishDir)\**\*.*" />
     </ItemGroup>
