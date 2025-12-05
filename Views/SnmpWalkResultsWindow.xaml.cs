@@ -1,6 +1,8 @@
 using System;
 using System.Linq;
-using System.Windows;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
 using Dorothy.Services;
 
 namespace Dorothy.Views
@@ -9,7 +11,7 @@ namespace Dorothy.Views
     {
         public SnmpWalkResultsWindow(SnmpWalkResult result)
         {
-            InitializeComponent();
+            AvaloniaXamlLoader.Load(this);
             DisplayResults(result);
         }
 
@@ -18,8 +20,8 @@ namespace Dorothy.Views
             if (result.Success)
             {
                 // SNMP is vulnerable - show success card
-                SuccessCard.Visibility = Visibility.Visible;
-                SecureCard.Visibility = Visibility.Collapsed;
+                SuccessCard.IsVisible = true;
+                SecureCard.IsVisible = false;
 
                 HeaderTextBlock.Text = "SNMP Walk - Vulnerability Found";
                 SummaryTextBlock.Text = $"Target: {result.TargetIp}:{result.Port} | Attempts: {result.Attempts} | Duration: {result.Duration.TotalSeconds:F2}s";
@@ -40,8 +42,8 @@ namespace Dorothy.Views
             else
             {
                 // SNMP is secure - show secure card
-                SuccessCard.Visibility = Visibility.Collapsed;
-                SecureCard.Visibility = Visibility.Visible;
+                SuccessCard.IsVisible = false;
+                SecureCard.IsVisible = true;
 
                 HeaderTextBlock.Text = "SNMP Walk - No Vulnerabilities Found";
                 SummaryTextBlock.Text = $"Target: {result.TargetIp}:{result.Port} | Attempts: {result.Attempts} | Duration: {result.Duration.TotalSeconds:F2}s";
@@ -52,7 +54,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        private void CloseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             Close();
         }

@@ -1,8 +1,8 @@
-<Window x:Class="Dorothy.Views.SnmpWalkResultsWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Dorothy.Views.SnmpWalkResultsWindow"
         Title="SNMP Walk Results" 
-        Icon="pack://application:,,,/Resources/icon.ico"
+        Icon="/Resources/icon.ico"
         Height="600" Width="800"
         MinHeight="400" MinWidth="600"
         WindowStartupLocation="CenterOwner"
@@ -100,7 +100,7 @@
                         Style="{StaticResource CardStyle}" 
                         Background="#FEF3C7" 
                         BorderBrush="#F59E0B"
-                        Visibility="Collapsed">
+                        IsVisible="False">
                     <StackPanel>
                         <TextBlock Text="⚠️ SNMP Vulnerability Found" 
                                    FontSize="16" 
@@ -132,7 +132,7 @@
                         Style="{StaticResource CardStyle}" 
                         Background="#D1FAE5" 
                         BorderBrush="#059669"
-                        Visibility="Collapsed">
+                        IsVisible="False">
                     <StackPanel>
                         <TextBlock Text="✓ SNMP Secure" 
                                    FontSize="16" 

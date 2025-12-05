@@ -1,7 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Windows;
-using System.Windows.Controls;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
 using Dorothy.Models;
 
 namespace Dorothy.Views
@@ -17,7 +18,7 @@ namespace Dorothy.Views
         public ReachabilityResultsWindow(
             FirewallDiscoveryResult result)
         {
-            InitializeComponent();
+            AvaloniaXamlLoader.Load(this);
 
             _reachabilityResults = new ObservableCollection<FirewallDiscoveryHostReachabilityResult>(result.ReachabilityResults);
             _inferredRules = new ObservableCollection<InferredFirewallRule>(result.InferredRules);
@@ -43,7 +44,7 @@ namespace Dorothy.Views
                                    $"Inferred rules: {totalRules}";
         }
 
-        private void ReachabilityResultsDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void ReachabilityResultsDataGrid_SelectionChanged(object? sender, Avalonia.Controls.SelectionChangedEventArgs e)
         {
             // Filter inferred rules by selected host
             if (ReachabilityResultsDataGrid.SelectedItem is FirewallDiscoveryHostReachabilityResult selectedResult)
@@ -61,7 +62,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        private void CloseButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             Close();
         }
