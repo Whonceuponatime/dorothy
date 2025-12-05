@@ -1130,7 +1130,8 @@ namespace Dorothy.Views
                     if (syncWindow.SelectedIds.Count > 0)
                     {
                         SyncAssetsButton.IsEnabled = false;
-                        var originalTooltip = SyncAssetsButton.ToolTip;
+                        // var originalTooltip = SyncAssetsButton.ToolTip; // ToolTip not available in Avalonia
+                        var originalTooltip = (string?)null;
 
                         var result = await _supabaseSyncService.SyncAssetsAsync(syncWindow.ProjectName, syncWindow.SelectedIds);
 
@@ -1150,7 +1151,7 @@ namespace Dorothy.Views
                         }
 
                         SyncAssetsButton.IsEnabled = true;
-                        SyncAssetsButton.ToolTip = originalTooltip;
+                        // SyncAssetsButton.ToolTip = originalTooltip; // ToolTip not available in Avalonia
                     }
 
                     // Update sync status

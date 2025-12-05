@@ -1027,7 +1027,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void HelpButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        private async void HelpButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             // Use existing update check service if available, otherwise create new one
             var updateCheckService = _updateCheckService ?? 
@@ -1492,7 +1492,7 @@ namespace Dorothy.Views
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         CloudSyncNotificationBadge.IsVisible = false;
-                        CloudSyncButton.ToolTip = "Cloud Sync (Not Configured)";
+                        // CloudSyncButton.ToolTip = "Cloud Sync (Not Configured)"; // ToolTip not available in Avalonia
                     });
                     return;
                 }
@@ -2261,8 +2261,8 @@ namespace Dorothy.Views
                     
                     // Update tooltip to show bandwidth limit
                     string tooltipText = $"Enter Mbps value (0 - {maxMbps:F0})";
-                    MegabitsPerSecondTextBox.ToolTip = tooltipText;
-                    AdvMegabitsPerSecondTextBox.ToolTip = tooltipText;
+                    // MegabitsPerSecondTextBox.ToolTip = tooltipText; // ToolTip not available in Avalonia
+                    // AdvMegabitsPerSecondTextBox.ToolTip = tooltipText; // ToolTip not available in Avalonia
                 }
             }
             catch
