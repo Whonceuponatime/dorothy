@@ -49,7 +49,8 @@
   </ItemGroup>
   
   <!-- Create distributable after Build - automatically publishes for self-contained executable -->
-  <Target Name="CreateDistributionAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+  <!-- Disabled for cross-platform builds - use dotnet publish directly instead -->
+  <Target Name="CreateDistributionAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' AND '$(RuntimeIdentifier)' != '' AND '$(SkipAutoPublish)' != 'true'">
     <PropertyGroup>
       <DistDir>$(ProjectDir)dist</DistDir>
       <PublishDir>$(OutputPath)publish</PublishDir>
@@ -57,8 +58,8 @@
       <CurrentRID Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</CurrentRID>
     </PropertyGroup>
     
-    <!-- Publish to get self-contained executable -->
-    <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release --no-build -r $(CurrentRID) --self-contained true -p:PublishSingleFile=false" ContinueOnError="false" />
+    <!-- Publish to get self-contained executable - build first to ensure apphost exists -->
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release -r $(CurrentRID) --self-contained true -p:PublishSingleFile=false" ContinueOnError="false" />
     
     <!-- Create directory -->
     <MakeDir Directories="$(DistDir)" />
