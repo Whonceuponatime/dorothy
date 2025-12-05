@@ -11,6 +11,22 @@ namespace Dorothy.Views
 {
     public partial class SyncWindow : Window
     {
+        // FindControl properties for XAML-named controls
+        private DataGrid? LogsDataGrid => this.FindControl<DataGrid>("LogsDataGrid");
+        private DataGrid? AssetsDataGrid => this.FindControl<DataGrid>("AssetsDataGrid");
+        private DataGrid? ReachabilityTestsDataGrid => this.FindControl<DataGrid>("ReachabilityTestsDataGrid");
+        private DataGrid? SnmpWalkTestsDataGrid => this.FindControl<DataGrid>("SnmpWalkTestsDataGrid");
+        private TextBlock? LogsCountText => this.FindControl<TextBlock>("LogsCountText");
+        private TextBlock? AssetsCountText => this.FindControl<TextBlock>("AssetsCountText");
+        private TextBlock? ReachabilityTestsCountText => this.FindControl<TextBlock>("ReachabilityTestsCountText");
+        private TextBlock? SnmpWalkTestsCountText => this.FindControl<TextBlock>("SnmpWalkTestsCountText");
+        private TabItem? LogsTab => this.FindControl<TabItem>("LogsTab");
+        private TabItem? AssetsTab => this.FindControl<TabItem>("AssetsTab");
+        private TabItem? ReachabilityTestsTab => this.FindControl<TabItem>("ReachabilityTestsTab");
+        private TabItem? SnmpWalkTestsTab => this.FindControl<TabItem>("SnmpWalkTestsTab");
+        private TabControl? SyncTabControl => this.FindControl<TabControl>("SyncTabControl");
+        private CheckBox? EnhanceDataCheckBox => this.FindControl<CheckBox>("EnhanceDataCheckBox");
+
         public string? ProjectName { get; private set; }
         public List<long> SelectedLogIds { get; private set; } = new();
         public List<long> SelectedAssetIds { get; private set; } = new();

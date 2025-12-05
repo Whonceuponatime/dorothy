@@ -14,8 +14,17 @@ namespace Dorothy.Views
 {
     public partial class SettingsWindow : Window
     {
+        // FindControl properties for XAML-named controls
+        private TextBox? LogLocationTextBox => this.FindControl<TextBox>("LogLocationTextBox");
+        private TextBox? FontSizeTextBox => this.FindControl<TextBox>("FontSizeTextBox");
+        private ComboBox? ThemeComboBox => this.FindControl<ComboBox>("ThemeComboBox");
+        private TextBlock? SupabaseUrlTextBlock => this.FindControl<TextBlock>("SupabaseUrlTextBlock");
+        private TextBlock? CurrentHardwareIdTextBlock => this.FindControl<TextBlock>("CurrentHardwareIdTextBlock");
+        private TextBlock? LicenseStatusTextBlock => this.FindControl<TextBlock>("LicenseStatusTextBlock");
+        private TextBlock? LicenseMessageTextBlock => this.FindControl<TextBlock>("LicenseMessageTextBlock");
+
         public string LogLocation { get; private set; } = string.Empty;
-        public double FontSize { get; private set; } = 12.0;
+        public new double FontSize { get; private set; } = 12.0;
         public int ThemeIndex { get; private set; } = 0;
 
         public SettingsWindow(string currentLogLocation, double currentFontSize, int currentThemeIndex)
@@ -25,11 +34,11 @@ namespace Dorothy.Views
             FontSize = currentFontSize;
             ThemeIndex = currentThemeIndex;
 
-            LogLocationTextBox.Text = string.IsNullOrEmpty(LogLocation) 
+            LogLocationTextBox?.SetValue(TextBox.TextProperty, string.IsNullOrEmpty(LogLocation) 
                 ? AppDomain.CurrentDomain.BaseDirectory 
-                : LogLocation;
-            FontSizeTextBox.Text = FontSize.ToString("F1");
-            ThemeComboBox.SelectedIndex = ThemeIndex;
+                : LogLocation);
+            FontSizeTextBox?.SetValue(TextBox.TextProperty, FontSize.ToString("F1"));
+            ThemeComboBox!.SelectedIndex = ThemeIndex;
             
             // Set Supabase URL from config
             if (SupabaseUrlTextBlock != null)
@@ -51,19 +60,20 @@ namespace Dorothy.Views
 
         private async void BrowseLogLocationButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            var selectedPath = await FileDialogHelper.ShowFolderDialogAsync(this, LogLocationTextBox.Text);
+            var currentPath = LogLocationTextBox?.Text ?? string.Empty;
+            var selectedPath = await FileDialogHelper.ShowFolderDialogAsync(this, currentPath);
             if (!string.IsNullOrEmpty(selectedPath))
             {
-                LogLocationTextBox.Text = selectedPath;
+                LogLocationTextBox?.SetValue(TextBox.TextProperty, selectedPath);
             }
         }
 
         private async void SaveButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            LogLocation = LogLocationTextBox.Text ?? string.Empty;
+            LogLocation = LogLocationTextBox?.Text ?? string.Empty;
             
             // Parse font size from textbox
-            if (double.TryParse(FontSizeTextBox.Text, out double fontSize) && fontSize >= 8 && fontSize <= 24)
+            if (double.TryParse(FontSizeTextBox?.Text, out double fontSize) && fontSize >= 8 && fontSize <= 24)
             {
                 FontSize = fontSize;
             }
@@ -81,7 +91,7 @@ namespace Dorothy.Views
                 return;
             }
             
-            ThemeIndex = ThemeComboBox.SelectedIndex;
+            ThemeIndex = ThemeComboBox?.SelectedIndex ?? 0;
 
             // Validate log location
             if (!Directory.Exists(LogLocation))

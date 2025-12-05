@@ -61,15 +61,15 @@ namespace Dorothy.Services
                     Padding = new Thickness(16, 12, 16, 12),
                     Margin = new Thickness(0, 0, 0, 12),
                     MaxWidth = 400,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    VerticalAlignment = VerticalAlignment.Top,
+                    HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
                     Opacity = 0,
                     RenderTransform = new TranslateTransform { X = 400 }
                 };
 
                 var stackPanel = new StackPanel
                 {
-                    Orientation = Orientation.Horizontal
+                    Orientation = Avalonia.Layout.Orientation.Horizontal
                 };
 
                 var textBlock = new TextBlock
@@ -78,20 +78,20 @@ namespace Dorothy.Services
                     Foreground = Brushes.White,
                     FontSize = 13,
                     TextWrapping = TextWrapping.Wrap,
-                    VerticalAlignment = VerticalAlignment.Center
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
                 };
 
                 var closeButton = new Button
                 {
                     Content = "×",
                     FontSize = 18,
-                    FontWeight = FontWeights.Bold,
+                    FontWeight = Avalonia.Media.FontWeight.Bold,
                     Foreground = Brushes.White,
                     Background = Brushes.Transparent,
                     BorderThickness = new Thickness(0),
                     Padding = new Thickness(8, 0, 0, 0),
-                    Cursor = new Cursor(StandardCursorType.Hand),
-                    VerticalAlignment = VerticalAlignment.Center
+                    Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand),
+                    VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
                 };
 
                 closeButton.Click += (s, e) =>

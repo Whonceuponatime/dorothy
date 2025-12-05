@@ -19,6 +19,39 @@ namespace Dorothy.Views
 {
     public partial class NetworkScanWindow : Window
     {
+        // FindControl properties for XAML-named controls
+        private RadioButton? AllPortsRadioButton => this.FindControl<RadioButton>("AllPortsRadioButton");
+        private RadioButton? RangePortsRadioButton => this.FindControl<RadioButton>("RangePortsRadioButton");
+        private RadioButton? SelectedPortsRadioButton => this.FindControl<RadioButton>("SelectedPortsRadioButton");
+        private Button? SyncAssetsButton => this.FindControl<Button>("SyncAssetsButton");
+        private Panel? PortScanModePanel => this.FindControl<Panel>("PortScanModePanel");
+        private RadioButton? IntenseScanRadioButton => this.FindControl<RadioButton>("IntenseScanRadioButton");
+        private Panel? PortRangePanel => this.FindControl<Panel>("PortRangePanel");
+        private Panel? SelectedPortsPanel => this.FindControl<Panel>("SelectedPortsPanel");
+        private TextBox? PortRangeStartTextBox => this.FindControl<TextBox>("PortRangeStartTextBox");
+        private TextBox? PortRangeEndTextBox => this.FindControl<TextBox>("PortRangeEndTextBox");
+        private Button? PopulateFromScanButton => this.FindControl<Button>("PopulateFromScanButton");
+        private DataGrid? PortsDataGrid => this.FindControl<DataGrid>("PortsDataGrid");
+        private TextBox? SelectedPortsTextBox => this.FindControl<TextBox>("SelectedPortsTextBox");
+        private TextBox? StartIpTextBox => this.FindControl<TextBox>("StartIpTextBox");
+        private TextBox? EndIpTextBox => this.FindControl<TextBox>("EndIpTextBox");
+        private Panel? RangeConfigPanel => this.FindControl<Panel>("RangeConfigPanel");
+        private Button? StartScanButton => this.FindControl<Button>("StartScanButton");
+        private Control? LoadingIndicator => this.FindControl<Control>("LoadingIndicator");
+        private Button? CancelScanButton => this.FindControl<Button>("CancelScanButton");
+        private Button? BackButton => this.FindControl<Button>("BackButton");
+        private Button? CloseButton => this.FindControl<Button>("CloseButton");
+        private Button? ExportExcelButton => this.FindControl<Button>("ExportExcelButton");
+        private TextBlock? StatusTextBlock => this.FindControl<TextBlock>("StatusTextBlock");
+        private TextBlock? ProgressTextBlock => this.FindControl<TextBlock>("ProgressTextBlock");
+        private ProgressBar? ScanProgressBar => this.FindControl<ProgressBar>("ScanProgressBar");
+        private TextBlock? CurrentIpTextBlock => this.FindControl<TextBlock>("CurrentIpTextBlock");
+        private TextBlock? FoundCountTextBlock => this.FindControl<TextBlock>("FoundCountTextBlock");
+        private DataGrid? ResultsDataGrid => this.FindControl<DataGrid>("ResultsDataGrid");
+        private TextBlock? PortsCountText => this.FindControl<TextBlock>("PortsCountText");
+        private Border? AssetsSyncBadge => this.FindControl<Border>("AssetsSyncBadge");
+        private TextBlock? AssetsSyncBadgeText => this.FindControl<TextBlock>("AssetsSyncBadgeText");
+
         private readonly NetworkScan _networkScan;
         private readonly AttackLogger _attackLogger;
         private readonly DatabaseService? _databaseService;

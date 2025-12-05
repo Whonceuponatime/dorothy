@@ -18,6 +18,49 @@ namespace Dorothy.Views
 {
     public partial class ReachabilityWizardWindow : Window
     {
+        // FindControl properties for XAML-named controls
+        private ComboBox? SourceNicComboBox => this.FindControl<ComboBox>("SourceNicComboBox");
+        private RadioButton? ModeARadioButton => this.FindControl<RadioButton>("ModeARadioButton");
+        private DataGrid? InsideIpsDataGrid => this.FindControl<DataGrid>("InsideIpsDataGrid");
+        private DataGrid? IcmpResultsDataGrid => this.FindControl<DataGrid>("IcmpResultsDataGrid");
+        private DataGrid? TcpResultsDataGrid => this.FindControl<DataGrid>("TcpResultsDataGrid");
+        private DataGrid? PathHopsDataGrid => this.FindControl<DataGrid>("PathHopsDataGrid");
+        private DataGrid? DeeperScanResultsDataGrid => this.FindControl<DataGrid>("DeeperScanResultsDataGrid");
+        private Border? TargetNetworkCard => this.FindControl<Border>("TargetNetworkCard");
+        private Border? KnownInsideIpsCard => this.FindControl<Border>("KnownInsideIpsCard");
+        private Border? ExternalTestIpCard => this.FindControl<Border>("ExternalTestIpCard");
+        private Border? BoundaryPreviewBorder => this.FindControl<Border>("BoundaryPreviewBorder");
+        private TextBlock? BoundaryInfoTextBlock => this.FindControl<TextBlock>("BoundaryInfoTextBlock");
+        private TextBox? InsideIpTextBox => this.FindControl<TextBox>("InsideIpTextBox");
+        private TextBox? InsideIpLabelTextBox => this.FindControl<TextBox>("InsideIpLabelTextBox");
+        private Button? NextButton => this.FindControl<Button>("NextButton");
+        private ProgressBar? PathProgressBar => this.FindControl<ProgressBar>("PathProgressBar");
+        private Panel? Step1Panel => this.FindControl<Panel>("Step1Panel");
+        private Panel? Step2Panel => this.FindControl<Panel>("Step2Panel");
+        private Panel? Step3Panel => this.FindControl<Panel>("Step3Panel");
+        private Panel? Step4Panel => this.FindControl<Panel>("Step4Panel");
+        private Panel? Step5Panel => this.FindControl<Panel>("Step5Panel");
+        private Button? BackButton => this.FindControl<Button>("BackButton");
+        private TextBlock? StatusLabel => this.FindControl<TextBlock>("StatusLabel");
+        private TextBlock? StepTitleTextBlock => this.FindControl<TextBlock>("StepTitleTextBlock");
+        private TextBlock? StepDescriptionTextBlock => this.FindControl<TextBlock>("StepDescriptionTextBlock");
+        private Button? RunIcmpChecksButton => this.FindControl<Button>("RunIcmpChecksButton");
+        private TextBlock? IcmpStatusTextBlock => this.FindControl<TextBlock>("IcmpStatusTextBlock");
+        private ProgressBar? IcmpProgressBar => this.FindControl<ProgressBar>("IcmpProgressBar");
+        private TextBox? TcpProbePortsTextBox => this.FindControl<TextBox>("TcpProbePortsTextBox");
+        private ProgressBar? TcpProgressBar => this.FindControl<ProgressBar>("TcpProgressBar");
+        private Button? RunTcpChecksButton => this.FindControl<Button>("RunTcpChecksButton");
+        private TextBox? PathTargetIpTextBox => this.FindControl<TextBox>("PathTargetIpTextBox");
+        private TextBlock? PathNotesTextBlock => this.FindControl<TextBlock>("PathNotesTextBlock");
+        private Button? RunDeeperScanButton => this.FindControl<Button>("RunDeeperScanButton");
+        private TextBox? DeeperScanPortsTextBox => this.FindControl<TextBox>("DeeperScanPortsTextBox");
+        private ProgressBar? DeeperScanProgressBar => this.FindControl<ProgressBar>("DeeperScanProgressBar");
+        private TextBox? TargetCidrTextBox => this.FindControl<TextBox>("TargetCidrTextBox");
+        private TextBox? ExternalTestIpTextBox => this.FindControl<TextBox>("ExternalTestIpTextBox");
+        private TextBox? VantagePointNameTextBox => this.FindControl<TextBox>("VantagePointNameTextBox");
+        private TextBox? TargetNetworkNameTextBox => this.FindControl<TextBox>("TargetNetworkNameTextBox");
+        private TextBlock? SummaryTextBlock => this.FindControl<TextBlock>("SummaryTextBlock");
+
         private int _currentStep = 1;
         private AnalysisContext? _context;
         private ReachabilityWizardService? _service;
