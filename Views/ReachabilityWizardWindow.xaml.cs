@@ -7,9 +7,10 @@ using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Threading;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using Dorothy.Models;
 using Dorothy.Services;
 
@@ -42,7 +43,7 @@ namespace Dorothy.Views
             try
             {
                 System.Diagnostics.Debug.WriteLine("ReachabilityWizardWindow: Starting InitializeComponent...");
-                InitializeComponent();
+                AvaloniaXamlLoader.Load(this);
                 System.Diagnostics.Debug.WriteLine("ReachabilityWizardWindow: InitializeComponent completed");
                 
                 System.Diagnostics.Debug.WriteLine("ReachabilityWizardWindow: Creating service...");
@@ -67,10 +68,10 @@ namespace Dorothy.Views
             }
         }
 
-        private void ReachabilityWizardWindow_Loaded(object sender, RoutedEventArgs e)
+        private async void ReachabilityWizardWindow_Loaded(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             // Use Dispatcher to ensure UI is fully ready
-            Dispatcher.BeginInvoke(new Action(() =>
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 try
                 {
@@ -84,8 +85,7 @@ namespace Dorothy.Views
                     // Try to show error, but don't fail if window isn't ready
                     try
                     {
-                        MessageBox.Show($"Error initializing wizard: {ex.Message}\n\n{ex.StackTrace}", 
-                            "Initialization Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        _ = ShowMessageAsync("Initialization Error", $"Error initializing wizard: {ex.Message}\n\n{ex.StackTrace}");
                     }
                     catch
                     {
@@ -93,7 +93,7 @@ namespace Dorothy.Views
                         System.Diagnostics.Debug.WriteLine("Could not show error message box");
                     }
                 }
-            }), DispatcherPriority.Loaded);
+            });
         }
 
         private void InitializeStep1()
@@ -154,7 +154,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void ModeRadioButton_Checked(object sender, RoutedEventArgs e)
+        private void ModeRadioButton_Checked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             UpdateModeUI();
         }
@@ -170,11 +170,11 @@ namespace Dorothy.Views
                 
                 // Show/hide cards based on mode (check for null)
                 if (TargetNetworkCard != null)
-                    TargetNetworkCard.Visibility = isModeA ? Visibility.Visible : Visibility.Collapsed;
+                    TargetNetworkCard.IsVisible = isModeA;
                 if (KnownInsideIpsCard != null)
-                    KnownInsideIpsCard.Visibility = isModeA ? Visibility.Visible : Visibility.Collapsed;
+                    KnownInsideIpsCard.IsVisible = isModeA;
                 if (ExternalTestIpCard != null)
-                    ExternalTestIpCard.Visibility = isModeA ? Visibility.Collapsed : Visibility.Visible;
+                    ExternalTestIpCard.IsVisible = !isModeA;
             }
             catch (Exception ex)
             {
@@ -183,7 +183,7 @@ namespace Dorothy.Views
             }
         }
 
-        private void SourceNicComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void SourceNicComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             DiscoverBoundaryDevice();
         }
@@ -195,7 +195,7 @@ namespace Dorothy.Views
                 if (SourceNicComboBox?.SelectedItem == null || _service == null)
                 {
                     if (BoundaryPreviewBorder != null)
-                        BoundaryPreviewBorder.Visibility = Visibility.Collapsed;
+                        BoundaryPreviewBorder.IsVisible = false;
                     return;
                 }
 
@@ -205,7 +205,7 @@ namespace Dorothy.Views
                 if (string.IsNullOrEmpty(nicId))
                 {
                     if (BoundaryPreviewBorder != null)
-                        BoundaryPreviewBorder.Visibility = Visibility.Collapsed;
+                        BoundaryPreviewBorder.IsVisible = false;
                     return;
                 }
 
@@ -219,12 +219,12 @@ namespace Dorothy.Views
                     var vendor = _service.GetBoundaryVendor(gatewayIp);
                     var vendorText = !string.IsNullOrEmpty(vendor) ? $" (Vendor: {vendor})" : "";
                     BoundaryInfoTextBlock.Text = $"Boundary device: {gatewayIp}{vendorText}";
-                    BoundaryPreviewBorder.Visibility = Visibility.Visible;
+                    BoundaryPreviewBorder.IsVisible = true;
                 }
                 else
                 {
                     BoundaryInfoTextBlock.Text = "No default gateway detected for this NIC.";
-                    BoundaryPreviewBorder.Visibility = Visibility.Visible;
+                    BoundaryPreviewBorder.IsVisible = true;
                 }
             }
             catch (Exception ex)
@@ -232,7 +232,7 @@ namespace Dorothy.Views
                 if (BoundaryInfoTextBlock != null && BoundaryPreviewBorder != null)
                 {
                     BoundaryInfoTextBlock.Text = $"Error discovering boundary: {ex.Message}";
-                    BoundaryPreviewBorder.Visibility = Visibility.Visible;
+                    BoundaryPreviewBorder.IsVisible = true;
                 }
             }
         }
@@ -295,23 +295,23 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error populating network interfaces: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _ = ShowMessageAsync("Error", $"Error populating network interfaces: {ex.Message}");
             }
         }
 
-        private void AddInsideIpButton_Click(object sender, RoutedEventArgs e)
+        private async void AddInsideIpButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
                 if (string.IsNullOrWhiteSpace(InsideIpTextBox.Text))
                 {
-                    MessageBox.Show("Please enter an IP address.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Invalid Input", "Please enter an IP address.");
                     return;
                 }
 
                 if (!IPAddress.TryParse(InsideIpTextBox.Text, out IPAddress? ip))
                 {
-                    MessageBox.Show("Invalid IP address format.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Invalid Input", "Invalid IP address format.");
                     return;
                 }
 
@@ -327,11 +327,11 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error adding inside IP: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error adding inside IP: {ex.Message}");
             }
         }
 
-        private void RemoveInsideIpButton_Click(object sender, RoutedEventArgs e)
+        private async void RemoveInsideIpButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
@@ -342,11 +342,11 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error removing inside IP: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error removing inside IP: {ex.Message}");
             }
         }
 
-        private void BackButton_Click(object sender, RoutedEventArgs e)
+        private void BackButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             if (_currentStep > 1)
             {
@@ -355,14 +355,14 @@ namespace Dorothy.Views
             }
         }
 
-        private async void NextButton_Click(object sender, RoutedEventArgs e)
+        private async void NextButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
                 // Validate current step
                 if (_currentStep == 1)
                 {
-                    if (!ValidateStep1())
+                    if (!await ValidateStep1())
                         return;
 
                     // Build context
@@ -390,7 +390,7 @@ namespace Dorothy.Views
                         {
                             NextButton.IsEnabled = false;
                             NextButton.Content = "Running...";
-                            PathProgressBar.Visibility = Visibility.Visible;
+                            PathProgressBar.IsVisible = true;
                             PathProgressBar.Value = 0;
                             await RunStep4Async();
                         }
@@ -398,7 +398,7 @@ namespace Dorothy.Views
                         {
                             NextButton.IsEnabled = true;
                             NextButton.Content = "Next";
-                            PathProgressBar.Visibility = Visibility.Collapsed;
+                            PathProgressBar.IsVisible = false;
                             PathProgressBar.Value = 0;
                         }
                     }
@@ -414,17 +414,17 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error: {ex.Message}");
             }
         }
 
-        private async void FinishButton_Click(object sender, RoutedEventArgs e)
+        private async void FinishButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
                 if (_context == null)
                 {
-                    MessageBox.Show("No test data to save.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Error", "No test data to save.");
                     Close();
                     return;
                 }
@@ -461,18 +461,18 @@ namespace Dorothy.Views
                 if (_databaseService != null)
                 {
                     await _databaseService.SaveReachabilityTestAsync(wizardResult, null);
-                    MessageBox.Show("Reachability test results saved successfully.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
+                    await ShowMessageAsync("Success", "Reachability test results saved successfully.");
                 }
                 else
                 {
-                    MessageBox.Show("Database service not available. Results were not saved.", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Warning", "Database service not available. Results were not saved.");
                 }
 
                 Close();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error saving results: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error saving results: {ex.Message}");
                 var finishButton = sender as Button;
                 if (finishButton != null)
                 {
@@ -482,17 +482,17 @@ namespace Dorothy.Views
             }
         }
 
-        private void CancelButton_Click(object sender, RoutedEventArgs e)
+        private void CancelButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             _cancellationTokenSource?.Cancel();
             Close();
         }
 
-        private bool ValidateStep1()
+        private async Task<bool> ValidateStep1()
         {
             if (SourceNicComboBox.SelectedItem == null)
             {
-                MessageBox.Show("Please select a source NIC.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                await ShowMessageAsync("Validation Error", "Please select a source NIC.");
                 return false;
             }
 
@@ -503,7 +503,7 @@ namespace Dorothy.Views
                 // Mode A: Validate CIDR
                 if (string.IsNullOrWhiteSpace(TargetCidrTextBox.Text))
                 {
-                    MessageBox.Show("Please enter a target CIDR.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Please enter a target CIDR.");
                     return false;
                 }
 
@@ -511,19 +511,19 @@ namespace Dorothy.Views
                 var cidrParts = TargetCidrTextBox.Text.Trim().Split('/');
                 if (cidrParts.Length != 2)
                 {
-                    MessageBox.Show("Invalid CIDR format. Expected format: X.Y.Z.W/N", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid CIDR format. Expected format: X.Y.Z.W/N");
                     return false;
                 }
 
                 if (!IPAddress.TryParse(cidrParts[0], out _))
                 {
-                    MessageBox.Show("Invalid IP address in CIDR.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid IP address in CIDR.");
                     return false;
                 }
 
                 if (!int.TryParse(cidrParts[1], out int prefixLength) || prefixLength < 0 || prefixLength > 32)
                 {
-                    MessageBox.Show("Invalid prefix length in CIDR. Must be between 0 and 32.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Validation Error", "Invalid prefix length in CIDR. Must be between 0 and 32.");
                     return false;
                 }
             }
@@ -534,7 +534,7 @@ namespace Dorothy.Views
                 {
                     if (!IPAddress.TryParse(ExternalTestIpTextBox.Text.Trim(), out _))
                     {
-                        MessageBox.Show("Invalid external test IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        await ShowMessageAsync("Validation Error", "Invalid external test IP address.");
                         return false;
                     }
                 }
@@ -596,11 +596,11 @@ namespace Dorothy.Views
         private void UpdateUI()
         {
             // Update step panels visibility
-            Step1Panel.Visibility = _currentStep == 1 ? Visibility.Visible : Visibility.Collapsed;
-            Step2Panel.Visibility = _currentStep == 2 ? Visibility.Visible : Visibility.Collapsed;
-            Step3Panel.Visibility = _currentStep == 3 ? Visibility.Visible : Visibility.Collapsed;
-            Step4Panel.Visibility = _currentStep == 4 ? Visibility.Visible : Visibility.Collapsed;
-            Step5Panel.Visibility = _currentStep == 5 ? Visibility.Visible : Visibility.Collapsed;
+            Step1Panel.IsVisible = _currentStep == 1;
+            Step2Panel.IsVisible = _currentStep == 2;
+            Step3Panel.IsVisible = _currentStep == 3;
+            Step4Panel.IsVisible = _currentStep == 4;
+            Step5Panel.IsVisible = _currentStep == 5;
 
             // Update title and description
             UpdateStepHeader();
@@ -675,7 +675,7 @@ namespace Dorothy.Views
 
                 var progress = new Progress<(string message, int percent)>(update =>
                 {
-                    Dispatcher.Invoke(() =>
+                    _ = Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         IcmpStatusTextBlock.Text = update.message;
                         IcmpProgressBar.Value = update.percent;
@@ -684,7 +684,7 @@ namespace Dorothy.Views
 
                 var results = await _service.RunIcmpChecksAsync(_context, progress, token);
 
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     _icmpResults.Clear();
                     
@@ -729,27 +729,27 @@ namespace Dorothy.Views
             }
             catch (OperationCanceledException)
             {
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     IcmpStatusTextBlock.Text = "ICMP checks canceled.";
                 });
             }
             catch (Exception ex)
             {
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(async () =>
                 {
-                    MessageBox.Show($"Error running ICMP checks: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", $"Error running ICMP checks: {ex.Message}");
                 });
             }
         }
 
-        private async void RunIcmpChecksButton_Click(object sender, RoutedEventArgs e)
+        private async void RunIcmpChecksButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
                 RunIcmpChecksButton.IsEnabled = false;
                 RunIcmpChecksButton.Content = "Running...";
-                IcmpProgressBar.Visibility = Visibility.Visible;
+                IcmpProgressBar.IsVisible = true;
                 IcmpProgressBar.Value = 0;
                 await RunStep2Async();
             }
@@ -757,7 +757,7 @@ namespace Dorothy.Views
             {
                 RunIcmpChecksButton.IsEnabled = true;
                 RunIcmpChecksButton.Content = "Run ICMP Checks";
-                IcmpProgressBar.Visibility = Visibility.Collapsed;
+                IcmpProgressBar.IsVisible = false;
                 IcmpProgressBar.Value = 0;
             }
         }
@@ -784,7 +784,7 @@ namespace Dorothy.Views
 
                 if (ports.Count == 0)
                 {
-                    MessageBox.Show("Please enter valid probe ports (e.g., 22,80,443).", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Invalid Input", "Please enter valid probe ports (e.g., 22,80,443).");
                     return;
                 }
 
@@ -793,7 +793,7 @@ namespace Dorothy.Views
 
                 var progress = new Progress<(string message, int percent)>(update =>
                 {
-                    Dispatcher.Invoke(() =>
+                    _ = Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         TcpProgressBar.Value = update.percent;
                         // Could update a status label here if needed
@@ -802,7 +802,7 @@ namespace Dorothy.Views
 
                 var results = await _service.RunTcpChecksAsync(_context, _icmpResults, ports, progress, token);
 
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     _tcpResults.Clear();
                     
@@ -824,34 +824,34 @@ namespace Dorothy.Views
             }
             catch (OperationCanceledException)
             {
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     // Button state restored by wrapper
                 });
             }
             catch (Exception ex)
             {
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(async () =>
                 {
-                    MessageBox.Show($"Error running TCP checks: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", $"Error running TCP checks: {ex.Message}");
                 });
             }
         }
 
-        private async void RunTcpChecksButton_Click(object sender, RoutedEventArgs e)
+        private async void RunTcpChecksButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             try
             {
                 RunTcpChecksButton.IsEnabled = false;
                 RunTcpChecksButton.Content = "Running...";
-                TcpProgressBar.Visibility = Visibility.Visible;
+                TcpProgressBar.IsVisible = true;
                 await RunStep3Async();
             }
             finally
             {
                 RunTcpChecksButton.IsEnabled = true;
                 RunTcpChecksButton.Content = "Run TCP Checks";
-                TcpProgressBar.Visibility = Visibility.Collapsed;
+                TcpProgressBar.IsVisible = false;
             }
         }
 
@@ -904,7 +904,7 @@ namespace Dorothy.Views
 
                 var progress = new Progress<(string message, int percent)>(update =>
                 {
-                    Dispatcher.Invoke(() =>
+                    _ = Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         PathNotesTextBlock.Text = update.message;
                         PathProgressBar.Value = update.percent;
@@ -913,7 +913,7 @@ namespace Dorothy.Views
 
                 var result = await _service.RunPathAnalysisAsync(_context, _icmpResults, _tcpResults, progress, token);
 
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (result != null)
                     {
@@ -936,21 +936,21 @@ namespace Dorothy.Views
             }
             catch (OperationCanceledException)
             {
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     PathNotesTextBlock.Text = "Path analysis canceled.";
                 });
             }
             catch (Exception ex)
             {
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(async () =>
                 {
-                    MessageBox.Show($"Error running path analysis: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", $"Error running path analysis: {ex.Message}");
                 });
             }
         }
 
-        private async void RunDeeperScanButton_Click(object sender, RoutedEventArgs e)
+        private async void RunDeeperScanButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             if (_context == null || _service == null)
                 return;
@@ -959,7 +959,7 @@ namespace Dorothy.Views
             {
                 RunDeeperScanButton.IsEnabled = false;
                 RunDeeperScanButton.Content = "Running...";
-                DeeperScanProgressBar.Visibility = Visibility.Visible;
+                DeeperScanProgressBar.IsVisible = true;
 
                 // Parse scan ports
                 var portStrings = DeeperScanPortsTextBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries);
@@ -974,7 +974,7 @@ namespace Dorothy.Views
 
                 if (ports.Count == 0)
                 {
-                    MessageBox.Show("Please enter valid ports to scan.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    await ShowMessageAsync("Invalid Input", "Please enter valid ports to scan.");
                     RunDeeperScanButton.IsEnabled = true;
                     RunDeeperScanButton.Content = "Run deeper scan";
                     return;
@@ -987,7 +987,7 @@ namespace Dorothy.Views
 
                 var progress = new Progress<(string message, int percent)>(update =>
                 {
-                    Dispatcher.Invoke(() =>
+                    _ = Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         DeeperScanProgressBar.Value = update.percent;
                     });
@@ -995,7 +995,7 @@ namespace Dorothy.Views
 
                 var results = await _service.RunDeeperScanAsync(_context, _icmpResults, _tcpResults, ports, progress, token);
 
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     _deeperScanResults.Clear();
                     foreach (var result in results)
@@ -1006,29 +1006,29 @@ namespace Dorothy.Views
                     _step5Completed = true;
                     RunDeeperScanButton.IsEnabled = true;
                     RunDeeperScanButton.Content = "Run deeper scan";
-                    DeeperScanProgressBar.Visibility = Visibility.Collapsed;
+                    DeeperScanProgressBar.IsVisible = false;
                     DeeperScanProgressBar.Value = 0;
                     GenerateSummary(); // Regenerate summary with deeper scan results
                 });
             }
             catch (OperationCanceledException)
             {
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     RunDeeperScanButton.IsEnabled = true;
                     RunDeeperScanButton.Content = "Run deeper scan";
-                    DeeperScanProgressBar.Visibility = Visibility.Collapsed;
+                    DeeperScanProgressBar.IsVisible = false;
                     DeeperScanProgressBar.Value = 0;
                 });
             }
             catch (Exception ex)
             {
-                Dispatcher.Invoke(() =>
+                await Dispatcher.UIThread.InvokeAsync(async () =>
                 {
-                    MessageBox.Show($"Error running deeper scan: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    await ShowMessageAsync("Error", $"Error running deeper scan: {ex.Message}");
                     RunDeeperScanButton.IsEnabled = true;
                     RunDeeperScanButton.Content = "Run deeper scan";
-                    DeeperScanProgressBar.Visibility = Visibility.Collapsed;
+                    DeeperScanProgressBar.IsVisible = false;
                     DeeperScanProgressBar.Value = 0;
                 });
             }
@@ -1115,6 +1115,19 @@ namespace Dorothy.Views
             }
 
             SummaryTextBlock.Text = summary.ToString();
+        }
+
+        private async Task ShowMessageAsync(string title, string message)
+        {
+            var msgBox = new Window
+            {
+                Title = title,
+                Content = new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                Width = 400,
+                Height = 200,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            await msgBox.ShowDialog(this);
         }
     }
 }

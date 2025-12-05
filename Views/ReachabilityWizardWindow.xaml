@@ -1,11 +1,11 @@
-<Window x:Class="Dorothy.Views.ReachabilityWizardWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="Dorothy.Views.ReachabilityWizardWindow"
         Title="Reachability &amp; Path Analysis Wizard" 
         Height="700" Width="900"
         MinHeight="600" MinWidth="800"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="CanResize"
+        CanResize="True"
         Background="#F3F4F6">
     <Window.Resources>
         <!-- Card Style -->
@@ -203,7 +203,7 @@
                                     CornerRadius="6" 
                                     Padding="12" 
                                     Margin="0,12,0,0"
-                                    Visibility="Collapsed">
+                                    IsVisible="False">
                                 <StackPanel>
                                     <TextBlock Text="Boundary Device" FontSize="14" FontWeight="SemiBold" Foreground="#111827" Margin="0,0,0,8"/>
                                     <TextBlock x:Name="BoundaryInfoTextBlock" FontSize="12" Foreground="#6B7280" TextWrapping="Wrap"/>
