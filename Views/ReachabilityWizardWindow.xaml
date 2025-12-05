@@ -257,7 +257,8 @@
                             <DataGrid x:Name="InsideIpsDataGrid"
                                       AutoGenerateColumns="False"
                                       HeadersVisibility="Column"
-                                      MaxHeight="150">
+                                      MaxHeight="150"
+                                      x:CompileBindings="False">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="IP" Binding="{Binding AssetIpString}" Width="*" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Label" Binding="{Binding Label}" Width="*" IsReadOnly="True"/>
@@ -286,7 +287,8 @@
                             <DataGrid x:Name="IcmpResultsDataGrid"
                                       AutoGenerateColumns="False"
                                       HeadersVisibility="Column"
-                                      MaxHeight="300">
+                                      MaxHeight="300"
+                                      x:CompileBindings="False">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="*" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="IP" Binding="{Binding TargetIpString}" Width="*" IsReadOnly="True"/>
@@ -320,7 +322,8 @@
                             <DataGrid x:Name="TcpResultsDataGrid"
                                       AutoGenerateColumns="False"
                                       HeadersVisibility="Column"
-                                      MaxHeight="300">
+                                      MaxHeight="300"
+                                      x:CompileBindings="False">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="IP" Binding="{Binding TargetIpString}" Width="*" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="*" IsReadOnly="True"/>
@@ -351,7 +354,8 @@
                             <DataGrid x:Name="PathHopsDataGrid"
                                       AutoGenerateColumns="False"
                                       HeadersVisibility="Column"
-                                      MaxHeight="300">
+                                      MaxHeight="300"
+                                      x:CompileBindings="False">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Hop" Binding="{Binding HopNumber}" Width="Auto" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="IP" Binding="{Binding HopIpString}" Width="*" IsReadOnly="True"/>
@@ -386,7 +390,8 @@
                                       AutoGenerateColumns="False"
                                       HeadersVisibility="Column"
                                       MaxHeight="200"
-                                      IsEnabled="{Binding IsChecked, ElementName=EnableDeeperScanCheckBox}">
+                                      IsEnabled="{Binding IsChecked, ElementName=EnableDeeperScanCheckBox}"
+                                      x:CompileBindings="False">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="IP" Binding="{Binding TargetIpString}" Width="*" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Open Ports" Binding="{Binding OpenPortsString}" Width="*" IsReadOnly="True"/>

@@ -68,7 +68,8 @@
                           AutoGenerateColumns="False" 
                           HeadersVisibility="Column"
                           SelectionChanged="ReachabilityResultsDataGrid_SelectionChanged"
-                          Margin="16,0,16,16">
+                          Margin="16,0,16,16"
+                          x:CompileBindings="False">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Host IP" Binding="{Binding Host.HostIpString}" Width="*" IsReadOnly="True"/>
                         <DataGridTextColumn Header="Label" Binding="{Binding Host.Label}" Width="*" IsReadOnly="True"/>
@@ -95,7 +96,8 @@
                 <DataGrid x:Name="InferredRulesDataGrid" 
                           AutoGenerateColumns="False" 
                           HeadersVisibility="Column"
-                          Margin="16,0,16,16">
+                          Margin="16,0,16,16"
+                          x:CompileBindings="False">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Host IP" Binding="{Binding Host.HostIpString}" Width="*" IsReadOnly="True"/>
                         <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="*" IsReadOnly="True"/>

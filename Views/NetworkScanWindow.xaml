@@ -550,7 +550,8 @@
                       GridLinesVisibility="All"
                       HeadersVisibility="Column"
                       SelectionMode="Single"
-                      SelectionChanged="ResultsDataGrid_SelectionChanged">
+                      SelectionChanged="ResultsDataGrid_SelectionChanged"
+                      x:CompileBindings="False">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="IP Address" Binding="{Binding IpAddress}" Width="150" />
                     <DataGridTextColumn Header="MAC Address" Binding="{Binding MacAddress}" Width="170" />
@@ -605,7 +606,8 @@
                           RowHeight="32"
                           FontSize="12"
                           VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Auto">
+                          HorizontalScrollBarVisibility="Auto"
+                          x:CompileBindings="False">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="80">
                             <DataGridTextColumn.ElementStyle>

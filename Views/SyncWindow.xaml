@@ -158,7 +158,8 @@
                                       Background="White"
                                       MaxHeight="400"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                      ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                      x:CompileBindings="False">
                                 <DataGrid.ColumnHeaderStyle>
                                     <Style TargetType="DataGridColumnHeader">
                                         <Setter Property="FontWeight" Value="SemiBold"/>
@@ -271,7 +272,8 @@
                                       Background="White"
                                       MaxHeight="400"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                      ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                      x:CompileBindings="False">
                                 <DataGrid.ColumnHeaderStyle>
                                     <Style TargetType="DataGridColumnHeader">
                                         <Setter Property="FontWeight" Value="SemiBold"/>
@@ -387,7 +389,8 @@
                                       Background="White"
                                       MaxHeight="400"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                      ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                      x:CompileBindings="False">
                                 <DataGrid.ColumnHeaderStyle>
                                     <Style TargetType="DataGridColumnHeader">
                                         <Setter Property="FontWeight" Value="SemiBold"/>
@@ -496,7 +499,8 @@
                                       Background="White"
                                       MaxHeight="400"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                      ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                      x:CompileBindings="False">
                                 <DataGrid.ColumnHeaderStyle>
                                     <Style TargetType="DataGridColumnHeader">
                                         <Setter Property="FontWeight" Value="SemiBold"/>

@@ -74,7 +74,7 @@
                           GridLinesVisibility="All"
                           HeadersVisibility="Column"
                           SelectionMode="Extended"
-                          >
+                          x:CompileBindings="False">
                     <DataGrid.Columns>
                         <DataGridTemplateColumn Header="" Width="40">
                             <DataGridTemplateColumn.CellTemplate>
