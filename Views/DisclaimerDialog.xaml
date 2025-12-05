@@ -162,14 +162,6 @@
                                     </ControlTemplate>
                                 </Setter.Value>
                             </Setter>
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#1F2937"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter Property="Background" Value="#0F172A"/>
-                                </Trigger>
-                            </Style.Triggers>
                         </Style>
                     </Button.Styles>
                 </Button>
