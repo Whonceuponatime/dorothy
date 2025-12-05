@@ -9,17 +9,15 @@
     <Version>2.3.0</Version>
     <AssemblyVersion>2.3.0.0</AssemblyVersion>
     <FileVersion>2.3.0.0</FileVersion>
-    <Platforms>x64</Platforms>
+    <Platforms>AnyCPU</Platforms>
     <PublishSingleFile>false</PublishSingleFile>
     <SelfContained>true</SelfContained>
-    <!-- Support multiple RIDs for cross-platform -->
-    <RuntimeIdentifiers>linux-x64;linux-arm64;win-x64;osx-x64</RuntimeIdentifiers>
+    <!-- Linux only - Raspberry Pi (ARM64) and x64 -->
+    <RuntimeIdentifiers>linux-arm64;linux-x64</RuntimeIdentifiers>
     <PublishTrimmed>false</PublishTrimmed>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <!-- Exclude unnecessary localization resources to reduce size -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
-    <!-- Define WINDOWS constant only on Windows -->
-    <DefineConstants Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(DefineConstants);WINDOWS</DefineConstants>
     <!-- Enable Avalonia XAML compilation -->
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
@@ -37,6 +35,7 @@
     <PackageReference Include="Avalonia.Desktop" Version="11.0.10" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.0.10" />
     <PackageReference Include="Avalonia.ReactiveUI" Version="11.0.10" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.0.10" />
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.0.10" />
     <PackageReference Include="Lextm.SharpSnmpLib" Version="12.2.0" />
     <PackageReference Include="NLog" Version="5.2.8" />
@@ -46,14 +45,6 @@
     <PackageReference Include="ClosedXML" Version="0.102.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     <PackageReference Include="Supabase" Version="1.1.1" />
-    <!-- System.Management is Windows-only, will need alternative for Linux -->
-    <PackageReference Include="System.Management" Version="8.0.0" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
-  </ItemGroup>
-  <!-- Windows-specific wpcap.dll (for Windows builds) -->
-  <ItemGroup Condition="Exists('Resources\wpcap.dll') AND $([MSBuild]::IsOSPlatform('Windows'))">
-    <None Include="Resources\wpcap.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
   
   <!-- Create distributable after Build - DISABLED to prevent infinite loop -->

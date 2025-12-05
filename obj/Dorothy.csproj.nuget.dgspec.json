@@ -65,6 +65,10 @@
               "target": "Package",
               "version": "[11.0.10, )"
             },
+            "Avalonia.Themes.Fluent": {
+              "target": "Package",
+              "version": "[11.0.10, )"
+            },
             "ClosedXML": {
               "target": "Package",
               "version": "[0.102.2, )"
@@ -96,10 +100,6 @@
             "System.Drawing.Common": {
               "target": "Package",
               "version": "[8.0.0, )"
-            },
-            "System.Management": {
-              "target": "Package",
-              "version": "[8.0.0, )"
             }
           },
           "imports": [
@@ -127,10 +127,6 @@
               "version": "[8.0.11, 8.0.11]"
             },
             {
-              "name": "Microsoft.AspNetCore.App.Runtime.osx-x64",
-              "version": "[8.0.11, 8.0.11]"
-            },
-            {
               "name": "Microsoft.AspNetCore.App.Runtime.win-x64",
               "version": "[8.0.11, 8.0.11]"
             },
@@ -140,10 +136,6 @@
             },
             {
               "name": "Microsoft.NETCore.App.Host.linux-x64",
-              "version": "[8.0.11, 8.0.11]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Host.osx-x64",
               "version": "[8.0.11, 8.0.11]"
             },
             {
@@ -160,10 +152,6 @@
             },
             {
               "name": "Microsoft.NETCore.App.Runtime.linux-x64",
-              "version": "[8.0.11, 8.0.11]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Runtime.osx-x64",
               "version": "[8.0.11, 8.0.11]"
             },
             {
@@ -192,9 +180,6 @@
           "#import": []
         },
         "linux-x64": {
-          "#import": []
-        },
-        "osx-x64": {
           "#import": []
         },
         "win-x64": {

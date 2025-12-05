@@ -1,13 +1,13 @@
 #!/bin/bash
 # Publish script for Dorothy (Linux)
-# Usage: ./publish.sh [win-x64|linux-x64|linux-arm64|osx-x64]
+# Usage: ./publish.sh [linux-x64|linux-arm64]
 
 RUNTIME=${1:-linux-x64}
 
 echo "Publishing Dorothy for $RUNTIME..."
 
 # Validate runtime identifier
-VALID_RUNTIMES=("win-x64" "linux-x64" "linux-arm64" "osx-x64")
+VALID_RUNTIMES=("linux-x64" "linux-arm64")
 VALID=false
 for valid_runtime in "${VALID_RUNTIMES[@]}"; do
     if [ "$RUNTIME" == "$valid_runtime" ]; then
@@ -32,13 +32,7 @@ if [ $? -eq 0 ]; then
     if [ -d "$PUBLISH_PATH" ]; then
         echo "Published files location: $PUBLISH_PATH"
         
-        # Show executable name based on platform
-        if [[ "$RUNTIME" == win-* ]]; then
-            EXE_NAME="Dorothy.exe"
-        else
-            EXE_NAME="Dorothy"
-        fi
-        
+        EXE_NAME="Dorothy"
         EXE_PATH="$PUBLISH_PATH/$EXE_NAME"
         if [ -f "$EXE_PATH" ]; then
             echo "Executable: $EXE_PATH"

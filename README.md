@@ -54,17 +54,43 @@ Reference implementation:
 - Status monitoring and reporting
 
 ### System Requirements
-- Windows OS
-- .NET 7.0 or higher
-- Administrative privileges
+- Linux OS (Raspberry Pi OS recommended)
+- .NET 8.0 SDK
+- Root/sudo privileges for packet injection
 - Network adapter with packet injection support
+- X11 display server (for GUI)
 
 ### Technical Architecture
-- Built on .NET 7.0
+- Built on .NET 8.0
 - Uses SharpPcap for packet manipulation
-- WPF-based user interface
+- Avalonia-based cross-platform UI
 - Multi-threaded attack simulation
 - Event-driven logging system
+
+## Quick Start
+
+### Setup and Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd dorothy
+   ```
+
+2. **Run the all-in-one setup script:**
+   ```bash
+   chmod +x setup.sh
+   ./setup.sh
+   ```
+   
+   This will build, publish, and set up the `dorothy` command for Raspberry Pi (ARM64).
+
+3. **Run the application:**
+   ```bash
+   dorothy
+   ```
+
+For detailed build and setup instructions, see [BUILD_AND_RUN_GUIDE.md](BUILD_AND_RUN_GUIDE.md).
 
 ## Usage Guidelines
 This tool should only be used by authorized personnel in maritime environments for:
