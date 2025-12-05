@@ -12,21 +12,17 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Markup.Xaml;
+using Avalonia.Media;
+using Avalonia.Threading;
 using Dorothy.Controllers;
 using Dorothy.Models;
 using Dorothy.Network;
 using Dorothy.Network.Headers;
-using Microsoft.Win32;
+using Dorothy.Services;
 using NLog;
 using SharpPcap;
 
@@ -69,7 +65,7 @@ namespace Dorothy.Views
         private DateTime _attackStartTime;
         private DateTime _lastStatsUpdateTime;
         private long _lastBytesSent = 0; // Track bytes sent at last stats update for current rate calculation
-        private System.Windows.Threading.DispatcherTimer? _statsTimer;
+        private DispatcherTimer? _statsTimer;
         private long _targetMbps = 0;
         private string? _currentRunningAttackType = null; // Track the currently running attack type
 
@@ -82,7 +78,7 @@ namespace Dorothy.Views
         private readonly Services.DatabaseService _databaseService;
         private readonly Services.SupabaseSyncService _supabaseSyncService;
         private readonly Services.ToastNotificationService _toastService;
-        private System.Windows.Threading.DispatcherTimer? _syncCheckTimer;
+        private DispatcherTimer? _syncCheckTimer;
         
         // Metadata for tracking
         private readonly string _hardwareId;
@@ -94,14 +90,14 @@ namespace Dorothy.Views
         private Services.UIScalingService? _uiScalingService;
         private double _baseFontSize = 12;
         private Services.UpdateCheckService? _updateCheckService;
-        private System.Windows.Threading.DispatcherTimer? _updateCheckTimer;
+        private DispatcherTimer? _updateCheckTimer;
 
         // Firewall Reachability Discovery
         private Services.FirewallDiscoveryEngine? _firewallDiscoveryEngine;
 
         public MainWindow()
         {
-            InitializeComponent();
+            AvaloniaXamlLoader.Load(this);
             
             // Initialize database and sync services first
             _databaseService = new Services.DatabaseService();
@@ -132,12 +128,12 @@ namespace Dorothy.Views
             _networkStorm.PacketSent += NetworkStorm_PacketSent;
             
             // Initialize statistics timer
-            _statsTimer = new System.Windows.Threading.DispatcherTimer();
+            _statsTimer = new DispatcherTimer();
             _statsTimer.Interval = TimeSpan.FromMilliseconds(100); // Update every 100ms
             _statsTimer.Tick += StatsTimer_Tick;
 
             // Initialize sync check timer (check every 30 seconds)
-            _syncCheckTimer = new System.Windows.Threading.DispatcherTimer();
+            _syncCheckTimer = new DispatcherTimer();
             _syncCheckTimer.Interval = TimeSpan.FromSeconds(30);
             _syncCheckTimer.Tick += SyncCheckTimer_Tick;
             _syncCheckTimer.Start();
@@ -245,7 +241,7 @@ namespace Dorothy.Views
                 });
                 
                 // Set up periodic update check (every 30 minutes)
-                _updateCheckTimer = new System.Windows.Threading.DispatcherTimer
+                _updateCheckTimer = new DispatcherTimer
                 {
                     Interval = TimeSpan.FromMinutes(30)
                 };
@@ -937,12 +933,12 @@ namespace Dorothy.Views
                     if (result.IsOnline && result.IsUpdateAvailable)
                     {
                         // Show red alert badge on About button
-                        UpdateAvailableBadge.Visibility = Visibility.Visible;
+                        UpdateAvailableBadge.IsVisible = true;
                     }
                     else
                     {
                         // Hide badge if no update available or offline
-                        UpdateAvailableBadge.Visibility = Visibility.Collapsed;
+                        UpdateAvailableBadge.IsVisible = false;
                     }
                 });
             }
@@ -961,23 +957,23 @@ namespace Dorothy.Views
                     ? AppDomain.CurrentDomain.BaseDirectory 
                     : _logFileLocation;
                 
-                var saveFileDialog = new SaveFileDialog
-                {
-                    Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
-                    DefaultExt = ".txt",
-                    FileName = GenerateLogFileName(),
-                    InitialDirectory = logLocation
-                };
+                var fileName = await FileDialogHelper.ShowSaveFileDialogAsync(
+                    this,
+                    "Save Log File",
+                    GenerateLogFileName(),
+                    "txt",
+                    new[] { ("Text files", new[] { "*.txt" }), ("All files", new[] { "*.*" }) },
+                    logLocation);
 
-                if (saveFileDialog.ShowDialog() == true)
+                if (!string.IsNullOrEmpty(fileName))
                 {
-                    System.IO.File.WriteAllText(saveFileDialog.FileName, LogTextBox.Text);
-                    _attackLogger.LogSuccess($"Log saved to: {saveFileDialog.FileName}");
+                    System.IO.File.WriteAllText(fileName, LogTextBox.Text);
+                    _attackLogger.LogSuccess($"Log saved to: {fileName}");
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error saving log: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                await ShowMessageAsync("Error", $"Error saving log: {ex.Message}");
                 _attackLogger.LogError($"Error saving log: {ex.Message}");
             }
         }
@@ -1201,7 +1197,7 @@ namespace Dorothy.Views
                     var originalTooltip = CloudSyncButton.ToolTip;
 
                     // Show loading overlay
-                    SyncLoadingOverlay.Visibility = Visibility.Visible;
+                    SyncLoadingOverlay.IsVisible = true;
                     SyncProgressText.Text = "Preparing sync...";
                     
                     // Subscribe to progress updates
@@ -1323,7 +1319,7 @@ namespace Dorothy.Views
                     }
 
                         // Hide loading overlay
-                        SyncLoadingOverlay.Visibility = Visibility.Collapsed;
+                        SyncLoadingOverlay.IsVisible = false;
                         _supabaseSyncService.ProgressChanged -= OnSyncProgressChanged;
                         
                         CloudSyncButton.IsEnabled = true;
@@ -1335,7 +1331,7 @@ namespace Dorothy.Views
                     catch (Exception ex)
                     {
                         // Ensure loading overlay is hidden even on error
-                        SyncLoadingOverlay.Visibility = Visibility.Collapsed;
+                        SyncLoadingOverlay.IsVisible = false;
                         _supabaseSyncService.ProgressChanged -= OnSyncProgressChanged;
                         CloudSyncButton.IsEnabled = true;
                         CloudSyncButton.ToolTip = originalTooltip;
@@ -1388,7 +1384,7 @@ namespace Dorothy.Views
                 {
                     if (totalPending > 0)
                     {
-                        CloudSyncNotificationBadge.Visibility = Visibility.Visible;
+                        CloudSyncNotificationBadge.IsVisible = true;
                         CloudSyncNotificationText.Text = totalPending > 99 ? "99+" : totalPending.ToString();
                         
                         var tooltipParts = new List<string>();
@@ -4119,11 +4115,11 @@ namespace Dorothy.Views
                 if (passwordBox != null)
                 {
                     passwordBox.BorderBrush = new SolidColorBrush(Colors.Green);
-                    var timer = new System.Windows.Threading.DispatcherTimer();
+                    var timer = new DispatcherTimer();
                     timer.Interval = TimeSpan.FromSeconds(2);
                     timer.Tick += (s, args) =>
                     {
-                        passwordBox.BorderBrush = SystemColors.ControlDarkBrush;
+                        passwordBox.BorderBrush = new SolidColorBrush(Color.FromRgb(192, 192, 192));
                         timer.Stop();
                     };
                     timer.Start();
@@ -4132,7 +4128,7 @@ namespace Dorothy.Views
                 // Hide error message if visible
                 if (PasswordFeedbackText != null)
                 {
-                    PasswordFeedbackText.Visibility = Visibility.Collapsed;
+                    PasswordFeedbackText.IsVisible = false;
                 }
                 
                 // Show success toast instead of modal
@@ -5118,14 +5114,14 @@ namespace Dorothy.Views
 
                 if (_reachabilityTestPassed && _snmpWalkNotVulnerable)
                 {
-                    SecurityAssessmentStatusBorder.Visibility = Visibility.Visible;
+                    SecurityAssessmentStatusBorder.IsVisible = true;
                     SecurityAssessmentStatusTextBlock.Text = "✓ Pass - The network is secure";
-                    SecurityAssessmentStatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(
-                        System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green #059669
+                    SecurityAssessmentStatusTextBlock.Foreground = new SolidColorBrush(
+                        Color.FromRgb(5, 150, 105)); // Green #059669
                 }
                 else
                 {
-                    SecurityAssessmentStatusBorder.Visibility = Visibility.Collapsed;
+                    SecurityAssessmentStatusBorder.IsVisible = false;
                 }
             }
             catch (Exception ex)
@@ -5136,6 +5132,18 @@ namespace Dorothy.Views
 
         #endregion
 
+        private async Task ShowMessageAsync(string title, string message)
+        {
+            var msgBox = new Window
+            {
+                Title = title,
+                Content = new TextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
+                Width = 400,
+                Height = 200,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner
+            };
+            await msgBox.ShowDialog(this);
+        }
     }
 
 } 
