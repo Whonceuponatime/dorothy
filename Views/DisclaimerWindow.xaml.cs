@@ -8,6 +8,8 @@ namespace Dorothy.Views
 {
     public partial class DisclaimerWindow : Window
     {
+        private CheckBox? DontShowAgainCheckBox => this.FindControl<CheckBox>("DontShowAgainCheckBox");
+        
         public bool DontShowAgain { get; private set; }
 
         public DisclaimerWindow()
@@ -17,7 +19,10 @@ namespace Dorothy.Views
 
         private void AcceptButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            DontShowAgain = DontShowAgainCheckBox.IsChecked ?? false;
+            if (DontShowAgainCheckBox != null)
+            {
+                DontShowAgain = DontShowAgainCheckBox.IsChecked ?? false;
+            }
             Close(true);
         }
 

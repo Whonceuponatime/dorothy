@@ -39,7 +39,7 @@ namespace Dorothy.Views
                 IsSelected = true // Default to selected
             }).ToList();
 
-            var assetsDataGrid = this.FindControl<DataGrid>("AssetsDataGrid");
+            var assetsDataGrid = this.FindControl<Avalonia.Controls.DataGrid>("AssetsDataGrid");
             if (assetsDataGrid != null)
             {
                 assetsDataGrid.ItemsSource = _assetItems;
@@ -47,7 +47,7 @@ namespace Dorothy.Views
             UpdateSelectedCount();
         }
 
-        private DataGrid? AssetsDataGrid => this.FindControl<DataGrid>("AssetsDataGrid");
+        private Avalonia.Controls.DataGrid? AssetsDataGrid => this.FindControl<Avalonia.Controls.DataGrid>("AssetsDataGrid");
         private TextBox? ProjectNameTextBox => this.FindControl<TextBox>("ProjectNameTextBox");
 
         private void ProjectNameTextBox_TextChanged(object? sender, Avalonia.Controls.TextChangedEventArgs e)

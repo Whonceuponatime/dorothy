@@ -204,9 +204,10 @@ namespace Dorothy.Views
             {
                 if (CurrentHardwareIdTextBlock != null && !string.IsNullOrEmpty(CurrentHardwareIdTextBlock.Text))
                 {
-                    if (Application.Current?.Clipboard != null)
+                    var topLevel = TopLevel.GetTopLevel(this);
+                    if (topLevel?.Clipboard != null)
                     {
-                        await Application.Current.Clipboard.SetTextAsync(CurrentHardwareIdTextBlock.Text);
+                        await topLevel.Clipboard.SetTextAsync(CurrentHardwareIdTextBlock.Text);
                     }
                     
                     var msgBox = new Window

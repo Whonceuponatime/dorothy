@@ -15,6 +15,11 @@ namespace Dorothy.Views
         private readonly ObservableCollection<FirewallDiscoveryHostReachabilityResult> _reachabilityResults;
         private readonly ObservableCollection<InferredFirewallRule> _inferredRules;
 
+        // FindControl properties for XAML-named controls
+        private Avalonia.Controls.DataGrid? ReachabilityResultsDataGrid => this.FindControl<Avalonia.Controls.DataGrid>("ReachabilityResultsDataGrid");
+        private Avalonia.Controls.DataGrid? InferredRulesDataGrid => this.FindControl<Avalonia.Controls.DataGrid>("InferredRulesDataGrid");
+        private TextBlock? SummaryTextBlock => this.FindControl<TextBlock>("SummaryTextBlock");
+
         public ReachabilityResultsWindow(
             FirewallDiscoveryResult result)
         {
@@ -23,8 +28,14 @@ namespace Dorothy.Views
             _reachabilityResults = new ObservableCollection<FirewallDiscoveryHostReachabilityResult>(result.ReachabilityResults);
             _inferredRules = new ObservableCollection<InferredFirewallRule>(result.InferredRules);
 
-            ReachabilityResultsDataGrid.ItemsSource = _reachabilityResults;
-            InferredRulesDataGrid.ItemsSource = _inferredRules;
+            if (ReachabilityResultsDataGrid != null)
+            {
+                ReachabilityResultsDataGrid.ItemsSource = _reachabilityResults;
+            }
+            if (InferredRulesDataGrid != null)
+            {
+                InferredRulesDataGrid.ItemsSource = _inferredRules;
+            }
 
             UpdateSummary();
         }
@@ -38,27 +49,36 @@ namespace Dorothy.Views
             int unreachableHosts = _reachabilityResults.Count(r => r.State == ReachabilityState.Unreachable);
             int totalRules = _inferredRules.Count;
 
-            SummaryTextBlock.Text = $"Total hosts tested: {totalHosts} | " +
-                                   $"Reachable: {reachableHosts} | " +
-                                   $"Unreachable: {unreachableHosts} | " +
-                                   $"Inferred rules: {totalRules}";
+            if (SummaryTextBlock != null)
+            {
+                SummaryTextBlock.Text = $"Total hosts tested: {totalHosts} | " +
+                                       $"Reachable: {reachableHosts} | " +
+                                       $"Unreachable: {unreachableHosts} | " +
+                                       $"Inferred rules: {totalRules}";
+            }
         }
 
         private void ReachabilityResultsDataGrid_SelectionChanged(object? sender, Avalonia.Controls.SelectionChangedEventArgs e)
         {
             // Filter inferred rules by selected host
-            if (ReachabilityResultsDataGrid.SelectedItem is FirewallDiscoveryHostReachabilityResult selectedResult)
+            if (ReachabilityResultsDataGrid != null && ReachabilityResultsDataGrid.SelectedItem is FirewallDiscoveryHostReachabilityResult selectedResult)
             {
                 var filteredRules = _inferredRules
                     .Where(r => r.Host.HostIp.ToString() == selectedResult.Host.HostIp.ToString())
                     .ToList();
 
-                InferredRulesDataGrid.ItemsSource = filteredRules;
+                if (InferredRulesDataGrid != null)
+                {
+                    InferredRulesDataGrid.ItemsSource = filteredRules;
+                }
             }
             else
             {
                 // Show all rules if no host is selected
-                InferredRulesDataGrid.ItemsSource = _inferredRules;
+                if (InferredRulesDataGrid != null)
+                {
+                    InferredRulesDataGrid.ItemsSource = _inferredRules;
+                }
             }
         }
 

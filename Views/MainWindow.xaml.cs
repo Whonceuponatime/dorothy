@@ -95,6 +95,16 @@ namespace Dorothy.Views
         // Firewall Reachability Discovery
         private Services.FirewallDiscoveryEngine? _firewallDiscoveryEngine;
 
+        // FindControl properties for XAML-named controls
+        private TextBox? LogTextBox => this.FindControl<TextBox>("LogTextBox");
+        private Button? StartButton => this.FindControl<Button>("StartButton");
+        private Button? StopButton => this.FindControl<Button>("StopButton");
+        private Border? StatusBadge => this.FindControl<Border>("StatusBadge");
+        private TextBlock? StatusBadgeText => this.FindControl<TextBlock>("StatusBadgeText");
+        private Avalonia.Controls.Shapes.Ellipse? StatusDot => this.FindControl<Avalonia.Controls.Shapes.Ellipse>("StatusDot");
+        private ComboBox? AttackTypeComboBox => this.FindControl<ComboBox>("AttackTypeComboBox");
+        private ComboBox? AdvancedAttackTypeComboBox => this.FindControl<ComboBox>("AdvancedAttackTypeComboBox");
+
         public MainWindow()
         {
             AvaloniaXamlLoader.Load(this);
@@ -110,19 +120,28 @@ namespace Dorothy.Views
             _machineName = Environment.MachineName;
             _username = Environment.UserName;
             
-            _attackLogger = new AttackLogger(
-                LogTextBox, 
-                _databaseService,
-                hardwareId: _hardwareId,
-                machineName: _machineName,
-                username: _username,
-                userId: null // Can be set if user authentication is implemented
-            );
+            if (LogTextBox != null)
+            {
+                _attackLogger = new AttackLogger(
+                    LogTextBox, 
+                    _databaseService,
+                    hardwareId: _hardwareId,
+                    machineName: _machineName,
+                    username: _username,
+                    userId: null // Can be set if user authentication is implemented
+                );
+            }
             
             // Then initialize components that depend on logger
-            _networkStorm = new NetworkStorm(_attackLogger);
-            _traceRoute = new TraceRoute(_attackLogger);
-            _mainController = new MainController(_networkStorm, StartButton, StopButton, StatusBadge, StatusBadgeText, StatusDot, LogTextBox, this);
+            if (_attackLogger != null)
+            {
+                _networkStorm = new NetworkStorm(_attackLogger);
+                _traceRoute = new TraceRoute(_attackLogger);
+            }
+            if (StartButton != null && StopButton != null && StatusBadge != null && StatusBadgeText != null && StatusDot != null && LogTextBox != null)
+            {
+                _mainController = new MainController(_networkStorm, StartButton, StopButton, StatusBadge, StatusBadgeText, StatusDot, LogTextBox, this);
+            }
             
             // Subscribe to packet sent events for statistics
             _networkStorm.PacketSent += NetworkStorm_PacketSent;
@@ -153,8 +172,14 @@ namespace Dorothy.Views
             // Initialize toast notification service after UI is ready
             Loaded += MainWindow_Loaded;
 
-            AttackTypeComboBox.SelectedIndex = 0;
-            AdvancedAttackTypeComboBox.SelectedIndex = 0;
+            if (AttackTypeComboBox != null)
+            {
+                AttackTypeComboBox.SelectedIndex = 0;
+            }
+            if (AdvancedAttackTypeComboBox != null)
+            {
+                AdvancedAttackTypeComboBox.SelectedIndex = 0;
+            }
 
             // Set placeholder text
             NoteTextBox.Text = NOTE_PLACEHOLDER;
@@ -542,23 +567,44 @@ namespace Dorothy.Views
 
         private void UpdateStatusBadge(string status, string statusType)
         {
-            StatusBadgeText.Text = status;
+            if (StatusBadgeText != null)
+            {
+                StatusBadgeText.Text = status;
+            }
             
             // Update badge style and color based on status type
             switch (statusType.ToLower())
             {
                 case "ready":
                 case "idle":
-                    StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D1FAE5"));
-                    StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
-                    StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+                    if (StatusBadge != null)
+                    {
+                        StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D1FAE5"));
+                    }
+                    if (StatusBadgeText != null)
+                    {
+                        StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+                    }
+                    if (StatusDot != null)
+                    {
+                        StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+                    }
                     break;
                 case "attacking":
                 case "running":
                 case "active":
-                    StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEE2E2"));
-                    StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
-                    StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
+                    if (StatusBadge != null)
+                    {
+                        StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEE2E2"));
+                    }
+                    if (StatusBadgeText != null)
+                    {
+                        StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
+                    }
+                    if (StatusDot != null)
+                    {
+                        StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
+                    }
                     break;
                 case "error":
                     StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEE2E2"));
@@ -566,9 +612,18 @@ namespace Dorothy.Views
                     StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
                     break;
                 default:
-                    StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D1FAE5"));
-                    StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
-                    StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+                    if (StatusBadge != null)
+                    {
+                        StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D1FAE5"));
+                    }
+                    if (StatusBadgeText != null)
+                    {
+                        StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+                    }
+                    if (StatusDot != null)
+                    {
+                        StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+                    }
                     break;
             }
         }

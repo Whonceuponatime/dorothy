@@ -59,7 +59,7 @@ namespace Dorothy.Views {
                 return;
             }
             _contentLoaded = true;
-            System.Uri resourceLocater = new System.Uri("/Dorothy;component/views/customgatewaydialog.xaml", System.UriKind.Relative);
+            System.Uri resourceLocater = new System.Uri("/Dorothy;V2.3.0.0;component/views/customgatewaydialog.xaml", System.UriKind.Relative);
             
             #line 1 "..\..\..\..\..\Views\CustomGatewayDialog.xaml"
             System.Windows.Application.LoadComponent(this, resourceLocater);

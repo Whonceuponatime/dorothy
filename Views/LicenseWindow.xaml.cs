@@ -16,6 +16,9 @@ namespace Dorothy.Views
         private readonly string _hardwareId;
         private readonly string _statusMessage;
 
+        private TextBlock? HardwareIdTextBlock => this.FindControl<TextBlock>("HardwareIdTextBlock");
+        private TextBlock? StatusTextBlock => this.FindControl<TextBlock>("StatusTextBlock");
+
         public LicenseWindow(string hardwareId, string statusMessage)
         {
             AvaloniaXamlLoader.Load(this);
@@ -23,8 +26,14 @@ namespace Dorothy.Views
             _statusMessage = statusMessage;
             
             // Display hardware ID in lowercase
-            HardwareIdTextBlock.Text = _hardwareId.ToLowerInvariant();
-            StatusTextBlock.Text = _statusMessage;
+            if (HardwareIdTextBlock != null)
+            {
+                HardwareIdTextBlock.Text = _hardwareId.ToLowerInvariant();
+            }
+            if (StatusTextBlock != null)
+            {
+                StatusTextBlock.Text = _statusMessage;
+            }
         }
 
         private async void CopyIdButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -35,9 +44,10 @@ namespace Dorothy.Views
             try
             {
                 // Use Avalonia clipboard
-                if (Application.Current?.Clipboard != null)
+                var topLevel = TopLevel.GetTopLevel(this);
+                if (topLevel?.Clipboard != null)
                 {
-                    await Application.Current.Clipboard.SetTextAsync(_hardwareId);
+                    await topLevel.Clipboard.SetTextAsync(_hardwareId);
                 }
                 
                 // Immediate visual feedback

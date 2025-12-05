@@ -319,7 +319,7 @@ namespace Dorothy.Models
                     try
                     {
                         // Get current log content
-                        _logArea.Dispatcher.Invoke(() =>
+                        _ = Dispatcher.UIThread.InvokeAsync(() =>
                         {
                             _currentLogContent = _logArea.Text;
                         });

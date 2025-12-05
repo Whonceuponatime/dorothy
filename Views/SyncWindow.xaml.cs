@@ -93,15 +93,15 @@ namespace Dorothy.Views
                 IsSelected = true // Default to selected
             }).ToList();
 
-            LogsDataGrid.ItemsSource = _logItems;
-            AssetsDataGrid.ItemsSource = _assetItems;
-            ReachabilityTestsDataGrid.ItemsSource = _testItems;
-            SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
+            if (LogsDataGrid != null) LogsDataGrid.ItemsSource = _logItems;
+            if (AssetsDataGrid != null) AssetsDataGrid.ItemsSource = _assetItems;
+            if (ReachabilityTestsDataGrid != null) ReachabilityTestsDataGrid.ItemsSource = _testItems;
+            if (SnmpWalkTestsDataGrid != null) SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
             
-            LogsCountText.Text = $"{logs.Count} pending log(s)";
-            AssetsCountText.Text = $"{assets.Count} pending asset(s)";
-            ReachabilityTestsCountText.Text = $"{regularTests.Count} pending test(s)";
-            SnmpWalkTestsCountText.Text = $"{snmpWalkTests.Count} pending SNMP walk(s)";
+            if (LogsCountText != null) LogsCountText.Text = $"{logs.Count} pending log(s)";
+            if (AssetsCountText != null) AssetsCountText.Text = $"{assets.Count} pending asset(s)";
+            if (ReachabilityTestsCountText != null) ReachabilityTestsCountText.Text = $"{regularTests.Count} pending test(s)";
+            if (SnmpWalkTestsCountText != null) SnmpWalkTestsCountText.Text = $"{snmpWalkTests.Count} pending SNMP walk(s)";
             
             UpdateSelectedCounts();
             
@@ -133,6 +133,26 @@ namespace Dorothy.Views
             this.Closing += SyncWindow_Closing;
         }
 
+        // FindControl properties for XAML-named controls
+        private Avalonia.Controls.DataGrid? LogsDataGrid => this.FindControl<Avalonia.Controls.DataGrid>("LogsDataGrid");
+        private Avalonia.Controls.DataGrid? AssetsDataGrid => this.FindControl<Avalonia.Controls.DataGrid>("AssetsDataGrid");
+        private Avalonia.Controls.DataGrid? ReachabilityTestsDataGrid => this.FindControl<Avalonia.Controls.DataGrid>("ReachabilityTestsDataGrid");
+        private Avalonia.Controls.DataGrid? SnmpWalkTestsDataGrid => this.FindControl<Avalonia.Controls.DataGrid>("SnmpWalkTestsDataGrid");
+        private TextBlock? LogsCountText => this.FindControl<TextBlock>("LogsCountText");
+        private TextBlock? AssetsCountText => this.FindControl<TextBlock>("AssetsCountText");
+        private TextBlock? ReachabilityTestsCountText => this.FindControl<TextBlock>("ReachabilityTestsCountText");
+        private TextBlock? SnmpWalkTestsCountText => this.FindControl<TextBlock>("SnmpWalkTestsCountText");
+        private TabItem? LogsTab => this.FindControl<TabItem>("LogsTab");
+        private TabItem? AssetsTab => this.FindControl<TabItem>("AssetsTab");
+        private TabItem? ReachabilityTestsTab => this.FindControl<TabItem>("ReachabilityTestsTab");
+        private TabItem? SnmpWalkTestsTab => this.FindControl<TabItem>("SnmpWalkTestsTab");
+        private TabControl? SyncTabControl => this.FindControl<TabControl>("SyncTabControl");
+        private TextBox? ProjectNameTextBox => this.FindControl<TextBox>("ProjectNameTextBox");
+        private TextBlock? TotalSelectedText => this.FindControl<TextBlock>("TotalSelectedText");
+        private TextBlock? SelectedLogsCountText => this.FindControl<TextBlock>("SelectedLogsCountText");
+        private TextBlock? SelectedAssetsCountText => this.FindControl<TextBlock>("SelectedAssetsCountText");
+        private TextBlock? SelectedTestsCountText => this.FindControl<TextBlock>("SelectedTestsCountText");
+
         private void SyncWindow_Closing(object? sender, WindowClosingEventArgs e)
         {
             // If user closes window (X button) and there are deletions, persist them
@@ -141,7 +161,10 @@ namespace Dorothy.Views
 
         private void ProjectNameTextBox_TextChanged(object? sender, Avalonia.Controls.TextChangedEventArgs e)
         {
-            ProjectName = ProjectNameTextBox.Text?.Trim();
+            if (ProjectNameTextBox != null)
+            {
+                ProjectName = ProjectNameTextBox.Text?.Trim();
+            }
         }
 
         private void SelectAllLogsCheckBox_Checked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -150,8 +173,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = true;
             }
-            LogsDataGrid.ItemsSource = null;
-            LogsDataGrid.ItemsSource = _logItems;
+            if (LogsDataGrid != null)
+            {
+                LogsDataGrid.ItemsSource = null;
+                LogsDataGrid.ItemsSource = _logItems;
+            }
             UpdateSelectedCounts();
         }
 
@@ -161,8 +187,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            LogsDataGrid.ItemsSource = null;
-            LogsDataGrid.ItemsSource = _logItems;
+            if (LogsDataGrid != null)
+            {
+                LogsDataGrid.ItemsSource = null;
+                LogsDataGrid.ItemsSource = _logItems;
+            }
             UpdateSelectedCounts();
         }
 
@@ -172,8 +201,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = true;
             }
-            AssetsDataGrid.ItemsSource = null;
-            AssetsDataGrid.ItemsSource = _assetItems;
+            if (AssetsDataGrid != null)
+            {
+                AssetsDataGrid.ItemsSource = null;
+                AssetsDataGrid.ItemsSource = _assetItems;
+            }
             UpdateSelectedCounts();
         }
 
@@ -183,8 +215,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            AssetsDataGrid.ItemsSource = null;
-            AssetsDataGrid.ItemsSource = _assetItems;
+            if (AssetsDataGrid != null)
+            {
+                AssetsDataGrid.ItemsSource = null;
+                AssetsDataGrid.ItemsSource = _assetItems;
+            }
             UpdateSelectedCounts();
         }
 
@@ -194,11 +229,23 @@ namespace Dorothy.Views
             var selectedAssetsCount = _assetItems.Count(item => item.IsSelected);
             var selectedTestsCount = _testItems.Count(item => item.IsSelected);
             
-            SelectedLogsCountText.Text = $"{selectedLogsCount} of {_logItems.Count} selected";
-            SelectedAssetsCountText.Text = $"{selectedAssetsCount} of {_assetItems.Count} selected";
-            SelectedTestsCountText.Text = $"{selectedTestsCount} of {_testItems.Count} selected";
+            if (SelectedLogsCountText != null)
+            {
+                SelectedLogsCountText.Text = $"{selectedLogsCount} of {_logItems.Count} selected";
+            }
+            if (SelectedAssetsCountText != null)
+            {
+                SelectedAssetsCountText.Text = $"{selectedAssetsCount} of {_assetItems.Count} selected";
+            }
+            if (SelectedTestsCountText != null)
+            {
+                SelectedTestsCountText.Text = $"{selectedTestsCount} of {_testItems.Count} selected";
+            }
             
-            TotalSelectedText.Text = $"{selectedLogsCount} log(s), {selectedAssetsCount} asset(s), {selectedTestsCount} test(s) selected";
+            if (TotalSelectedText != null)
+            {
+                TotalSelectedText.Text = $"{selectedLogsCount} log(s), {selectedAssetsCount} asset(s), {selectedTestsCount} test(s) selected";
+            }
         }
 
         private async void DeleteSelectedLogsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -224,9 +271,15 @@ namespace Dorothy.Views
                 DeletedLogIds.Add(item.Id);
                 _logItems.Remove(item);
             }
-            LogsDataGrid.ItemsSource = null;
-            LogsDataGrid.ItemsSource = _logItems;
-            LogsCountText.Text = $"{_logItems.Count} pending log(s)";
+            if (LogsDataGrid != null)
+            {
+                LogsDataGrid.ItemsSource = null;
+                LogsDataGrid.ItemsSource = _logItems;
+            }
+            if (LogsCountText != null)
+            {
+                LogsCountText.Text = $"{_logItems.Count} pending log(s)";
+            }
             UpdateSelectedCounts();
         }
 
@@ -251,8 +304,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            LogsDataGrid.ItemsSource = null;
-            LogsDataGrid.ItemsSource = _logItems;
+            if (LogsDataGrid != null)
+            {
+                LogsDataGrid.ItemsSource = null;
+                LogsDataGrid.ItemsSource = _logItems;
+            }
             UpdateSelectedCounts();
         }
 
@@ -279,9 +335,15 @@ namespace Dorothy.Views
                 DeletedAssetIds.Add(item.Id);
                 _assetItems.Remove(item);
             }
-            AssetsDataGrid.ItemsSource = null;
-            AssetsDataGrid.ItemsSource = _assetItems;
-            AssetsCountText.Text = $"{_assetItems.Count} pending asset(s)";
+            if (AssetsDataGrid != null)
+            {
+                AssetsDataGrid.ItemsSource = null;
+                AssetsDataGrid.ItemsSource = _assetItems;
+            }
+            if (AssetsCountText != null)
+            {
+                AssetsCountText.Text = $"{_assetItems.Count} pending asset(s)";
+            }
             UpdateSelectedCounts();
         }
 
@@ -306,8 +368,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            AssetsDataGrid.ItemsSource = null;
-            AssetsDataGrid.ItemsSource = _assetItems;
+            if (AssetsDataGrid != null)
+            {
+                AssetsDataGrid.ItemsSource = null;
+                AssetsDataGrid.ItemsSource = _assetItems;
+            }
             UpdateSelectedCounts();
         }
 
@@ -317,8 +382,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = true;
             }
-            ReachabilityTestsDataGrid.ItemsSource = null;
-            ReachabilityTestsDataGrid.ItemsSource = _testItems;
+            if (ReachabilityTestsDataGrid != null)
+            {
+                ReachabilityTestsDataGrid.ItemsSource = null;
+                ReachabilityTestsDataGrid.ItemsSource = _testItems;
+            }
             UpdateSelectedCounts();
         }
 
@@ -328,8 +396,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            ReachabilityTestsDataGrid.ItemsSource = null;
-            ReachabilityTestsDataGrid.ItemsSource = _testItems;
+            if (ReachabilityTestsDataGrid != null)
+            {
+                ReachabilityTestsDataGrid.ItemsSource = null;
+                ReachabilityTestsDataGrid.ItemsSource = _testItems;
+            }
             UpdateSelectedCounts();
         }
 
@@ -356,9 +427,15 @@ namespace Dorothy.Views
                 DeletedTestIds.Add(item.Id);
                 _testItems.Remove(item);
             }
-            ReachabilityTestsDataGrid.ItemsSource = null;
-            ReachabilityTestsDataGrid.ItemsSource = _testItems;
-            ReachabilityTestsCountText.Text = $"{_testItems.Count} pending test(s)";
+            if (ReachabilityTestsDataGrid != null)
+            {
+                ReachabilityTestsDataGrid.ItemsSource = null;
+                ReachabilityTestsDataGrid.ItemsSource = _testItems;
+            }
+            if (ReachabilityTestsCountText != null)
+            {
+                ReachabilityTestsCountText.Text = $"{_testItems.Count} pending test(s)";
+            }
             UpdateSelectedCounts();
         }
 
@@ -383,8 +460,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            ReachabilityTestsDataGrid.ItemsSource = null;
-            ReachabilityTestsDataGrid.ItemsSource = _testItems;
+            if (ReachabilityTestsDataGrid != null)
+            {
+                ReachabilityTestsDataGrid.ItemsSource = null;
+                ReachabilityTestsDataGrid.ItemsSource = _testItems;
+            }
             UpdateSelectedCounts();
         }
 
@@ -394,8 +474,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = true;
             }
-            SnmpWalkTestsDataGrid.ItemsSource = null;
-            SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
+            if (SnmpWalkTestsDataGrid != null)
+            {
+                SnmpWalkTestsDataGrid.ItemsSource = null;
+                SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
+            }
             UpdateSelectedCounts();
         }
 
@@ -405,8 +488,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            SnmpWalkTestsDataGrid.ItemsSource = null;
-            SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
+            if (SnmpWalkTestsDataGrid != null)
+            {
+                SnmpWalkTestsDataGrid.ItemsSource = null;
+                SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
+            }
             UpdateSelectedCounts();
         }
 
@@ -433,8 +519,11 @@ namespace Dorothy.Views
                 DeletedSnmpWalkIds.Add(item.Id);
                 _snmpWalkItems.Remove(item);
             }
-            SnmpWalkTestsDataGrid.ItemsSource = null;
-            SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
+            if (SnmpWalkTestsDataGrid != null)
+            {
+                SnmpWalkTestsDataGrid.ItemsSource = null;
+                SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
+            }
             SnmpWalkTestsCountText.Text = $"{_snmpWalkItems.Count} pending SNMP walk(s)";
             UpdateSelectedCounts();
         }
@@ -460,8 +549,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            SnmpWalkTestsDataGrid.ItemsSource = null;
-            SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
+            if (SnmpWalkTestsDataGrid != null)
+            {
+                SnmpWalkTestsDataGrid.ItemsSource = null;
+                SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
+            }
             UpdateSelectedCounts();
         }
 
