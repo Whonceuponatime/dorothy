@@ -134,7 +134,36 @@
                         Height="36"
                         Margin="0,0,8,0"
                         Click="ExitButton_Click"
-                        Style="{StaticResource DefaultButton}"/>
+                        Background="#F3F4F6"
+                        Foreground="#374151"
+                        BorderThickness="1"
+                        BorderBrush="#D1D5DB"
+                        Cursor="Hand">
+                    <Button.Styles>
+                        <Style Selector="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="6"
+                                                Padding="12,8">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                        <Style Selector="Button:pointerover">
+                            <Setter Property="Background" Value="#E5E7EB"/>
+                        </Style>
+                        <Style Selector="Button:pressed">
+                            <Setter Property="Background" Value="#D1D5DB"/>
+                        </Style>
+                    </Button.Styles>
+                </Button>
                 <Button x:Name="AcceptButton"
                         Content="I Accept"
                         Width="120"
