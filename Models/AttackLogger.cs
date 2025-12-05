@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Dorothy.Models.Database;
 using Dorothy.Services;
 using NLog;
@@ -417,20 +418,15 @@ namespace Dorothy.Models
         {
             try
             {
-                _logArea.Dispatcher.BeginInvoke(new Action(() =>
+                _ = Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    _logArea.AppendText(note);
+                    _logArea.Text += note;
                     
                     // Scroll to end - find ScrollViewer parent if TextBox is inside one
                     var scrollViewer = FindVisualParent<ScrollViewer>(_logArea);
                     if (scrollViewer != null)
                     {
-                        scrollViewer.ScrollToEnd();
-                    }
-                    else
-                    {
-                        // Fallback to TextBox scroll if no ScrollViewer found
-                        _logArea.ScrollToEnd();
+                        scrollViewer.Offset = new Vector(scrollViewer.Offset.X, scrollViewer.Extent.Height);
                     }
                 });
             }
@@ -464,33 +460,30 @@ namespace Dorothy.Models
                 logMessage = $"[{timestamp}] {message}";
             }
             
-            _logArea.Dispatcher.BeginInvoke(new Action(() =>
+            _ = Dispatcher.UIThread.InvokeAsync(() =>
             {
-                _logArea.AppendText($"{logMessage}{Environment.NewLine}");
+                _logArea.Text += $"{logMessage}{Environment.NewLine}";
                 
                 // Scroll to end - find ScrollViewer parent if TextBox is inside one
                 var scrollViewer = FindVisualParent<ScrollViewer>(_logArea);
                 if (scrollViewer != null)
                 {
-                    scrollViewer.ScrollToEnd();
-                }
-                else
-                {
-                    // Fallback to TextBox scroll if no ScrollViewer found
-                    _logArea.ScrollToEnd();
+                    scrollViewer.Offset = new Vector(scrollViewer.Offset.X, scrollViewer.Extent.Height);
                 }
             });
         }
         
-        private static T? FindVisualParent<T>(DependencyObject child) where T : DependencyObject
+        private static T? FindVisualParent<T>(Control child) where T : Control
         {
-            var parentObject = VisualTreeHelper.GetParent(child);
-            if (parentObject == null) return null;
+            var parent = child.Parent;
+            if (parent == null) return null;
             
-            if (parentObject is T parent)
-                return parent;
-            else
-                return FindVisualParent<T>(parentObject);
+            if (parent is T parentT)
+                return parentT;
+            else if (parent is Control parentControl)
+                return FindVisualParent<T>(parentControl);
+            
+            return null;
         }
 
         /// <summary>

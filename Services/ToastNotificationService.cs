@@ -103,12 +103,24 @@ namespace Dorothy.Services
 
                 _toastContainer.Children.Add(toast);
 
-                // Animate in
-                var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300));
-                var slideIn = new DoubleAnimation(400, 0, TimeSpan.FromMilliseconds(300));
-
-                toast.BeginAnimation(UIElement.OpacityProperty, fadeIn);
-                toast.RenderTransform.BeginAnimation(TranslateTransform.XProperty, slideIn);
+                // Animate in - simplified for Avalonia (animation would need Animation class)
+                toast.Opacity = 0;
+                var transform = toast.RenderTransform as TranslateTransform ?? new TranslateTransform { X = 400 };
+                toast.RenderTransform = transform;
+                
+                // Simple fade in (Avalonia animations are more complex, using simple property changes)
+                _ = Task.Run(async () =>
+                {
+                    for (int i = 0; i <= 10; i++)
+                    {
+                        await Task.Delay(30);
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            toast.Opacity = i / 10.0;
+                            transform.X = 400 * (1 - i / 10.0);
+                        });
+                    }
+                });
 
                 // Auto dismiss
                 var timer = new DispatcherTimer

@@ -295,5 +295,3 @@ namespace Dorothy.Views
 
     // FolderBrowser removed - using FileDialogHelper for cross-platform support
 }
-
-                // Silently fail - license info is optional
