@@ -4868,7 +4868,7 @@ namespace Dorothy.Views
         /// <summary>
         /// Open Reachability & Path Analysis Wizard
         /// </summary>
-        private void ReachabilityPathAnalysisButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+        private async void ReachabilityPathAnalysisButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             ReachabilityWizardWindow? wizard = null;
             try
