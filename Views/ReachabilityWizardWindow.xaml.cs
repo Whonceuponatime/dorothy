@@ -1004,12 +1004,17 @@ namespace Dorothy.Views
 
             try
             {
-                RunDeeperScanButton.IsEnabled = false;
-                RunDeeperScanButton.Content = "Running...";
-                DeeperScanProgressBar.IsVisible = true;
+                if (RunDeeperScanButton != null)
+                {
+                    RunDeeperScanButton.IsEnabled = false;
+                    RunDeeperScanButton.Content = "Running...";
+                }
+                if (DeeperScanProgressBar != null)
+                    DeeperScanProgressBar.IsVisible = true;
 
                 // Parse scan ports
-                var portStrings = DeeperScanPortsTextBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries);
+                var portText = DeeperScanPortsTextBox?.Text ?? string.Empty;
+                var portStrings = portText.Split(',', StringSplitOptions.RemoveEmptyEntries);
                 var ports = new List<int>();
                 foreach (var portStr in portStrings)
                 {
