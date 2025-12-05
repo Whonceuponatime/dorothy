@@ -122,47 +122,42 @@ namespace Dorothy.Views
             UpdateSelectedCounts();
             
             // Always show all tabs (even if empty) for consistency
-            LogsTab.IsVisible = true;
-            AssetsTab.IsVisible = true;
-            ReachabilityTestsTab.IsVisible = true;
-            SnmpWalkTestsTab.IsVisible = true;
+            if (LogsTab != null)
+                LogsTab.IsVisible = true;
+            if (AssetsTab != null)
+                AssetsTab.IsVisible = true;
+            if (ReachabilityTestsTab != null)
+                ReachabilityTestsTab.IsVisible = true;
+            if (SnmpWalkTestsTab != null)
+                SnmpWalkTestsTab.IsVisible = true;
             
             // Select the tab with data, or logs tab by default
             if (snmpWalkTests.Count > 0 && regularTests.Count == 0 && logs.Count == 0 && assets.Count == 0)
             {
-                SyncTabControl.SelectedItem = SnmpWalkTestsTab;
+                if (SyncTabControl != null && SnmpWalkTestsTab != null)
+                    SyncTabControl.SelectedItem = SnmpWalkTestsTab;
             }
             else if (regularTests.Count > 0 && logs.Count == 0 && assets.Count == 0)
             {
-                SyncTabControl.SelectedItem = ReachabilityTestsTab;
+                if (SyncTabControl != null && ReachabilityTestsTab != null)
+                    SyncTabControl.SelectedItem = ReachabilityTestsTab;
             }
             else if (assets.Count > 0 && logs.Count == 0)
             {
-                SyncTabControl.SelectedItem = AssetsTab;
+                if (SyncTabControl != null && AssetsTab != null)
+                    SyncTabControl.SelectedItem = AssetsTab;
             }
             else
             {
-                SyncTabControl.SelectedItem = LogsTab;
+                if (SyncTabControl != null && LogsTab != null)
+                    SyncTabControl.SelectedItem = LogsTab;
             }
 
             // Handle window closing to persist deletions
             this.Closing += SyncWindow_Closing;
         }
 
-        // FindControl properties for XAML-named controls
-        private Avalonia.Controls.DataGrid? LogsDataGrid => this.FindControl<Avalonia.Controls.DataGrid>("LogsDataGrid");
-        private Avalonia.Controls.DataGrid? AssetsDataGrid => this.FindControl<Avalonia.Controls.DataGrid>("AssetsDataGrid");
-        private Avalonia.Controls.DataGrid? ReachabilityTestsDataGrid => this.FindControl<Avalonia.Controls.DataGrid>("ReachabilityTestsDataGrid");
-        private Avalonia.Controls.DataGrid? SnmpWalkTestsDataGrid => this.FindControl<Avalonia.Controls.DataGrid>("SnmpWalkTestsDataGrid");
-        private TextBlock? LogsCountText => this.FindControl<TextBlock>("LogsCountText");
-        private TextBlock? AssetsCountText => this.FindControl<TextBlock>("AssetsCountText");
-        private TextBlock? ReachabilityTestsCountText => this.FindControl<TextBlock>("ReachabilityTestsCountText");
-        private TextBlock? SnmpWalkTestsCountText => this.FindControl<TextBlock>("SnmpWalkTestsCountText");
-        private TabItem? LogsTab => this.FindControl<TabItem>("LogsTab");
-        private TabItem? AssetsTab => this.FindControl<TabItem>("AssetsTab");
-        private TabItem? ReachabilityTestsTab => this.FindControl<TabItem>("ReachabilityTestsTab");
-        private TabItem? SnmpWalkTestsTab => this.FindControl<TabItem>("SnmpWalkTestsTab");
-        private TabControl? SyncTabControl => this.FindControl<TabControl>("SyncTabControl");
+        // Additional FindControl properties for XAML-named controls
         private TextBox? ProjectNameTextBox => this.FindControl<TextBox>("ProjectNameTextBox");
         private TextBlock? TotalSelectedText => this.FindControl<TextBlock>("TotalSelectedText");
         private TextBlock? SelectedLogsCountText => this.FindControl<TextBlock>("SelectedLogsCountText");

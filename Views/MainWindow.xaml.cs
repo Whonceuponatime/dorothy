@@ -141,7 +141,7 @@ namespace Dorothy.Views
         private CheckBox? AdvMacFallbackCheckBox => this.FindControl<CheckBox>("AdvMacFallbackCheckBox");
         private Button? ResolveMacButton => this.FindControl<Button>("ResolveMacButton");
         private TextBox? SpoofedMacTextBox => this.FindControl<TextBox>("SpoofedMacTextBox");
-        private Avalonia.Controls.PasswordBox? AdvPasswordBox => this.FindControl<Avalonia.Controls.PasswordBox>("AdvPasswordBox");
+        private PasswordBox? AdvPasswordBox => this.FindControl<PasswordBox>("AdvPasswordBox");
         private TextBlock? PasswordFeedbackText => this.FindControl<TextBlock>("PasswordFeedbackText");
         private Button? StartAdvancedAttackButton => this.FindControl<Button>("StartAdvancedAttackButton");
         private Button? StopAdvancedAttackButton => this.FindControl<Button>("StopAdvancedAttackButton");
@@ -4194,7 +4194,7 @@ namespace Dorothy.Views
         
         private void ValidatePasswordAndShowFeedback(object sender)
         {
-            var passwordBox = sender as Avalonia.Controls.PasswordBox;
+            var passwordBox = sender as PasswordBox;
             
             // Get password and validate it FIRST (before checking token)
             string password = AdvPasswordBox?.Password ?? string.Empty;
