@@ -18,6 +18,8 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <!-- Exclude unnecessary localization resources to reduce size -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Define WINDOWS constant only on Windows -->
+    <DefineConstants Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(DefineConstants);WINDOWS</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="Resources\**\*.*" />

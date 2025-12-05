@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+#if WINDOWS
 using System.Management;
+#endif
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
@@ -59,6 +61,7 @@ namespace Dorothy.Services
         {
             var components = new List<string>();
 
+#if WINDOWS
             try
             {
                 // CPU Processor ID (static, unique per CPU)
@@ -152,6 +155,7 @@ namespace Dorothy.Services
             {
                 Logger.Debug(ex, "Could not retrieve BIOS serial number");
             }
+#endif
 
             return components;
         }
