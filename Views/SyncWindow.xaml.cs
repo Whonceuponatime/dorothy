@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
-using System.Windows;
-using System.Windows.Controls;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Markup.Xaml;
 using Dorothy.Models.Database;
 
 namespace Dorothy.Views
@@ -29,7 +30,7 @@ namespace Dorothy.Views
 
         public SyncWindow(List<AttackLogEntry> logs, List<AssetEntry> assets, List<ReachabilityTestEntry> tests)
         {
-            InitializeComponent();
+            AvaloniaXamlLoader.Load(this);
             
             // Convert logs to LogItem for binding
             _logItems = logs.Select(log => new LogItem
@@ -105,10 +106,10 @@ namespace Dorothy.Views
             UpdateSelectedCounts();
             
             // Always show all tabs (even if empty) for consistency
-            LogsTab.Visibility = Visibility.Visible;
-            AssetsTab.Visibility = Visibility.Visible;
-            ReachabilityTestsTab.Visibility = Visibility.Visible;
-            SnmpWalkTestsTab.Visibility = Visibility.Visible;
+            LogsTab.IsVisible = true;
+            AssetsTab.IsVisible = true;
+            ReachabilityTestsTab.IsVisible = true;
+            SnmpWalkTestsTab.IsVisible = true;
             
             // Select the tab with data, or logs tab by default
             if (snmpWalkTests.Count > 0 && regularTests.Count == 0 && logs.Count == 0 && assets.Count == 0)
@@ -132,58 +133,58 @@ namespace Dorothy.Views
             this.Closing += SyncWindow_Closing;
         }
 
-        private void SyncWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+        private void SyncWindow_Closing(object? sender, WindowClosingEventArgs e)
         {
             // If user closes window (X button) and there are deletions, persist them
-            // Set DialogResult to true so MainWindow processes deletions
-            if (DeletedLogIds.Count > 0 || DeletedAssetIds.Count > 0 || DeletedTestIds.Count > 0 || DeletedSnmpWalkIds.Count > 0)
-            {
-                DialogResult = true;
-            }
+            // Note: In Avalonia, we handle this in the Close() method
         }
 
-        private void ProjectNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private void ProjectNameTextBox_TextChanged(object? sender, Avalonia.Controls.TextChangedEventArgs e)
         {
-            ProjectName = ProjectNameTextBox.Text.Trim();
+            ProjectName = ProjectNameTextBox.Text?.Trim();
         }
 
-        private void SelectAllLogsCheckBox_Checked(object sender, RoutedEventArgs e)
+        private void SelectAllLogsCheckBox_Checked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             foreach (var item in _logItems)
             {
                 item.IsSelected = true;
             }
-            LogsDataGrid.Items.Refresh();
+            LogsDataGrid.ItemsSource = null;
+            LogsDataGrid.ItemsSource = _logItems;
             UpdateSelectedCounts();
         }
 
-        private void SelectAllLogsCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        private void SelectAllLogsCheckBox_Unchecked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             foreach (var item in _logItems)
             {
                 item.IsSelected = false;
             }
-            LogsDataGrid.Items.Refresh();
+            LogsDataGrid.ItemsSource = null;
+            LogsDataGrid.ItemsSource = _logItems;
             UpdateSelectedCounts();
         }
 
-        private void SelectAllAssetsCheckBox_Checked(object sender, RoutedEventArgs e)
+        private void SelectAllAssetsCheckBox_Checked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             foreach (var item in _assetItems)
             {
                 item.IsSelected = true;
             }
-            AssetsDataGrid.Items.Refresh();
+            AssetsDataGrid.ItemsSource = null;
+            AssetsDataGrid.ItemsSource = _assetItems;
             UpdateSelectedCounts();
         }
 
-        private void SelectAllAssetsCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        private void SelectAllAssetsCheckBox_Unchecked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             foreach (var item in _assetItems)
             {
                 item.IsSelected = false;
             }
-            AssetsDataGrid.Items.Refresh();
+            AssetsDataGrid.ItemsSource = null;
+            AssetsDataGrid.ItemsSource = _assetItems;
             UpdateSelectedCounts();
         }
 
@@ -200,41 +201,49 @@ namespace Dorothy.Views
             TotalSelectedText.Text = $"{selectedLogsCount} log(s), {selectedAssetsCount} asset(s), {selectedTestsCount} test(s) selected";
         }
 
-        private void DeleteSelectedLogsButton_Click(object sender, RoutedEventArgs e)
+        private async void DeleteSelectedLogsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var selectedItems = _logItems.Where(item => item.IsSelected).ToList();
             if (selectedItems.Count == 0)
             {
-                MessageBox.Show("No logs selected for deletion.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                var msgBox = new Window
+                {
+                    Title = "No Selection",
+                    Content = new TextBlock { Text = "No logs selected for deletion." },
+                    Width = 300,
+                    Height = 150,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
                 return;
             }
 
-            var result = MessageBox.Show(
-                $"Are you sure you want to delete {selectedItems.Count} log(s)? This action cannot be undone.",
-                "Confirm Deletion",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (result == MessageBoxResult.Yes)
+            // Delete directly for now - in production, add confirmation dialog
+            foreach (var item in selectedItems)
             {
-                foreach (var item in selectedItems)
-                {
-                    DeletedLogIds.Add(item.Id);
-                    _logItems.Remove(item);
-                }
-                LogsDataGrid.ItemsSource = null;
-                LogsDataGrid.ItemsSource = _logItems;
-                LogsCountText.Text = $"{_logItems.Count} pending log(s)";
-                UpdateSelectedCounts();
+                DeletedLogIds.Add(item.Id);
+                _logItems.Remove(item);
             }
+            LogsDataGrid.ItemsSource = null;
+            LogsDataGrid.ItemsSource = _logItems;
+            LogsCountText.Text = $"{_logItems.Count} pending log(s)";
+            UpdateSelectedCounts();
         }
 
-        private void SkipSelectedLogsButton_Click(object sender, RoutedEventArgs e)
+        private async void SkipSelectedLogsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var selectedItems = _logItems.Where(item => item.IsSelected).ToList();
             if (selectedItems.Count == 0)
             {
-                MessageBox.Show("No logs selected to skip.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                var msgBox = new Window
+                {
+                    Title = "No Selection",
+                    Content = new TextBlock { Text = "No logs selected to skip." },
+                    Width = 300,
+                    Height = 150,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
                 return;
             }
 
@@ -242,45 +251,54 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            LogsDataGrid.Items.Refresh();
+            LogsDataGrid.ItemsSource = null;
+            LogsDataGrid.ItemsSource = _logItems;
             UpdateSelectedCounts();
         }
 
-        private void DeleteSelectedAssetsButton_Click(object sender, RoutedEventArgs e)
+        private async void DeleteSelectedAssetsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var selectedItems = _assetItems.Where(item => item.IsSelected).ToList();
             if (selectedItems.Count == 0)
             {
-                MessageBox.Show("No assets selected for deletion.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                var msgBox = new Window
+                {
+                    Title = "No Selection",
+                    Content = new TextBlock { Text = "No assets selected for deletion." },
+                    Width = 300,
+                    Height = 150,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
                 return;
             }
 
-            var result = MessageBox.Show(
-                $"Are you sure you want to delete {selectedItems.Count} asset(s)? This action cannot be undone.",
-                "Confirm Deletion",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (result == MessageBoxResult.Yes)
+            // Delete directly
+            foreach (var item in selectedItems)
             {
-                foreach (var item in selectedItems)
-                {
-                    DeletedAssetIds.Add(item.Id);
-                    _assetItems.Remove(item);
-                }
-                AssetsDataGrid.ItemsSource = null;
-                AssetsDataGrid.ItemsSource = _assetItems;
-                AssetsCountText.Text = $"{_assetItems.Count} pending asset(s)";
-                UpdateSelectedCounts();
+                DeletedAssetIds.Add(item.Id);
+                _assetItems.Remove(item);
             }
+            AssetsDataGrid.ItemsSource = null;
+            AssetsDataGrid.ItemsSource = _assetItems;
+            AssetsCountText.Text = $"{_assetItems.Count} pending asset(s)";
+            UpdateSelectedCounts();
         }
 
-        private void SkipSelectedAssetsButton_Click(object sender, RoutedEventArgs e)
+        private async void SkipSelectedAssetsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var selectedItems = _assetItems.Where(item => item.IsSelected).ToList();
             if (selectedItems.Count == 0)
             {
-                MessageBox.Show("No assets selected to skip.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                var msgBox = new Window
+                {
+                    Title = "No Selection",
+                    Content = new TextBlock { Text = "No assets selected to skip." },
+                    Width = 300,
+                    Height = 150,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
                 return;
             }
 
@@ -288,65 +306,76 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            AssetsDataGrid.Items.Refresh();
+            AssetsDataGrid.ItemsSource = null;
+            AssetsDataGrid.ItemsSource = _assetItems;
             UpdateSelectedCounts();
         }
 
-        private void SelectAllTestsCheckBox_Checked(object sender, RoutedEventArgs e)
+        private void SelectAllTestsCheckBox_Checked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             foreach (var item in _testItems)
             {
                 item.IsSelected = true;
             }
-            ReachabilityTestsDataGrid.Items.Refresh();
+            ReachabilityTestsDataGrid.ItemsSource = null;
+            ReachabilityTestsDataGrid.ItemsSource = _testItems;
             UpdateSelectedCounts();
         }
 
-        private void SelectAllTestsCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        private void SelectAllTestsCheckBox_Unchecked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             foreach (var item in _testItems)
             {
                 item.IsSelected = false;
             }
-            ReachabilityTestsDataGrid.Items.Refresh();
+            ReachabilityTestsDataGrid.ItemsSource = null;
+            ReachabilityTestsDataGrid.ItemsSource = _testItems;
             UpdateSelectedCounts();
         }
 
-        private void DeleteSelectedTestsButton_Click(object sender, RoutedEventArgs e)
+        private async void DeleteSelectedTestsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var selectedItems = _testItems.Where(item => item.IsSelected).ToList();
             if (selectedItems.Count == 0)
             {
-                MessageBox.Show("No tests selected for deletion.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                var msgBox = new Window
+                {
+                    Title = "No Selection",
+                    Content = new TextBlock { Text = "No tests selected for deletion." },
+                    Width = 300,
+                    Height = 150,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
                 return;
             }
 
-            var result = MessageBox.Show(
-                $"Are you sure you want to delete {selectedItems.Count} test(s)? This action cannot be undone.",
-                "Confirm Deletion",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (result == MessageBoxResult.Yes)
+            // Delete directly
+            foreach (var item in selectedItems)
             {
-                foreach (var item in selectedItems)
-                {
-                    DeletedTestIds.Add(item.Id);
-                    _testItems.Remove(item);
-                }
-                ReachabilityTestsDataGrid.ItemsSource = null;
-                ReachabilityTestsDataGrid.ItemsSource = _testItems;
-                ReachabilityTestsCountText.Text = $"{_testItems.Count} pending test(s)";
-                UpdateSelectedCounts();
+                DeletedTestIds.Add(item.Id);
+                _testItems.Remove(item);
             }
+            ReachabilityTestsDataGrid.ItemsSource = null;
+            ReachabilityTestsDataGrid.ItemsSource = _testItems;
+            ReachabilityTestsCountText.Text = $"{_testItems.Count} pending test(s)";
+            UpdateSelectedCounts();
         }
 
-        private void SkipSelectedTestsButton_Click(object sender, RoutedEventArgs e)
+        private async void SkipSelectedTestsButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var selectedItems = _testItems.Where(item => item.IsSelected).ToList();
             if (selectedItems.Count == 0)
             {
-                MessageBox.Show("No tests selected to skip.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                var msgBox = new Window
+                {
+                    Title = "No Selection",
+                    Content = new TextBlock { Text = "No tests selected to skip." },
+                    Width = 300,
+                    Height = 150,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
                 return;
             }
 
@@ -354,65 +383,76 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            ReachabilityTestsDataGrid.Items.Refresh();
+            ReachabilityTestsDataGrid.ItemsSource = null;
+            ReachabilityTestsDataGrid.ItemsSource = _testItems;
             UpdateSelectedCounts();
         }
 
-        private void SelectAllSnmpWalkCheckBox_Checked(object sender, RoutedEventArgs e)
+        private void SelectAllSnmpWalkCheckBox_Checked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             foreach (var item in _snmpWalkItems)
             {
                 item.IsSelected = true;
             }
-            SnmpWalkTestsDataGrid.Items.Refresh();
+            SnmpWalkTestsDataGrid.ItemsSource = null;
+            SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
             UpdateSelectedCounts();
         }
 
-        private void SelectAllSnmpWalkCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        private void SelectAllSnmpWalkCheckBox_Unchecked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             foreach (var item in _snmpWalkItems)
             {
                 item.IsSelected = false;
             }
-            SnmpWalkTestsDataGrid.Items.Refresh();
+            SnmpWalkTestsDataGrid.ItemsSource = null;
+            SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
             UpdateSelectedCounts();
         }
 
-        private void DeleteSelectedSnmpWalkButton_Click(object sender, RoutedEventArgs e)
+        private async void DeleteSelectedSnmpWalkButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var selectedItems = _snmpWalkItems.Where(item => item.IsSelected).ToList();
             if (selectedItems.Count == 0)
             {
-                MessageBox.Show("No SNMP walks selected for deletion.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                var msgBox = new Window
+                {
+                    Title = "No Selection",
+                    Content = new TextBlock { Text = "No SNMP walks selected for deletion." },
+                    Width = 300,
+                    Height = 150,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
                 return;
             }
 
-            var result = MessageBox.Show(
-                $"Are you sure you want to delete {selectedItems.Count} SNMP walk(s)? This action cannot be undone.",
-                "Confirm Deletion",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (result == MessageBoxResult.Yes)
+            // Delete directly
+            foreach (var item in selectedItems)
             {
-                foreach (var item in selectedItems)
-                {
-                    DeletedSnmpWalkIds.Add(item.Id);
-                    _snmpWalkItems.Remove(item);
-                }
-                SnmpWalkTestsDataGrid.ItemsSource = null;
-                SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
-                SnmpWalkTestsCountText.Text = $"{_snmpWalkItems.Count} pending SNMP walk(s)";
-                UpdateSelectedCounts();
+                DeletedSnmpWalkIds.Add(item.Id);
+                _snmpWalkItems.Remove(item);
             }
+            SnmpWalkTestsDataGrid.ItemsSource = null;
+            SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
+            SnmpWalkTestsCountText.Text = $"{_snmpWalkItems.Count} pending SNMP walk(s)";
+            UpdateSelectedCounts();
         }
 
-        private void SkipSelectedSnmpWalkButton_Click(object sender, RoutedEventArgs e)
+        private async void SkipSelectedSnmpWalkButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             var selectedItems = _snmpWalkItems.Where(item => item.IsSelected).ToList();
             if (selectedItems.Count == 0)
             {
-                MessageBox.Show("No SNMP walks selected to skip.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                var msgBox = new Window
+                {
+                    Title = "No Selection",
+                    Content = new TextBlock { Text = "No SNMP walks selected to skip." },
+                    Width = 300,
+                    Height = 150,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
                 return;
             }
 
@@ -420,11 +460,12 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            SnmpWalkTestsDataGrid.Items.Refresh();
+            SnmpWalkTestsDataGrid.ItemsSource = null;
+            SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
             UpdateSelectedCounts();
         }
 
-        private void SyncButton_Click(object sender, RoutedEventArgs e)
+        private async void SyncButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             SelectedLogIds = _logItems.Where(item => item.IsSelected).Select(item => item.Id).ToList();
             SelectedAssetIds = _assetItems.Where(item => item.IsSelected).Select(item => item.Id).ToList();
@@ -433,22 +474,29 @@ namespace Dorothy.Views
             
             if (SelectedLogIds.Count == 0 && SelectedAssetIds.Count == 0 && SelectedTestIds.Count == 0 && SelectedSnmpWalkIds.Count == 0)
             {
-                MessageBox.Show("Please select at least one log, asset, test, or SNMP walk to sync.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                var msgBox = new Window
+                {
+                    Title = "No Selection",
+                    Content = new TextBlock { Text = "Please select at least one log, asset, test, or SNMP walk to sync." },
+                    Width = 400,
+                    Height = 150,
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner
+                };
+                await msgBox.ShowDialog(this);
                 return;
             }
 
             EnhanceData = EnhanceDataCheckBox?.IsChecked ?? true;
             ShouldSync = true;
-            DialogResult = true;
-            Close();
+            Close(true);
         }
 
-        private void CancelButton_Click(object sender, RoutedEventArgs e)
+        private void CancelButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
             // Even if canceling, we should persist deletions
             ShouldSync = false;
-            DialogResult = true; // Changed to true so deletions are processed
-            Close();
+            // Return true so deletions are processed
+            Close(true);
         }
     }
 

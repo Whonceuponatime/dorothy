@@ -1,14 +1,13 @@
-<Window x:Class="Dorothy.Views.SyncWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Dorothy.Views"
+        x:Class="Dorothy.Views.SyncWindow"
         Title="Sync to Cloud"
-        Icon="pack://application:,,,/Resources/icon.ico"
-        WindowStyle="SingleBorderWindow" 
+        Icon="/Resources/icon.ico"
         Height="700" 
         Width="1100"
         WindowStartupLocation="CenterOwner"
-        ResizeMode="CanResize"
+        CanResize="True"
         MinHeight="600"
         MinWidth="900"
         Background="#F3F4F6">
@@ -590,7 +589,7 @@
         <Grid x:Name="ProgressOverlay"
               Grid.RowSpan="5"
               Background="#AA000000"
-              Visibility="Collapsed">
+              IsVisible="False">
             <Border Background="White"
                     BorderBrush="#E5E7EB"
                     BorderThickness="1"
