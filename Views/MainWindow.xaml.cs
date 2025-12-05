@@ -4210,7 +4210,7 @@ namespace Dorothy.Views
             }
         }
         
-        private void ValidatePasswordAndShowFeedback(object sender)
+        private async void ValidatePasswordAndShowFeedback(object sender)
         {
             var passwordBox = sender as dynamic;
             
