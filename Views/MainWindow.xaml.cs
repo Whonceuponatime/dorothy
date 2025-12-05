@@ -141,7 +141,7 @@ namespace Dorothy.Views
         private CheckBox? AdvMacFallbackCheckBox => this.FindControl<CheckBox>("AdvMacFallbackCheckBox");
         private Button? ResolveMacButton => this.FindControl<Button>("ResolveMacButton");
         private TextBox? SpoofedMacTextBox => this.FindControl<TextBox>("SpoofedMacTextBox");
-        private PasswordBox? AdvPasswordBox => this.FindControl<PasswordBox>("AdvPasswordBox");
+        private dynamic? AdvPasswordBox => this.FindControl<Control>("AdvPasswordBox");
         private TextBlock? PasswordFeedbackText => this.FindControl<TextBlock>("PasswordFeedbackText");
         private Button? StartAdvancedAttackButton => this.FindControl<Button>("StartAdvancedAttackButton");
         private Button? StopAdvancedAttackButton => this.FindControl<Button>("StopAdvancedAttackButton");
@@ -4112,9 +4112,17 @@ namespace Dorothy.Views
                         if (AdvPasswordBox != null)
                         {
                             // Temporarily disable the password changed handler to prevent clearing validation token
-                            AdvPasswordBox.PasswordChanged -= PasswordBox_PasswordChanged;
-                            AdvPasswordBox.Password = string.Empty;
-                            AdvPasswordBox.PasswordChanged += PasswordBox_PasswordChanged;
+                            try
+                            {
+                                AdvPasswordBox.PasswordChanged -= PasswordBox_PasswordChanged;
+                                AdvPasswordBox.Password = string.Empty;
+                                AdvPasswordBox.PasswordChanged += PasswordBox_PasswordChanged;
+                            }
+                            catch
+                            {
+                                // If PasswordChanged event doesn't exist, just clear the password
+                                AdvPasswordBox.Password = string.Empty;
+                            }
                             ValidatePasswordAndUpdateUI();
                         }
                         
@@ -4194,7 +4202,7 @@ namespace Dorothy.Views
         
         private void ValidatePasswordAndShowFeedback(object sender)
         {
-            var passwordBox = sender as PasswordBox;
+            var passwordBox = sender as dynamic;
             
             // Get password and validate it FIRST (before checking token)
             string password = AdvPasswordBox?.Password ?? string.Empty;
