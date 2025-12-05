@@ -1,9 +1,9 @@
-<Window x:Class="Dorothy.Views.AssetSyncWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:Dorothy.Views"
+        x:Class="Dorothy.Views.AssetSyncWindow"
         Title="Sync Assets to Cloud" 
-        Icon="pack://application:,,,/Resources/icon.ico"
+        Icon="/Resources/icon.ico"
         Height="600" Width="900"
         WindowStartupLocation="CenterOwner"
         Background="#F3F4F6">
