@@ -204,10 +204,10 @@ namespace Dorothy.Views
                 {
                     var disclaimerWindow = new DisclaimerWindow
                     {
-                        Owner = this
                     };
 
-                    if (disclaimerWindow.ShowDialog() != true)
+                    var disclaimerResult = await disclaimerWindow.ShowDialog<bool?>(this);
+                    if (disclaimerResult != true)
                     {
                         Close();
                         return;
@@ -726,10 +726,10 @@ namespace Dorothy.Views
         {
             var settingsWindow = new SettingsWindow(_logFileLocation, _fontSize, _themeIndex)
             {
-                Owner = this
             };
 
-            if (settingsWindow.ShowDialog() == true)
+            var settingsResult = await settingsWindow.ShowDialog<bool?>(this);
+            if (settingsResult == true)
             {
                 _logFileLocation = settingsWindow.LogLocation;
                 _fontSize = settingsWindow.FontSize;
@@ -907,9 +907,8 @@ namespace Dorothy.Views
             
             var aboutWindow = new AboutWindow(updateCheckService)
             {
-                Owner = this
             };
-            aboutWindow.ShowDialog();
+            await aboutWindow.ShowDialog(this);
         }
         
         private async Task CheckForUpdatesAsync()
@@ -1181,10 +1180,10 @@ namespace Dorothy.Views
 
                 var syncWindow = new SyncWindow(unsyncedLogs, unsyncedAssets, unsyncedTests)
                 {
-                    Owner = this
                 };
 
-                if (syncWindow.ShowDialog() == true)
+                var syncResult = await syncWindow.ShowDialog<bool?>(this);
+                if (syncResult == true)
                 {
                     CloudSyncButton.IsEnabled = false;
                     var originalTooltip = CloudSyncButton.ToolTip;
@@ -1534,7 +1533,7 @@ namespace Dorothy.Views
                         if (sameSubnet)
                         {
                             GatewayIpTextBox.Text = string.Empty;
-                            GatewayIpTextBox.Background = SystemColors.ControlBrush;
+                            GatewayIpTextBox.Background = new SolidColorBrush(Color.FromRgb(240, 240, 240));
                         }
                         else
                         {
@@ -2682,11 +2681,10 @@ namespace Dorothy.Views
             
             var disclaimerDialog = new DisclaimerDialog
             {
-                Owner = this
             };
             
             // Show dialog and check result
-            bool? dialogResult = disclaimerDialog.ShowDialog();
+            bool? dialogResult = await disclaimerDialog.ShowDialog<bool?>(this);
             if (dialogResult == true && disclaimerDialog.IsAuthorized)
             {
                 _disclaimerAcknowledged = true;
@@ -2765,13 +2763,13 @@ namespace Dorothy.Views
             {
                 if (string.IsNullOrWhiteSpace(GatewayIpTextBox.Text))
                 {
-                    GatewayIpTextBox.Background = SystemColors.WindowBrush;
+                    GatewayIpTextBox.Background = new SolidColorBrush(Colors.White);
                     return;
                 }
 
                 if (IPAddress.TryParse(GatewayIpTextBox.Text, out _))
                 {
-                    GatewayIpTextBox.Background = SystemColors.WindowBrush;
+                    GatewayIpTextBox.Background = new SolidColorBrush(Colors.White);
                     _networkStorm.SetGatewayIp(GatewayIpTextBox.Text);
                 }
                 else
@@ -3838,7 +3836,7 @@ namespace Dorothy.Views
                             {
                                 GatewayIpTextBox.TextChanged += GatewayIpTextBox_TextChanged;
                             }
-                            GatewayIpTextBox.Background = SystemColors.ControlBrush;
+                            GatewayIpTextBox.Background = new SolidColorBrush(Color.FromRgb(240, 240, 240));
                         }
                         else
                         {
@@ -4231,7 +4229,7 @@ namespace Dorothy.Views
             if (string.IsNullOrWhiteSpace(textBox.Text))
             {
                 textBox.Text = NOTE_PLACEHOLDER;
-                textBox.Foreground = SystemColors.GrayTextBrush;
+                textBox.Foreground = new SolidColorBrush(Color.FromRgb(128, 128, 128));
             }
         }
 
@@ -4705,8 +4703,7 @@ namespace Dorothy.Views
                     _hardwareId,
                     _machineName,
                     _username);
-                scanWindow.Owner = this;
-                scanWindow.Show();
+                scanWindow.Show(this);
 
                 // Start scan in background
                 await scanWindow.StartScanAsync(networkAddress, subnetMaskString);
@@ -4878,8 +4875,7 @@ namespace Dorothy.Views
             {
                 // Try to create the window
                 wizard = new ReachabilityWizardWindow();
-                wizard.Owner = this;
-                wizard.ShowDialog();
+                await wizard.ShowDialog(this);
                 
                 // Check if wizard completed successfully (user finished all steps)
                 // For now, we'll consider it passed if the wizard was closed normally
@@ -5032,9 +5028,8 @@ namespace Dorothy.Views
                             // Show custom results window instead of MessageBox
                             var resultsWindow = new SnmpWalkResultsWindow(result)
                             {
-                                Owner = this
                             };
-                            resultsWindow.ShowDialog();
+                            await resultsWindow.ShowDialog(this);
                         });
                     }
                     catch (OperationCanceledException)
