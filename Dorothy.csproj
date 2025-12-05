@@ -48,9 +48,9 @@
     </None>
   </ItemGroup>
   
-  <!-- Create distributable after Build - automatically publishes for self-contained executable -->
-  <!-- Disabled during Publish to avoid conflicts - use dotnet publish directly instead -->
-  <Target Name="CreateDistributionAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' AND '$(IsPublishing)' != 'true' AND '$(SkipAutoPublish)' != 'true'">
+  <!-- Create distributable after Build - DISABLED to prevent infinite loop -->
+  <!-- Use dotnet publish directly instead of dotnet build -->
+  <!-- <Target Name="CreateDistributionAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Release' AND '$(IsPublishing)' != 'true' AND '$(SkipAutoPublish)' != 'true'">
     <PropertyGroup>
       <DistDir>$(ProjectDir)dist</DistDir>
       <PublishDir>$(OutputPath)publish</PublishDir>
@@ -58,19 +58,16 @@
       <CurrentRID Condition="'$(RuntimeIdentifier)' != ''">$(RuntimeIdentifier)</CurrentRID>
     </PropertyGroup>
     
-    <!-- Publish to get self-contained executable - build first to ensure apphost exists -->
     <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release -r $(CurrentRID) --self-contained true -p:PublishSingleFile=false" ContinueOnError="false" />
     
-    <!-- Create directory -->
     <MakeDir Directories="$(DistDir)" />
     
-    <!-- Copy all files to root -->
     <ItemGroup>
       <DistFiles Include="$(PublishDir)\**\*.*" />
     </ItemGroup>
     
     <Copy SourceFiles="@(DistFiles)" DestinationFolder="$(DistDir)\%(RecursiveDir)" SkipUnchangedFiles="true" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
-  </Target>
+  </Target> -->
 
   <!-- Create distributable after Publish -->
   <Target Name="CreateDistributionAfterPublish" AfterTargets="Publish">
