@@ -27,7 +27,6 @@
   <!-- Include XAML files as AvaloniaResource -->
   <ItemGroup>
     <AvaloniaResource Include="App.xaml" />
-    <AvaloniaResource Include="Resources\Styles.xaml" />
     <AvaloniaResource Include="Views\**\*.xaml" />
   </ItemGroup>
   <ItemGroup>
