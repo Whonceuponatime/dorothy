@@ -14,6 +14,11 @@ namespace Dorothy.Views
     {
         private readonly UpdateCheckService? _updateCheckService;
 
+        private TextBlock? ProductVersionText => this.FindControl<TextBlock>("ProductVersionText");
+        private TextBlock? VersionStatusText => this.FindControl<TextBlock>("VersionStatusText");
+        private TextBlock? UpdateMessageText => this.FindControl<TextBlock>("UpdateMessageText");
+        private Border? UpdateAvailableBorder => this.FindControl<Border>("UpdateAvailableBorder");
+
         public AboutWindow(UpdateCheckService? updateCheckService = null)
         {
             AvaloniaXamlLoader.Load(this);
@@ -21,7 +26,7 @@ namespace Dorothy.Views
             
             // Set version from assembly
             var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-            if (version != null)
+            if (version != null && ProductVersionText != null)
             {
                 ProductVersionText.Text = $"SEACURE(TOOL) - Version {version.Major}.{version.Minor}.{version.Build}";
             }
@@ -37,9 +42,12 @@ namespace Dorothy.Views
                 // No update service available - show current version
                 var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
                 string currentVersion = version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "Unknown";
-                VersionStatusText.Text = $"Cloud (v{currentVersion})";
-                VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128)); // Gray
-                VersionStatusText.IsVisible = true;
+                if (VersionStatusText != null)
+                {
+                    VersionStatusText.Text = $"Cloud (v{currentVersion})";
+                    VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128)); // Gray
+                    VersionStatusText.IsVisible = true;
+                }
                 return;
             }
 
@@ -54,30 +62,51 @@ namespace Dorothy.Views
                         if (result.IsUpdateAvailable)
                         {
                             // Update available
-                            VersionStatusText.Text = $"Not Latest (v{result.LatestVersion})";
-                            VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // Red
-                            VersionStatusText.IsVisible = true;
+                            if (VersionStatusText != null)
+                            {
+                                VersionStatusText.Text = $"Not Latest (v{result.LatestVersion})";
+                                VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // Red
+                                VersionStatusText.IsVisible = true;
+                            }
                             
                             // Show update message
-                            UpdateMessageText.Text = $"Update available! Latest version: {result.LatestVersion}\nCurrent version: {result.CurrentVersion}";
-                            UpdateAvailableBorder.IsVisible = true;
+                            if (UpdateMessageText != null)
+                            {
+                                UpdateMessageText.Text = $"Update available! Latest version: {result.LatestVersion}\nCurrent version: {result.CurrentVersion}";
+                            }
+                            if (UpdateAvailableBorder != null)
+                            {
+                                UpdateAvailableBorder.IsVisible = true;
+                            }
                         }
                         else
                         {
                             // Latest version
-                            VersionStatusText.Text = $"Latest (v{result.CurrentVersion})";
-                            VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(5, 150, 105)); // Green
-                            VersionStatusText.IsVisible = true;
-                            UpdateAvailableBorder.IsVisible = false;
+                            if (VersionStatusText != null)
+                            {
+                                VersionStatusText.Text = $"Latest (v{result.CurrentVersion})";
+                                VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(5, 150, 105)); // Green
+                                VersionStatusText.IsVisible = true;
+                            }
+                            if (UpdateAvailableBorder != null)
+                            {
+                                UpdateAvailableBorder.IsVisible = false;
+                            }
                         }
                     }
                     else
                     {
                         // Offline - show current version
-                        VersionStatusText.Text = $"Cloud (v{result.CurrentVersion})";
-                        VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128)); // Gray
-                        VersionStatusText.IsVisible = true;
-                        UpdateAvailableBorder.IsVisible = false;
+                        if (VersionStatusText != null)
+                        {
+                            VersionStatusText.Text = $"Cloud (v{result.CurrentVersion})";
+                            VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128)); // Gray
+                            VersionStatusText.IsVisible = true;
+                        }
+                        if (UpdateAvailableBorder != null)
+                        {
+                            UpdateAvailableBorder.IsVisible = false;
+                        }
                     }
                 });
             }
@@ -88,9 +117,12 @@ namespace Dorothy.Views
                 {
                     var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
                     string currentVersion = version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "Unknown";
-                    VersionStatusText.Text = $"Cloud (v{currentVersion})";
-                    VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128)); // Gray
-                    VersionStatusText.IsVisible = true;
+                    if (VersionStatusText != null)
+                    {
+                        VersionStatusText.Text = $"Cloud (v{currentVersion})";
+                        VersionStatusText.Foreground = new SolidColorBrush(Color.FromRgb(107, 114, 128)); // Gray
+                        VersionStatusText.IsVisible = true;
+                    }
                 });
             }
         }

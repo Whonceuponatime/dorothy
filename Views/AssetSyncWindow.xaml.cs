@@ -39,14 +39,26 @@ namespace Dorothy.Views
                 IsSelected = true // Default to selected
             }).ToList();
 
-            AssetsDataGrid.ItemsSource = _assetItems;
+            var assetsDataGrid = this.FindControl<DataGrid>("AssetsDataGrid");
+            if (assetsDataGrid != null)
+            {
+                assetsDataGrid.ItemsSource = _assetItems;
+            }
             UpdateSelectedCount();
         }
 
+        private DataGrid? AssetsDataGrid => this.FindControl<DataGrid>("AssetsDataGrid");
+        private TextBox? ProjectNameTextBox => this.FindControl<TextBox>("ProjectNameTextBox");
+
         private void ProjectNameTextBox_TextChanged(object? sender, Avalonia.Controls.TextChangedEventArgs e)
         {
-            ProjectName = ProjectNameTextBox.Text?.Trim();
+            if (ProjectNameTextBox != null)
+            {
+                ProjectName = ProjectNameTextBox.Text?.Trim();
+            }
         }
+
+        private TextBlock? SelectedCountText => this.FindControl<TextBlock>("SelectedCountText");
 
         private void SelectAllCheckBox_Checked(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
@@ -54,8 +66,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = true;
             }
-            AssetsDataGrid.ItemsSource = null;
-            AssetsDataGrid.ItemsSource = _assetItems;
+            if (AssetsDataGrid != null)
+            {
+                AssetsDataGrid.ItemsSource = null;
+                AssetsDataGrid.ItemsSource = _assetItems;
+            }
             UpdateSelectedCount();
         }
 
@@ -65,15 +80,21 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            AssetsDataGrid.ItemsSource = null;
-            AssetsDataGrid.ItemsSource = _assetItems;
+            if (AssetsDataGrid != null)
+            {
+                AssetsDataGrid.ItemsSource = null;
+                AssetsDataGrid.ItemsSource = _assetItems;
+            }
             UpdateSelectedCount();
         }
 
         private void UpdateSelectedCount()
         {
             var selectedCount = _assetItems.Count(item => item.IsSelected);
-            SelectedCountText.Text = $"{selectedCount} of {_assetItems.Count} selected";
+            if (SelectedCountText != null)
+            {
+                SelectedCountText.Text = $"{selectedCount} of {_assetItems.Count} selected";
+            }
         }
 
         private async void DeleteSelectedButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
@@ -100,8 +121,11 @@ namespace Dorothy.Views
                 DeletedIds.Add(item.Id);
                 _assetItems.Remove(item);
             }
-            AssetsDataGrid.ItemsSource = null;
-            AssetsDataGrid.ItemsSource = _assetItems;
+            if (AssetsDataGrid != null)
+            {
+                AssetsDataGrid.ItemsSource = null;
+                AssetsDataGrid.ItemsSource = _assetItems;
+            }
             UpdateSelectedCount();
         }
 
@@ -126,8 +150,11 @@ namespace Dorothy.Views
             {
                 item.IsSelected = false;
             }
-            AssetsDataGrid.ItemsSource = null;
-            AssetsDataGrid.ItemsSource = _assetItems;
+            if (AssetsDataGrid != null)
+            {
+                AssetsDataGrid.ItemsSource = null;
+                AssetsDataGrid.ItemsSource = _assetItems;
+            }
             UpdateSelectedCount();
         }
 

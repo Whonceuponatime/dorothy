@@ -11,13 +11,19 @@ namespace Dorothy.Views
     {
         private readonly UIScalingService _scalingService;
 
+        private Slider? ScaleSlider => this.FindControl<Slider>("ScaleSlider");
+        private TextBlock? ScaleValueText => this.FindControl<TextBlock>("ScaleValueText");
+
         public UIScalingWindow()
         {
             AvaloniaXamlLoader.Load(this);
             _scalingService = UIScalingService.Instance;
             
             // Initialize slider with current scale
-            ScaleSlider.Value = _scalingService.CurrentScaleFactor;
+            if (ScaleSlider != null)
+            {
+                ScaleSlider.Value = _scalingService.CurrentScaleFactor;
+            }
             UpdateScaleText();
             
             // Subscribe to scale changes
@@ -26,7 +32,7 @@ namespace Dorothy.Views
 
         private void ScalingService_ScaleChanged(object? sender, EventArgs e)
         {
-            if (Math.Abs(ScaleSlider.Value - _scalingService.CurrentScaleFactor) > 0.01)
+            if (ScaleSlider != null && Math.Abs(ScaleSlider.Value - _scalingService.CurrentScaleFactor) > 0.01)
             {
                 ScaleSlider.Value = _scalingService.CurrentScaleFactor;
                 UpdateScaleText();
@@ -45,19 +51,28 @@ namespace Dorothy.Views
         private void ZoomInButton_Click(object? sender, RoutedEventArgs e)
         {
             _scalingService.ZoomIn();
-            ScaleSlider.Value = _scalingService.CurrentScaleFactor;
+            if (ScaleSlider != null)
+            {
+                ScaleSlider.Value = _scalingService.CurrentScaleFactor;
+            }
         }
 
         private void ZoomOutButton_Click(object? sender, RoutedEventArgs e)
         {
             _scalingService.ZoomOut();
-            ScaleSlider.Value = _scalingService.CurrentScaleFactor;
+            if (ScaleSlider != null)
+            {
+                ScaleSlider.Value = _scalingService.CurrentScaleFactor;
+            }
         }
 
         private void ResetButton_Click(object? sender, RoutedEventArgs e)
         {
             _scalingService.ResetZoom();
-            ScaleSlider.Value = _scalingService.CurrentScaleFactor;
+            if (ScaleSlider != null)
+            {
+                ScaleSlider.Value = _scalingService.CurrentScaleFactor;
+            }
         }
 
         private void CloseButton_Click(object? sender, RoutedEventArgs e)
@@ -67,7 +82,10 @@ namespace Dorothy.Views
 
         private void UpdateScaleText()
         {
-            ScaleValueText.Text = $"{_scalingService.CurrentScaleFactor * 100:F0}%";
+            if (ScaleValueText != null)
+            {
+                ScaleValueText.Text = $"{_scalingService.CurrentScaleFactor * 100:F0}%";
+            }
         }
 
         protected override void OnClosed(EventArgs e)

@@ -8,17 +8,22 @@ namespace Dorothy.Views
 {
     public partial class CustomGatewayDialog : Window
     {
+        private TextBox? GatewayIpTextBox => this.FindControl<TextBox>("GatewayIpTextBox");
+        
         public string GatewayIp { get; private set; } = string.Empty;
 
         public CustomGatewayDialog(string currentGateway)
         {
             AvaloniaXamlLoader.Load(this);
-            GatewayIpTextBox.Text = currentGateway;
+            if (GatewayIpTextBox != null)
+            {
+                GatewayIpTextBox.Text = currentGateway;
+            }
         }
 
         private async void OkButton_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
         {
-            if (IPAddress.TryParse(GatewayIpTextBox.Text, out _))
+            if (GatewayIpTextBox != null && IPAddress.TryParse(GatewayIpTextBox.Text, out _))
             {
                 GatewayIp = GatewayIpTextBox.Text;
                 Close(true);
