@@ -144,8 +144,8 @@
                         Foreground="White"
                         BorderThickness="0"
                         Cursor="Hand">
-                    <Button.Style>
-                        <Style TargetType="Button">
+                    <Button.Styles>
+                        <Style Selector="Button">
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="Button">
@@ -159,7 +159,7 @@
                                 </Setter.Value>
                             </Setter>
                         </Style>
-                    </Button.Style>
+                    </Button.Styles>
                 </Button>
             </StackPanel>
         </StackPanel>

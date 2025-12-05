@@ -47,14 +47,6 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#E5E7EB"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#D1D5DB"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
         <!-- Primary Button Style -->
@@ -63,11 +55,6 @@
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderBrush" Value="#111827"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1F2937"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
     </Window.Resources>
     

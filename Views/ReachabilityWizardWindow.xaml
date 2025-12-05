@@ -47,18 +47,6 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#E5E7EB"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#D1D5DB"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="#F3F4F6"/>
-                    <Setter Property="Foreground" Value="#9CA3AF"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
         <!-- Primary Button Style -->
@@ -67,18 +55,6 @@
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderBrush" Value="#111827"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1F2937"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#0F172A"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="#9CA3AF"/>
-                    <Setter Property="BorderBrush" Value="#9CA3AF"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
         <!-- Default TextBox Style -->
@@ -90,12 +66,6 @@
             <Setter Property="Background" Value="White"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
-            <Style.Triggers>
-                <Trigger Property="IsFocused" Value="True">
-                    <Setter Property="BorderBrush" Value="#2563EB"/>
-                    <Setter Property="BorderThickness" Value="2"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
         <!-- Default Label Style -->
@@ -115,12 +85,6 @@
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Height" Value="32"/>
-            <Style.Triggers>
-                <Trigger Property="IsFocused" Value="True">
-                    <Setter Property="BorderBrush" Value="#2563EB"/>
-                    <Setter Property="BorderThickness" Value="2"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
         <!-- Default CheckBox Style -->
@@ -236,7 +200,7 @@
                     </Border>
 
                     <!-- External Test IP Card (Mode B only) -->
-                    <Border x:Name="ExternalTestIpCard" Style="{StaticResource CardStyle}" Visibility="Collapsed">
+                    <Border x:Name="ExternalTestIpCard" Style="{StaticResource CardStyle}" IsVisible="False">
                         <StackPanel>
                             <TextBlock Text="External Test Target" Style="{StaticResource CardHeaderStyle}"/>
                             <Grid>
@@ -296,14 +260,14 @@
                 </StackPanel>
 
                 <!-- Step 2: ICMP Reachability -->
-                <StackPanel x:Name="Step2Panel" Visibility="Collapsed">
+                <StackPanel x:Name="Step2Panel" IsVisible="False">
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
                             <TextBlock Text="ICMP Reachability" Style="{StaticResource CardHeaderStyle}"/>
                             <TextBlock Text="We send ICMP echo (ping) to the target network gateway candidates and any known inside IPs to see if they respond." 
                                        FontSize="14" Foreground="#6B7280" Margin="0,0,0,12" TextWrapping="Wrap"/>
                             <Button x:Name="RunIcmpChecksButton" Content="Run ICMP Checks" Width="150" Height="32" Style="{StaticResource PrimaryButton}" Margin="0,0,0,12" Click="RunIcmpChecksButton_Click"/>
-                            <ProgressBar x:Name="IcmpProgressBar" Height="6" Margin="0,0,0,12" Visibility="Collapsed" Maximum="100" Value="0"/>
+                            <ProgressBar x:Name="IcmpProgressBar" Height="6" Margin="0,0,0,12" IsVisible="False" Maximum="100" Value="0"/>
                             <DataGrid x:Name="IcmpResultsDataGrid"
                                       AutoGenerateColumns="False"
                                       CanUserAddRows="False"
@@ -324,7 +288,7 @@
                 </StackPanel>
 
                 <!-- Step 3: TCP Reachability -->
-                <StackPanel x:Name="Step3Panel" Visibility="Collapsed">
+                <StackPanel x:Name="Step3Panel" IsVisible="False">
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
                             <TextBlock Text="TCP Reachability" Style="{StaticResource CardHeaderStyle}"/>
@@ -339,7 +303,7 @@
                                 <TextBox x:Name="TcpProbePortsTextBox" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" Text="22,23,25,53,80,110,135,139,143,443,445,993,995,1433,1521,3306,3389,5432,5900,8080,8443"/>
                             </Grid>
                             <Button x:Name="RunTcpChecksButton" Content="Run TCP Checks" Width="150" Height="32" Style="{StaticResource PrimaryButton}" Margin="0,0,0,12" Click="RunTcpChecksButton_Click"/>
-                            <ProgressBar x:Name="TcpProgressBar" Height="6" Margin="0,0,0,12" Visibility="Collapsed" Maximum="100" Value="0"/>
+                            <ProgressBar x:Name="TcpProgressBar" Height="6" Margin="0,0,0,12" IsVisible="False" Maximum="100" Value="0"/>
                             <DataGrid x:Name="TcpResultsDataGrid"
                                       AutoGenerateColumns="False"
                                       CanUserAddRows="False"
@@ -358,7 +322,7 @@
                 </StackPanel>
 
                 <!-- Step 4: Path Analysis -->
-                <StackPanel x:Name="Step4Panel" Visibility="Collapsed">
+                <StackPanel x:Name="Step4Panel" IsVisible="False">
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
                             <TextBlock Text="Path Analysis" Style="{StaticResource CardHeaderStyle}"/>
@@ -372,7 +336,7 @@
                                 <Label Content="Target IP:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,0"/>
                                 <TextBox x:Name="PathTargetIpTextBox" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" IsReadOnly="True"/>
                             </Grid>
-                            <ProgressBar x:Name="PathProgressBar" Height="6" Margin="0,0,0,12" Visibility="Collapsed" Maximum="100" Value="0"/>
+                            <ProgressBar x:Name="PathProgressBar" Height="6" Margin="0,0,0,12" IsVisible="False" Maximum="100" Value="0"/>
                             <DataGrid x:Name="PathHopsDataGrid"
                                       AutoGenerateColumns="False"
                                       CanUserAddRows="False"
@@ -392,7 +356,7 @@
                 </StackPanel>
 
                 <!-- Step 5: Deeper Scan & Summary -->
-                <StackPanel x:Name="Step5Panel" Visibility="Collapsed">
+                <StackPanel x:Name="Step5Panel" IsVisible="False">
                     <!-- Deeper Scan Card -->
                     <Border Style="{StaticResource CardStyle}">
                         <StackPanel>
@@ -408,7 +372,7 @@
                             </Grid>
                             <Button x:Name="RunDeeperScanButton" Content="Run deeper scan" Width="150" Height="32" Style="{StaticResource PrimaryButton}" Margin="0,0,0,12" 
                                     IsEnabled="{Binding IsChecked, ElementName=EnableDeeperScanCheckBox}" Click="RunDeeperScanButton_Click"/>
-                            <ProgressBar x:Name="DeeperScanProgressBar" Height="6" Margin="0,0,0,12" Visibility="Collapsed" Maximum="100" Value="0"/>
+                            <ProgressBar x:Name="DeeperScanProgressBar" Height="6" Margin="0,0,0,12" IsVisible="False" Maximum="100" Value="0"/>
                             <DataGrid x:Name="DeeperScanResultsDataGrid"
                                       AutoGenerateColumns="False"
                                       CanUserAddRows="False"

@@ -118,8 +118,8 @@
                         BorderBrush="#D1D5DB"
                         BorderThickness="1"
                         Cursor="Hand">
-                    <Button.Style>
-                        <Style TargetType="Button">
+                    <Button.Styles>
+                        <Style Selector="Button">
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="Button">
@@ -134,16 +134,8 @@
                                     </ControlTemplate>
                                 </Setter.Value>
                             </Setter>
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#E5E7EB"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter Property="Background" Value="#D1D5DB"/>
-                                </Trigger>
-                            </Style.Triggers>
                         </Style>
-                    </Button.Style>
+                    </Button.Styles>
                 </Button>
                 <Button x:Name="ContinueButton"
                         Content="Acknowledged"
@@ -156,8 +148,8 @@
                         Foreground="White"
                         BorderThickness="0"
                         Cursor="Hand">
-                    <Button.Style>
-                        <Style TargetType="Button">
+                    <Button.Styles>
+                        <Style Selector="Button">
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="Button">
@@ -179,7 +171,7 @@
                                 </Trigger>
                             </Style.Triggers>
                         </Style>
-                    </Button.Style>
+                    </Button.Styles>
                 </Button>
             </StackPanel>
         </StackPanel>

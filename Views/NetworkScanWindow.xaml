@@ -94,8 +94,8 @@
                                          VerticalAlignment="Center"
                                          Height="36"
                                          Checked="ScanMode_Changed">
-                                <RadioButton.Style>
-                                    <Style TargetType="RadioButton">
+                                <RadioButton.Styles>
+                                    <Style Selector="RadioButton">
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="RadioButton">
@@ -124,31 +124,17 @@
                                                                      Height="10"
                                                                      Margin="4,0,12,0"
                                                                      Fill="#2563EB"
-                                                                     Visibility="Collapsed"/>
+                                                                     IsVisible="False"/>
                                                             <ContentPresenter Grid.Column="1"
                                                                               VerticalAlignment="Center"
                                                                               Content="{TemplateBinding Content}"/>
                                                         </Grid>
                                                     </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsChecked" Value="True">
-                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="#2563EB"/>
-                                                            <Setter TargetName="RadioCircle" Property="StrokeThickness" Value="3"/>
-                                                            <Setter TargetName="RadioCircleInner" Property="Visibility" Value="Visible"/>
-                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#2563EB"/>
-                                                            <Setter TargetName="RadioBorder" Property="BorderThickness" Value="2"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="#2563EB"/>
-                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#93C5FD"/>
-                                                            <Setter TargetName="RadioBorder" Property="Background" Value="#EFF6FF"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
                                                 </ControlTemplate>
                                             </Setter.Value>
                                         </Setter>
                                     </Style>
-                                </RadioButton.Style>
+                                </RadioButton.Styles>
                             </RadioButton>
                             <RadioButton x:Name="IntenseScanRadioButton"
                                          Content="Intense (Ports + Banners)"
@@ -161,8 +147,8 @@
                                          Height="36"
                                          ToolTip="Scans ports and grabs service banners. Select port scan mode below."
                                          Checked="ScanMode_Changed">
-                                <RadioButton.Style>
-                                    <Style TargetType="RadioButton">
+                                <RadioButton.Styles>
+                                    <Style Selector="RadioButton">
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="RadioButton">
@@ -191,31 +177,17 @@
                                                                      Height="10"
                                                                      Margin="4,0,12,0"
                                                                      Fill="#2563EB"
-                                                                     Visibility="Collapsed"/>
+                                                                     IsVisible="False"/>
                                                             <ContentPresenter Grid.Column="1"
                                                                               VerticalAlignment="Center"
                                                                               Content="{TemplateBinding Content}"/>
                                                         </Grid>
                                                     </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsChecked" Value="True">
-                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="#2563EB"/>
-                                                            <Setter TargetName="RadioCircle" Property="StrokeThickness" Value="3"/>
-                                                            <Setter TargetName="RadioCircleInner" Property="Visibility" Value="Visible"/>
-                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#2563EB"/>
-                                                            <Setter TargetName="RadioBorder" Property="BorderThickness" Value="2"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="#2563EB"/>
-                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#93C5FD"/>
-                                                            <Setter TargetName="RadioBorder" Property="Background" Value="#EFF6FF"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
                                                 </ControlTemplate>
                                             </Setter.Value>
                                         </Setter>
                                     </Style>
-                                </RadioButton.Style>
+                                </RadioButton.Styles>
                             </RadioButton>
                         </StackPanel>
                     </Grid>
@@ -265,7 +237,7 @@
                             <!-- Port Range Input (visible when Range is selected) -->
                             <StackPanel x:Name="PortRangePanel"
                                         Orientation="Horizontal"
-                                        Visibility="Collapsed"
+                                        IsVisible="False"
                                         Margin="0,0,0,8">
                                 <TextBlock Text="Port Range:"
                                            FontSize="11"
@@ -304,7 +276,7 @@
                             <!-- Banner Grabbing Ports Input (visible when Banner Grabbing is selected) -->
                             <StackPanel x:Name="SelectedPortsPanel"
                                         Orientation="Vertical"
-                                        Visibility="Collapsed"
+                                        IsVisible="False"
                                         Margin="0,0,0,8">
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                     <TextBlock Text="Banner Grabbing Ports (comma-separated):"
@@ -324,8 +296,8 @@
                                             Cursor="Hand"
                                             ToolTip="Populate with ports discovered in previous scans"
                                             IsVisible="False">
-                                        <Button.Style>
-                                            <Style TargetType="Button">
+                                        <Button.Styles>
+                                            <Style Selector="Button">
                                                 <Setter Property="Template">
                                                     <Setter.Value>
                                                         <ControlTemplate TargetType="Button">
@@ -339,7 +311,7 @@
                                                     </Setter.Value>
                                                 </Setter>
                                             </Style>
-                                        </Button.Style>
+                                        </Button.Styles>
                                     </Button>
                                 </StackPanel>
                                 <TextBox x:Name="SelectedPortsTextBox"
@@ -419,8 +391,8 @@
                                 Foreground="White"
                                 BorderThickness="0"
                                 Cursor="Hand">
-                            <Button.Style>
-                                <Style TargetType="Button">
+                            <Button.Styles>
+                                <Style Selector="Button">
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="Button">
@@ -434,7 +406,7 @@
                                         </Setter.Value>
                                     </Setter>
                                 </Style>
-                            </Button.Style>
+                            </Button.Styles>
                         </Button>
                         
                         <!-- Quick Range Options -->
@@ -691,12 +663,12 @@
                     Height="36"
                     Margin="0,0,12,0"
                     Click="CancelScanButton_Click"
-                    Visibility="Collapsed"
+                    IsVisible="False"
                     Background="#DC2626"
                     Foreground="White"
                     BorderThickness="0">
-                <Button.Style>
-                    <Style TargetType="Button">
+                <Button.Styles>
+                    <Style Selector="Button">
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="Button">
@@ -710,7 +682,7 @@
                             </Setter.Value>
                         </Setter>
                     </Style>
-                </Button.Style>
+                </Button.Styles>
             </Button>
             <Button x:Name="SyncAssetsButton"
                     Width="120"
@@ -718,7 +690,7 @@
                     Margin="0,0,12,0"
                     Click="SyncAssetsButton_Click"
                     ToolTip="Sync assets to cloud"
-                    Visibility="Collapsed">
+                    IsVisible="False">
                 <Button.Content>
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Text="☁" 
@@ -734,7 +706,7 @@
                                 Height="18"
                                 Margin="6,0,0,0"
                                 Padding="4,2"
-                                Visibility="Collapsed"
+                                IsVisible="False"
                                 VerticalAlignment="Center">
                             <TextBlock x:Name="AssetsSyncBadgeText"
                                        Text="0"
@@ -760,12 +732,12 @@
                     Height="36"
                     Margin="0,0,12,0"
                     Click="BackButton_Click"
-                    Visibility="Collapsed"
+                    IsVisible="False"
                     Background="#6B7280"
                     Foreground="White"
                     BorderThickness="0">
-                <Button.Style>
-                    <Style TargetType="Button">
+                <Button.Styles>
+                    <Style Selector="Button">
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="Button">
@@ -779,7 +751,7 @@
                             </Setter.Value>
                         </Setter>
                     </Style>
-                </Button.Style>
+                </Button.Styles>
             </Button>
             <Button x:Name="CloseButton"
                     Content="Close"
