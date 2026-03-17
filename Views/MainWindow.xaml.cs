@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -148,6 +148,9 @@ namespace Dorothy.Views
             // Initialize SNMP Walk Service
             _snmpWalkService = new Services.SnmpWalkService(_attackLogger);
 
+            // Initialize UI scaling service
+            _uiScalingService = Services.UIScalingService.Instance;
+            
             // Initialize UI components first
             PopulateNetworkInterfaces();
             PopulateAttackTypes();
@@ -280,47 +283,162 @@ namespace Dorothy.Views
             {
                 if (_uiScalingService == null) return;
                 
-                // Get DPI-aware scale
+                // Get DPI-aware scale for this window
                 var dpiScale = _uiScalingService.GetDpiScaleForWindow(this);
                 
-                // Get responsive scale based on screen size
-                var responsiveScale = _uiScalingService.CalculateResponsiveScale();
+                // Get screen dimensions FIRST - needed for scaling calculations
+                var (screenWidth, screenHeight) = _uiScalingService.GetScreenDimensionsForWindow(this);
                 
-                // Combine scales (use the more conservative one)
-                var combinedScale = Math.Min(dpiScale, responsiveScale);
+                // Get responsive scale based on the actual screen this window is on
+                var responsiveScale = _uiScalingService.CalculateResponsiveScale(this);
+                
+                // Get screen category
+                var screenCategory = _uiScalingService.GetScreenCategory(this);
+                
+                // More aggressive scaling - apply scaling based on actual screen size, not just category
+                // Even 1920x1080 can benefit from scaling if content doesn't fit
+                double combinedScale;
+                
+                // Calculate scale based on actual screen size relative to a baseline (1920x1080)
+                // If screen is smaller than baseline, scale down
+                double baselineWidth = 1920;
+                double baselineHeight = 1080;
+                double widthRatio = screenWidth / baselineWidth;
+                double heightRatio = screenHeight / baselineHeight;
+                double sizeRatio = Math.Min(widthRatio, heightRatio);
+                
+                if (screenCategory == Services.ScreenCategory.Small)
+                {
+                    // For small screens, use aggressive scaling (0.70-0.80 range)
+                    combinedScale = Math.Min(dpiScale, sizeRatio * 0.75);
+                    combinedScale = Math.Max(0.70, Math.Min(0.80, combinedScale));
+                }
+                else if (screenCategory == Services.ScreenCategory.Medium)
+                {
+                    // Medium screens - moderate scaling (0.80-0.90 range)
+                    combinedScale = Math.Min(dpiScale, sizeRatio * 0.85);
+                    combinedScale = Math.Max(0.80, Math.Min(0.90, combinedScale));
+                }
+                else
+                {
+                    // Large screens - still apply some scaling if screen is smaller than baseline
+                    // This helps with laptops that are 1920x1080 but need content to fit
+                    if (sizeRatio < 1.0)
+                    {
+                        // Screen is smaller than baseline - apply scaling
+                        combinedScale = Math.Min(dpiScale, sizeRatio * 0.95);
+                        combinedScale = Math.Max(0.85, Math.Min(0.95, combinedScale));
+                    }
+                    else
+                    {
+                        // Screen is larger than baseline - minimal or no scaling
+                        combinedScale = Math.Min(dpiScale, responsiveScale);
+                    }
+                }
                 
                 // Apply font scaling
                 _uiScalingService.ApplyFontScaling(this, _baseFontSize, combinedScale);
                 
-                // Get screen category and adjust window
-                var screenCategory = _uiScalingService.GetScreenCategory();
-                var (minWidth, minHeight) = _uiScalingService.GetRecommendedMinSize();
+                // Get recommended minimum size based on actual screen
+                var (minWidth, minHeight) = _uiScalingService.GetRecommendedMinSize(this);
                 
                 this.MinWidth = minWidth;
                 this.MinHeight = minHeight;
                 
-                // Adjust window size if not maximized
+                // Adjust window size if not maximized and on a small screen
                 if (this.WindowState != WindowState.Maximized)
                 {
                     if (screenCategory == Services.ScreenCategory.Small)
                     {
-                        this.Width = Math.Min(SystemParameters.PrimaryScreenWidth * 0.95, 1200);
-                        this.Height = Math.Min(SystemParameters.PrimaryScreenHeight * 0.95, 800);
+                        // On small screens, make window fit better
+                        this.Width = Math.Min(screenWidth * 0.98, 1200);
+                        this.Height = Math.Min(screenHeight * 0.95, 800);
                     }
                 }
                 
-                // Adjust margins based on scale
+                // Adjust margins based on scale - reduce margins on smaller screens
                 if (MainContentGrid != null)
                 {
-                    var margin = _uiScalingService.GetScaledThickness(16, combinedScale);
+                    var baseMargin = screenCategory == Services.ScreenCategory.Small ? 8.0 : 
+                                    screenCategory == Services.ScreenCategory.Medium ? 12.0 : 16.0;
+                    var margin = _uiScalingService.GetScaledThickness(baseMargin, combinedScale);
                     MainContentGrid.Margin = margin;
                 }
                 
-                _attackLogger.LogInfo($"UI Scaling applied: DPI={dpiScale:F2}, Responsive={responsiveScale:F2}, Combined={combinedScale:F2}, Category={screenCategory}");
+                // Adjust column widths for small screens to prevent scrolling
+                if (MainContentGrid != null && MainContentGrid.ColumnDefinitions.Count >= 2)
+                {
+                    if (screenCategory == Services.ScreenCategory.Small)
+                    {
+                        // On small screens, make columns more flexible - reduce min width significantly
+                        MainContentGrid.ColumnDefinitions[0].MinWidth = 320;
+                        MainContentGrid.ColumnDefinitions[1].MinWidth = 320;
+                    }
+                    else
+                    {
+                        // Reset to default on larger screens
+                        MainContentGrid.ColumnDefinitions[0].MinWidth = 400;
+                        MainContentGrid.ColumnDefinitions[1].MinWidth = 400;
+                    }
+                }
+                
+                // Apply scaling transform to TabControl to make content fit better
+                // Apply to all screens that need scaling (not just small)
+                if (MainTabControl != null)
+                {
+                    // Reduce margin between left and right panels on smaller screens
+                    if (screenCategory == Services.ScreenCategory.Small)
+                    {
+                        MainTabControl.Margin = new Thickness(0, 0, 6, 0);
+                    }
+                    else if (screenCategory == Services.ScreenCategory.Medium)
+                    {
+                        MainTabControl.Margin = new Thickness(0, 0, 8, 0);
+                    }
+                    else
+                    {
+                        MainTabControl.Margin = new Thickness(0, 0, 12, 0);
+                    }
+                    
+                    // Apply LayoutTransform to prevent scrolling on all screen sizes
+                    // Always apply some scaling to ensure content fits, even on large screens
+                    // Use a minimum scale of 0.90 for large screens to prevent overflow
+                    double transformScale = combinedScale;
+                    if (screenCategory == Services.ScreenCategory.Large || screenCategory == Services.ScreenCategory.ExtraLarge)
+                    {
+                        // For large screens, apply minimum scaling to prevent scrolling
+                        // This ensures Advanced tab content fits even with all fields visible
+                        transformScale = Math.Max(0.90, Math.Min(1.0, combinedScale));
+                    }
+                    
+                    if (transformScale < 1.0)
+                    {
+                        var scaleTransform = new ScaleTransform(transformScale, transformScale);
+                        scaleTransform.CenterX = 0;
+                        scaleTransform.CenterY = 0;
+                        MainTabControl.LayoutTransform = scaleTransform;
+                    }
+                    else
+                    {
+                        // Even if scale is 1.0, apply slight scaling for large screens to prevent overflow
+                        if (screenCategory == Services.ScreenCategory.Large || screenCategory == Services.ScreenCategory.ExtraLarge)
+                        {
+                            var scaleTransform = new ScaleTransform(0.95, 0.95);
+                            scaleTransform.CenterX = 0;
+                            scaleTransform.CenterY = 0;
+                            MainTabControl.LayoutTransform = scaleTransform;
+                        }
+                        else
+                        {
+                            MainTabControl.LayoutTransform = null;
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {
-                _attackLogger.LogError($"Error applying UI scaling: {ex.Message}");
+                // Silently handle scaling errors
+                System.Diagnostics.Debug.WriteLine($"Error applying UI scaling: {ex.Message}");
             }
         }
 
@@ -377,7 +495,22 @@ namespace Dorothy.Views
 
         private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            // Window size changed - no special handling needed
+            // Reapply scaling when window size changes or moves between screens
+            // This ensures proper scaling when moving from large monitor to laptop screen
+            if (IsLoaded)
+            {
+                ApplyUIScaling();
+            }
+        }
+
+        private void Window_LocationChanged(object? sender, EventArgs e)
+        {
+            // Reapply scaling when window location changes (moves to different screen)
+            // This ensures proper scaling when moving from large monitor to laptop screen
+            if (IsLoaded)
+            {
+                ApplyUIScaling();
+            }
         }
 
         private void ApplyResponsiveScaling()
@@ -583,7 +716,10 @@ namespace Dorothy.Views
         private void NetworkStorm_PacketSent(object? sender, Models.PacketEventArgs e)
         {
             _totalPacketsSent++;
-            _totalBytesSent += e.Packet.Length; // Track actual bytes sent
+            // e.Packet is the L2 Ethernet frame (all attacks now use SharpPcap injection).
+            // Adding 4 bytes for the Ethernet FCS gives the true wire size, so the displayed
+            // Mbps matches what the user entered and what appears on the wire.
+            _totalBytesSent += e.Packet.Length + 4;
             _attackLogger.IncrementPacketCount();
         }
 
@@ -1054,7 +1190,8 @@ namespace Dorothy.Views
                     try
                     {
                         _logger.Info("Stopping running attack...");
-                        var stopTask = _mainController.StopAttackAsync(_totalPacketsSent);
+                        bool isAdvancedMode = MainTabControl.SelectedItem == AdvancedTab && _isAdvancedMode;
+                        var stopTask = _mainController.StopAttackAsync(_totalPacketsSent, isAdvancedMode);
                         if (!stopTask.Wait(TimeSpan.FromSeconds(3)))
                         {
                             _logger.Warn("Attack stop timed out, forcing termination");
@@ -1072,7 +1209,8 @@ namespace Dorothy.Views
                     try
                     {
                         _logger.Info("Stopping advanced attack...");
-                        var stopTask = _mainController.StopAttackAsync(_totalPacketsSent);
+                        bool isAdvancedMode = MainTabControl.SelectedItem == AdvancedTab && _isAdvancedMode;
+                        var stopTask = _mainController.StopAttackAsync(_totalPacketsSent, isAdvancedMode);
                         if (!stopTask.Wait(TimeSpan.FromSeconds(3)))
                         {
                             _logger.Warn("Advanced attack stop timed out");
@@ -1999,22 +2137,25 @@ namespace Dorothy.Views
                     (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() :
                         (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString());
                 
+                // Check if we're in Advanced Mode (ATTACK MODE)
+                bool isAdvancedMode = MainTabControl.SelectedItem == AdvancedTab && _isAdvancedMode;
+                
                 if (attackType == "Broadcast")
                 {
-                    await _mainController.StopBroadcastAttackAsync(_totalPacketsSent);
+                    await _mainController.StopBroadcastAttackAsync(_totalPacketsSent, isAdvancedMode);
                 }
                 else if (attackType == "ARP Spoofing")
                 {
-                    await _mainController.StopArpSpoofingAsync(_totalPacketsSent);
+                    await _mainController.StopArpSpoofingAsync(_totalPacketsSent, isAdvancedMode);
                 }
                 else if (attackType != null && attackType.StartsWith("Ethernet"))
                 {
                     // Ethernet attacks use the same stop method as regular flood attacks
-                    await _mainController.StopAttackAsync(_totalPacketsSent);
+                    await _mainController.StopAttackAsync(_totalPacketsSent, isAdvancedMode);
                 }
                 else
                 {
-                    await _mainController.StopAttackAsync(_totalPacketsSent);
+                    await _mainController.StopAttackAsync(_totalPacketsSent, isAdvancedMode);
                 }
                 
                 _currentRunningAttackType = null; // Clear the running attack type
@@ -3639,27 +3780,30 @@ namespace Dorothy.Views
                 
                 _attackLogger.LogInfo($"Stopping advanced attack. Attack type: '{attackType}', Current running type: '{_currentRunningAttackType}'");
                 
+                // Check if we're in Advanced Mode (ATTACK MODE)
+                bool isAdvancedMode = MainTabControl.SelectedItem == AdvancedTab && _isAdvancedMode;
+                
                 if (attackType == "ARP Spoofing")
                 {
-                            await _mainController.StopArpSpoofingAsync(_totalPacketsSent);
+                    await _mainController.StopArpSpoofingAsync(_totalPacketsSent, isAdvancedMode);
                 }
                 else if (attackType != null && (attackType.StartsWith("Ethernet") || attackType.StartsWith("NMEA 0183") || attackType.Contains("NMEA")))
                 {
                     // Ethernet and NMEA attacks use the same stop method as regular flood attacks
                     _attackLogger.LogInfo($"Stopping attack type: {attackType}");
-                    await _mainController.StopAttackAsync(_totalPacketsSent);
+                    await _mainController.StopAttackAsync(_totalPacketsSent, isAdvancedMode);
                 }
                 else if (attackType != null)
                 {
                     // Fallback: try to stop any attack that's running
                     _attackLogger.LogInfo($"Stopping attack (fallback) for type: {attackType}");
-                    await _mainController.StopAttackAsync(_totalPacketsSent);
+                    await _mainController.StopAttackAsync(_totalPacketsSent, isAdvancedMode);
                 }
                 else
                 {
                     // If attack type is null, still try to stop (might be a race condition)
                     _attackLogger.LogInfo("Stopping attack (attack type was null, using fallback)");
-                    await _mainController.StopAttackAsync(_totalPacketsSent);
+                    await _mainController.StopAttackAsync(_totalPacketsSent, isAdvancedMode);
                 }
                 
                 _currentRunningAttackType = null; // Clear the running attack type
