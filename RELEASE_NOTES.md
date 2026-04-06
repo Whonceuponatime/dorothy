@@ -1,5 +1,110 @@
 # SEACURE(TOOL) Release Notes
 
+## Version 2.4.1 — 2026-04-06
+
+### Packaging and distribution
+
+- **Windows installer** (`installer\SEACURE(TOOL)-setup 2.4.1.exe`) built from self-contained `win-x64` publish output copied to `dist\` (same layout as prior releases).
+- **`Run-Dorothy.ps1`** is installed next to `Dorothy.exe` for environments with the .NET SDK: it re-launches elevated (UAC), then builds and runs the project. The installed shortcut still launches `Dorothy.exe` directly with the required administrator manifest.
+
+### Maintenance
+
+- **NuGet audit**: Direct reference to **`System.IO.Packaging` 8.0.1** overrides ClosedXML’s transitive 6.0.0 and clears **NU1903** (known high-severity advisories on 6.0.0).
+- **NuGet audit**: **`NuGetAuditSuppress`** entries for legacy transitive **`System.Private.Uri` 4.3.0** advisories pulled in via netstandard facades; the application targets **.NET 8** and does not ship or execute that vulnerable standalone package in the modern hosting model.
+- **Assembly / file version** aligned to **2.4.1** for the installer and installed binaries.
+
+---
+
+## Version 2.4.0 — 2026-03-24
+
+### New Features
+
+- **Bounded TCP Connect Scan** (`Views/BoundedTcpScanWindow`)
+  - New standalone non-modal window for authorized lab network assessment
+  - Accepts single IP, IP range (`192.168.1.1-50`), CIDR, or pasted multi-line list
+  - Standard OS TCP connect probing only — no raw scan, no SYN scan, no stealth techniques
+  - Source IP selector: bind TCP connects to a specific NIC/vantage point
+  - Port presets: Common (21), Web (6), Remote Access (5), Database (7), Custom
+  - Workload estimation before scanning: warns at >256 probes, confirmation dialog at >2000, strong warning at >50 000
+  - Real-time DataGrid — rows update per-host as scan progresses
+  - Concurrency-limited (default 10 hosts in parallel), per-probe timeout, global cancel
+  - Unresolved hostnames are shown explicitly in results — never silently dropped
+  - Report-friendly plain-English summary with Copy to Clipboard button
+
+- **Simple Reachability Test** (existing wizard simplified)
+  - Wizard renamed from "Reachability & Path Analysis" to "Simple Reachability Test"
+  - Step 1 now clearly focuses on single-host / IP input as primary workflow
+  - "Target CIDR:" field relabeled "Target Host / IP:" with example hint
+  - "Known Inside IPs" section relabeled "Additional Test Targets (Optional)"
+  - Mode selection updated to "Test a specific host or known network" vs "Analyze boundary device only"
+
+- **Route-Aware MAC Resolution** (raw packet generation path only)
+  - TCP connect scan does NOT use MACs — MAC handling is strictly for L2 raw packet generation
+  - "Target MAC:" field renamed to "Dest./Next-hop MAC:" in both Basic and Advanced Settings tabs
+  - Dynamic route hint appears below the MAC field as soon as a target IP is entered:
+    - **Green** (on-link): "MAC refers to destination host MAC address"
+    - **Amber** (routed): "MAC must be next-hop gateway MAC — remote host MAC not visible across routed hops"
+    - **Red** (no route): "No route detected — raw packet send will likely fail"
+    - **Grey** (unknown): "Use gateway MAC if cross-subnet"
+  - Route hint refreshes on NIC change, source IP change, gateway IP change, and target IP change
+  - `Resolve` button is now route-aware:
+    - On-link → ARP for destination host; logs "Resolving destination host MAC for {ip}"
+    - Routed → ARP for gateway; logs "Resolving next-hop gateway MAC for {gw} (remote host MAC unreachable at L2)"
+    - No route → MessageBox validation, early return
+    - Unknown route → confirmation dialog before attempting resolution
+    - No gateway configured for routed target → explicit MessageBox explaining why gateway MAC is required
+  - Same route-aware behavior applied to Advanced Settings MAC field (`AdvMacRouteHintText`)
+
+### Enhancements
+
+- **Flood Rate Stability — Token Bucket Scheduler** (`Services/FloodScheduler.cs`)
+  - Replaced byte-budget pacing in UDP and ICMP floods with a token-bucket scheduler
+  - Burst cap (default 10 ms) bounds catch-up bursts after OS preemption — eliminates sawtooth spikes
+  - Three-window EMA Mbps reporting: 1 s / 5 s / 10 s (α = 0.393 / 0.095 / 0.049)
+  - Diagnostic counters: scheduled, sent, failed, dropped per session
+  - TCP flood pacing unchanged in this release (Phase 3 scheduled separately)
+
+- **Packet Validation Layer** (`Services/PacketValidator.cs`)
+  - Structural validator for raw Ethernet frames before injection
+  - Checks: IP version/IHL/TotalLength/checksum, TCP DataOffset/options alignment/checksum, UDP length field/checksum, ICMP type/checksum
+  - `ValidateRoundtrip()`: parses serialized bytes back with PacketDotNet and verifies field consistency (catches cache/serialization issues)
+  - `ValidatePoolFull()`: validates entire packet pool with per-slot failure category reporting
+
+- **Dry-Run Mode** (`UdpFlood`, `TcpFlood`, `IcmpFlood`)
+  - `DryRunMode = true`: builds and validates the full packet pool without opening any device or transmitting
+  - Logs per-pool validation report with failure counts by category
+  - Safe to run with no physical NIC present
+
+- **Improved Reachability Service Architecture** (`Services/Reachability/`)
+  - New service layer extracted from the monolithic wizard service:
+    - `TargetExpansionService` — IP/range/CIDR expansion, port parsing, workload estimation, route detection, NIC enumeration
+    - `IcmpProbeService` — async ICMP ping with `IcmpReplyStatus` (Reply / NoReply / Error)
+    - `TcpConnectScanService` — bounded TCP connect with source-IP binding; 6-state port classification: Open, Closed, TimedOut, NetworkUnreachable, HostUnreachable, Error
+    - `TracerouteService` — TTL-based path analysis; optional non-blocking post-trace DNS
+    - `ReachabilityResultAggregator` — report-friendly summary with Resolution / NIC / Source IP / Route / Gateway / ICMP / ports / interpretation fields
+  - `ReachabilityWizardService` now delegates to new services internally; public API unchanged (wizard window code-behind unmodified)
+
+- **ICMP Blocking — Correct Interpretation**
+  - ICMP no reply no longer gates the TCP scan or marks a host unreachable
+  - New `IcmpReplyStatus` enum: `Reply`, `NoReply`, `Error` — "NoReply" explicitly documented as "may be blocked/filtered, NOT necessarily down"
+  - Reports distinguish three cases: ICMP+TCP reachable / ICMP blocked but TCP reachable / ICMP blocked and no TCP response
+  - DataGrid shows "Reply" / "No reply" instead of "Yes" / "No"
+
+- **Offline and Routed Environment Support**
+  - Pure IP/range/CIDR expansion requires zero network access
+  - Hostname resolution: 2-second per-token timeout; failed lookups shown in results with reason, never silently dropped
+  - Route detection (`DetermineRoute`): compares target against source NIC subnet mask; returns OnLink / ViaGateway / NoRoute / Unknown
+  - Source IP binding for TCP connects: `TcpClient.Bind(sourceIp)` forces correct vantage point origin
+  - ICMP binding limitation documented: `System.Net.NetworkInformation.Ping` does not support source-IP binding
+
+- **Dorothy.Models.TcpState extended**
+  - Added: `TimedOut`, `NetworkUnreachable`, `HostUnreachable`, `Error`
+  - `Filtered` retained for backward compatibility
+  - `TcpStateExtensions.IsActiveResponse()` / `IsNoResponse()` helpers added
+  - `DeeperScanResult.FilteredCount` updated to count all no-response states
+
+---
+
 ## Version 2.3.1 — 2026-03-17
 
 ### Bug Fixes

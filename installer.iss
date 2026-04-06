@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "2.3.0"
+  #define AppVersion "2.4.1"
 #endif
 
 [Setup]
@@ -43,6 +43,8 @@ Name: "uninstallshortcut"; Description: "Create uninstall shortcut in installati
 
 [Files]
 Source: "dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Optional helper for developers with the .NET SDK (elevated re-launch + build/run)
+Source: "Run-Dorothy.ps1"; DestDir: "{app}"; Flags: ignoreversion
 ; Note: Localization folders (cs, de, es, fr, it, ja, ko, pl, pt-BR, ru, tr, zh-Hans, zh-Hant) 
 ; are excluded via SatelliteResourceLanguages=en in Dorothy.csproj
 
@@ -53,7 +55,12 @@ Name: "{autodesktop}\SEACURE(TOOL)"; Filename: "{app}\Dorothy.exe"; Tasks: deskt
 Name: "{app}\Uninstall SEACURE(TOOL)"; Filename: "{uninstallexe}"; IconFilename: "{uninstallexe}"; Tasks: uninstallshortcut
 
 [Run]
-; Program will be launched with admin privileges via CurStepChanged
+; Launch after install — no runascurrentuser flag so it inherits the installer's
+; admin token. The embedded requireAdministrator manifest also guarantees elevation
+; for every subsequent launch from shortcuts or Explorer.
+Filename: "{app}\Dorothy.exe"; \
+  Description: "Launch SEACURE(TOOL)"; \
+  Flags: nowait postinstall skipifsilent
 
 [Code]
 var
@@ -162,18 +169,9 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
-var
-  ResultCode: Integer;
 begin
-  if CurStep = ssPostInstall then
-  begin
-    // Launch program after installation (manifest will request admin elevation)
-    if not WizardSilent() then
-    begin
-      // Since installer is already admin, use Exec - manifest will ensure program runs as admin
-      Exec(ExpandConstant('{app}\Dorothy.exe'), '', '', SW_SHOWNORMAL, ewNoWait, ResultCode);
-    end;
-  end;
+  // Post-install launch is handled by the [Run] section checkbox above.
+  // No manual Exec call needed here.
 end;
 
 
