@@ -7,9 +7,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
     <AssemblyName>Dorothy</AssemblyName>
-    <Version>2.3.1</Version>
-    <AssemblyVersion>2.3.1.0</AssemblyVersion>
-    <FileVersion>2.3.1.0</FileVersion>
+    <Version>2.4.0</Version>
+    <AssemblyVersion>2.4.0.0</AssemblyVersion>
+    <FileVersion>2.4.0.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Platforms>x64</Platforms>
@@ -34,7 +34,15 @@
     <PackageReference Include="ClosedXML" Version="0.102.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     <PackageReference Include="Supabase" Version="1.1.1" />
+    <!-- Direct ref overrides ClosedXML's transitive 6.0.0 (NU1903). -->
+    <PackageReference Include="System.IO.Packaging" Version="8.0.1" />
     <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+  <!-- System.Private.Uri 4.3.0 remains transitive via legacy netstandard facades; not used from that package on net8. -->
+  <ItemGroup>
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-5f2m-466j-3848" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-x5qj-9vmx-7g6g" />
+    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-xhfc-gr8f-ffwc" />
   </ItemGroup>
   <ItemGroup Condition="Exists('Resources\wpcap.dll')">
     <None Include="Resources\wpcap.dll">
