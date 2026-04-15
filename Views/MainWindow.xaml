@@ -1,6 +1,8 @@
 <Window x:Class="Dorothy.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Dorothy.Models"
+        xmlns:conv="clr-namespace:Dorothy.Converters"
         Title="SEACURE(TOOL) - Network Attack Simulator"
         Icon="pack://application:,,,/Resources/icon.ico"
         WindowState="Maximized"
@@ -17,6 +19,10 @@
         KeyDown="Window_KeyDown"
         SizeChanged="Window_SizeChanged"
         LocationChanged="Window_LocationChanged">
+
+    <Window.Resources>
+        <conv:StringToBrushConverter x:Key="StringToBrush"/>
+    </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -1366,22 +1372,160 @@
                                         Click="AddNoteButton_Click"/>
                             </Grid>
 
+                            <TextBox x:Name="LogTextBox"
+                                     Visibility="Collapsed"
+                                     IsReadOnly="True"
+                                     TextWrapping="Wrap"
+                                     BorderThickness="0"
+                                     Background="Transparent"
+                                     Foreground="{StaticResource TextCode}"
+                                     FontFamily="Consolas"
+                                     FontSize="12"/>
+
                             <Border Grid.Row="1"
                                     BorderBrush="{StaticResource BorderDefault}"
                                     BorderThickness="1"
                                     CornerRadius="6"
                                     Background="{StaticResource PrimaryBg}"
                                     Margin="0,0,0,16">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
-                                    <TextBox x:Name="LogTextBox"
-                                             IsReadOnly="True"
-                                             TextWrapping="Wrap"
-                                             BorderThickness="0"
-                                             Background="Transparent"
-                                             Foreground="{StaticResource TextCode}"
-                                             FontFamily="Consolas"
-                                             FontSize="12"
-                                             VerticalScrollBarVisibility="Disabled"/>
+                                <ScrollViewer x:Name="LogScrollViewer"
+                                              VerticalScrollBarVisibility="Auto"
+                                              Padding="8">
+                                    <ItemsControl x:Name="LogItemsControl"
+                                                  ItemsSource="{Binding LogEntries}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type local:LogEntry}">
+                                                <StackPanel Orientation="Vertical" Margin="0,1">
+                                                    <!-- Top row (always visible) -->
+                                                    <Border x:Name="TopRowBorder"
+                                                            CornerRadius="5"
+                                                            Padding="4,6"
+                                                            Cursor="Hand"
+                                                            Background="Transparent"
+                                                            MouseLeftButtonDown="LogEntry_RowClick">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <TextBlock Grid.Column="0"
+                                                                       Text="{Binding Timestamp}"
+                                                                       FontFamily="Consolas"
+                                                                       FontSize="10"
+                                                                       Foreground="#475569"
+                                                                       MinWidth="64"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,6,0"/>
+
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding Icon}"
+                                                                       FontSize="12"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="0,0,6,0">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Foreground" Value="#60a5fa"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Type}" Value="{x:Static local:LogEntryType.Ok}">
+                                                                                <Setter Property="Foreground" Value="#34d399"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Type}" Value="{x:Static local:LogEntryType.Error}">
+                                                                                <Setter Property="Foreground" Value="#f87171"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Type}" Value="{x:Static local:LogEntryType.Packet}">
+                                                                                <Setter Property="Foreground" Value="#a78bfa"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+
+                                                            <TextBlock Grid.Column="2"
+                                                                       Text="{Binding Message}"
+                                                                       FontFamily="Consolas"
+                                                                       FontSize="11"
+                                                                       VerticalAlignment="Center"
+                                                                       TextTrimming="CharacterEllipsis">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Foreground" Value="#94a3b8"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Type}" Value="{x:Static local:LogEntryType.Ok}">
+                                                                                <Setter Property="Foreground" Value="#6ee7b7"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Type}" Value="{x:Static local:LogEntryType.Error}">
+                                                                                <Setter Property="Foreground" Value="#fca5a5"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Type}" Value="{x:Static local:LogEntryType.Packet}">
+                                                                                <Setter Property="Foreground" Value="#c4b5fd"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+
+                                                            <!-- Protocol badge -->
+                                                            <Border x:Name="ProtocolBadge"
+                                                                    Grid.Column="3"
+                                                                    CornerRadius="3"
+                                                                    Padding="5,1"
+                                                                    Margin="6,0,0,0"
+                                                                    VerticalAlignment="Center"
+                                                                    Visibility="Collapsed"
+                                                                    Background="{Binding BadgeBg, Converter={StaticResource StringToBrush}}">
+                                                                <TextBlock Text="{Binding BadgeText}"
+                                                                           FontSize="9"
+                                                                           FontWeight="SemiBold"
+                                                                           VerticalAlignment="Center"
+                                                                           Foreground="{Binding BadgeFg, Converter={StaticResource StringToBrush}}"/>
+                                                            </Border>
+
+                                                            <!-- Expand chevron -->
+                                                            <TextBlock x:Name="ExpandChevron"
+                                                                       Grid.Column="4"
+                                                                       Text="›"
+                                                                       FontSize="14"
+                                                                       FontWeight="Bold"
+                                                                       Foreground="#475569"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="6,0,2,0"
+                                                                       RenderTransformOrigin="0.5,0.5"
+                                                                       Visibility="Collapsed">
+                                                                <TextBlock.RenderTransform>
+                                                                    <RotateTransform x:Name="ChevronRotate" Angle="0"/>
+                                                                </TextBlock.RenderTransform>
+                                                            </TextBlock>
+                                                        </Grid>
+                                                    </Border>
+
+                                                    <!-- Detail panel (packet frame details) -->
+                                                    <Border x:Name="DetailPanel"
+                                                            Background="#080c14"
+                                                            CornerRadius="0,0,6,6"
+                                                            Margin="72,0,0,0"
+                                                            Padding="10,12"
+                                                            Visibility="Collapsed">
+                                                        <StackPanel x:Name="DetailContent"/>
+                                                    </Border>
+                                                </StackPanel>
+
+                                                <DataTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding Type}" Value="{x:Static local:LogEntryType.Packet}">
+                                                        <Setter TargetName="ExpandChevron" Property="Visibility" Value="Visible"/>
+                                                        <Setter TargetName="ProtocolBadge" Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+
+                                                    <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                                        <Setter TargetName="DetailPanel" Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
                                 </ScrollViewer>
                             </Border>
 

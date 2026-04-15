@@ -61,6 +61,14 @@ namespace Dorothy.Models
             StatsPublished?.Invoke(this, snapshot);
         }
 
+        private void OnFrameSnapshotReady(PacketFrameSnapshot snapshot, string badgeText, string badgeColorKey)
+        {
+            _logger.CurrentFrameSnapshot = snapshot;
+            _logger.LogPacket(
+                $"Frame snapshot captured: {snapshot.FrameSizeBytes}B {snapshot.AttackType}",
+                badgeText, badgeColorKey, snapshot);
+        }
+
         public NetworkStorm(AttackLogger logger)
         {
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -355,6 +363,7 @@ namespace Dorothy.Models
                                 {
                                     udpFlood.PacketSent     += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
                                     udpFlood.StatsPublished += (s, snap) => OnStatsPublished(snap);
+                                    udpFlood.FrameSnapshotReady += (s, snap) => OnFrameSnapshotReady(snap, "UDP", "UDP");
                                     await udpFlood.StartAsync();
                                 }
                                 break;
@@ -364,6 +373,7 @@ namespace Dorothy.Models
                                 {
                                     icmpFlood.PacketSent     += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
                                     icmpFlood.StatsPublished += (s, snap) => OnStatsPublished(snap);
+                                    icmpFlood.FrameSnapshotReady += (s, snap) => OnFrameSnapshotReady(snap, "ICMP", "ICMP");
                                     await icmpFlood.StartAsync();
                                 }
                                 break;
@@ -386,6 +396,7 @@ namespace Dorothy.Models
                                     tcpFlood.StatsPublished      += (s, snap) => OnStatsPublished(snap);
                                     tcpFlood.CalibrationStarted  += (s, _) => TcpCalibrationStarted?.Invoke(this, EventArgs.Empty);
                                     tcpFlood.CalibrationCompleted+= (s, _) => TcpCalibrationCompleted?.Invoke(this, EventArgs.Empty);
+                                    tcpFlood.FrameSnapshotReady  += (s, snap) => OnFrameSnapshotReady(snap, "TCP SYN", "TCP");
                                     await tcpFlood.StartAsync();
                                 }
                                 break;
@@ -405,6 +416,7 @@ namespace Dorothy.Models
                                     tcpFlood.StatsPublished      += (s, snap) => OnStatsPublished(snap);
                                     tcpFlood.CalibrationStarted  += (s, _) => TcpCalibrationStarted?.Invoke(this, EventArgs.Empty);
                                     tcpFlood.CalibrationCompleted+= (s, _) => TcpCalibrationCompleted?.Invoke(this, EventArgs.Empty);
+                                    tcpFlood.FrameSnapshotReady  += (s, snap) => OnFrameSnapshotReady(snap, "TCP SYN", "TCP");
                                     await tcpFlood.StartAsync();
                                 }
                                 break;

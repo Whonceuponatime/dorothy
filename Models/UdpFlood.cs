@@ -24,6 +24,7 @@ namespace Dorothy.Models
 
         public event EventHandler<PacketEventArgs>? PacketSent;
         public event EventHandler<Dorothy.Services.FloodSnapshot>? StatsPublished;
+        public event EventHandler<PacketFrameSnapshot>? FrameSnapshotReady;
 
         public bool DryRunMode { get; set; } = false;
 
@@ -100,6 +101,14 @@ namespace Dorothy.Models
                 int  wireSize  = pool[0].Length + 4;
                 long targetBps = _params.BytesPerSecond;
                 double tgtMbps = targetBps * 8.0 / 1_000_000;
+
+                try
+                {
+                    var snapshot = PacketFrameSnapshot.FromPacket(
+                        pool[0], "UDP", tgtMbps, "L2 raw");
+                    FrameSnapshotReady?.Invoke(this, snapshot);
+                }
+                catch { }
 
                 Logger.Info($"[UDP] frame={pool[0].Length}B  wire={wireSize}B  " +
                             $"target={tgtMbps:F2} Mbps  pool={poolSize}");

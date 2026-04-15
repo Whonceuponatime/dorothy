@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -21,6 +22,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
+using System.Windows.Controls.Primitives;
 using System.Windows.Shapes;
 using Dorothy.Controllers;
 using Dorothy.Models;
@@ -79,6 +81,10 @@ namespace Dorothy.Views
         private Dorothy.Services.FloodProtocolCapabilities _protocolCaps =
             Dorothy.Services.FloodProtocolCapabilities.None;
 
+        public ObservableCollection<LogEntry> LogEntries { get; } = new();
+
+        private PacketFrameSnapshot? _currentFrameSnapshot;
+
         private Dorothy.Services.RateUnit _currentRateUnit    = Dorothy.Services.RateUnit.Mbps;
         private Dorothy.Services.RateUnit _advCurrentRateUnit = Dorothy.Services.RateUnit.Mbps;
 
@@ -106,6 +112,7 @@ namespace Dorothy.Views
         public MainWindow()
         {
             InitializeComponent();
+            DataContext = this;
 
             _databaseService = new Services.DatabaseService();
             _supabaseSyncService = new Services.SupabaseSyncService(_databaseService);
@@ -124,6 +131,7 @@ namespace Dorothy.Views
                 username: _username,
                 userId: null
             );
+            _attackLogger.SetLogEntryCallback(AppendLogEntry);
 
             _networkStorm = new NetworkStorm(_attackLogger);
             _traceRoute = new TraceRoute(_attackLogger);
@@ -1343,6 +1351,191 @@ namespace Dorothy.Views
         private void ClearLogButton_Click(object sender, RoutedEventArgs e)
         {
             LogTextBox.Clear();
+            LogEntries.Clear();
+        }
+
+        public void AppendLogEntry(LogEntry entry)
+        {
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(() => AppendLogEntry(entry));
+                return;
+            }
+            LogEntries.Add(entry);
+
+            if (LogEntries.Count > 2000)
+                LogEntries.RemoveAt(0);
+
+            LogScrollViewer?.ScrollToEnd();
+        }
+
+        private void LogEntry_RowClick(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not Border border || border.DataContext is not LogEntry entry)
+                return;
+            if (entry.Type != LogEntryType.Packet || entry.Frame == null)
+                return;
+
+            entry.IsExpanded = !entry.IsExpanded;
+
+            var parentStack = VisualTreeHelper.GetParent(border) as StackPanel;
+            if (parentStack == null) return;
+
+            var detailPanel = FindChild<Border>(parentStack, "DetailPanel");
+            if (detailPanel == null) return;
+
+            var chevron = FindChild<TextBlock>(parentStack, "ExpandChevron");
+            if (chevron?.RenderTransform is RotateTransform rot)
+                rot.Angle = entry.IsExpanded ? 90 : 0;
+
+            if (entry.IsExpanded)
+            {
+                var content = FindChild<StackPanel>(detailPanel, "DetailContent");
+                if (content != null && content.Children.Count == 0)
+                    BuildDetailContent(content, entry.Frame);
+            }
+        }
+
+        private void BuildDetailContent(StackPanel container, PacketFrameSnapshot frame)
+        {
+            var layerColors = new Dictionary<string, (string HeaderBg, string HeaderFg, string FieldVal, string BodyBg)>
+            {
+                ["Ethernet"] = ("#1e3a5f", "#93c5fd", "#7dd3fc", "#0d1e33"),
+                ["IP"]       = ("#14532d", "#86efac", "#6ee7b7", "#0a1a10"),
+                ["TCP"]      = ("#3b0764", "#d8b4fe", "#c4b5fd", "#130520"),
+                ["UDP"]      = ("#1e3060", "#93c5fd", "#7dd3fc", "#0d1533"),
+                ["ICMP"]     = ("#4a1d7a", "#e9d5ff", "#ddd6fe", "#160d2a"),
+                ["Payload"]  = ("#451a03", "#fdba74", "#fb923c", "#150a02"),
+            };
+
+            foreach (var layer in frame.Layers)
+            {
+                var colors = layerColors.ContainsKey(layer.ColorKey)
+                    ? layerColors[layer.ColorKey]
+                    : ("#1e293b", "#94a3b8", "#cbd5e1", "#0f172a");
+
+                var layerBorder = new Border
+                {
+                    CornerRadius = new CornerRadius(5),
+                    Margin = new Thickness(0, 0, 0, 3),
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colors.BodyBg))
+                };
+
+                var layerStack = new StackPanel();
+
+                var headerBorder = new Border
+                {
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colors.HeaderBg)),
+                    CornerRadius = new CornerRadius(5, 5, 0, 0),
+                    Padding = new Thickness(8, 4, 8, 4)
+                };
+                var headerText = new TextBlock
+                {
+                    FontSize = 11,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colors.HeaderFg)),
+                    Text = $"{layer.Name}  ({layer.ByteCount} bytes)"
+                };
+                headerBorder.Child = headerText;
+                layerStack.Children.Add(headerBorder);
+
+                if (layer.Fields.Count > 0)
+                {
+                    var fieldGrid = new UniformGrid { Columns = 2, Margin = new Thickness(8, 4, 8, 6) };
+                    foreach (var (field, value) in layer.Fields)
+                    {
+                        fieldGrid.Children.Add(new TextBlock
+                        {
+                            Text = field,
+                            FontSize = 10,
+                            Foreground = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8b)),
+                            Margin = new Thickness(0, 1, 4, 1)
+                        });
+                        fieldGrid.Children.Add(new TextBlock
+                        {
+                            Text = value,
+                            FontSize = 10,
+                            FontFamily = new FontFamily("Consolas"),
+                            Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colors.FieldVal)),
+                            Margin = new Thickness(0, 1, 0, 1)
+                        });
+                    }
+                    layerStack.Children.Add(fieldGrid);
+                }
+
+                layerBorder.Child = layerStack;
+                container.Children.Add(layerBorder);
+            }
+
+            // Byte map
+            if (frame.RawBytes.Length > 128)
+            {
+                container.Children.Add(new TextBlock
+                {
+                    Text = $"Frame too large to display ({frame.RawBytes.Length} bytes)",
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x47, 0x55, 0x69)),
+                    Margin = new Thickness(0, 8, 0, 0)
+                });
+            }
+            else if (frame.RawBytes.Length > 0)
+            {
+                container.Children.Add(new TextBlock
+                {
+                    Text = "BYTE MAP",
+                    FontSize = 10,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8b)),
+                    Margin = new Thickness(0, 8, 0, 4),
+                    FontWeight = FontWeights.SemiBold
+                });
+
+                var wrap = new WrapPanel();
+                for (int i = 0; i < frame.RawBytes.Length; i++)
+                {
+                    int layerIdx = i < frame.ByteLayerMap.Length ? frame.ByteLayerMap[i] : 0;
+                    string colorKey = layerIdx < frame.Layers.Count
+                        ? frame.Layers[layerIdx].ColorKey : "Payload";
+                    var colors = layerColors.ContainsKey(colorKey)
+                        ? layerColors[colorKey]
+                        : ("#1e293b", "#94a3b8", "#cbd5e1", "#0f172a");
+
+                    var cell = new Border
+                    {
+                        Width = 22,
+                        Height = 20,
+                        CornerRadius = new CornerRadius(3),
+                        Margin = new Thickness(1),
+                        Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colors.HeaderBg)),
+                        Child = new TextBlock
+                        {
+                            Text = frame.RawBytes[i].ToString("X2"),
+                            FontFamily = new FontFamily("Consolas"),
+                            FontSize = 9,
+                            FontWeight = FontWeights.Bold,
+                            Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(colors.HeaderFg)),
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment = VerticalAlignment.Center
+                        }
+                    };
+                    wrap.Children.Add(cell);
+                }
+                container.Children.Add(wrap);
+            }
+        }
+
+        private static T? FindChild<T>(DependencyObject parent, string name) where T : FrameworkElement
+        {
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T fe && fe.Name == name)
+                    return fe;
+                var found = FindChild<T>(child, name);
+                if (found != null)
+                    return found;
+            }
+            return null;
         }
 
         private void TaskManagerButton_Click(object sender, RoutedEventArgs e)

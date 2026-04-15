@@ -27,6 +27,7 @@ namespace Dorothy.Models
         public event EventHandler<Dorothy.Services.FloodSnapshot>? StatsPublished;
         public event EventHandler? CalibrationStarted;
         public event EventHandler? CalibrationCompleted;
+        public event EventHandler<PacketFrameSnapshot>? FrameSnapshotReady;
 
         public bool IsRouted { get; set; } = false;
         public bool AddPayload { get; set; } = false;
@@ -435,6 +436,15 @@ namespace Dorothy.Models
                     BuildPoolEntry(i);
                     if (i == 0) actualPacketSize = packetPool[0].Length;
                 }
+
+                try
+                {
+                    double snapMbps = finalTargetBps * 8.0 / 1_000_000;
+                    var snapshot = PacketFrameSnapshot.FromPacket(
+                        packetPool[0], "TCP SYN", snapMbps, "L2 raw");
+                    FrameSnapshotReady?.Invoke(this, snapshot);
+                }
+                catch { }
 
                 int wirePacketSize = isRoutedMode
                     ? (actualWireSize > 0 ? actualWireSize : actualPacketSize + 4)

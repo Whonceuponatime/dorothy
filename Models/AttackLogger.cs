@@ -31,6 +31,9 @@ namespace Dorothy.Models
         private readonly string? _machineName;
         private readonly string? _username;
         private readonly Guid? _userId;
+        private Action<LogEntry>? _logEntryCallback;
+
+        public PacketFrameSnapshot? CurrentFrameSnapshot { get; set; }
 
         public AttackLogger(TextBox logArea, DatabaseService? databaseService = null,
                           string? hardwareId = null, string? machineName = null,
@@ -42,6 +45,11 @@ namespace Dorothy.Models
             _machineName = machineName ?? Environment.MachineName;
             _username = username ?? Environment.UserName;
             _userId = userId;
+        }
+
+        public void SetLogEntryCallback(Action<LogEntry> callback)
+        {
+            _logEntryCallback = callback;
         }
 
         public void StartAttack(AttackType attackType, string sourceIp, byte[] sourceMac,
@@ -399,7 +407,7 @@ namespace Dorothy.Models
 
         public void LogSuccess(string message)
         {
-            Log($"✅ {message}", LogLevel.Info);
+            Log($"✅ {message}", LogLevel.Success);
         }
 
         public void LogNote(string note)
@@ -417,10 +425,17 @@ namespace Dorothy.Models
                     }
                     else
                     {
-
                         _logArea.ScrollToEnd();
                     }
                 }), System.Windows.Threading.DispatcherPriority.Loaded);
+
+                _logEntryCallback?.Invoke(new LogEntry
+                {
+                    Timestamp = DateTime.Now.ToString("HH:mm:ss"),
+                    Icon = "ⓘ",
+                    Message = note.TrimEnd('\r', '\n'),
+                    Type = LogEntryType.System
+                });
             }
             catch (Exception ex)
             {
@@ -448,7 +463,6 @@ namespace Dorothy.Models
             }
             else
             {
-
                 logMessage = $"[{timestamp}] {message}";
             }
 
@@ -463,10 +477,82 @@ namespace Dorothy.Models
                 }
                 else
                 {
-
                     _logArea.ScrollToEnd();
                 }
             }), System.Windows.Threading.DispatcherPriority.Loaded);
+
+            EmitLogEntry(timestamp, message, level, isEvent);
+        }
+
+        private void EmitLogEntry(string timestamp, string message, LogLevel level, bool isEvent)
+        {
+            if (_logEntryCallback == null) return;
+
+            var entry = new LogEntry { Timestamp = timestamp };
+
+            if (isEvent)
+            {
+                entry.Type = LogEntryType.System;
+                entry.Icon = "ⓘ";
+                entry.Message = message;
+            }
+            else
+            {
+                switch (level)
+                {
+                    case LogLevel.Success:
+                        entry.Type = LogEntryType.Ok;
+                        entry.Icon = "✓";
+                        break;
+                    case LogLevel.Error:
+                        entry.Type = LogEntryType.Error;
+                        entry.Icon = "✕";
+                        break;
+                    case LogLevel.Warning:
+                        entry.Type = LogEntryType.Error;
+                        entry.Icon = "✕";
+                        break;
+                    default:
+                        entry.Type = LogEntryType.System;
+                        entry.Icon = "ⓘ";
+                        break;
+                }
+                entry.Message = message;
+            }
+
+            _logEntryCallback(entry);
+        }
+
+        public void LogPacket(string message, string badgeText, string badgeColorKey,
+                              PacketFrameSnapshot? frame = null)
+        {
+            var timestamp = DateTime.Now.ToString("HH:mm:ss");
+            var logMessage = $"[{timestamp}] {message}";
+
+            _logArea.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _logArea.AppendText($"{logMessage}{Environment.NewLine}");
+                var scrollViewer = FindVisualParent<ScrollViewer>(_logArea);
+                if (scrollViewer != null)
+                    scrollViewer.ScrollToEnd();
+                else
+                    _logArea.ScrollToEnd();
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+
+            if (_logEntryCallback != null)
+            {
+                var entry = new LogEntry
+                {
+                    Timestamp = timestamp,
+                    Icon = "◈",
+                    Message = message,
+                    Type = LogEntryType.Packet,
+                    BadgeText = badgeText,
+                    BadgeColorKey = badgeColorKey,
+                    Frame = frame
+                };
+                _logEntryCallback(entry);
+            }
         }
 
         private static T? FindVisualParent<T>(DependencyObject child) where T : DependencyObject
