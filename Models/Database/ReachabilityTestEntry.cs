@@ -17,7 +17,7 @@ namespace Dorothy.Models.Database
         public string? ProjectName { get; set; }
 
         [Column("analysis_mode")]
-        public string AnalysisMode { get; set; } = string.Empty; // "RemoteNetworkKnown" or "BoundaryOnly"
+        public string AnalysisMode { get; set; } = string.Empty;
 
         [Column("vantage_point_name")]
         public string VantagePointName { get; set; } = string.Empty;
@@ -61,14 +61,13 @@ namespace Dorothy.Models.Database
         [Column("user_id")]
         public Guid? UserId { get; set; }
 
-        // Local SQLite only fields (not in Supabase)
         [JsonIgnore]
         [IgnoreDataMember]
         public DateTime? SyncedAt { get; set; }
 
         [JsonIgnore]
         [IgnoreDataMember]
-        public bool IsSynced { get; set; } // Local SQLite field - use 'Synced' for Supabase
+        public bool IsSynced { get; set; }
 
         public object Clone()
         {
@@ -109,7 +108,7 @@ namespace Dorothy.Models.Database
         public string TargetIp { get; set; } = string.Empty;
 
         [Column("role")]
-        public string Role { get; set; } = string.Empty; // "Boundary device", "Gateway candidate", "Known asset", "External test target"
+        public string Role { get; set; } = string.Empty;
 
         [Column("reachable")]
         public bool Reachable { get; set; }
@@ -143,7 +142,7 @@ namespace Dorothy.Models.Database
         public int Port { get; set; }
 
         [Column("state")]
-        public string State { get; set; } = string.Empty; // "Open", "Closed", "Filtered"
+        public string State { get; set; } = string.Empty;
 
         [Column("rtt_ms")]
         public long RttMs { get; set; }
@@ -196,7 +195,7 @@ namespace Dorothy.Models.Database
         public string TargetIp { get; set; } = string.Empty;
 
         [Column("port_states")]
-        public string PortStates { get; set; } = string.Empty; // JSON: {"22": "Open", "80": "Closed", ...}
+        public string PortStates { get; set; } = string.Empty;
 
         [Column("summary")]
         public string? Summary { get; set; }
@@ -227,7 +226,7 @@ namespace Dorothy.Models.Database
         public string? SuccessfulCommunity { get; set; }
 
         [Column("successful_oids")]
-        public string SuccessfulOids { get; set; } = string.Empty; // JSON array of OID strings
+        public string SuccessfulOids { get; set; } = string.Empty;
 
         [Column("attempts")]
         public int Attempts { get; set; }

@@ -43,14 +43,13 @@ namespace Dorothy.Models
             {
                 Logger.Info($"Starting ARP Spoofing attack. Source IP: {_sourceIp}, Target IP: {_targetIp}");
                 Logger.Info($"Source MAC: {_sourceMac}, Target MAC: {_targetMac}, Spoofed MAC: {_spoofedMac}");
-                
+
                 try
                 {
-                    // List available devices for debugging
+
                     var allDevices = CaptureDeviceList.Instance.OfType<LibPcapLiveDevice>().ToList();
                     Logger.Info($"Available network interfaces: {allDevices.Count}");
-                    
-                    // Find the correct network interface based on the source IP
+
                     var device = allDevices.FirstOrDefault(d => d.Interface.Addresses
                         .Any(a => a.Addr?.ipAddress?.ToString() == _sourceIp));
 
@@ -65,11 +64,9 @@ namespace Dorothy.Models
                     _device.Open(DeviceModes.Promiscuous | DeviceModes.DataTransferUdp | DeviceModes.NoCaptureLocal);
                     Logger.Info("Device opened successfully");
 
-                    // Send single ARP packet to target
                     SendArpPacket(_sourceIp, _spoofedMac, _targetIp, _targetMac);
                     Logger.Info($"Sent ARP packet: {_sourceIp} ({_spoofedMac}) -> {_targetIp} ({_targetMac})");
 
-                    // Send single reverse ARP packet
                     SendArpPacket(_targetIp, _spoofedMac, _sourceIp, _sourceMac);
                     Logger.Info($"Sent reverse ARP packet: {_targetIp} ({_spoofedMac}) -> {_sourceIp} ({_sourceMac})");
 
@@ -128,13 +125,13 @@ namespace Dorothy.Models
             {
                 _isDisposed = true;
                 Logger.Info("Disposing ARP Spoofer...");
-                
+
                 if (_device != null && _device.Opened)
                 {
                     Logger.Info("Sending restore packets...");
                     try
                     {
-                        // Restore original ARP entries
+
                         SendArpPacket(_sourceIp, _sourceMac, _targetIp, _targetMac);
                         SendArpPacket(_targetIp, _targetMac, _sourceIp, _sourceMac);
                         Logger.Info("Sent restore ARP packets with original MAC addresses");
@@ -144,7 +141,7 @@ namespace Dorothy.Models
                         Logger.Error(ex, "Failed to send restore packets");
                     }
                 }
-                
+
                 if (_device != null)
                 {
                     if (_device.Opened)

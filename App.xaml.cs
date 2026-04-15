@@ -5,50 +5,66 @@ using System.Windows;
 using System.Windows.Threading;
 using Dorothy.Services;
 using NLog;
-using Supabase;
 
 namespace Dorothy
 {
     public partial class App : Application
     {
+
+        private static bool IsRunningAsAdministrator()
+        {
+            try
+            {
+                using var identity =
+                    System.Security.Principal.WindowsIdentity.GetCurrent();
+                var principal =
+                    new System.Security.Principal.WindowsPrincipal(identity);
+                return principal.IsInRole(
+                    System.Security.Principal.WindowsBuiltInRole.Administrator);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         protected override async void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
-            
-            // Global exception handling
+
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             DispatcherUnhandledException += App_DispatcherUnhandledException;
 
+            if (!IsRunningAsAdministrator())
+            {
+                System.Windows.MessageBox.Show(
+                    "SEACURE(TOOL) must run as Administrator.\n\n" +
+                    "Reason:\n" +
+                    "  Raw packet generation (flood attacks, Layer-2 injection) uses Npcap / SharpPcap,\n" +
+                    "  which requires elevated access to open packet capture devices.\n\n" +
+                    "Note:\n" +
+                    "  TCP Connect Scan and Reachability Test features do not inherently require\n" +
+                    "  Administrator access, but the application runs elevated because raw packet\n" +
+                    "  generation is the primary use-case.\n\n" +
+                    "Please restart using 'Run as Administrator'.",
+                    "Administrator Privileges Required",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Warning);
+                Shutdown(1);
+                return;
+            }
+
             var logger = LogManager.GetCurrentClassLogger();
-            logger.Info("Application starting");
+            logger.Info("Application starting (elevated: Administrator)");
 
-            // Initialize Supabase client with hardcoded credentials for license validation
-            Supabase.Client? supabaseClient = null;
-            try
-            {
-                var options = new SupabaseOptions
-                        {
-                            AutoConnectRealtime = false,
-                            AutoRefreshToken = false
-                        };
-                supabaseClient = new Client(SupabaseConfig.Url, SupabaseConfig.AnonKey, options);
-                        logger.Info("Supabase client initialized for license validation");
-            }
-            catch (Exception ex)
-            {
-                logger.Warn(ex, "Failed to initialize Supabase client, using local whitelist only");
-            }
-
-            // License validation - checks Supabase first (if configured), then local file
-            var licenseService = new LicenseService(supabaseClient);
+            var licenseService = new LicenseService();
             var licenseResult = await licenseService.ValidateLicenseAsync();
 
             if (!licenseResult.IsValid)
             {
-                // Show license window and exit if not authorized
-                // Use cached hardware ID if available (for offline display), otherwise use current hardware ID
-                var displayHardwareId = !string.IsNullOrEmpty(licenseResult.CachedHardwareId) 
-                    ? licenseResult.CachedHardwareId 
+
+                var displayHardwareId = !string.IsNullOrEmpty(licenseResult.CachedHardwareId)
+                    ? licenseResult.CachedHardwareId
                     : licenseService.HardwareId;
                 var licenseWindow = new Views.LicenseWindow(displayHardwareId, licenseResult.Message)
                 {
@@ -69,10 +85,10 @@ namespace Dorothy
         private void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
             var exception = e.ExceptionObject as Exception;
-            var message = exception != null 
+            var message = exception != null
                 ? $"Unhandled Exception: {exception.Message}\n\n{exception.StackTrace}"
                 : "An unknown error occurred.";
-            
+
             MessageBox.Show(message, "Application Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
 
@@ -80,7 +96,7 @@ namespace Dorothy
         {
             var message = $"Unhandled Exception: {e.Exception.Message}\n\n{e.Exception.StackTrace}";
             MessageBox.Show(message, "Application Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            e.Handled = true; // Prevent app crash
+            e.Handled = true;
         }
 
     }

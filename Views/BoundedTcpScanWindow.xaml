@@ -1,0 +1,350 @@
+<Window x:Class="Dorothy.Views.BoundedTcpScanWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Bounded TCP Connect Scan — Authorized Use Only"
+        MinWidth="780" MinHeight="560"
+        Width="1020" Height="720"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        Background="#1A2332">
+
+    <Window.Resources>
+        <Style x:Key="CardBorder" TargetType="Border">
+            <Setter Property="Background"       Value="#232F3E"/>
+            <Setter Property="BorderBrush"      Value="#3A4555"/>
+            <Setter Property="BorderThickness"  Value="1"/>
+            <Setter Property="CornerRadius"     Value="8"/>
+            <Setter Property="Padding"          Value="14"/>
+            <Setter Property="Margin"           Value="0,0,0,10"/>
+        </Style>
+        <Style x:Key="CardHeader" TargetType="TextBlock">
+            <Setter Property="FontSize"     Value="13"/>
+            <Setter Property="FontWeight"   Value="SemiBold"/>
+            <Setter Property="Foreground"   Value="#E8ECF1"/>
+            <Setter Property="Margin"       Value="0,0,0,10"/>
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize"         Value="13"/>
+            <Setter Property="Foreground"       Value="#8899AA"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background"       Value="#2A3444"/>
+            <Setter Property="Foreground"       Value="#E8ECF1"/>
+            <Setter Property="CaretBrush"       Value="#E8ECF1"/>
+            <Setter Property="SelectionBrush"   Value="#5B8AF5"/>
+            <Setter Property="BorderBrush"      Value="#3A4555"/>
+            <Setter Property="BorderThickness"  Value="1"/>
+            <Setter Property="Padding"          Value="6,4"/>
+            <Setter Property="FontSize"         Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="InputBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="FontSize"         Value="13"/>
+            <Setter Property="Padding"          Value="6,4"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background"       Value="#2A3444"/>
+            <Setter Property="Foreground"       Value="#E8ECF1"/>
+            <Setter Property="BorderBrush"      Value="#3A4555"/>
+            <Setter Property="BorderThickness"  Value="1"/>
+            <Setter Property="Padding"          Value="6,4"/>
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground"       Value="#8899AA"/>
+        </Style>
+        <Style x:Key="PrimaryBtn" TargetType="Button">
+            <Setter Property="FontSize"         Value="13"/>
+            <Setter Property="FontWeight"       Value="SemiBold"/>
+            <Setter Property="Padding"          Value="14,6"/>
+            <Setter Property="Background"       Value="#5B8AF5"/>
+            <Setter Property="Foreground"       Value="White"/>
+            <Setter Property="BorderThickness"  Value="0"/>
+            <Setter Property="Cursor"           Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#4A79E4"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#3A4555"/>
+                    <Setter Property="Foreground" Value="#6A7A8A"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="SecondaryBtn" TargetType="Button" BasedOn="{StaticResource PrimaryBtn}">
+            <Setter Property="Background"   Value="#3A4555"/>
+            <Setter Property="Foreground"   Value="#E8ECF1"/>
+            <Setter Property="BorderBrush"  Value="#4A5565"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#4A5565"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#2A3444"/>
+                    <Setter Property="Foreground"  Value="#6A7A8A"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="DataGrid">
+            <Setter Property="Background" Value="#1E2A3A"/>
+            <Setter Property="Foreground" Value="#E8ECF1"/>
+            <Setter Property="BorderBrush" Value="#3A4555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="RowBackground" Value="#1E2A3A"/>
+            <Setter Property="AlternatingRowBackground" Value="#232F3E"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#2A3444"/>
+            <Setter Property="VerticalGridLinesBrush" Value="#2A3444"/>
+        </Style>
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background" Value="#232F3E"/>
+            <Setter Property="Foreground" Value="#8899AA"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderBrush" Value="#3A4555"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Padding" Value="8,6"/>
+        </Style>
+        <Style TargetType="DataGridCell">
+            <Setter Property="Foreground" Value="#E8ECF1"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Background="Transparent" Padding="4">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="DataGridRow">
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#253040"/>
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#2A3A50"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="ProgressBar">
+            <Setter Property="Background" Value="#2A3444"/>
+            <Setter Property="Foreground" Value="#5B8AF5"/>
+            <Setter Property="BorderBrush" Value="#3A4555"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"   MinHeight="150"/>
+            <RowDefinition Height="Auto" MaxHeight="160"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="#3A3520" BorderBrush="#6B5B10" BorderThickness="1"
+                CornerRadius="6" Padding="14,10" Margin="0,0,0,10">
+            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#FBBF24">
+                <Run FontWeight="Bold">⚠  Authorized use only.</Run>
+                <Run>This tool uses TCP connect-based probing only.
+Use only on networks and systems for which you have explicit written authorization.</Run>
+            </TextBlock>
+        </Border>
+
+        <Grid Grid.Row="1" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource CardBorder}" Margin="0">
+                <StackPanel>
+                    <TextBlock Text="Target" Style="{StaticResource CardHeader}"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#8899AA" Margin="0,0,0,8">
+                        Enter a single IP, range, CIDR, or paste a list (one per line).
+                        Examples:  192.168.1.1  |  192.168.1.1-50  |  192.168.1.0/24  |  server.lab.local
+                    </TextBlock>
+                    <TextBox x:Name="TargetInputTextBox"
+                             Style="{StaticResource InputBox}"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             Height="80"
+                             VerticalScrollBarVisibility="Auto"
+                             Text="192.168.1.1"
+                             FontFamily="Consolas"
+                             TextChanged="TargetInputTextBox_TextChanged"/>
+                    <TextBlock x:Name="TargetEstimateText"
+                               FontSize="11" Foreground="#8899AA"
+                               Margin="0,4,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2" Style="{StaticResource CardBorder}" Margin="0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="100"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.ColumnSpan="2"
+                               Text="Scan Options" Style="{StaticResource CardHeader}"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Source IP:"
+                               Style="{StaticResource FieldLabel}" Margin="0,0,10,8"
+                               ToolTip="TCP connect probes will bind to this local IP. ICMP probes use OS routing regardless."/>
+                    <ComboBox x:Name="SourceIpComboBox" Grid.Row="1" Grid.Column="1"
+                              FontSize="12" Padding="6,4" Height="28" Margin="0,0,0,8"
+                              ToolTip="Select the NIC / IP to use as the scan vantage point. Affects TCP connect binding only; ICMP always follows OS routing."/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Port preset:"
+                               Style="{StaticResource FieldLabel}" Margin="0,0,10,8"/>
+                    <ComboBox x:Name="PortPresetComboBox" Grid.Row="2" Grid.Column="1"
+                              FontSize="13" Padding="6,4" Height="28" Margin="0,0,0,8"
+                              SelectionChanged="PortPresetComboBox_SelectionChanged">
+                        <ComboBoxItem Content="Common (21 ports)" Tag="common"/>
+                        <ComboBoxItem Content="Web (6 ports)"     Tag="web"/>
+                        <ComboBoxItem Content="Remote Access (5)" Tag="remote"/>
+                        <ComboBoxItem Content="Database (7)"      Tag="database"/>
+                        <ComboBoxItem Content="Custom"            Tag="custom"/>
+                    </ComboBox>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Custom ports:"
+                               Style="{StaticResource FieldLabel}" Margin="0,0,10,8"/>
+                    <TextBox x:Name="CustomPortsTextBox" Grid.Row="3" Grid.Column="1"
+                             Style="{StaticResource InputBox}" Height="28" Margin="0,0,0,8"
+                             Text="22,80,443"
+                             FontFamily="Consolas" FontSize="12"
+                             IsEnabled="False"/>
+
+                    <CheckBox x:Name="IcmpDiscoveryCheckBox" Grid.Row="4" Grid.ColumnSpan="2"
+                              Content="ICMP discovery first (ping before TCP)" FontSize="13"
+                              Foreground="#8899AA" Margin="0,0,0,8"/>
+
+                    <TextBlock Grid.Row="5" Grid.Column="0" Text="Max concurrency:"
+                               Style="{StaticResource FieldLabel}" Margin="0,0,10,8"/>
+                    <TextBox x:Name="ConcurrencyTextBox" Grid.Row="5" Grid.Column="1"
+                             Style="{StaticResource InputBox}" Height="28" Margin="0,0,0,8"
+                             Text="10" MaxLength="3"/>
+
+                    <TextBlock Grid.Row="6" Grid.Column="0" Text="Timeout (ms):"
+                               Style="{StaticResource FieldLabel}" Margin="0,0,10,0"/>
+                    <TextBox x:Name="TimeoutMsTextBox" Grid.Row="6" Grid.Column="1"
+                             Style="{StaticResource InputBox}" Height="28"
+                             Text="3000" MaxLength="5"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2"
+                Background="#232F3E" BorderBrush="#3A4555" BorderThickness="1"
+                CornerRadius="8" Padding="12,10" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button x:Name="StartScanButton"   Grid.Column="0"
+                        Content="▶  Start Scan" Style="{StaticResource PrimaryBtn}"
+                        Margin="0,0,8,0" Click="StartScanButton_Click"/>
+                <Button x:Name="StopScanButton"    Grid.Column="1"
+                        Content="⬛  Stop"      Style="{StaticResource SecondaryBtn}"
+                        Margin="0,0,16,0" IsEnabled="False" Click="StopScanButton_Click"/>
+                <Button x:Name="EstimateButton"    Grid.Column="2"
+                        Content="Estimate Workload" Style="{StaticResource SecondaryBtn}"
+                        Click="EstimateButton_Click"/>
+
+                <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="16,0,0,0">
+                    <ProgressBar x:Name="ScanProgressBar"
+                                 Height="6" Minimum="0" Maximum="100" Value="0"
+                                 Visibility="Collapsed"/>
+                    <TextBlock x:Name="ScanStatusText"
+                               FontSize="12" Foreground="#8899AA" Margin="0,3,0,0"/>
+                </StackPanel>
+
+                <TextBlock x:Name="ScanCounterText" Grid.Column="4"
+                           FontSize="12" Foreground="#C8D1DC"
+                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+            </Grid>
+        </Border>
+
+        <DataGrid x:Name="ResultsDataGrid" Grid.Row="3"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False" CanUserDeleteRows="False"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="Horizontal"
+                  FontSize="12"
+                  SelectionMode="Single"
+                  Margin="0,0,0,10">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Host"        Binding="{Binding IpAddress}"      Width="130" IsReadOnly="True"/>
+                <DataGridTextColumn Header="ICMP"        Binding="{Binding IcmpStatus}"     Width="55"  IsReadOnly="True"/>
+                <DataGridTextColumn Header="Open Ports"  Binding="{Binding OpenPorts}"      Width="*"   IsReadOnly="True"/>
+                <DataGridTextColumn Header="Closed"      Binding="{Binding ClosedCount}"    Width="60"  IsReadOnly="True"/>
+                <DataGridTextColumn Header="Timed Out"   Binding="{Binding TimedOutCount}"  Width="80"  IsReadOnly="True"/>
+                <DataGridTextColumn Header="Error"       Binding="{Binding ErrorCount}"     Width="55"  IsReadOnly="True"/>
+                <DataGridTextColumn Header="Status"      Binding="{Binding StatusDisplay}"  Width="100" IsReadOnly="True"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <Border Grid.Row="4"
+                Background="#232F3E" BorderBrush="#3A4555" BorderThickness="1"
+                CornerRadius="8" Padding="12,10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0"
+                           Text="Summary" Style="{StaticResource CardHeader}" Margin="0,0,0,4"/>
+                <Button x:Name="CopySummaryButton" Grid.Row="0" Grid.Column="1"
+                        Content="Copy to Clipboard"
+                        Style="{StaticResource SecondaryBtn}"
+                        FontSize="11" Padding="8,3"
+                        Click="CopySummaryButton_Click"/>
+
+                <TextBox x:Name="SummaryTextBox" Grid.Row="1" Grid.ColumnSpan="2"
+                         IsReadOnly="True"
+                         TextWrapping="Wrap"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         FontFamily="Consolas"
+                         FontSize="11"
+                         Foreground="#C8D1DC"
+                         VerticalScrollBarVisibility="Auto"
+                         Text="Scan results will appear here after the scan completes."/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

@@ -10,21 +10,16 @@ using Dorothy.Models;
 
 namespace Dorothy.Services
 {
-    /// <summary>
-    /// Service for testing host reachability via ICMP and TCP
-    /// </summary>
+
     public class ReachabilityService
     {
         private readonly int[] _defaultReachabilityPorts = { 22, 80, 443, 3389 };
-        private readonly int _pingTimeout = 2000; // 2 seconds
-        private readonly int _tcpConnectTimeout = 2000; // 2 seconds
+        private readonly int _pingTimeout = 2000;
+        private readonly int _tcpConnectTimeout = 2000;
         private readonly int _pingCount = 3;
 
-        /// <summary>
-        /// Test reachability of a host using ICMP ping and TCP probes
-        /// </summary>
         public async Task<HostReachabilityResult> TestReachabilityAsync(
-            string ipAddress, 
+            string ipAddress,
             CancellationToken cancellationToken = default)
         {
             var result = new HostReachabilityResult
@@ -34,7 +29,7 @@ namespace Dorothy.Services
 
             try
             {
-                // Primary test: ICMP ping
+
                 result.PingSuccess = await TestIcmpPingAsync(ipAddress, cancellationToken);
                 result.PingCount = _pingCount;
                 result.PingSuccessCount = result.PingSuccess ? _pingCount : 0;
@@ -45,7 +40,6 @@ namespace Dorothy.Services
                     return result;
                 }
 
-                // Secondary test: TCP reachability check
                 var reachableTcpPorts = await TestTcpReachabilityAsync(ipAddress, cancellationToken);
                 result.ReachableTcpPorts = reachableTcpPorts;
 
@@ -67,17 +61,14 @@ namespace Dorothy.Services
             return result;
         }
 
-        /// <summary>
-        /// Test if firewall interface is reachable
-        /// </summary>
         public async Task<bool> TestFirewallInterfaceReachabilityAsync(
-            string firewallIp, 
+            string firewallIp,
             CancellationToken cancellationToken = default)
         {
             try
             {
                 var result = await TestReachabilityAsync(firewallIp, cancellationToken);
-                return result.State == ReachabilityState.ReachableIcmp || 
+                return result.State == ReachabilityState.ReachableIcmp ||
                        result.State == ReachabilityState.ReachableTcpOnly;
             }
             catch
@@ -86,11 +77,8 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Test ICMP ping to a host
-        /// </summary>
         private async Task<bool> TestIcmpPingAsync(
-            string ipAddress, 
+            string ipAddress,
             CancellationToken cancellationToken)
         {
             try
@@ -113,17 +101,15 @@ namespace Dorothy.Services
                     }
                     catch
                     {
-                        // Ping failed, continue to next attempt
+
                     }
 
-                    // Small delay between pings
                     if (i < _pingCount - 1)
                     {
                         await Task.Delay(200, cancellationToken);
                     }
                 }
 
-                // Consider reachable if at least one ping succeeded
                 return successCount > 0;
             }
             catch
@@ -132,11 +118,8 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Test TCP reachability by attempting connections to default ports
-        /// </summary>
         private async Task<List<int>> TestTcpReachabilityAsync(
-            string ipAddress, 
+            string ipAddress,
             CancellationToken cancellationToken)
         {
             var reachablePorts = new List<int>();
@@ -156,35 +139,33 @@ namespace Dorothy.Services
 
                     if (completedTask == connectTask && client.Connected)
                     {
-                        // Connection succeeded - host is reachable
+
                         reachablePorts.Add(port);
-                        // Close connection immediately
+
                         client.Close();
                     }
                     else if (completedTask == connectTask)
                     {
-                        // Connection attempt completed but not connected
-                        // Check for connection refused (host reachable, port closed)
+
                         try
                         {
-                            // If we get here, the host responded (even if refused)
-                            // This indicates the host is reachable
+
                             reachablePorts.Add(port);
                         }
                         catch
                         {
-                            // Ignore errors
+
                         }
                     }
                 }
                 catch (SocketException ex) when (ex.SocketErrorCode == SocketError.ConnectionRefused)
                 {
-                    // Connection refused means host is reachable, port is just closed
+
                     reachablePorts.Add(port);
                 }
                 catch
                 {
-                    // Timeout or other error - port is likely filtered or host unreachable
+
                 }
             }
 
@@ -192,9 +173,4 @@ namespace Dorothy.Services
         }
     }
 }
-
-
-
-
-
 

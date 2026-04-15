@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -27,13 +27,12 @@ namespace Dorothy.Views
             FontSize = currentFontSize;
             ThemeIndex = currentThemeIndex;
 
-            LogLocationTextBox.Text = string.IsNullOrEmpty(LogLocation) 
-                ? AppDomain.CurrentDomain.BaseDirectory 
+            LogLocationTextBox.Text = string.IsNullOrEmpty(LogLocation)
+                ? AppDomain.CurrentDomain.BaseDirectory
                 : LogLocation;
             FontSizeTextBox.Text = FontSize.ToString("F1");
             ThemeComboBox.SelectedIndex = ThemeIndex;
-            
-            // Set Supabase URL from config
+
             if (SupabaseUrlTextBlock != null)
             {
                 try
@@ -46,8 +45,7 @@ namespace Dorothy.Views
                     SupabaseUrlTextBlock.Text = "Supabase URL: Not configured";
                 }
             }
-            
-            // Load license information
+
             LoadLicenseInfo();
         }
 
@@ -69,8 +67,7 @@ namespace Dorothy.Views
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
             LogLocation = LogLocationTextBox.Text;
-            
-            // Parse font size from textbox
+
             if (double.TryParse(FontSizeTextBox.Text, out double fontSize) && fontSize >= 8 && fontSize <= 24)
             {
                 FontSize = fontSize;
@@ -84,10 +81,9 @@ namespace Dorothy.Views
                     MessageBoxImage.Warning);
                 return;
             }
-            
+
             ThemeIndex = ThemeComboBox.SelectedIndex;
 
-            // Validate log location
             if (!Directory.Exists(LogLocation))
             {
                 try
@@ -105,12 +101,10 @@ namespace Dorothy.Views
                 }
             }
 
-            // Supabase credentials are hardcoded - no validation needed
-
             DialogResult = true;
             Close();
         }
-        
+
         private void FontSizeTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
         {
             var textBox = sender as TextBox;
@@ -119,76 +113,71 @@ namespace Dorothy.Views
                 e.Handled = true;
                 return;
             }
-            
-            // Allow only digits and decimal point
+
             if (!char.IsDigit(e.Text, 0) && e.Text != ".")
             {
                 e.Handled = true;
                 return;
             }
-            
-            // Prevent multiple decimal points
+
             if (e.Text == "." && textBox.Text.Contains("."))
             {
                 e.Handled = true;
                 return;
             }
-            
-            // Get the resulting text after insertion
+
             string currentText = textBox.Text ?? string.Empty;
             int caretIndex = textBox.CaretIndex;
             string newText = currentText.Insert(caretIndex, e.Text);
-            
-            // Allow empty text (user is deleting/clearing)
+
             if (string.IsNullOrEmpty(newText))
             {
-                return; // Allow it
+                return;
             }
-            
-            // Allow partial input during typing (like "1", "12", "12.")
-            // Only block if we can parse a complete number and it's clearly out of range
+
             if (double.TryParse(newText, out double value))
             {
-                // Only block if value is clearly out of range
-                // Allow intermediate values during typing (e.g., allow "2" even though it's < 8, user might type "12")
+
                 if (value < 0 || value > 24)
                 {
                     e.Handled = true;
                     return;
                 }
             }
-            // If it's not a valid number yet (partial input), allow it
-            // Examples: "1", "12", "12." are all valid partial inputs
+
         }
-        
+
         private void FontSizeTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             var textBox = sender as TextBox;
             if (textBox == null) return;
-            
-            // Validate and provide visual feedback
+
             if (double.TryParse(textBox.Text, out double value))
             {
                 if (value >= 8 && value <= 24)
                 {
-                    textBox.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
-                    textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(209, 213, 219));
+                    textBox.ClearValue(TextBox.BackgroundProperty);
+                    textBox.ClearValue(TextBox.ForegroundProperty);
+                    textBox.ClearValue(TextBox.BorderBrushProperty);
                 }
                 else
                 {
-                    textBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
-                    textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+                    textBox.Background  = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                    textBox.Foreground  = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                    textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5A, 0x30, 0x30));
                 }
             }
             else if (string.IsNullOrEmpty(textBox.Text))
             {
-                textBox.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
-                textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(209, 213, 219));
+                textBox.ClearValue(TextBox.BackgroundProperty);
+                textBox.ClearValue(TextBox.ForegroundProperty);
+                textBox.ClearValue(TextBox.BorderBrushProperty);
             }
             else
             {
-                textBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
-                textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+                textBox.Background  = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                textBox.Foreground  = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5A, 0x30, 0x30));
             }
         }
 
@@ -197,8 +186,6 @@ namespace Dorothy.Views
             DialogResult = false;
             Close();
         }
-
-        // Supabase URL and Anon Key are now hardcoded - no UI handlers needed
 
         private void CopyHardwareIdButton_Click(object sender, RoutedEventArgs e)
         {
@@ -228,20 +215,10 @@ namespace Dorothy.Views
         {
             try
             {
-                // Initialize Supabase client with hardcoded credentials
-                var supabaseClient = new Supabase.Client(
-                    Services.SupabaseConfig.Url,
-                    Services.SupabaseConfig.AnonKey,
-                    new Supabase.SupabaseOptions
-                    {
-                        AutoConnectRealtime = false,
-                        AutoRefreshToken = false
-                    });
 
-                var licenseService = new LicenseService(supabaseClient);
+                var licenseService = new LicenseService();
                 var hardwareId = licenseService.HardwareId;
-                
-                // Check Supabase license (centralized control)
+
                 var validationResult = await licenseService.ValidateLicenseAsync();
 
                 if (CurrentHardwareIdTextBlock != null)
@@ -252,11 +229,11 @@ namespace Dorothy.Views
                 if (LicenseStatusTextBlock != null)
                 {
                     LicenseStatusTextBlock.Text = validationResult.IsValid
-                        ? "[OK] Status: Authorized (Supabase)"
+                        ? "[OK] Status: Authorized"
                         : "[X] Status: Not Authorized - Contact Administrator";
                     LicenseStatusTextBlock.Foreground = validationResult.IsValid
-                        ? new SolidColorBrush(Color.FromRgb(34, 197, 94)) // Green
-                        : new SolidColorBrush(Color.FromRgb(239, 68, 68)); // Red
+                        ? new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80))
+                        : new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
                 }
 
                 if (LicenseMessageTextBlock != null)
@@ -268,18 +245,17 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                // Silently fail - license info is optional
+
                 if (LicenseStatusTextBlock != null)
                 {
                     LicenseStatusTextBlock.Text = "[!] Status: Unable to verify license";
-                    LicenseStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(234, 179, 8)); // Yellow
+                    LicenseStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(0xFB, 0xBF, 0x24));
                 }
             }
         }
 
     }
 
-    // Pure WPF folder browser using Windows API
     public static class FolderBrowser
     {
         [DllImport("shell32.dll", CharSet = CharSet.Auto)]
@@ -300,9 +276,9 @@ namespace Dorothy.Views
             {
                 hwndOwner = ownerHandle,
                 pidlRoot = IntPtr.Zero,
-                pszDisplayName = new string('\0', 260), // Pre-initialize with null characters to match buffer size
+                pszDisplayName = new string('\0', 260),
                 lpszTitle = description,
-                ulFlags = 0x00000040 | 0x00000010, // BIF_NEWDIALOGSTYLE | BIF_RETURNONLYFSDIRS
+                ulFlags = 0x00000040 | 0x00000010,
                 lpfn = BrowseCallbackProc,
                 lParam = IntPtr.Zero,
                 iImage = 0
@@ -365,4 +341,3 @@ namespace Dorothy.Views
     }
 }
 
-                // Silently fail - license info is optional

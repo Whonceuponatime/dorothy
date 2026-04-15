@@ -1,90 +1,87 @@
-# Maritime Network Testing Tool 🚢
+# SEACURE(TOOL)
 
-## Overview
-Dorothy is a specialized network testing tool designed for maritime cybersecurity evaluation. Developed by Hojin Samuel Tae, this tool simulates various network stress conditions to test the resilience of maritime network infrastructure.
+Windows WPF network security testing application for authorized maritime and enterprise network resilience evaluation.
 
-## Disclaimer
-**AUTHORIZED USE ONLY**
+Publisher: SeaNet Co., Ltd. — https://seacuredb.com
+Current version: 2.5.0
 
-This software is intended strictly for legitimate network testing in controlled maritime environments. Users must:
-- Have explicit authorization before conducting any tests
-- Only use in controlled testing environments
-- Obtain necessary permissions from network owners/operators
-- Accept full responsibility for usage
+## Authorized Use Only
 
-SeaNet and its affiliates assume no responsibility for any misuse, unauthorized access, or damages resulting from the use of this program.
+This software is intended strictly for legitimate network testing in controlled environments. Users must have explicit written authorization from the network owner before running any attack simulation. SeaNet Co., Ltd. assumes no responsibility for misuse, unauthorized access, or damages.
 
-## Technical Specifications
+## Features
 
-### Attack Types
-- TCP SYN Flood
+- TCP SYN Flood (Basic / Evasion modes, FortiGate-aware evasion)
 - UDP Flood
 - ICMP Flood
-- ARP Spoofing
-- Broadcast Attack Simulation
-- Multicast Attack Simulation
+- Ethernet Flood
+- ARP Spoofing / Network Storm
+- Destination type selection: Unicast / Multicast / Broadcast (TCP SYN, UDP, ICMP)
+- Auto-fill of broadcast/multicast IP and MAC
+- Real-time attack rate control (Mbps)
+- Reachability wizard and network scan
+- SNMP walk
+- Asset sync (Supabase)
+- License management
+- Update check
 
-### Network Performance
-- Configurable packet rates (Mbps)
-- Real-time rate limiting
-- Supports IPv4 addressing
-- MAC address spoofing capabilities
+## System Requirements
 
-### Packet Rate Calculation
-The program calculates packet transmission rates using the following formula:
+- Windows 10/11 x64
+- Administrative privileges (required for raw packet injection)
+- Npcap (or WinPcap) installed
+- .NET 8.0 runtime is bundled in the self-contained installer — no separate install required
+
+## Installation
+
+Run `installer/SEACURE(TOOL)_Setup_2.5.0.exe`. The installer:
+
+- Detects previous installations and performs an in-place upgrade
+- Registers uninstaller, desktop shortcut (optional), start menu group
+- Installs to `C:\Program Files\SeaNet\SEACURE(TOOL)` by default
+- Requires administrator elevation via UAC
+
+## Building
+
+Prerequisites:
+
+- .NET 8 SDK
+- Inno Setup 6 (`ISCC.exe` on PATH or at `C:\Program Files (x86)\Inno Setup 6\ISCC.exe`)
+- PowerShell 5+ (for asset regeneration)
+
+Build the executable and installer:
+
 ```
-Bytes per second = Megabits per second * 125,000
+dotnet build Dorothy.csproj -c Release
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 ```
 
-### Rate Limiting Implementation
-Rate limiting is implemented through precise timing controls:
-- Packet size monitoring
-- Transmission timing adjustment
-- Bandwidth regulation
-- Buffer management
+The Release build self-publishes to `dist/` via the `CreateDistributionAfterBuild` MSBuild target. The installer packages everything from `dist/` plus `Run-Dorothy.ps1`.
 
-Reference implementation:
+Regenerating the installer sidebar, icon, and `logo.ico` from `Resources/logo.png`:
 
-### Features
-- Real-time attack monitoring
-- Network interface selection
-- Customizable attack parameters
-- Logging system with detailed metrics
-- Advanced authentication system
-- Status monitoring and reporting
+```
+powershell -ExecutionPolicy Bypass -File .\create-installer-images.ps1
+```
 
-### System Requirements
-- Windows OS
-- .NET 7.0 or higher
-- Administrative privileges
-- Network adapter with packet injection support
+Output: `installer\SEACURE(TOOL)_Setup_<version>.exe`
 
-### Technical Architecture
-- Built on .NET 7.0
-- Uses SharpPcap for packet manipulation
-- WPF-based user interface
-- Multi-threaded attack simulation
-- Event-driven logging system
+## Version Bump
 
-## Usage Guidelines
-This tool should only be used by authorized personnel in maritime environments for:
-- Network resilience testing
-- Security evaluation
-- Performance assessment
-- Infrastructure validation
+1. Edit `<Version>`, `<AssemblyVersion>`, `<FileVersion>` in `Dorothy.csproj`
+2. Edit `#define AppVersion` in `installer.iss`
+3. Rebuild
 
-## Author
-Hojin Samuel Tae  
-Cybersecurity Engineer  
-SeaNet
+## Technical Stack
+
+- .NET 8 / WPF
+- SharpPcap 6.x + PacketDotNet 1.4 for raw packet injection
+- Lextm.SharpSnmpLib for SNMP
+- ClosedXML for Excel export
+- Microsoft.Data.Sqlite for local store
+- Supabase .NET client for cloud sync
+- NLog for logging
 
 ## License
-Proprietary software. All rights reserved.  
-Copyright © 2024 SeaNet
 
-## Packet Engineering & Network Analysis 📡
-
-### Packet Creation & Structure 📦
-The tool constructs network packets with precise control over:
-
-- Ethernet Frame Construction 🔧
+Proprietary. Copyright (C) 2024-2026 SeaNet Co., Ltd. All rights reserved.

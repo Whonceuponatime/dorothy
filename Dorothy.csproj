@@ -7,19 +7,22 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
     <AssemblyName>Dorothy</AssemblyName>
-    <Version>2.4.1</Version>
-    <AssemblyVersion>2.4.1.0</AssemblyVersion>
-    <FileVersion>2.4.1.0</FileVersion>
+    <Version>2.5.0</Version>
+    <AssemblyVersion>2.5.0.0</AssemblyVersion>
+    <FileVersion>2.5.0.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Platforms>x64</Platforms>
     <PublishSingleFile>false</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
-    <!-- Disable trimming since WPF doesn't support it -->
+
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+
     <PublishTrimmed>false</PublishTrimmed>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <!-- Exclude unnecessary localization resources to reduce size -->
+
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
   <ItemGroup>
@@ -34,11 +37,11 @@
     <PackageReference Include="ClosedXML" Version="0.102.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     <PackageReference Include="Supabase" Version="1.1.1" />
-    <!-- Direct ref overrides ClosedXML's transitive 6.0.0 (NU1903). -->
+
     <PackageReference Include="System.IO.Packaging" Version="8.0.1" />
     <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>
-  <!-- System.Private.Uri 4.3.0 remains transitive via legacy netstandard facades; not used from that package on net8. -->
+
   <ItemGroup>
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-5f2m-466j-3848" />
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-x5qj-9vmx-7g6g" />
@@ -49,41 +52,35 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-  <!-- Create distributable after Build - automatically publishes for self-contained executable -->
+
   <Target Name="CreateDistributionAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <PropertyGroup>
       <DistDir>$(ProjectDir)dist</DistDir>
       <PublishDir>$(OutputPath)publish</PublishDir>
     </PropertyGroup>
-    
-    <!-- Publish to get self-contained executable (all DLLs must be in same folder as exe for WPF apps) -->
+
     <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release --no-build -r win-x64 --self-contained true -p:PublishSingleFile=false" ContinueOnError="false" />
-    
-    <!-- Create directory -->
+
     <MakeDir Directories="$(DistDir)" />
-    
-    <!-- Copy all files to root (WPF apps require all DLLs in same folder, cannot use single-file) -->
+
     <ItemGroup>
       <DistFiles Include="$(PublishDir)\**\*.*" />
     </ItemGroup>
-    
+
     <Copy SourceFiles="@(DistFiles)" DestinationFolder="$(DistDir)\%(RecursiveDir)" SkipUnchangedFiles="true" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
   </Target>
 
-  <!-- Create distributable after Publish -->
   <Target Name="CreateDistributionAfterPublish" AfterTargets="Publish">
     <PropertyGroup>
       <DistDir>$(ProjectDir)dist</DistDir>
     </PropertyGroup>
-    
-    <!-- Create directory -->
+
     <MakeDir Directories="$(DistDir)" />
-    
-    <!-- Copy all files to root (WPF apps require all DLLs in same folder, cannot use single-file) -->
+
     <ItemGroup>
       <DistFiles Include="$(PublishDir)\**\*.*" />
     </ItemGroup>
-    
+
     <Copy SourceFiles="@(DistFiles)" DestinationFolder="$(DistDir)\%(RecursiveDir)" SkipUnchangedFiles="true" OverwriteReadOnlyFiles="true" ContinueOnError="true" />
   </Target>
 </Project>

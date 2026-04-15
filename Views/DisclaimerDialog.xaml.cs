@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 
 namespace Dorothy.Views
 {
@@ -17,10 +17,10 @@ namespace Dorothy.Views
             DialogResult = false;
             Close();
         }
-        
+
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
         {
-            // If dialog is closed without clicking Acknowledged, ensure IsAuthorized is false
+
             if (DialogResult != true)
             {
                 IsAuthorized = false;

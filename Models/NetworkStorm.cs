@@ -35,11 +35,30 @@ namespace Dorothy.Models
         public bool EnableLogging { get; set; }
         public string TargetIp { get; private set; } = string.Empty;
         public event EventHandler<PacketEventArgs>? PacketSent;
+
+        public event EventHandler<Dorothy.Services.FloodSnapshot>? StatsPublished;
+
+        public Dorothy.Services.FloodSnapshot? LatestSnapshot { get; private set; }
+
+        public Dorothy.Services.FloodOptions? TcpFloodOptions { get; set; }
+
+        public byte[]? DestinationMacOverride { get; set; }
+
         public AttackLogger Logger => _logger;
 
         protected virtual void OnPacketSent(byte[] packet, IPAddress sourceIp, IPAddress destinationIp, int port)
         {
             PacketSent?.Invoke(this, new PacketEventArgs(packet, sourceIp, destinationIp, port));
+        }
+
+        public event EventHandler? TcpCalibrationStarted;
+
+        public event EventHandler? TcpCalibrationCompleted;
+
+        private void OnStatsPublished(Dorothy.Services.FloodSnapshot snapshot)
+        {
+            LatestSnapshot = snapshot;
+            StatsPublished?.Invoke(this, snapshot);
         }
 
         public NetworkStorm(AttackLogger logger)
@@ -49,7 +68,7 @@ namespace Dorothy.Models
             SourceMac = Array.Empty<byte>();
             GatewayIp = string.Empty;
             GatewayMac = Array.Empty<byte>();
-            SubnetMask = new byte[] { 255, 255, 255, 0 }; // Default /24 subnet mask
+            SubnetMask = new byte[] { 255, 255, 255, 0 };
             InitializeSocket();
         }
 
@@ -106,27 +125,22 @@ namespace Dorothy.Models
         public async Task SetGatewayIp(string gatewayIp)
         {
             GatewayIp = gatewayIp;
-            
-            // Only proceed if we have a potentially valid IP address
+
             if (gatewayIp.Count(c => c == '.') == 3 && gatewayIp.Length >= 7)
             {
                 try
                 {
-                    // Cancel any previous resolution attempt
+
                     _gatewayResolutionCts?.Cancel();
                     _gatewayResolutionCts = new CancellationTokenSource();
-                    
-                    // Wait for typing to finish (500ms delay)
+
                     await Task.Delay(500, _gatewayResolutionCts.Token);
-                    
-                    // Validate IP format before attempting resolution
-                    // Only attempt resolution if SourceIp is set (NIC selected)
-                    if (IPAddress.TryParse(gatewayIp, out var gatewayIpObj) && 
-                        !string.IsNullOrEmpty(SourceIp) && 
+
+                    if (IPAddress.TryParse(gatewayIp, out var gatewayIpObj) &&
+                        !string.IsNullOrEmpty(SourceIp) &&
                         IPAddress.TryParse(SourceIp, out var sourceIpObj))
                     {
-                        // Only try to resolve gateway MAC if gateway is on the same subnet as source IP
-                        // If it's on a different subnet, we can't resolve it via ARP anyway
+
                         if (IsOnSameSubnet(sourceIpObj, gatewayIpObj))
                     {
                         var gatewayMac = await GetMacAddressAsync(gatewayIp);
@@ -137,30 +151,29 @@ namespace Dorothy.Models
                         }
                             else
                             {
-                                // Don't log as error - MAC resolution will be attempted when needed
+
                                 _logger.LogInfo($"Gateway MAC not yet resolved for {gatewayIp}. Will attempt resolution when needed.");
                             }
                         }
                         else
                         {
-                            // Gateway is on different subnet - can't resolve via ARP from this source IP
-                            // This is normal for multi-NIC setups, will be resolved when actually needed
+
                             _logger.LogInfo($"Gateway {gatewayIp} is on different subnet from source {SourceIp}. MAC will be resolved when needed for attacks.");
                         }
                     }
                     else if (string.IsNullOrEmpty(SourceIp))
                     {
-                        // Source IP not set yet - defer resolution
+
                         _logger.LogInfo($"Gateway {gatewayIp} set. MAC resolution will be attempted after NIC selection.");
                     }
                 }
                 catch (OperationCanceledException)
                 {
-                    // Ignore cancellation
+
                 }
                 catch (Exception ex)
                 {
-                    // Don't log as error - this is expected in multi-NIC scenarios
+
                     _logger.LogInfo($"Gateway MAC resolution deferred: {ex.Message}");
                 }
                 finally
@@ -187,7 +200,6 @@ namespace Dorothy.Models
                 var targetIp = IPAddress.Parse(ipAddress);
                 var sourceIp = IPAddress.Parse(SourceIp);
 
-                // For targets on different subnets, return gateway MAC
                 if (!IsOnSameSubnet(sourceIp, targetIp))
                 {
                     if (GatewayMac.Length > 0)
@@ -197,7 +209,7 @@ namespace Dorothy.Models
                     }
                     else if (!string.IsNullOrEmpty(GatewayIp))
                     {
-                        // Try to resolve gateway MAC if we don't have it
+
                         var macAddr = new byte[6];
                         var macAddrLen = (uint)macAddr.Length;
                         var gatewayIpObj = IPAddress.Parse(GatewayIp);
@@ -208,8 +220,7 @@ namespace Dorothy.Models
 
                         if (result != 0)
                         {
-                            // Don't log as error - this might be normal in multi-NIC scenarios
-                            // The gateway might not be reachable from the current source IP
+
                             _logger.LogWarning($"Could not resolve gateway MAC address for {GatewayIp} from source {SourceIp}. " +
                                               $"This may be normal if using multiple NICs. MAC will be resolved when needed or use fallback mode.");
                             return Array.Empty<byte>();
@@ -226,7 +237,6 @@ namespace Dorothy.Models
                     }
                 }
 
-                // For targets on same subnet, resolve their MAC directly
                 var localMacAddr = new byte[6];
                 var localMacAddrLen = (uint)localMacAddr.Length;
                 var targetIpInt = BitConverter.ToInt32(targetIp.GetAddressBytes(), 0);
@@ -254,24 +264,24 @@ namespace Dorothy.Models
             _logger.LogInfo(message);
         }
 
-        private async Task<PacketParameters> CreatePacketParameters(string targetIp, int targetPort, long megabitsPerSecond, bool isMulticast = false)
+        private async Task<PacketParameters> CreatePacketParameters(string targetIp, int targetPort, long bytesPerSecond, bool isMulticast = false)
         {
             var targetIpObj = IPAddress.Parse(targetIp);
             var sourceIpObj = IPAddress.Parse(SourceIp);
-            
-            // For multicast, MAC is already set to multicast MAC (01:00:5E:xx:xx:xx or 33:33:xx:xx:xx)
-            // Don't override with gateway MAC - multicast frames use multicast MAC directly
+
             byte[] destinationMac;
-            if (isMulticast)
+            if (DestinationMacOverride is { Length: 6 })
             {
-                // For multicast, skip MAC resolution - multicast MAC is set by caller
-                // Don't log gateway MAC message for multicast - it's misleading
-                // The multicast MAC will be set by the caller or in StartEthernetAttackAsync
-                destinationMac = Array.Empty<byte>(); // Will be set by caller
+                destinationMac = DestinationMacOverride;
+                _logger.LogInfo($"📍 Using override destination MAC: {BitConverter.ToString(destinationMac).Replace("-", ":")}");
+            }
+            else if (isMulticast)
+            {
+
+                destinationMac = Array.Empty<byte>();
             }
             else if (!IsOnSameSubnet(sourceIpObj, targetIpObj))
             {
-                // For unicast targets on different subnets, use gateway MAC as destination
                 if (GatewayMac.Length == 0)
                 {
                     _logger.LogError("Gateway MAC address is required for cross-subnet communication");
@@ -282,7 +292,6 @@ namespace Dorothy.Models
             }
             else
             {
-                // For same subnet, try to get target's MAC
                 destinationMac = await GetMacAddressAsync(targetIp);
                 if (destinationMac.Length == 0)
                 {
@@ -292,30 +301,24 @@ namespace Dorothy.Models
                 _logger.LogInfo($"📍 Using target MAC for local target: {BitConverter.ToString(destinationMac).Replace("-", ":")}");
             }
 
-            // Calculate bytes per second: megabits -> bits -> bytes
-            // 1 Mbps = 1,000,000 bits per second
-            // 8 bits = 1 byte
-            // Calculate exact bytes per second without overhead multiplication
-            // The packet size calculation will account for headers separately
-            long bytesPerSecond = (long)(megabitsPerSecond * 1_000_000L / 8.0);
-
             return new PacketParameters
             {
-                SourceMac = SourceMac,
+                SourceMac      = SourceMac,
                 DestinationMac = destinationMac,
-                SourceIp = sourceIpObj,
-                DestinationIp = targetIpObj,
-                SourcePort = Random.Shared.Next(49152, 65535),
+                SourceIp       = sourceIpObj,
+                DestinationIp  = targetIpObj,
+                SourcePort     = Random.Shared.Next(49152, 65535),
                 DestinationPort = targetPort,
                 BytesPerSecond = bytesPerSecond,
-                Ttl = 128
+                Ttl            = 128
             };
         }
 
-        public async Task StartAttackAsync(AttackType attackType, string targetIp, int targetPort, long megabitsPerSecond)
+        public async Task StartAttackAsync(AttackType attackType, string targetIp, int targetPort, long bytesPerSecond)
         {
             TargetIp = targetIp;
-            
+            LatestSnapshot = null;
+
             if (_isAttackRunning)
             {
                 _logger.LogWarning("Attack already in progress");
@@ -327,16 +330,14 @@ namespace Dorothy.Models
                 _cancellationSource = new CancellationTokenSource();
                 _isAttackRunning = true;
 
-                // Run the attack in a background task to prevent UI freezing
                 await Task.Run(async () => {
                     try
                     {
-                        // Validate and resolve MAC addresses
                         var sourceIpObj = IPAddress.Parse(SourceIp);
                         var targetIpObj = IPAddress.Parse(targetIp);
-                        
-                        // Only check gateway MAC for cross-subnet targets
-                        if (!IsOnSameSubnet(sourceIpObj, targetIpObj))
+
+                        bool hasDestMacOverride = DestinationMacOverride is { Length: 6 };
+                        if (!hasDestMacOverride && !IsOnSameSubnet(sourceIpObj, targetIpObj))
                         {
                             if (GatewayMac.Length == 0)
                             {
@@ -345,18 +346,15 @@ namespace Dorothy.Models
                             }
                         }
 
-                        // Common packet parameters
-                        var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond);
-
-                        // Attack details are logged by AttackLogger.StartAttack() in MainWindow.xaml.cs
-                        // No need to duplicate the logging here
+                        var packetParams = await CreatePacketParameters(targetIp, targetPort, bytesPerSecond);
 
                         switch (attackType)
                         {
                             case AttackType.UdpFlood:
                                 using (var udpFlood = new UdpFlood(packetParams, _cancellationSource.Token))
                                 {
-                                    udpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                                    udpFlood.PacketSent     += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                                    udpFlood.StatsPublished += (s, snap) => OnStatsPublished(snap);
                                     await udpFlood.StartAsync();
                                 }
                                 break;
@@ -364,44 +362,49 @@ namespace Dorothy.Models
                             case AttackType.IcmpFlood:
                                 using (var icmpFlood = new IcmpFlood(packetParams, _cancellationSource.Token))
                                 {
-                                    icmpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                                    icmpFlood.PacketSent     += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                                    icmpFlood.StatsPublished += (s, snap) => OnStatsPublished(snap);
                                     await icmpFlood.StartAsync();
                                 }
                                 break;
 
                             case AttackType.TcpSynFlood:
                                 bool isRouted = !IsOnSameSubnet(sourceIpObj, targetIpObj);
-                                using (var tcpFlood = new TcpFlood(packetParams, _cancellationSource.Token))
+                                using (var tcpFlood = new TcpFlood(packetParams, _cancellationSource.Token, TcpFloodOptions))
                                 {
-                                    tcpFlood.IsRouted = isRouted;
-                                    // Always randomize flows — even local targets need varied source ports/IPs
-                                    // to prevent FortiGate from auto-blocking a single source IP/port.
-                                    tcpFlood.RandomizeFlows = true;
-                                    tcpFlood.SpoofSourceIp = true;   // Distribute across many apparent source IPs
-                                    tcpFlood.AddPayload = false;      // Bare SYN; payload on SYN is non-standard
-                                    tcpFlood.AddTcpOptions = true;    // MSS+WScale+SACK — defeats IPS fingerprinting
+                                    tcpFlood.IsRouted        = isRouted;
+                                    tcpFlood.RandomizeFlows  = true;
+                                    tcpFlood.SpoofSourceIp   = true;
+                                    tcpFlood.AddPayload      = false;
+                                    tcpFlood.AddTcpOptions   = true;
 
                                     _logger.LogInfo(isRouted
-                                        ? "Target is on different subnet — routed TCP SYN flood (randomized flows, spoofed IPs, TCP options)"
-                                        : "Target is on same subnet — local TCP SYN flood (randomized flows, spoofed IPs, TCP options)");
+                                        ? "Target is on different subnet — routed TCP SYN flood"
+                                        : "Target is on same subnet — local TCP SYN flood");
 
-                                    tcpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                                    tcpFlood.PacketSent          += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                                    tcpFlood.StatsPublished      += (s, snap) => OnStatsPublished(snap);
+                                    tcpFlood.CalibrationStarted  += (s, _) => TcpCalibrationStarted?.Invoke(this, EventArgs.Empty);
+                                    tcpFlood.CalibrationCompleted+= (s, _) => TcpCalibrationCompleted?.Invoke(this, EventArgs.Empty);
                                     await tcpFlood.StartAsync();
                                 }
                                 break;
 
                             case AttackType.TcpRoutedFlood:
-                                using (var tcpFlood = new TcpFlood(packetParams, _cancellationSource.Token))
+                                using (var tcpFlood = new TcpFlood(packetParams, _cancellationSource.Token, TcpFloodOptions))
                                 {
-                                    tcpFlood.IsRouted = true;
-                                    tcpFlood.RandomizeFlows = true;
-                                    tcpFlood.SpoofSourceIp = true;
-                                    tcpFlood.AddPayload = false;
-                                    tcpFlood.AddTcpOptions = true;
+                                    tcpFlood.IsRouted        = true;
+                                    tcpFlood.RandomizeFlows  = true;
+                                    tcpFlood.SpoofSourceIp   = true;
+                                    tcpFlood.AddPayload      = false;
+                                    tcpFlood.AddTcpOptions   = true;
 
-                                    _logger.LogInfo("Using explicit routed TCP flood mode (randomized flows, spoofed IPs, TCP options)");
+                                    _logger.LogInfo("Using explicit routed TCP flood mode");
 
-                                    tcpFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                                    tcpFlood.PacketSent          += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                                    tcpFlood.StatsPublished      += (s, snap) => OnStatsPublished(snap);
+                                    tcpFlood.CalibrationStarted  += (s, _) => TcpCalibrationStarted?.Invoke(this, EventArgs.Empty);
+                                    tcpFlood.CalibrationCompleted+= (s, _) => TcpCalibrationCompleted?.Invoke(this, EventArgs.Empty);
                                     await tcpFlood.StartAsync();
                                 }
                                 break;
@@ -421,7 +424,6 @@ namespace Dorothy.Models
             {
                 _isAttackRunning = false;
                 _logger.LogError($"Attack failed: {ex.Message}");
-                // Don't rethrow to prevent UI freeze
                 await StopAttackAsync();
             }
         }
@@ -437,11 +439,11 @@ namespace Dorothy.Models
             {
                 _cancellationSource?.Cancel();
                 _isAttackRunning = false;
-                
-                // Log comprehensive stop information
+
+                LatestSnapshot = null;
+
                 _logger.StopAttack(packetsSent);
-                
-                // Then log the specific attack stop message
+
                 if (!string.IsNullOrEmpty(_attackType))
                 {
                     _logger.LogInfo($"Stopped {_attackType} attack");
@@ -461,7 +463,7 @@ namespace Dorothy.Models
                 byte[] subnet = SubnetMask;
                 byte[] bytes1 = ip1.GetAddressBytes();
                 byte[] bytes2 = ip2.GetAddressBytes();
-                
+
                 for (int i = 0; i < 4; i++)
                 {
                     if ((bytes1[i] & subnet[i]) != (bytes2[i] & subnet[i]))
@@ -496,7 +498,7 @@ namespace Dorothy.Models
                 }
 
                 var bytes = sourceIpAddress.GetAddressBytes();
-                bytes[3] = 1; // Set last octet to 1 (x.x.x.x.1)
+                bytes[3] = 1;
                 return new IPAddress(bytes);
             }
             catch
@@ -507,41 +509,40 @@ namespace Dorothy.Models
 
         public IPAddress? GetDefaultGatewayWithFallback(string sourceIp)
         {
-            // Try to get system default gateway first
+
             var systemGateway = GetDefaultGateway();
             if (systemGateway != null)
             {
                 return systemGateway;
             }
 
-            // Fallback to calculated default (x.x.x.x.1)
             return CalculateDefaultGateway(sourceIp);
         }
 
         [DllImport("iphlpapi.dll", ExactSpelling = true)]
         private static extern int SendARP(int destIp, int srcIp, byte[] macAddr, ref uint macAddrLen);
 
-        public async Task StartBroadcastAttackAsync(string targetIp, int targetPort, long megabitsPerSecond)
+        public async Task StartBroadcastAttackAsync(string targetIp, int targetPort, long bytesPerSecond)
         {
-            // Placeholder for broadcast attack implementation
-            _logger.LogInfo($"Starting broadcast attack (placeholder) - Target: {targetIp}:{targetPort}, Rate: {megabitsPerSecond}Mbps");
+
+            _logger.LogInfo($"Starting broadcast attack (placeholder) - Target: {targetIp}:{targetPort}, Rate: {Dorothy.Services.RateConverter.Format(bytesPerSecond)}");
             await Task.CompletedTask;
         }
 
-        public async Task StartMulticastAttackAsync(string targetIp, int targetPort, long megabitsPerSecond)
+        public async Task StartMulticastAttackAsync(string targetIp, int targetPort, long bytesPerSecond)
         {
-            // Placeholder for multicast attack implementation
-            _logger.LogInfo($"Starting multicast attack (placeholder) - Target: {targetIp}:{targetPort}, Rate: {megabitsPerSecond}Mbps");
+
+            _logger.LogInfo($"Starting multicast attack (placeholder) - Target: {targetIp}:{targetPort}, Rate: {Dorothy.Services.RateConverter.Format(bytesPerSecond)}");
             await Task.CompletedTask;
         }
 
         private NetworkInterface? GetActiveNetworkInterface()
         {
             return NetworkInterface.GetAllNetworkInterfaces()
-                .FirstOrDefault(ni => 
-                    ni.OperationalStatus == OperationalStatus.Up && 
+                .FirstOrDefault(ni =>
+                    ni.OperationalStatus == OperationalStatus.Up &&
                     ni.NetworkInterfaceType != NetworkInterfaceType.Loopback &&
-                    ni.GetIPProperties().UnicastAddresses.Any(addr => 
+                    ni.GetIPProperties().UnicastAddresses.Any(addr =>
                         addr.Address.AddressFamily == AddressFamily.InterNetwork));
         }
 
@@ -553,7 +554,7 @@ namespace Dorothy.Models
                 {
                     return BitConverter.ToString(GatewayMac).Replace("-", ":");
                 }
-                
+
                 if (string.IsNullOrEmpty(GatewayIp))
                 {
                     return string.Empty;
@@ -565,7 +566,7 @@ namespace Dorothy.Models
                     GatewayMac = mac;
                     return BitConverter.ToString(mac).Replace("-", ":");
                 }
-                
+
                 return string.Empty;
             }
             catch (Exception ex)
@@ -575,7 +576,7 @@ namespace Dorothy.Models
             }
         }
 
-        public async Task StartEthernetAttackAsync(string targetIp, int targetPort, long megabitsPerSecond, EthernetFlood.EthernetPacketType packetType, bool useIPv6 = false, byte[]? destinationMac = null)
+        public async Task StartEthernetAttackAsync(string targetIp, int targetPort, long bytesPerSecond, EthernetFlood.EthernetPacketType packetType, bool useIPv6 = false, byte[]? destinationMac = null)
         {
             if (_isAttackRunning)
             {
@@ -592,12 +593,9 @@ namespace Dorothy.Models
                 {
                     try
                     {
-                        // For multicast, MAC is already set to multicast MAC (01:00:5E:xx:xx:xx or 33:33:xx:xx:xx)
-                        // Don't resolve MAC or use gateway MAC - multicast uses multicast MAC directly
                         bool isMulticast = packetType == EthernetFlood.EthernetPacketType.Multicast;
-                        var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond, isMulticast);
-                        
-                        // For multicast, use the provided multicast MAC (from caller) or default multicast MAC
+                        var packetParams = await CreatePacketParameters(targetIp, targetPort, bytesPerSecond, isMulticast);
+
                         if (isMulticast)
                         {
                             if (destinationMac != null && destinationMac.Length > 0)
@@ -606,15 +604,16 @@ namespace Dorothy.Models
                             }
                             else if (packetParams.DestinationMac == null || packetParams.DestinationMac.Length == 0)
                             {
-                                // Fallback to default multicast MAC if not provided
-                                packetParams.DestinationMac = useIPv6 
-                                    ? new byte[] { 0x33, 0x33, 0x00, 0x00, 0x00, 0x01 } // IPv6 multicast
-                                    : new byte[] { 0x01, 0x00, 0x5E, 0x00, 0x00, 0x01 }; // IPv4 multicast
+
+                                packetParams.DestinationMac = useIPv6
+                                    ? new byte[] { 0x33, 0x33, 0x00, 0x00, 0x00, 0x01 }
+                                    : new byte[] { 0x01, 0x00, 0x5E, 0x00, 0x00, 0x01 };
                             }
                         }
-                        
+
                         using var flood = new EthernetFlood(packetParams, packetType, _cancellationSource.Token, useIPv6);
-                        flood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                        flood.PacketSent     += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
+                        flood.StatsPublished += (s, snap) => OnStatsPublished(snap);
                         await flood.StartAsync();
                     }
                     catch (Exception ex)
@@ -632,7 +631,7 @@ namespace Dorothy.Models
             }
         }
 
-        public async Task StartNmea0183AttackAsync(string targetIp, int targetPort, long megabitsPerSecond, bool isMulticast)
+        public async Task StartNmea0183AttackAsync(string targetIp, int targetPort, long bytesPerSecond, bool isMulticast)
         {
             if (_isAttackRunning)
             {
@@ -649,14 +648,13 @@ namespace Dorothy.Models
                 {
                     try
                     {
-                        var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond, isMulticast: false);
-                        
-                        // For multicast, set TTL to 1
+                        var packetParams = await CreatePacketParameters(targetIp, targetPort, bytesPerSecond, isMulticast: false);
+
                         if (isMulticast)
                         {
                             packetParams.Ttl = 1;
                         }
-                        
+
                         using var nmeaFlood = new Nmea0183UdpFlood(packetParams, _cancellationSource.Token, isMulticast);
                         nmeaFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
                         await nmeaFlood.StartAsync();
@@ -676,7 +674,7 @@ namespace Dorothy.Models
             }
         }
 
-        public async Task StartModbusTcpAttackAsync(string targetIp, int targetPort, long megabitsPerSecond)
+        public async Task StartModbusTcpAttackAsync(string targetIp, int targetPort, long bytesPerSecond)
         {
             if (_isAttackRunning)
             {
@@ -693,8 +691,8 @@ namespace Dorothy.Models
                 {
                     try
                     {
-                        var packetParams = await CreatePacketParameters(targetIp, targetPort, megabitsPerSecond, isMulticast: false);
-                        
+                        var packetParams = await CreatePacketParameters(targetIp, targetPort, bytesPerSecond, isMulticast: false);
+
                         using var modbusFlood = new ModbusTcpFlood(packetParams, _cancellationSource.Token);
                         modbusFlood.PacketSent += (s, e) => OnPacketSent(e.Packet, e.SourceIp, e.DestinationIp, e.Port);
                         await modbusFlood.StartAsync();
@@ -729,21 +727,18 @@ namespace Dorothy.Models
             {
                 try
                 {
-                    // Cancel any running operations
+
                     _cancellationSource?.Cancel();
                     _gatewayResolutionCts?.Cancel();
 
-                    // Stop any running attacks
                     if (_isAttackRunning)
                     {
                         StopAttackAsync().Wait(TimeSpan.FromSeconds(2));
                     }
 
-                    // Dispose cancellation tokens
                     _cancellationSource?.Dispose();
                     _gatewayResolutionCts?.Dispose();
 
-                    // Close socket
                     _socket?.Close();
                     _socket?.Dispose();
                 }

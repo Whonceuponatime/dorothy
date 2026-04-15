@@ -4,10 +4,7 @@ using Supabase.Postgrest.Models;
 
 namespace Dorothy.Models.Database
 {
-    /// <summary>
-    /// Represents a license whitelist entry in Supabase.
-    /// Links hardware IDs to authenticated users.
-    /// </summary>
+
     [Table("whitelisted_hardware")]
     public class LicenseWhitelistEntry : BaseModel
     {

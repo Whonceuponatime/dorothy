@@ -3,24 +3,16 @@ using System.Text;
 
 namespace Dorothy.Services
 {
-    /// <summary>
-    /// Hardcoded Supabase configuration with XOR obfuscation.
-    /// Credentials are stored in an obfuscated format to prevent easy extraction via reverse engineering.
-    /// Note: This is not 100% secure but provides a reasonable barrier against casual inspection.
-    /// The anon key is designed to be public-facing in Supabase's security model - real security
-    /// comes from Row Level Security (RLS) policies on the database side.
-    /// </summary>
+
     internal static class SupabaseConfig
     {
-        // XOR key used for obfuscation (appears random but is actually derived)
-        private static readonly byte[] _xorKey = new byte[] 
-        { 
+
+        private static readonly byte[] _xorKey = new byte[]
+        {
             0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF,
-            0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10 
+            0xFE, 0xDC, 0xBA, 0x98, 0x76, 0x54, 0x32, 0x10
         };
 
-        // Obfuscated values using XOR with a rotating key
-        // Original: parnarcttbsiqaowfooj.supabase.co
         private static readonly byte[] _obfuscatedUrl = new byte[]
         {
             0x71, 0x42, 0x37, 0x09, 0xE8, 0xD9, 0xAE, 0x9B,
@@ -29,8 +21,6 @@ namespace Dorothy.Services
             0x9F, 0xBE, 0xDB, 0xEB, 0x13, 0x7A, 0x51, 0x7F
         };
 
-        // Original JWT token (split into parts for obfuscation)
-        // eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhcm5hcmN0dGJzaXFhb3dmb29qIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NDM3NjUsImV4cCI6MjA2OTUxOTc2NX0.9PZGE29OfIn8hYwqPD1eKLQYAg2-iAFkYgURdnNmIgQ
         private static readonly byte[] _obfuscatedKeyPart1 = new byte[]
         {
             0x64, 0x5A, 0x0F, 0x0F, 0xEB, 0xEC, 0xAE, 0x86,
@@ -70,9 +60,6 @@ namespace Dorothy.Services
             0xB7, 0xBB, 0xEB
         };
 
-        /// <summary>
-        /// Gets the Supabase URL with https:// prefix.
-        /// </summary>
         public static string Url
         {
             get
@@ -82,9 +69,6 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Gets the Supabase anonymous key (JWT token).
-        /// </summary>
         public static string AnonKey
         {
             get
@@ -96,14 +80,8 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Checks if Supabase is configured (always true for hardcoded config).
-        /// </summary>
         public static bool IsConfigured => true;
 
-        /// <summary>
-        /// Deobfuscates a byte array using rotating XOR.
-        /// </summary>
         private static string Deobfuscate(byte[] data)
         {
             var result = new byte[data.Length];

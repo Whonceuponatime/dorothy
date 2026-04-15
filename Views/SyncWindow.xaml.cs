@@ -30,8 +30,7 @@ namespace Dorothy.Views
         public SyncWindow(List<AttackLogEntry> logs, List<AssetEntry> assets, List<ReachabilityTestEntry> tests)
         {
             InitializeComponent();
-            
-            // Convert logs to LogItem for binding
+
             _logItems = logs.Select(log => new LogItem
             {
                 Id = log.Id,
@@ -41,10 +40,9 @@ namespace Dorothy.Views
                 PacketsSent = log.PacketsSent,
                 StartTime = log.StartTime,
                 ProjectName = log.ProjectName ?? "None",
-                IsSelected = true // Default to selected
+                IsSelected = true
             }).ToList();
 
-            // Convert assets to AssetItem for binding
             _assetItems = assets.Select(asset => new AssetItem
             {
                 Id = asset.Id,
@@ -54,15 +52,13 @@ namespace Dorothy.Views
                 Vendor = string.IsNullOrWhiteSpace(asset.Vendor) ? "Unknown" : asset.Vendor,
                 IsOnline = asset.IsOnline,
                 ScanTime = asset.ScanTime,
-                OpenPortsDisplay = string.IsNullOrWhiteSpace(asset.Ports) ? "N/A" : asset.Ports, // Use Ports column from database
-                IsSelected = true // Default to selected
+                OpenPortsDisplay = string.IsNullOrWhiteSpace(asset.Ports) ? "N/A" : asset.Ports,
+                IsSelected = true
             }).ToList();
 
-            // Separate SNMP walk tests from regular reachability tests
             var snmpWalkTests = tests.Where(t => t.VantagePointName == "SNMP Walk").ToList();
             var regularTests = tests.Where(t => t.VantagePointName != "SNMP Walk").ToList();
 
-            // Convert regular tests to TestItem for binding
             _testItems = regularTests.Select(test => new TestItem
             {
                 Id = test.Id,
@@ -74,10 +70,9 @@ namespace Dorothy.Views
                 BoundaryGatewayIp = test.BoundaryGatewayIp ?? "N/A",
                 CreatedAt = test.CreatedAt,
                 ProjectName = test.ProjectName ?? "None",
-                IsSelected = true // Default to selected
+                IsSelected = true
             }).ToList();
 
-            // Convert SNMP walk tests to TestItem for binding
             _snmpWalkItems = snmpWalkTests.Select(test => new TestItem
             {
                 Id = test.Id,
@@ -89,28 +84,26 @@ namespace Dorothy.Views
                 BoundaryGatewayIp = test.BoundaryGatewayIp ?? "N/A",
                 CreatedAt = test.CreatedAt,
                 ProjectName = test.ProjectName ?? "None",
-                IsSelected = true // Default to selected
+                IsSelected = true
             }).ToList();
 
             LogsDataGrid.ItemsSource = _logItems;
             AssetsDataGrid.ItemsSource = _assetItems;
             ReachabilityTestsDataGrid.ItemsSource = _testItems;
             SnmpWalkTestsDataGrid.ItemsSource = _snmpWalkItems;
-            
+
             LogsCountText.Text = $"{logs.Count} pending log(s)";
             AssetsCountText.Text = $"{assets.Count} pending asset(s)";
             ReachabilityTestsCountText.Text = $"{regularTests.Count} pending test(s)";
             SnmpWalkTestsCountText.Text = $"{snmpWalkTests.Count} pending SNMP walk(s)";
-            
+
             UpdateSelectedCounts();
-            
-            // Always show all tabs (even if empty) for consistency
+
             LogsTab.Visibility = Visibility.Visible;
             AssetsTab.Visibility = Visibility.Visible;
             ReachabilityTestsTab.Visibility = Visibility.Visible;
             SnmpWalkTestsTab.Visibility = Visibility.Visible;
-            
-            // Select the tab with data, or logs tab by default
+
             if (snmpWalkTests.Count > 0 && regularTests.Count == 0 && logs.Count == 0 && assets.Count == 0)
             {
                 SyncTabControl.SelectedItem = SnmpWalkTestsTab;
@@ -128,14 +121,12 @@ namespace Dorothy.Views
                 SyncTabControl.SelectedItem = LogsTab;
             }
 
-            // Handle window closing to persist deletions
             this.Closing += SyncWindow_Closing;
         }
 
         private void SyncWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
-            // If user closes window (X button) and there are deletions, persist them
-            // Set DialogResult to true so MainWindow processes deletions
+
             if (DeletedLogIds.Count > 0 || DeletedAssetIds.Count > 0 || DeletedTestIds.Count > 0 || DeletedSnmpWalkIds.Count > 0)
             {
                 DialogResult = true;
@@ -192,11 +183,11 @@ namespace Dorothy.Views
             var selectedLogsCount = _logItems.Count(item => item.IsSelected);
             var selectedAssetsCount = _assetItems.Count(item => item.IsSelected);
             var selectedTestsCount = _testItems.Count(item => item.IsSelected);
-            
+
             SelectedLogsCountText.Text = $"{selectedLogsCount} of {_logItems.Count} selected";
             SelectedAssetsCountText.Text = $"{selectedAssetsCount} of {_assetItems.Count} selected";
             SelectedTestsCountText.Text = $"{selectedTestsCount} of {_testItems.Count} selected";
-            
+
             TotalSelectedText.Text = $"{selectedLogsCount} log(s), {selectedAssetsCount} asset(s), {selectedTestsCount} test(s) selected";
         }
 
@@ -430,7 +421,7 @@ namespace Dorothy.Views
             SelectedAssetIds = _assetItems.Where(item => item.IsSelected).Select(item => item.Id).ToList();
             SelectedTestIds = _testItems.Where(item => item.IsSelected).Select(item => item.Id).ToList();
             SelectedSnmpWalkIds = _snmpWalkItems.Where(item => item.IsSelected).Select(item => item.Id).ToList();
-            
+
             if (SelectedLogIds.Count == 0 && SelectedAssetIds.Count == 0 && SelectedTestIds.Count == 0 && SelectedSnmpWalkIds.Count == 0)
             {
                 MessageBox.Show("Please select at least one log, asset, test, or SNMP walk to sync.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -445,9 +436,9 @@ namespace Dorothy.Views
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
-            // Even if canceling, we should persist deletions
+
             ShouldSync = false;
-            DialogResult = true; // Changed to true so deletions are processed
+            DialogResult = true;
             Close();
         }
     }

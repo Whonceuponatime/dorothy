@@ -46,7 +46,7 @@ namespace Dorothy.Services
         {
             if (_toastContainer == null)
             {
-                // Fallback to MessageBox if container not initialized
+
                 MessageBox.Show(message, "Notification", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -104,14 +104,12 @@ namespace Dorothy.Services
 
                 _toastContainer.Children.Add(toast);
 
-                // Animate in
                 var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(300));
                 var slideIn = new DoubleAnimation(400, 0, TimeSpan.FromMilliseconds(300));
 
                 toast.BeginAnimation(UIElement.OpacityProperty, fadeIn);
                 toast.RenderTransform.BeginAnimation(TranslateTransform.XProperty, slideIn);
 
-                // Auto dismiss
                 var timer = new DispatcherTimer
                 {
                     Interval = TimeSpan.FromMilliseconds(durationMs)

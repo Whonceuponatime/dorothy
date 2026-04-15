@@ -1,5 +1,3 @@
-# Dorothy requires Administrator (app.manifest). Non-elevated "dotnet run" fails with Win32 740.
-# Run this script; accept the UAC prompt to build (if needed) and start the app elevated.
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {

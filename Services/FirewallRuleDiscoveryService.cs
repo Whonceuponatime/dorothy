@@ -9,16 +9,11 @@ using Dorothy.Models;
 
 namespace Dorothy.Services
 {
-    /// <summary>
-    /// Service for discovering firewall rules by testing port connectivity
-    /// </summary>
+
     public class FirewallRuleDiscoveryService
     {
-        private readonly int _tcpConnectTimeout = 2000; // 2 seconds
+        private readonly int _tcpConnectTimeout = 2000;
 
-        /// <summary>
-        /// Discover firewall rules for a reachable host by testing ports
-        /// </summary>
         public async Task<HostFirewallAnalysis> DiscoverRulesAsync(
             string ipAddress,
             string label,
@@ -33,8 +28,7 @@ namespace Dorothy.Services
                 Reachability = reachability
             };
 
-            // Only discover rules if host is reachable
-            if (reachability != ReachabilityState.ReachableIcmp && 
+            if (reachability != ReachabilityState.ReachableIcmp &&
                 reachability != ReachabilityState.ReachableTcpOnly)
             {
                 return analysis;
@@ -58,9 +52,6 @@ namespace Dorothy.Services
             return analysis;
         }
 
-        /// <summary>
-        /// Test a single port and classify the result
-        /// </summary>
         private async Task<FirewallRuleResult?> TestPortAsync(
             string ipAddress,
             int port,
@@ -82,7 +73,7 @@ namespace Dorothy.Services
                 using var client = new TcpClient();
                 try
                 {
-                    // Use ConnectAsync with configurable timeout
+
                     var connectTask = client.ConnectAsync(ipAddress, port);
                     var timeoutTask = Task.Delay(_tcpConnectTimeout, cancellationToken);
 
@@ -96,27 +87,26 @@ namespace Dorothy.Services
 
                     if (completedTask == timeoutTask)
                     {
-                        // Timeout - port is likely filtered or closed
+
                         result.Action = FirewallRuleAction.FilteredTimeout;
                         return result;
                     }
 
-                    // Check if connection succeeded
                     if (client.Connected)
                     {
-                        // Connection succeeded - port is open and allowed
+
                         result.Action = FirewallRuleAction.AllowedOpen;
                         return result;
                     }
                 }
                 catch (OperationCanceledException)
                 {
-                    // Expected when cancellation is requested
+
                     return null;
                 }
                 catch (SocketException ex) when (ex.SocketErrorCode == SocketError.ConnectionRefused)
                 {
-                    // Connection refused - host is reachable, port is closed, no firewall drop
+
                     stopwatch.Stop();
                     result.ResponseTime = stopwatch.Elapsed;
                     result.Action = FirewallRuleAction.ClosedNoFirewall;
@@ -124,7 +114,7 @@ namespace Dorothy.Services
                 }
                 catch (SocketException)
                 {
-                    // Other socket errors - likely filtered
+
                     stopwatch.Stop();
                     result.ResponseTime = stopwatch.Elapsed;
                     result.Action = FirewallRuleAction.FilteredTimeout;
@@ -132,7 +122,7 @@ namespace Dorothy.Services
                 }
                 catch
                 {
-                    // Other errors - likely filtered
+
                     stopwatch.Stop();
                     result.ResponseTime = stopwatch.Elapsed;
                     result.Action = FirewallRuleAction.FilteredTimeout;
@@ -141,7 +131,7 @@ namespace Dorothy.Services
             }
             catch (OperationCanceledException)
             {
-                // Expected when cancellation is requested
+
                 return null;
             }
             catch (Exception ex)
@@ -153,16 +143,12 @@ namespace Dorothy.Services
                 return result;
             }
 
-            // Default to filtered if we can't determine
             stopwatch.Stop();
             result.ResponseTime = stopwatch.Elapsed;
             result.Action = FirewallRuleAction.FilteredTimeout;
             return result;
         }
 
-        /// <summary>
-        /// Get service name for a port
-        /// </summary>
         private string GetServiceName(int port)
         {
             return port switch
@@ -201,9 +187,4 @@ namespace Dorothy.Services
         }
     }
 }
-
-
-
-
-
 

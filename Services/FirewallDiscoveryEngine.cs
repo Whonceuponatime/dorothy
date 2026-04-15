@@ -10,21 +10,15 @@ using Dorothy.Models;
 
 namespace Dorothy.Services
 {
-    /// <summary>
-    /// Engine for firewall reachability testing and rule discovery
-    /// UI-agnostic, testable core with no WPF dependencies
-    /// </summary>
+
     public class FirewallDiscoveryEngine
     {
-        // Explicit classification thresholds
+
         private const int DEFAULT_ICMP_TIMEOUT_MS = 1000;
         private const int DEFAULT_TCP_CONNECT_TIMEOUT_MS = 1500;
         private const int DEFAULT_ICMP_PROBE_COUNT = 3;
         private const int DEFAULT_MAX_CONCURRENT_PROBES = 32;
 
-        /// <summary>
-        /// Discover hosts behind firewall by scanning IP ranges
-        /// </summary>
         public async Task<List<FirewallHostDefinition>> DiscoverHostsInRangeAsync(
             FirewallDiscoveryOptions options,
             IProgress<string>? progress,
@@ -33,7 +27,6 @@ namespace Dorothy.Services
             var discoveredHosts = new List<FirewallHostDefinition>();
             List<string> ipRange = new List<string>();
 
-            // Parse IP range or CIDR
             if (!string.IsNullOrEmpty(options.CidrRange))
             {
                 ipRange = ParseCidrRange(options.CidrRange);
@@ -56,7 +49,6 @@ namespace Dorothy.Services
                 return discoveredHosts;
             }
 
-            // Scan IPs with concurrency control
             var semaphore = new SemaphoreSlim(options.MaxConcurrentHostScans, options.MaxConcurrentHostScans);
             var tasks = new List<Task<FirewallHostDefinition?>>();
 
@@ -77,7 +69,6 @@ namespace Dorothy.Services
 
                 tasks.Add(task);
 
-                // Process in batches to avoid too many tasks
                 if (tasks.Count >= options.MaxConcurrentHostScans)
                 {
                     var batchResults = await Task.WhenAll(tasks);
@@ -91,7 +82,6 @@ namespace Dorothy.Services
                 }
             }
 
-            // Process remaining tasks
             if (tasks.Count > 0)
             {
                 var batchResults = await Task.WhenAll(tasks);
@@ -105,9 +95,6 @@ namespace Dorothy.Services
             return discoveredHosts;
         }
 
-        /// <summary>
-        /// Scan a single IP for reachability
-        /// </summary>
         private async Task<FirewallHostDefinition?> ScanIpForReachabilityAsync(
             string ipAddress,
             FirewallDiscoveryOptions options,
@@ -119,11 +106,11 @@ namespace Dorothy.Services
 
             try
             {
-                // Quick ICMP test
+
                 bool icmpReachable = await TestIcmpAsync(
                     ipAddress,
                     options.IcmpTimeoutMs,
-                    1, // Single ping for discovery
+                    1,
                     cancellationToken);
 
                 if (icmpReachable)
@@ -136,7 +123,6 @@ namespace Dorothy.Services
                     return null;
                 }
 
-                // If ICMP fails, try TCP reachability
                 var tcpPorts = await TestTcpReachabilityAsync(
                     ipAddress,
                     options.DefaultReachabilityPorts,
@@ -164,9 +150,6 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Parse CIDR notation to IP range
-        /// </summary>
         private List<string> ParseCidrRange(string cidr)
         {
             var ips = new List<string>();
@@ -187,7 +170,6 @@ namespace Dorothy.Services
                 var maskBytes = new byte[4];
                 int hostBits = 32 - prefixLength;
 
-                // Calculate subnet mask
                 for (int i = 0; i < 4; i++)
                 {
                     int bitsInByte = Math.Min(8, prefixLength - (i * 8));
@@ -198,17 +180,14 @@ namespace Dorothy.Services
                     prefixLength -= bitsInByte;
                 }
 
-                // Calculate network address
                 var networkStart = new byte[4];
                 for (int i = 0; i < 4; i++)
                 {
                     networkStart[i] = (byte)(networkBytes[i] & maskBytes[i]);
                 }
 
-                // Calculate number of hosts
-                long hostCount = (long)Math.Pow(2, hostBits) - 2; // Exclude network and broadcast
+                long hostCount = (long)Math.Pow(2, hostBits) - 2;
 
-                // Generate IP range (skip network and broadcast)
                 for (long i = 1; i <= hostCount; i++)
                 {
                     var hostIp = new byte[4];
@@ -226,33 +205,28 @@ namespace Dorothy.Services
             }
             catch
             {
-                // Return empty list on error
+
             }
 
             return ips;
         }
 
-        /// <summary>
-        /// Parse IP range (start - end)
-        /// </summary>
         private List<string> ParseIpRange(string startIp, string endIp)
         {
             var ips = new List<string>();
 
             try
             {
-                if (!IPAddress.TryParse(startIp, out IPAddress? startIpObj) || 
+                if (!IPAddress.TryParse(startIp, out IPAddress? startIpObj) ||
                     !IPAddress.TryParse(endIp, out IPAddress? endIpObj))
                     return ips;
 
                 var startBytes = startIpObj.GetAddressBytes();
                 var endBytes = endIpObj.GetAddressBytes();
 
-                // Validate start <= end
                 if (CompareIpBytes(startBytes, endBytes) > 0)
                     return ips;
 
-                // Generate IP range
                 var currentBytes = new byte[4];
                 Array.Copy(startBytes, currentBytes, 4);
 
@@ -260,7 +234,6 @@ namespace Dorothy.Services
                 {
                     ips.Add(string.Join(".", currentBytes));
 
-                    // Increment IP
                     bool carry = true;
                     for (int i = 3; i >= 0 && carry; i--)
                     {
@@ -275,21 +248,17 @@ namespace Dorothy.Services
                         }
                     }
 
-                    // Check if we've exceeded end IP
                     if (CompareIpBytes(currentBytes, endBytes) > 0) break;
                 }
             }
             catch
             {
-                // Return empty list on error
+
             }
 
             return ips;
         }
 
-        /// <summary>
-        /// Compare two IP addresses as byte arrays
-        /// </summary>
         private int CompareIpBytes(byte[] ip1, byte[] ip2)
         {
             for (int i = 0; i < 4; i++)
@@ -300,9 +269,6 @@ namespace Dorothy.Services
             return 0;
         }
 
-        /// <summary>
-        /// Test reachability to all hosts defined in options
-        /// </summary>
         public async Task<List<FirewallDiscoveryHostReachabilityResult>> TestReachabilityAsync(
             FirewallDiscoveryOptions options,
             IProgress<string>? progress,
@@ -331,9 +297,6 @@ namespace Dorothy.Services
             return results;
         }
 
-        /// <summary>
-        /// Test reachability for a single host
-        /// </summary>
         private async Task<FirewallDiscoveryHostReachabilityResult> TestHostReachabilityAsync(
             FirewallNetworkDefinition network,
             FirewallHostDefinition host,
@@ -350,7 +313,7 @@ namespace Dorothy.Services
 
             try
             {
-                // Try ICMP ping
+
                 result.IcmpTried = true;
                 bool icmpSuccess = await TestIcmpAsync(
                     host.HostIp.ToString(),
@@ -367,7 +330,6 @@ namespace Dorothy.Services
                     return result;
                 }
 
-                // If ICMP failed, try TCP reachability
                 var tcpPorts = await TestTcpReachabilityAsync(
                     host.HostIp.ToString(),
                     options.DefaultReachabilityPorts,
@@ -398,9 +360,6 @@ namespace Dorothy.Services
             return result;
         }
 
-        /// <summary>
-        /// Test ICMP ping to a host
-        /// </summary>
         private async Task<bool> TestIcmpAsync(
             string ipAddress,
             int timeoutMs,
@@ -427,10 +386,9 @@ namespace Dorothy.Services
                     }
                     catch
                     {
-                        // Ping failed, continue to next attempt
+
                     }
 
-                    // Small delay between pings
                     if (i < probeCount - 1)
                     {
                         await Task.Delay(200, cancellationToken);
@@ -445,9 +403,6 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Test TCP reachability by attempting connections to specified ports
-        /// </summary>
         private async Task<List<int>> TestTcpReachabilityAsync(
             string ipAddress,
             List<int> ports,
@@ -478,29 +433,25 @@ namespace Dorothy.Services
                         }
                         else
                         {
-                            // Connection attempt completed - check for connection refused
-                            // This indicates host is reachable
+
                             reachablePorts.Add(port);
                         }
                     }
                 }
                 catch (SocketException ex) when (ex.SocketErrorCode == SocketError.ConnectionRefused)
                 {
-                    // Connection refused means host is reachable, port is just closed
+
                     reachablePorts.Add(port);
                 }
                 catch
                 {
-                    // Timeout or other error - port is likely filtered or host unreachable
+
                 }
             }
 
             return reachablePorts;
         }
 
-        /// <summary>
-        /// Probe ports for reachable hosts
-        /// </summary>
         public async Task<List<PortProbeResult>> ProbePortsAsync(
             FirewallDiscoveryOptions options,
             IEnumerable<FirewallDiscoveryHostReachabilityResult> reachability,
@@ -541,9 +492,6 @@ namespace Dorothy.Services
             return results;
         }
 
-        /// <summary>
-        /// Probe all ports for a single host
-        /// </summary>
         private async Task<List<PortProbeResult>> ProbeHostPortsAsync(
             FirewallNetworkDefinition? network,
             FirewallHostDefinition host,
@@ -579,9 +527,6 @@ namespace Dorothy.Services
             return results;
         }
 
-        /// <summary>
-        /// Probe a single port with concurrency control
-        /// </summary>
         private async Task<PortProbeResult?> ProbeSinglePortAsync(
             FirewallNetworkDefinition? network,
             FirewallHostDefinition host,
@@ -620,21 +565,21 @@ namespace Dorothy.Services
 
                     if (completedTask == timeoutTask)
                     {
-                        // Timeout - likely filtered
+
                         result.Action = FirewallRuleAction.FilteredTimeout;
                         result.Evidence = "Timeout / no response";
                         progress?.Report($"[Probe] {network?.Name ?? "Unknown"} {host.HostIp}:{port} → FilteredTimeout");
                     }
                     else if (client.Connected)
                     {
-                        // Connection succeeded
+
                         result.Action = FirewallRuleAction.AllowedOpen;
                         result.Evidence = "Connect OK (SYN-ACK)";
                         progress?.Report($"[Probe] {network?.Name ?? "Unknown"} {host.HostIp}:{port} → AllowedOpen (Connect OK)");
                     }
                     else
                     {
-                        // Connection attempt completed but not connected
+
                         result.Action = FirewallRuleAction.FilteredTimeout;
                         result.Evidence = "Timeout / no response";
                         progress?.Report($"[Probe] {network?.Name ?? "Unknown"} {host.HostIp}:{port} → FilteredTimeout");
@@ -670,23 +615,18 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Build inferred rules from port probe results
-        /// </summary>
         public List<InferredFirewallRule> BuildInferredRules(List<PortProbeResult> portProbes)
         {
             var rules = new List<InferredFirewallRule>();
 
-            // Filter out UnknownError results
             var validProbes = portProbes.Where(p => p.Action != FirewallRuleAction.UnknownError).ToList();
 
-            // Group by Network, Host, Protocol, and Action
             var groups = validProbes
                 .GroupBy(p => new
                 {
                     Network = p.Network,
                     Host = p.Host,
-                    Protocol = "TCP", // Always TCP for MVP
+                    Protocol = "TCP",
                     Action = p.Action
                 })
                 .ToList();
@@ -713,7 +653,6 @@ namespace Dorothy.Services
                 rules.Add(rule);
             }
 
-            // Sort by Network name, Host IP, Protocol, Action
             return rules
                 .OrderBy(r => r.Network?.Name ?? "")
                 .ThenBy(r => r.Host.HostIp.ToString())
@@ -722,9 +661,6 @@ namespace Dorothy.Services
                 .ToList();
         }
 
-        /// <summary>
-        /// Compress consecutive ports into ranges (e.g., [22,23,24,80,443] → "22-24,80,443")
-        /// </summary>
         private string CompressPortRanges(List<int> ports)
         {
             if (ports.Count == 0)
@@ -741,12 +677,12 @@ namespace Dorothy.Services
             {
                 if (ports[i] == end + 1)
                 {
-                    // Consecutive port, extend range
+
                     end = ports[i];
                 }
                 else
                 {
-                    // Gap found, add current range
+
                     if (start == end)
                         ranges.Add(start.ToString());
                     else
@@ -757,7 +693,6 @@ namespace Dorothy.Services
                 }
             }
 
-            // Add final range
             if (start == end)
                 ranges.Add(start.ToString());
             else
@@ -766,9 +701,6 @@ namespace Dorothy.Services
             return string.Join(",", ranges);
         }
 
-        /// <summary>
-        /// Orchestrate the complete discovery process
-        /// </summary>
         public async Task<FirewallDiscoveryResult> DiscoverAsync(
             FirewallDiscoveryOptions options,
             IProgress<string>? progress,
@@ -776,11 +708,10 @@ namespace Dorothy.Services
         {
             var result = new FirewallDiscoveryResult();
 
-            // Stage 0: Discover hosts behind firewall via IP range scanning (if enabled)
             if (options.EnableRangeScanning)
             {
                 progress?.Report("[Discovery] Starting host discovery via IP range scanning...");
-                
+
                 var discoveredHosts = await DiscoverHostsInRangeAsync(
                     options,
                     progress,
@@ -792,7 +723,6 @@ namespace Dorothy.Services
                     return result;
                 }
 
-                // Add discovered hosts to a network definition
                 if (discoveredHosts.Count > 0)
                 {
                     var discoveryNetwork = new FirewallNetworkDefinition
@@ -813,7 +743,6 @@ namespace Dorothy.Services
 
             progress?.Report("[Discovery] Starting reachability tests...");
 
-            // Stage 1: Reachability tests (on both discovered and manually entered hosts)
             result.ReachabilityResults = await TestReachabilityAsync(
                 options,
                 progress,
@@ -827,7 +756,6 @@ namespace Dorothy.Services
 
             progress?.Report($"[Discovery] Reachability tests complete. {result.ReachabilityResults.Count} hosts tested.");
 
-            // Stage 2: Port probing for reachable hosts
             progress?.Report("[Discovery] Starting port probes...");
             result.RawPortProbes = await ProbePortsAsync(
                 options,
@@ -843,7 +771,6 @@ namespace Dorothy.Services
 
             progress?.Report($"[Discovery] Port probes complete. {result.RawPortProbes.Count} probes performed.");
 
-            // Stage 3: Rule inference
             progress?.Report("[Discovery] Building inferred rules...");
             result.InferredRules = BuildInferredRules(result.RawPortProbes);
 
@@ -852,9 +779,6 @@ namespace Dorothy.Services
             return result;
         }
 
-        /// <summary>
-        /// Parse port list from string (e.g., "22,80,443" or "1-1024" or "22,80-85,443")
-        /// </summary>
         public static List<int> ParsePortList(string portString)
         {
             var ports = new List<int>();
@@ -868,7 +792,6 @@ namespace Dorothy.Services
             {
                 var trimmed = part.Trim();
 
-                // Check for range (e.g., "1-1024")
                 if (trimmed.Contains('-'))
                 {
                     var rangeParts = trimmed.Split('-');

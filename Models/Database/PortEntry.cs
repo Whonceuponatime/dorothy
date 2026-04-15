@@ -28,7 +28,7 @@ namespace Dorothy.Models.Database
         public string? Banner { get; set; }
 
         [Column("severity")]
-        public string Severity { get; set; } = "INFO"; // Automatically calculated by database trigger, but we can set default
+        public string Severity { get; set; } = "INFO";
 
         [Column("scan_time")]
         public DateTime ScanTime { get; set; }
@@ -54,26 +54,21 @@ namespace Dorothy.Models.Database
         [Column("user_id")]
         public Guid? UserId { get; set; }
 
-        // Local SQLite only field (not in Supabase schema)
         [JsonIgnore]
         [IgnoreDataMember]
         public DateTime? SyncedAt { get; set; }
-        
-        // Local SQLite only - for compatibility with existing code
+
         [JsonIgnore]
         [IgnoreDataMember]
         public string HostIp { get; set; } = string.Empty;
-        
-        // Backward compatibility - maps to HostId
+
         [JsonIgnore]
         [IgnoreDataMember]
-        public long AssetId 
-        { 
-            get => HostId; 
-            set => HostId = value; 
+        public long AssetId
+        {
+            get => HostId;
+            set => HostId = value;
         }
     }
 }
-
-
 

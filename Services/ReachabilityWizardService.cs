@@ -7,14 +7,17 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Dorothy.Models;
+using Dorothy.Services.Reachability;
 
 namespace Dorothy.Services
 {
-    /// <summary>
-    /// Service for reachability and path analysis wizard
-    /// </summary>
+
     public class ReachabilityWizardService
     {
+
+        private readonly IcmpProbeService     _icmpProbe  = new();
+        private readonly TcpConnectScanService _tcpScan   = new();
+        private readonly TracerouteService    _traceroute = new();
         private const int DEFAULT_ICMP_TIMEOUT_MS = 1000;
         private const int DEFAULT_TCP_TIMEOUT_MS = 1500;
         private const int DEFAULT_ICMP_PROBE_COUNT = 3;
@@ -23,45 +26,39 @@ namespace Dorothy.Services
         private const int TRACEROUTE_MAX_HOPS = 30;
         private const string DEFAULT_EXTERNAL_TEST_IP = "8.8.8.8";
 
-        /// <summary>
-        /// Comprehensive port list for boundary device rule discovery (common ports + well-known services)
-        /// </summary>
         private static readonly int[] COMPREHENSIVE_BOUNDARY_PORTS = new int[]
         {
-            // Common web/HTTP
+
             80, 443, 8080, 8443, 8000, 8008, 8009, 8010, 8081, 8888, 9000, 9090,
-            // SSH/Telnet
+
             22, 23, 2222, 2223,
-            // Email
+
             25, 110, 143, 993, 995, 587, 465,
-            // DNS
+
             53,
-            // FTP
+
             21, 20, 2121,
-            // Database
+
             3306, 5432, 1433, 1521, 27017, 6379, 9200, 9300,
-            // Remote Desktop/VNC
+
             3389, 5900, 5901, 5902,
-            // SMB/File sharing
+
             139, 445,
-            // RPC
+
             135,
-            // SNMP
+
             161, 162,
-            // LDAP
+
             389, 636,
-            // Other common services
+
             514, 873, 2049, 3300, 5000, 5001, 5060, 5433, 5985, 5986,
             7001, 7002, 8181, 8880, 10000,
-            // Industrial/OT
+
             502, 20000, 2404, 4840, 789, 1911, 2222,
-            // Additional common ports
+
             7, 9, 13, 17, 19, 37, 42, 49, 53, 67, 68, 69, 88, 111, 113, 119, 123, 135, 137, 138, 139, 161, 162, 179, 389, 443, 445, 465, 514, 515, 587, 631, 636, 993, 995, 1080, 1433, 1521, 1723, 3306, 3389, 5432, 5900, 8080, 8443
         };
 
-        /// <summary>
-        /// Get boundary gateway IP for a network interface
-        /// </summary>
         public IPAddress? GetBoundaryGatewayForNic(string sourceNicId)
         {
             try
@@ -84,19 +81,12 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Get boundary vendor (OUI lookup) - placeholder for future implementation
-        /// </summary>
         public string? GetBoundaryVendor(IPAddress gatewayIp)
         {
-            // TODO: Implement OUI lookup from MAC address
-            // For now, return null
+
             return null;
         }
 
-        /// <summary>
-        /// Run ICMP checks including boundary device and mode-specific targets
-        /// </summary>
         public async Task<List<IcmpReachabilityResult>> RunIcmpChecksAsync(
             AnalysisContext context,
             IProgress<(string message, int percent)>? progress,
@@ -104,26 +94,22 @@ namespace Dorothy.Services
         {
             var results = new List<IcmpReachabilityResult>();
 
-            // Build target list
             var targets = new List<(IPAddress Ip, string Role)>();
 
-            // Always add boundary device if available
             if (context.BoundaryGatewayIp != null)
             {
                 targets.Add((context.BoundaryGatewayIp, "Boundary device"));
             }
 
-            // Mode-specific targets
             if (context.Mode == AnalysisMode.RemoteNetworkKnown)
             {
-                // Extract gateway candidates from CIDR (X.Y.Z.1 and X.Y.Z.254)
+
                 var gatewayCandidates = ExtractGatewayCandidates(context.TargetCidr);
                 foreach (var gateway in gatewayCandidates)
                 {
                     targets.Add((gateway, "Gateway candidate"));
                 }
 
-                // Add known inside assets
                 foreach (var asset in context.InsideAssets)
                 {
                     targets.Add((asset.AssetIp, "Known asset"));
@@ -131,7 +117,7 @@ namespace Dorothy.Services
             }
             else if (context.Mode == AnalysisMode.BoundaryOnly)
             {
-                // Add external test IP if set
+
                 if (context.ExternalTestIp != null)
                 {
                     targets.Add((context.ExternalTestIp, "External test target"));
@@ -140,10 +126,9 @@ namespace Dorothy.Services
 
             int totalTargets = targets.Count;
             int completed = 0;
-            
+
             progress?.Report(($"[ICMP] Testing {totalTargets} targets...", 0));
 
-            // Test each target
             foreach (var (ip, role) in targets)
             {
                 if (token.IsCancellationRequested)
@@ -152,50 +137,21 @@ namespace Dorothy.Services
                 int percent = totalTargets > 0 ? (completed * 100) / totalTargets : 0;
                 progress?.Report(($"[ICMP] Testing {ip} ({role})... ({completed + 1}/{totalTargets})", percent));
 
+                var probeResult = await _icmpProbe.ProbeAsync(
+                    ip, DEFAULT_ICMP_PROBE_COUNT, DEFAULT_ICMP_TIMEOUT_MS, token);
+
                 var result = new IcmpReachabilityResult
                 {
-                    TargetIp = ip,
-                    Role = role,
-                    Sent = DEFAULT_ICMP_PROBE_COUNT
+                    TargetIp  = ip,
+                    Role      = role,
+                    Sent      = probeResult.Sent,
+                    Received  = probeResult.Received,
+                    Reachable = probeResult.Reachable,
+                    AvgRttMs  = probeResult.AvgRttMs
                 };
 
                 try
                 {
-                    using var ping = new Ping();
-                    var rtts = new List<long>();
-
-                    for (int i = 0; i < DEFAULT_ICMP_PROBE_COUNT; i++)
-                    {
-                        if (token.IsCancellationRequested)
-                            break;
-
-                        try
-                        {
-                            var reply = await ping.SendPingAsync(ip, DEFAULT_ICMP_TIMEOUT_MS);
-                            if (reply != null && reply.Status == IPStatus.Success)
-                            {
-                                result.Received++;
-                                rtts.Add(reply.RoundtripTime);
-                            }
-                        }
-                        catch
-                        {
-                            // Ping failed, continue
-                        }
-
-                        // Small delay between pings
-                        if (i < DEFAULT_ICMP_PROBE_COUNT - 1)
-                        {
-                            await Task.Delay(200, token);
-                        }
-                    }
-
-                    result.Reachable = result.Received > 0;
-                    if (rtts.Count > 0)
-                    {
-                        result.AvgRttMs = (long)rtts.Average();
-                    }
-
                     completed++;
                     int finalPercent = totalTargets > 0 ? (completed * 100) / totalTargets : 100;
                     progress?.Report(($"[ICMP] {ip}: {(result.Reachable ? "Reachable" : "Not reachable")} ({result.Received}/{result.Sent})", finalPercent));
@@ -209,15 +165,12 @@ namespace Dorothy.Services
 
                 results.Add(result);
             }
-            
+
             progress?.Report(("ICMP checks completed.", 100));
 
             return results;
         }
 
-        /// <summary>
-        /// Run TCP checks on targets from ICMP stage
-        /// </summary>
         public async Task<List<TcpReachabilityResult>> RunTcpChecksAsync(
             AnalysisContext context,
             IEnumerable<IcmpReachabilityResult> icmpResults,
@@ -229,7 +182,6 @@ namespace Dorothy.Services
             var ports = probePorts.ToList();
             var semaphore = new SemaphoreSlim(DEFAULT_MAX_CONCURRENT_PROBES);
 
-            // Get all IPs from ICMP stage
             var targetIps = icmpResults.Select(r => r.TargetIp).Distinct().ToList();
 
             int totalTests = targetIps.Count * ports.Count;
@@ -257,7 +209,7 @@ namespace Dorothy.Services
                             {
                                 results.Add(result);
                             }
-                            
+
                             lock (lockObject)
                             {
                                 completedTests++;
@@ -276,77 +228,40 @@ namespace Dorothy.Services
             }
 
             await Task.WhenAll(tasks);
-            
+
             progress?.Report(("TCP checks completed.", 100));
 
             return results;
         }
 
-        /// <summary>
-        /// Test a single TCP port
-        /// </summary>
         private async Task<TcpReachabilityResult> TestTcpPortAsync(
             IPAddress ip,
             int port,
             CancellationToken token)
         {
-            var result = new TcpReachabilityResult
+            var portResult = await _tcpScan.ProbePortAsync(ip, port, DEFAULT_TCP_TIMEOUT_MS, token);
+
+            var wizardState = portResult.State switch
             {
-                TargetIp = ip,
-                Port = port,
-                State = Models.TcpState.Filtered
+                Reachability.PortState.Open               => Models.TcpState.Open,
+                Reachability.PortState.Closed             => Models.TcpState.Closed,
+                Reachability.PortState.TimedOut           => Models.TcpState.TimedOut,
+                Reachability.PortState.NetworkUnreachable => Models.TcpState.NetworkUnreachable,
+                Reachability.PortState.HostUnreachable    => Models.TcpState.HostUnreachable,
+                Reachability.PortState.Error              => Models.TcpState.Error,
+                _                                          => Models.TcpState.Filtered
             };
 
-            var startTime = DateTime.UtcNow;
-
-            try
+            return new TcpReachabilityResult
             {
-                using var client = new TcpClient();
-                var connectTask = client.ConnectAsync(ip, port);
-                var timeoutTask = Task.Delay(DEFAULT_TCP_TIMEOUT_MS, token);
-
-                var completedTask = await Task.WhenAny(connectTask, timeoutTask);
-
-                var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
-                result.RttMs = (long)elapsed;
-
-                if (completedTask == connectTask)
-                {
-                    if (client.Connected)
-                    {
-                        result.State = Models.TcpState.Open;
-                        client.Close();
-                    }
-                    else
-                    {
-                        result.State = Models.TcpState.Closed;
-                    }
-                }
-                else
-                {
-                    result.State = Models.TcpState.Filtered;
-                }
-            }
-            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.ConnectionRefused)
-            {
-                result.State = Models.TcpState.Closed;
-                var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
-                result.RttMs = (long)elapsed;
-            }
-            catch (Exception ex)
-            {
-                result.State = Models.TcpState.Filtered;
-                result.ErrorMessage = ex.Message;
-                var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
-                result.RttMs = (long)elapsed;
-            }
-
-            return result;
+                TargetIp     = ip,
+                Port         = port,
+                State        = wizardState,
+                RttMs        = portResult.RttMs,
+                ErrorMessage = portResult.Error
+            };
         }
 
-        /// <summary>
-        /// Run path analysis (traceroute) - always attempt something
-        /// </summary>
         public async Task<PathAnalysisResult?> RunPathAnalysisAsync(
             AnalysisContext context,
             IEnumerable<IcmpReachabilityResult> icmpResults,
@@ -358,7 +273,7 @@ namespace Dorothy.Services
 
             if (context.Mode == AnalysisMode.RemoteNetworkKnown)
             {
-                // Prefer any IP from IcmpResults/TcpResults with evidence of reachability
+
                 var reachableIps = icmpResults
                     .Where(r => r.Reachable)
                     .Select(r => r.TargetIp)
@@ -366,21 +281,21 @@ namespace Dorothy.Services
                         .Where(r => r.State != Models.TcpState.Filtered)
                         .Select(r => r.TargetIp))
                     .Distinct()
-                    .Where(ip => ip != context.BoundaryGatewayIp) // Exclude boundary
+                    .Where(ip => ip != context.BoundaryGatewayIp)
                     .ToList();
 
                 if (reachableIps.Any())
                 {
-                    // Prefer gateway candidate, then known asset
-                    targetIp = reachableIps.FirstOrDefault(ip => 
-                        icmpResults.Any(r => r.TargetIp.Equals(ip) && r.Role == "Gateway candidate")) 
-                        ?? reachableIps.FirstOrDefault(ip => 
+
+                    targetIp = reachableIps.FirstOrDefault(ip =>
+                        icmpResults.Any(r => r.TargetIp.Equals(ip) && r.Role == "Gateway candidate"))
+                        ?? reachableIps.FirstOrDefault(ip =>
                         icmpResults.Any(r => r.TargetIp.Equals(ip) && r.Role == "Known asset"))
                         ?? reachableIps.First();
                 }
                 else
                 {
-                    // No reachable targets - choose first gateway candidate or known asset
+
                     var gatewayCandidates = ExtractGatewayCandidates(context.TargetCidr);
                     if (gatewayCandidates.Any())
                     {
@@ -394,7 +309,7 @@ namespace Dorothy.Services
             }
             else if (context.Mode == AnalysisMode.BoundaryOnly)
             {
-                // Use external test IP
+
                 targetIp = context.ExternalTestIp;
             }
 
@@ -413,39 +328,28 @@ namespace Dorothy.Services
 
             try
             {
-                var hops = new List<PathHop>();
-                int maxHops = TRACEROUTE_MAX_HOPS;
+                progress?.Report(("[Path] Tracing hops (hostname resolution non-blocking)...", 10));
 
-                for (int ttl = 1; ttl <= maxHops; ttl++)
+                var hopResults = await _traceroute.TraceAsync(
+                    targetIp, TRACEROUTE_MAX_HOPS, TRACEROUTE_TIMEOUT_MS,
+                    resolveHostnames: true, ct: token);
+
+                var hops = hopResults.Select(h => new PathHop
                 {
-                    if (token.IsCancellationRequested)
-                        break;
+                    HopNumber = h.HopNumber,
+                    HopIp     = h.HopIp,
+                    RttMs     = h.RttMs,
+                    Hostname  = h.Hostname
+                }).ToList();
 
-                    int percent = (ttl * 100) / maxHops;
-                    progress?.Report(($"[Path] Testing hop {ttl}/{maxHops}...", percent));
+                result.Completed = hops.Count > 0 &&
+                    hops[hops.Count - 1].HopIp?.Equals(targetIp) == true;
 
-                    var hop = await SendTraceroutePingAsync(targetIp, ttl, token);
-                    hops.Add(hop);
-
-                    if (hop.HopIp != null && hop.HopIp.Equals(targetIp))
-                    {
-                        result.Completed = true;
-                        progress?.Report(($"[Path] Reached target in {ttl} hops", 100));
-                        break;
-                    }
-
-                    if (hop.HopIp == null && hops.Count >= 3)
-                    {
-                        // Multiple timeouts, likely blocked or unreachable
-                        result.Notes = $"Path stopped at hop {ttl - 1}. Likely firewall/L3 boundary or unreachable.";
-                        progress?.Report(($"[Path] Path stopped at hop {ttl - 1}", 100));
-                        break;
-                    }
-                }
+                if (result.Completed)
+                    progress?.Report(($"[Path] Reached target in {hops.Count} hops", 100));
 
                 result.Hops = hops;
 
-                // Generate notes based on completion and boundary
                 if (result.Completed)
                 {
                     result.Notes = $"Path reached target in {hops.Count} hops.";
@@ -481,56 +385,6 @@ namespace Dorothy.Services
             return result;
         }
 
-        /// <summary>
-        /// Send a single traceroute ping with specific TTL
-        /// </summary>
-        private async Task<PathHop> SendTraceroutePingAsync(
-            IPAddress targetIp,
-            int ttl,
-            CancellationToken token)
-        {
-            var hop = new PathHop
-            {
-                HopNumber = ttl
-            };
-
-            try
-            {
-                using var ping = new Ping();
-                var options = new PingOptions(ttl, true);
-                byte[] buffer = new byte[32];
-
-                var reply = await ping.SendPingAsync(targetIp, TRACEROUTE_TIMEOUT_MS, buffer, options);
-
-                if (reply != null && (reply.Status == IPStatus.TtlExpired || reply.Status == IPStatus.Success))
-                {
-                    hop.HopIp = reply.Address;
-                    hop.RttMs = reply.RoundtripTime;
-
-                    // Try to get hostname
-                    try
-                    {
-                        var hostEntry = await Dns.GetHostEntryAsync(reply.Address);
-                        hop.Hostname = hostEntry.HostName;
-                    }
-                    catch
-                    {
-                        // Hostname lookup failed, that's okay
-                    }
-                }
-            }
-            catch
-            {
-                // Timeout or error, hop will have null IP
-            }
-
-            return hop;
-        }
-
-        /// <summary>
-        /// Run deeper port scan on reachable hosts (respects mode)
-        /// Automatically uses comprehensive port list for boundary devices to understand firewall rules
-        /// </summary>
         public async Task<List<DeeperScanResult>> RunDeeperScanAsync(
             AnalysisContext context,
             IEnumerable<IcmpReachabilityResult> icmpResults,
@@ -543,11 +397,9 @@ namespace Dorothy.Services
             var ports = scanPorts.ToList();
             var semaphore = new SemaphoreSlim(DEFAULT_MAX_CONCURRENT_PROBES);
 
-            // Identify boundary devices and regular hosts separately
             var boundaryIps = new HashSet<IPAddress>();
             var reachableIps = new HashSet<IPAddress>();
-            
-            // Calculate total work for progress tracking
+
             int totalBoundaryPorts = 0;
             int totalRegularPorts = 0;
             int totalTests = 0;
@@ -556,24 +408,22 @@ namespace Dorothy.Services
 
             if (context.Mode == AnalysisMode.RemoteNetworkKnown)
             {
-                // Identify boundary devices: known gateway, gateway candidates, or common gateway patterns (.1, .254)
+
                 if (context.BoundaryGatewayIp != null)
                 {
                     boundaryIps.Add(context.BoundaryGatewayIp);
                 }
 
-                // Check ICMP results for boundary devices
                 foreach (var icmp in icmpResults.Where(r => r.Reachable))
                 {
                     var ip = icmp.TargetIp;
                     var ipBytes = ip.GetAddressBytes();
-                    
-                    // Check if it's a boundary device
+
                     if (icmp.Role == "Boundary device" || icmp.Role == "Gateway candidate")
                     {
                         boundaryIps.Add(ip);
                     }
-                    // Check common gateway patterns (X.Y.Z.1 or X.Y.Z.254)
+
                     else if (ipBytes[3] == 1 || ipBytes[3] == 254)
                     {
                         boundaryIps.Add(ip);
@@ -585,8 +435,7 @@ namespace Dorothy.Services
                     }
                 }
 
-                // Check TCP results
-                foreach (var tcp in tcpResults.Where(r => r.State != Models.TcpState.Filtered))
+                foreach (var tcp in tcpResults.Where(r => r.State.IsActiveResponse()))
                 {
                     if (!boundaryIps.Contains(tcp.TargetIp))
                     {
@@ -596,19 +445,17 @@ namespace Dorothy.Services
             }
             else if (context.Mode == AnalysisMode.BoundaryOnly)
             {
-                // Only scan boundary device
+
                 if (context.BoundaryGatewayIp != null)
                 {
                     boundaryIps.Add(context.BoundaryGatewayIp);
                 }
             }
 
-            // Calculate total work for progress tracking
             totalBoundaryPorts = boundaryIps.Count * COMPREHENSIVE_BOUNDARY_PORTS.Length;
             totalRegularPorts = reachableIps.Count * ports.Count;
             totalTests = totalBoundaryPorts + totalRegularPorts;
 
-            // Scan boundary devices with comprehensive port list
             if (boundaryIps.Any())
             {
                 progress?.Report(($"[Deeper Scan] Found {boundaryIps.Count} boundary device(s). Scanning with comprehensive port list ({COMPREHENSIVE_BOUNDARY_PORTS.Length} ports) to understand firewall rules...", 0));
@@ -625,7 +472,6 @@ namespace Dorothy.Services
                 return results;
             }
 
-            // Scan boundary devices with comprehensive port list first
             foreach (var ip in boundaryIps)
             {
                 if (token.IsCancellationRequested)
@@ -655,7 +501,7 @@ namespace Dorothy.Services
                             {
                                 scanResult.PortStates[port] = portResult.State;
                             }
-                            
+
                             lock (lockObject)
                             {
                                 completedTests++;
@@ -674,18 +520,16 @@ namespace Dorothy.Services
 
                 await Task.WhenAll(tasks);
 
-                // Generate summary
-                var openCount = scanResult.PortStates.Count(kvp => kvp.Value == Models.TcpState.Open);
-                var closedCount = scanResult.PortStates.Count(kvp => kvp.Value == Models.TcpState.Closed);
-                var filteredCount = scanResult.PortStates.Count(kvp => kvp.Value == Models.TcpState.Filtered);
+                var openCount     = scanResult.PortStates.Count(kvp => kvp.Value == Models.TcpState.Open);
+                var closedCount   = scanResult.PortStates.Count(kvp => kvp.Value == Models.TcpState.Closed);
+                var filteredCount = scanResult.PortStates.Count(kvp => kvp.Value.IsNoResponse());
 
-                scanResult.Summary = $"{openCount} open, {closedCount} closed, {filteredCount} filtered";
+                scanResult.Summary = $"{openCount} open, {closedCount} closed, {filteredCount} filtered/timed out";
 
                 results.Add(scanResult);
                 progress?.Report(($"[Deeper Scan] Boundary device {ip}: {scanResult.Summary}", totalTests > 0 ? (completedTests * 100) / totalTests : 0));
             }
 
-            // Scan regular hosts with user-specified ports
             foreach (var ip in reachableIps)
             {
                 if (token.IsCancellationRequested)
@@ -715,7 +559,7 @@ namespace Dorothy.Services
                             {
                                 scanResult.PortStates[port] = portResult.State;
                             }
-                            
+
                             lock (lockObject)
                             {
                                 completedTests++;
@@ -734,20 +578,18 @@ namespace Dorothy.Services
 
                 await Task.WhenAll(tasks);
 
-                // Generate summary
-                var openCount = scanResult.PortStates.Count(kvp => kvp.Value == Models.TcpState.Open);
-                var closedCount = scanResult.PortStates.Count(kvp => kvp.Value == Models.TcpState.Closed);
-                var filteredCount = scanResult.PortStates.Count(kvp => kvp.Value == Models.TcpState.Filtered);
+                var openCount     = scanResult.PortStates.Count(kvp => kvp.Value == Models.TcpState.Open);
+                var closedCount   = scanResult.PortStates.Count(kvp => kvp.Value == Models.TcpState.Closed);
+                var filteredCount = scanResult.PortStates.Count(kvp => kvp.Value.IsNoResponse());
 
-                scanResult.Summary = $"{openCount} open, {closedCount} closed, {filteredCount} filtered";
+                scanResult.Summary = $"{openCount} open, {closedCount} closed, {filteredCount} filtered/timed out";
 
                 results.Add(scanResult);
                 progress?.Report(($"[Deeper Scan] {ip}: {scanResult.Summary}", totalTests > 0 ? (completedTests * 100) / totalTests : 0));
             }
 
-            // Wait for all scans to complete
             progress?.Report(("Deeper scan completed.", 100));
-            await Task.Delay(100, token); // Give tasks time to start
+            await Task.Delay(100, token);
             while (semaphore.CurrentCount < DEFAULT_MAX_CONCURRENT_PROBES)
             {
                 await Task.Delay(100, token);
@@ -756,9 +598,6 @@ namespace Dorothy.Services
             return results;
         }
 
-        /// <summary>
-        /// Extract gateway candidates (X.Y.Z.1 and X.Y.Z.254) from CIDR notation
-        /// </summary>
         public List<IPAddress> ExtractGatewayCandidates(string cidr)
         {
             var candidates = new List<IPAddress>();
@@ -785,7 +624,6 @@ namespace Dorothy.Services
                 if (hostBits <= 0)
                     return candidates;
 
-                // Calculate network address
                 var maskBytes = new byte[4];
                 for (int i = 0; i < 4; i++)
                 {
@@ -807,7 +645,6 @@ namespace Dorothy.Services
                     networkStart[i] = (byte)(networkBytes[i] & maskBytes[i]);
                 }
 
-                // Calculate .1 (first host)
                 var firstHost = new byte[4];
                 Array.Copy(networkStart, firstHost, 4);
                 firstHost[3] += 1;
@@ -816,24 +653,21 @@ namespace Dorothy.Services
                     candidates.Add(firstHostIp);
                 }
 
-                // Calculate .254 (common gateway, or last host - 1 for /24)
                 var lastHost = new byte[4];
                 Array.Copy(networkStart, lastHost, 4);
 
-                // Calculate broadcast address
                 for (int i = 0; i < 4; i++)
                 {
                     lastHost[i] = (byte)(networkStart[i] | ~maskBytes[i]);
                 }
 
-                // .254 is common for /24, but for other subnets, use last host - 1
                 if (prefixLength == 24)
                 {
                     lastHost[3] = 254;
                 }
                 else
                 {
-                    // Last host - 1
+
                     if (lastHost[3] > 0)
                     {
                         lastHost[3]--;
@@ -852,7 +686,7 @@ namespace Dorothy.Services
             }
             catch
             {
-                // Return empty list on error
+
             }
 
             return candidates;

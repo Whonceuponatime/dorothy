@@ -4,23 +4,191 @@
         xmlns:local="clr-namespace:Dorothy.Views"
         Title="Sync to Cloud"
         Icon="pack://application:,,,/Resources/icon.ico"
-        WindowStyle="SingleBorderWindow" 
-        Height="700" 
+        WindowStyle="SingleBorderWindow"
+        Height="700"
         Width="1100"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
         MinHeight="600"
         MinWidth="900"
-        Background="#F3F4F6">
+        Background="#1A2332">
+    <Window.Resources>
+
+        <Style x:Key="DlgBtnBase" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="PrimaryBtn" TargetType="Button" BasedOn="{StaticResource DlgBtnBase}">
+            <Setter Property="Background"      Value="#5B8AF5"/>
+            <Setter Property="Foreground"      Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"         Value="12,8"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#4A79E4"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="SecondaryBtn" TargetType="Button" BasedOn="{StaticResource DlgBtnBase}">
+            <Setter Property="Background"      Value="#3A4555"/>
+            <Setter Property="Foreground"      Value="#E8ECF1"/>
+            <Setter Property="BorderBrush"     Value="#4A5565"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="10,6"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#4A5565"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="DangerBtn" TargetType="Button" BasedOn="{StaticResource DlgBtnBase}">
+            <Setter Property="Background"      Value="#3A2020"/>
+            <Setter Property="Foreground"      Value="#F87171"/>
+            <Setter Property="BorderBrush"     Value="#5A3030"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding"         Value="10,6"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#4A2828"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background"  Value="#232F3E"/>
+            <Setter Property="Foreground"  Value="#E8ECF1"/>
+            <Setter Property="CaretBrush"  Value="#E8ECF1"/>
+            <Setter Property="BorderBrush" Value="#3A4555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#8899AA"/>
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+
+        <Style TargetType="TabControl">
+            <Setter Property="Background"  Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="#3A4555"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding"     Value="0"/>
+        </Style>
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="#8899AA"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="#3A4555"
+                                BorderThickness="0,0,0,2"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#232F3E"/>
+                                <Setter Property="Foreground" Value="#C8D1DC"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#5B8AF5"/>
+                                <Setter Property="Foreground" Value="#5B8AF5"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#8899AA"/>
+            <Setter Property="Background" Value="#232F3E"/>
+            <Setter Property="BorderBrush" Value="#3A4555"/>
+            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+            <Setter Property="Padding" Value="8,6"/>
+        </Style>
+        <Style TargetType="DataGridRow">
+            <Setter Property="Background" Value="#1E2A3A"/>
+            <Setter Property="Foreground" Value="#E8ECF1"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="#2A3A50"/>
+                    <Setter Property="Foreground" Value="#E8ECF1"/>
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#253040"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="DataGridCell">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#E8ECF1"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Foreground" Value="#E8ECF1"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="DataGrid">
+            <Setter Property="Background"               Value="#1E2A3A"/>
+            <Setter Property="Foreground"               Value="#E8ECF1"/>
+            <Setter Property="BorderBrush"              Value="#3A4555"/>
+            <Setter Property="BorderThickness"          Value="1"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#2A3444"/>
+            <Setter Property="VerticalGridLinesBrush"   Value="#2A3444"/>
+            <Setter Property="RowBackground"            Value="#1E2A3A"/>
+            <Setter Property="AlternatingRowBackground" Value="#232F3E"/>
+            <Setter Property="AutoGenerateColumns"      Value="False"/>
+            <Setter Property="CanUserAddRows"           Value="False"/>
+            <Setter Property="CanUserDeleteRows"        Value="False"/>
+            <Setter Property="HeadersVisibility"        Value="Column"/>
+            <Setter Property="GridLinesVisibility"      Value="Horizontal"/>
+        </Style>
+
+        <Style x:Key="NumericCell" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="Foreground"          Value="#E8ECF1"/>
+        </Style>
+    </Window.Resources>
+
     <Grid Margin="16">
-        <Grid.Resources>
-            <Style TargetType="DataGridColumnHeader">
-                <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="Foreground" Value="#111827"/>
-                <Setter Property="Background" Value="#F9FAFB"/>
-                <Setter Property="Padding" Value="8,6"/>
-            </Style>
-        </Grid.Resources>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -30,22 +198,20 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
             <TextBlock Text="Sync to Cloud"
                        FontSize="20"
                        FontWeight="Bold"
-                       Foreground="#111827"
+                       Foreground="#E8ECF1"
                        Margin="0,0,0,8"/>
             <TextBlock Text="Select attack logs and/or assets to sync, delete, or skip. Enter a project name to organize your data."
                        FontSize="12"
-                       Foreground="#6B7280"/>
+                       Foreground="#8899AA"/>
         </StackPanel>
-        
-        <!-- Project Name Input -->
+
         <Border Grid.Row="1"
-                Background="White"
-                BorderBrush="#E5E7EB"
+                Background="#232F3E"
+                BorderBrush="#3A4555"
                 BorderThickness="1"
                 CornerRadius="8"
                 Padding="16"
@@ -54,27 +220,27 @@
                 <TextBlock Text="Project Name (Optional)"
                            FontSize="14"
                            FontWeight="SemiBold"
-                           Foreground="#111827"
+                           Foreground="#E8ECF1"
                            Margin="0,0,0,8"/>
                 <TextBox x:Name="ProjectNameTextBox"
                          Height="32"
                          Padding="8,6"
-                         BorderBrush="#D1D5DB"
+                         Background="#2A3444"
+                         Foreground="#E8ECF1"
+                         BorderBrush="#3A4555"
                          BorderThickness="1"
-                         Background="White"
                          FontSize="14"
                          TextChanged="ProjectNameTextBox_TextChanged"/>
                 <TextBlock Text="Leave empty to use existing project names"
                            FontSize="11"
-                           Foreground="#9CA3AF"
+                           Foreground="#5A6A7A"
                            Margin="0,4,0,0"/>
             </StackPanel>
         </Border>
 
-        <!-- Sync Options -->
         <Border Grid.Row="2"
-                Background="White"
-                BorderBrush="#E5E7EB"
+                Background="#232F3E"
+                BorderBrush="#3A4555"
                 BorderThickness="1"
                 CornerRadius="8"
                 Padding="16"
@@ -83,43 +249,40 @@
                 <TextBlock Text="Sync Options"
                            FontSize="14"
                            FontWeight="SemiBold"
-                           Foreground="#111827"
+                           Foreground="#E8ECF1"
                            Margin="0,0,0,8"/>
                 <CheckBox x:Name="EnhanceDataCheckBox"
                           Content="Enhance asset data (lookup vendors and hostnames online)"
                           FontSize="12"
-                          Foreground="#374151"
+                          Foreground="#C8D1DC"
                           IsChecked="True"
                           Margin="0,0,0,4"/>
-                <TextBlock Text="⚠️ Enabling this may slow down sync for large datasets (~1-2 seconds per unknown asset)"
+                <TextBlock Text="⚠ Enabling this may slow down sync for large datasets (~1-2 seconds per unknown asset)"
                            FontSize="10"
-                           Foreground="#9CA3AF"
+                           Foreground="#FBBF24"
                            Margin="20,0,0,0"
                            TextWrapping="Wrap"/>
             </StackPanel>
         </Border>
-        
-        <!-- Tabs for Logs and Assets -->
+
         <TabControl x:Name="SyncTabControl" Grid.Row="4">
             <TabItem Header="Attack Logs" x:Name="LogsTab">
-                <Grid Margin="0">
+                <Grid Margin="0,12,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    
-                    <!-- Logs Count -->
-                    <TextBlock Grid.Row="0" 
+
+                    <TextBlock Grid.Row="0"
                                x:Name="LogsCountText"
                                Text="0 pending logs"
                                FontSize="12"
-                               Foreground="#6B7280"
+                               Foreground="#4ADE80"
                                Margin="0,0,0,8"/>
-                    
-                    <!-- Logs DataGrid -->
+
                     <Border Grid.Row="1"
-                            Background="White"
-                            BorderBrush="#E5E7EB"
+                            Background="#232F3E"
+                            BorderBrush="#3A4555"
                             BorderThickness="1"
                             CornerRadius="8"
                             Padding="16">
@@ -130,111 +293,79 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <!-- Select All -->
                             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
                                 <CheckBox x:Name="SelectAllLogsCheckBox"
                                           Content="Select All"
                                           FontSize="14"
                                           FontWeight="SemiBold"
-                                          Foreground="#111827"
+                                          Foreground="#E8ECF1"
                                           Checked="SelectAllLogsCheckBox_Checked"
                                           Unchecked="SelectAllLogsCheckBox_Unchecked"
                                           Margin="0,0,16,0"/>
                                 <TextBlock x:Name="SelectedLogsCountText"
                                            Text="0 selected"
                                            FontSize="12"
-                                           Foreground="#6B7280"
+                                           Foreground="#8899AA"
                                            VerticalAlignment="Center"/>
                             </StackPanel>
 
-                            <!-- DataGrid -->
                             <DataGrid x:Name="LogsDataGrid"
                                       Grid.Row="1"
-                                      AutoGenerateColumns="False"
-                                      CanUserAddRows="False"
-                                      CanUserDeleteRows="False"
                                       SelectionMode="Extended"
                                       SelectionUnit="FullRow"
-                                      HeadersVisibility="Column"
-                                      GridLinesVisibility="None"
-                                      BorderThickness="0"
-                                      Background="White"
                                       MaxHeight="400"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                                       ScrollViewer.HorizontalScrollBarVisibility="Auto">
-                                <DataGrid.ColumnHeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader">
-                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                        <Setter Property="Foreground" Value="#111827"/>
-                                        <Setter Property="Background" Value="#F9FAFB"/>
-                                        <Setter Property="Padding" Value="8,6"/>
-                                    </Style>
-                                </DataGrid.ColumnHeaderStyle>
                                 <DataGrid.Columns>
                                     <DataGridCheckBoxColumn Header="Sync" Binding="{Binding IsSelected}" Width="50"/>
-                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Right"/>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True" ElementStyle="{StaticResource NumericCell}"/>
                                     <DataGridTextColumn Header="Attack Type" Binding="{Binding AttackType}" Width="120" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Protocol" Binding="{Binding Protocol}" Width="80" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Target IP" Binding="{Binding TargetIp}" Width="120" IsReadOnly="True"/>
-                                    <DataGridTextColumn Header="Packets" Binding="{Binding PacketsSent, StringFormat=N0}" Width="80" IsReadOnly="True">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Right"/>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="Packets" Binding="{Binding PacketsSent, StringFormat=N0}" Width="80" IsReadOnly="True" ElementStyle="{StaticResource NumericCell}"/>
                                     <DataGridTextColumn Header="Start Time" Binding="{Binding StartTime, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="150" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Project" Binding="{Binding ProjectName}" Width="100" IsReadOnly="True"/>
                                 </DataGrid.Columns>
                             </DataGrid>
 
-                            <!-- Action Buttons -->
                             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
                                 <Button x:Name="DeleteSelectedLogsButton"
                                         Content="Delete Selected"
                                         Width="120"
                                         Height="32"
                                         Margin="0,0,8,0"
-                                        Style="{StaticResource DefaultButton}"
+                                        Style="{StaticResource DangerBtn}"
                                         Click="DeleteSelectedLogsButton_Click"/>
                                 <Button x:Name="SkipSelectedLogsButton"
                                         Content="Skip Selected"
                                         Width="120"
                                         Height="32"
                                         Margin="0,0,8,0"
-                                        Style="{StaticResource DefaultButton}"
+                                        Style="{StaticResource SecondaryBtn}"
                                         Click="SkipSelectedLogsButton_Click"/>
                             </StackPanel>
                         </Grid>
                     </Border>
                 </Grid>
             </TabItem>
-            
+
             <TabItem Header="Assets" x:Name="AssetsTab">
-                <Grid Margin="0">
+                <Grid Margin="0,12,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    
-                    <!-- Assets Count -->
-                    <TextBlock Grid.Row="0" 
+
+                    <TextBlock Grid.Row="0"
                                x:Name="AssetsCountText"
                                Text="0 pending assets"
                                FontSize="12"
-                               Foreground="#6B7280"
+                               Foreground="#4ADE80"
                                Margin="0,0,0,8"/>
-                    
-                    <!-- Assets DataGrid -->
+
                     <Border Grid.Row="1"
-                            Background="White"
-                            BorderBrush="#E5E7EB"
+                            Background="#232F3E"
+                            BorderBrush="#3A4555"
                             BorderThickness="1"
                             CornerRadius="8"
                             Padding="12">
@@ -245,55 +376,32 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <!-- Select All -->
                             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
                                 <CheckBox x:Name="SelectAllAssetsCheckBox"
                                           Content="Select All"
                                           FontSize="14"
                                           FontWeight="SemiBold"
-                                          Foreground="#111827"
+                                          Foreground="#E8ECF1"
                                           Checked="SelectAllAssetsCheckBox_Checked"
                                           Unchecked="SelectAllAssetsCheckBox_Unchecked"
                                           Margin="0,0,16,0"/>
                                 <TextBlock x:Name="SelectedAssetsCountText"
                                            Text="0 selected"
                                            FontSize="12"
-                                           Foreground="#6B7280"
+                                           Foreground="#8899AA"
                                            VerticalAlignment="Center"/>
                             </StackPanel>
 
-                            <!-- DataGrid -->
                             <DataGrid x:Name="AssetsDataGrid"
                                       Grid.Row="1"
-                                      AutoGenerateColumns="False"
-                                      CanUserAddRows="False"
-                                      CanUserDeleteRows="False"
                                       SelectionMode="Extended"
                                       SelectionUnit="FullRow"
-                                      HeadersVisibility="Column"
-                                      GridLinesVisibility="None"
-                                      BorderThickness="0"
-                                      Background="White"
                                       MaxHeight="400"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                                       ScrollViewer.HorizontalScrollBarVisibility="Auto">
-                                <DataGrid.ColumnHeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader">
-                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                        <Setter Property="Foreground" Value="#111827"/>
-                                        <Setter Property="Background" Value="#F9FAFB"/>
-                                        <Setter Property="Padding" Value="8,6"/>
-                                    </Style>
-                                </DataGrid.ColumnHeaderStyle>
                                 <DataGrid.Columns>
                                     <DataGridCheckBoxColumn Header="Sync" Binding="{Binding IsSelected}" Width="50"/>
-                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Right"/>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True" ElementStyle="{StaticResource NumericCell}"/>
                                     <DataGridTextColumn Header="IP Address" Binding="{Binding HostIp}" Width="120" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Hostname" Binding="{Binding HostName}" Width="150" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="MAC Address" Binding="{Binding MacAddress}" Width="130" IsReadOnly="True"/>
@@ -312,47 +420,44 @@
                                 </DataGrid.Columns>
                             </DataGrid>
 
-                            <!-- Action Buttons -->
                             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
                                 <Button x:Name="DeleteSelectedAssetsButton"
                                         Content="Delete Selected"
                                         Width="120"
                                         Height="32"
                                         Margin="0,0,8,0"
-                                        Style="{StaticResource DefaultButton}"
+                                        Style="{StaticResource DangerBtn}"
                                         Click="DeleteSelectedAssetsButton_Click"/>
                                 <Button x:Name="SkipSelectedAssetsButton"
                                         Content="Skip Selected"
                                         Width="120"
                                         Height="32"
                                         Margin="0,0,8,0"
-                                        Style="{StaticResource DefaultButton}"
+                                        Style="{StaticResource SecondaryBtn}"
                                         Click="SkipSelectedAssetsButton_Click"/>
                             </StackPanel>
                         </Grid>
                     </Border>
                 </Grid>
             </TabItem>
-            
+
             <TabItem Header="Reachability Tests" x:Name="ReachabilityTestsTab">
-                <Grid Margin="0">
+                <Grid Margin="0,12,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    
-                    <!-- Tests Count -->
-                    <TextBlock Grid.Row="0" 
+
+                    <TextBlock Grid.Row="0"
                                x:Name="ReachabilityTestsCountText"
                                Text="0 pending tests"
                                FontSize="12"
-                               Foreground="#6B7280"
+                               Foreground="#4ADE80"
                                Margin="0,0,0,8"/>
-                    
-                    <!-- Tests DataGrid -->
+
                     <Border Grid.Row="1"
-                            Background="White"
-                            BorderBrush="#E5E7EB"
+                            Background="#232F3E"
+                            BorderBrush="#3A4555"
                             BorderThickness="1"
                             CornerRadius="8"
                             Padding="12">
@@ -363,55 +468,32 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <!-- Select All -->
                             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
                                 <CheckBox x:Name="SelectAllTestsCheckBox"
                                           Content="Select All"
                                           FontSize="14"
                                           FontWeight="SemiBold"
-                                          Foreground="#111827"
+                                          Foreground="#E8ECF1"
                                           Checked="SelectAllTestsCheckBox_Checked"
                                           Unchecked="SelectAllTestsCheckBox_Unchecked"
                                           Margin="0,0,16,0"/>
                                 <TextBlock x:Name="SelectedTestsCountText"
                                            Text="0 selected"
                                            FontSize="12"
-                                           Foreground="#6B7280"
+                                           Foreground="#8899AA"
                                            VerticalAlignment="Center"/>
                             </StackPanel>
 
-                            <!-- DataGrid -->
                             <DataGrid x:Name="ReachabilityTestsDataGrid"
                                       Grid.Row="1"
-                                      AutoGenerateColumns="False"
-                                      CanUserAddRows="False"
-                                      CanUserDeleteRows="False"
                                       SelectionMode="Extended"
                                       SelectionUnit="FullRow"
-                                      HeadersVisibility="Column"
-                                      GridLinesVisibility="None"
-                                      BorderThickness="0"
-                                      Background="White"
                                       MaxHeight="400"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                                       ScrollViewer.HorizontalScrollBarVisibility="Auto">
-                                <DataGrid.ColumnHeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader">
-                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                        <Setter Property="Foreground" Value="#111827"/>
-                                        <Setter Property="Background" Value="#F9FAFB"/>
-                                        <Setter Property="Padding" Value="8,6"/>
-                                    </Style>
-                                </DataGrid.ColumnHeaderStyle>
                                 <DataGrid.Columns>
                                     <DataGridCheckBoxColumn Header="Sync" Binding="{Binding IsSelected}" Width="50"/>
-                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Right"/>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True" ElementStyle="{StaticResource NumericCell}"/>
                                     <DataGridTextColumn Header="Mode" Binding="{Binding AnalysisMode}" Width="120" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Vantage Point" Binding="{Binding VantagePointName}" Width="120" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Source IP" Binding="{Binding SourceIp}" Width="120" IsReadOnly="True"/>
@@ -423,47 +505,44 @@
                                 </DataGrid.Columns>
                             </DataGrid>
 
-                            <!-- Action Buttons -->
                             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
                                 <Button x:Name="DeleteSelectedTestsButton"
                                         Content="Delete Selected"
                                         Width="120"
                                         Height="32"
                                         Margin="0,0,8,0"
-                                        Style="{StaticResource DefaultButton}"
+                                        Style="{StaticResource DangerBtn}"
                                         Click="DeleteSelectedTestsButton_Click"/>
                                 <Button x:Name="SkipSelectedTestsButton"
                                         Content="Skip Selected"
                                         Width="120"
                                         Height="32"
                                         Margin="0,0,8,0"
-                                        Style="{StaticResource DefaultButton}"
+                                        Style="{StaticResource SecondaryBtn}"
                                         Click="SkipSelectedTestsButton_Click"/>
                             </StackPanel>
                         </Grid>
                     </Border>
                 </Grid>
             </TabItem>
-            
+
             <TabItem Header="SNMP Walks" x:Name="SnmpWalkTestsTab">
-                <Grid Margin="0">
+                <Grid Margin="0,12,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    
-                    <!-- SNMP Walk Count -->
-                    <TextBlock Grid.Row="0" 
+
+                    <TextBlock Grid.Row="0"
                                x:Name="SnmpWalkTestsCountText"
                                Text="0 pending SNMP walk(s)"
                                FontSize="12"
-                               Foreground="#6B7280"
+                               Foreground="#4ADE80"
                                Margin="0,0,0,8"/>
-                    
-                    <!-- SNMP Walk DataGrid -->
+
                     <Border Grid.Row="1"
-                            Background="White"
-                            BorderBrush="#E5E7EB"
+                            Background="#232F3E"
+                            BorderBrush="#3A4555"
                             BorderThickness="1"
                             CornerRadius="8"
                             Padding="12">
@@ -474,55 +553,32 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <!-- Select All -->
                             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
                                 <CheckBox x:Name="SelectAllSnmpWalkCheckBox"
                                           Content="Select All"
                                           FontSize="14"
                                           FontWeight="SemiBold"
-                                          Foreground="#111827"
+                                          Foreground="#E8ECF1"
                                           Checked="SelectAllSnmpWalkCheckBox_Checked"
                                           Unchecked="SelectAllSnmpWalkCheckBox_Unchecked"
                                           Margin="0,0,16,0"/>
                                 <TextBlock x:Name="SelectedSnmpWalkCountText"
                                            Text="0 selected"
                                            FontSize="12"
-                                           Foreground="#6B7280"
+                                           Foreground="#8899AA"
                                            VerticalAlignment="Center"/>
                             </StackPanel>
 
-                            <!-- DataGrid -->
                             <DataGrid x:Name="SnmpWalkTestsDataGrid"
                                       Grid.Row="1"
-                                      AutoGenerateColumns="False"
-                                      CanUserAddRows="False"
-                                      CanUserDeleteRows="False"
                                       SelectionMode="Extended"
                                       SelectionUnit="FullRow"
-                                      HeadersVisibility="Column"
-                                      GridLinesVisibility="None"
-                                      BorderThickness="0"
-                                      Background="White"
                                       MaxHeight="400"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                                       ScrollViewer.HorizontalScrollBarVisibility="Auto">
-                                <DataGrid.ColumnHeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader">
-                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                        <Setter Property="Foreground" Value="#111827"/>
-                                        <Setter Property="Background" Value="#F9FAFB"/>
-                                        <Setter Property="Padding" Value="8,6"/>
-                                    </Style>
-                                </DataGrid.ColumnHeaderStyle>
                                 <DataGrid.Columns>
                                     <DataGridCheckBoxColumn Header="Sync" Binding="{Binding IsSelected}" Width="50"/>
-                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True">
-                                        <DataGridTextColumn.ElementStyle>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="HorizontalAlignment" Value="Right"/>
-                                            </Style>
-                                        </DataGridTextColumn.ElementStyle>
-                                    </DataGridTextColumn>
+                                    <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True" ElementStyle="{StaticResource NumericCell}"/>
                                     <DataGridTextColumn Header="Target IP" Binding="{Binding BoundaryGatewayIp}" Width="120" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Mode" Binding="{Binding AnalysisMode}" Width="120" IsReadOnly="True"/>
                                     <DataGridTextColumn Header="Created" Binding="{Binding CreatedAt, StringFormat=yyyy-MM-dd HH:mm}" Width="140" IsReadOnly="True"/>
@@ -530,20 +586,19 @@
                                 </DataGrid.Columns>
                             </DataGrid>
 
-                            <!-- Action Buttons -->
                             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
                                 <Button x:Name="DeleteSelectedSnmpWalkButton"
                                         Content="Delete Selected"
                                         Width="120"
                                         Height="32"
                                         Margin="0,0,8,0"
-                                        Style="{StaticResource DefaultButton}"
+                                        Style="{StaticResource DangerBtn}"
                                         Click="DeleteSelectedSnmpWalkButton_Click"/>
                                 <Button x:Name="SkipSelectedSnmpWalkButton"
                                         Content="Skip Selected"
                                         Width="120"
                                         Height="32"
-                                        Style="{StaticResource DefaultButton}"
+                                        Style="{StaticResource SecondaryBtn}"
                                         Click="SkipSelectedSnmpWalkButton_Click"/>
                             </StackPanel>
                         </Grid>
@@ -552,47 +607,51 @@
             </TabItem>
         </TabControl>
 
-        <!-- Summary and Buttons -->
-        <Grid Grid.Row="5" Margin="0,16,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock x:Name="TotalSelectedText"
-                       Grid.Column="0"
-                       Text="0 logs, 0 assets, 0 tests selected"
-                       FontSize="12"
-                       Foreground="#9CA3AF"
-                       VerticalAlignment="Center"
-                       HorizontalAlignment="Left"/>
-            <StackPanel Grid.Column="1"
-                       Orientation="Horizontal"
-                       HorizontalAlignment="Right">
-            <Button x:Name="CancelButton"
-                    Content="Cancel"
-                    Width="100"
-                    Height="36"
-                    Margin="0,0,8,0"
-                    Click="CancelButton_Click"/>
-            <Button x:Name="SyncButton"
-                    Content="Sync Selected"
-                    Width="120"
-                    Height="36"
-                    Click="SyncButton_Click"
-                    Background="#111827"
-                    Foreground="White"
-                    BorderThickness="0"
-                    Cursor="Hand"/>
-            </StackPanel>
-        </Grid>
-        
-        <!-- Progress Overlay (hidden by default) -->
+        <Border Grid.Row="5"
+                Background="#151D28"
+                BorderBrush="#3A4555"
+                BorderThickness="0,1,0,0"
+                Padding="12,10"
+                Margin="-16,16,-16,-16">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="TotalSelectedText"
+                           Grid.Column="0"
+                           Text="0 logs, 0 assets, 0 tests selected"
+                           FontSize="12"
+                           Foreground="#8899AA"
+                           VerticalAlignment="Center"
+                           Margin="16,0,0,0"/>
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="0,0,16,0">
+                    <Button x:Name="CancelButton"
+                            Content="Cancel"
+                            Width="100"
+                            Height="36"
+                            Margin="0,0,8,0"
+                            Style="{StaticResource SecondaryBtn}"
+                            Click="CancelButton_Click"/>
+                    <Button x:Name="SyncButton"
+                            Content="Sync Selected"
+                            Width="140"
+                            Height="36"
+                            Style="{StaticResource PrimaryBtn}"
+                            Click="SyncButton_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
         <Grid x:Name="ProgressOverlay"
-              Grid.RowSpan="5"
-              Background="#AA000000"
+              Grid.RowSpan="6"
+              Background="#CC000000"
               Visibility="Collapsed">
-            <Border Background="White"
-                    BorderBrush="#E5E7EB"
+            <Border Background="#232F3E"
+                    BorderBrush="#3A4555"
                     BorderThickness="1"
                     CornerRadius="12"
                     Padding="32"
@@ -604,16 +663,19 @@
                                Text="Syncing..."
                                FontSize="16"
                                FontWeight="SemiBold"
-                               Foreground="#111827"
+                               Foreground="#E8ECF1"
                                HorizontalAlignment="Center"
                                Margin="0,0,0,16"/>
                     <ProgressBar IsIndeterminate="True"
                                  Height="6"
+                                 Background="#2A3444"
+                                 Foreground="#5B8AF5"
+                                 BorderBrush="#3A4555"
                                  Margin="0,0,0,12"/>
                     <TextBlock x:Name="ProgressDetailText"
                                Text="Preparing sync..."
                                FontSize="12"
-                               Foreground="#6B7280"
+                               Foreground="#8899AA"
                                HorizontalAlignment="Center"
                                TextWrapping="Wrap"
                                TextAlignment="Center"/>
@@ -622,4 +684,3 @@
         </Grid>
     </Grid>
 </Window>
-

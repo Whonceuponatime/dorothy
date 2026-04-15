@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -6,9 +7,7 @@ using System.Windows.Interop;
 
 namespace Dorothy.Services
 {
-    /// <summary>
-    /// Service for managing UI scaling, DPI awareness, and zoom functionality
-    /// </summary>
+
     public class UIScalingService
     {
         private static UIScalingService? _instance;
@@ -18,6 +17,39 @@ namespace Dorothy.Services
         private const double MinScale = 0.5;
         private const double MaxScale = 2.0;
         private const double ScaleStep = 0.1;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        [DllImport("shcore.dll")]
+        private static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
+
+        private const int MONITOR_DEFAULTTONEAREST = 0x00000002;
+        private const int MDT_EFFECTIVE_DPI = 0;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MONITORINFO
+        {
+            public int Size;
+            public RECT Monitor;
+            public RECT WorkArea;
+            public uint Flags;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+
+            public int Width => Right - Left;
+            public int Height => Bottom - Top;
+        }
 
         public double CurrentScaleFactor
         {
@@ -33,13 +65,10 @@ namespace Dorothy.Services
 
         private UIScalingService()
         {
-            // Initialize with system DPI scale
+
             CurrentScaleFactor = GetSystemDpiScale();
         }
 
-        /// <summary>
-        /// Gets the system DPI scale factor for the primary monitor
-        /// </summary>
         public double GetSystemDpiScale()
         {
             try
@@ -54,16 +83,12 @@ namespace Dorothy.Services
             }
             catch
             {
-                // Fallback if window not yet created
+
             }
 
-            // Fallback: use system parameters
-            return SystemParameters.PrimaryScreenHeight / 1080.0; // Assume 1080p baseline
+            return SystemParameters.PrimaryScreenHeight / 1080.0;
         }
 
-        /// <summary>
-        /// Gets DPI scale for a specific window
-        /// </summary>
         public double GetDpiScaleForWindow(Window window)
         {
             try
@@ -78,69 +103,120 @@ namespace Dorothy.Services
             }
             catch
             {
-                // Fallback
+
             }
 
             return 1.0;
         }
 
-        /// <summary>
-        /// Calculates responsive scale based on screen size
-        /// </summary>
-        public double CalculateResponsiveScale(double baseWidth = 1920, double baseHeight = 1080)
+        public (double Width, double Height) GetScreenDimensionsForWindow(Window window)
         {
-            var screenWidth = SystemParameters.PrimaryScreenWidth;
-            var screenHeight = SystemParameters.PrimaryScreenHeight;
+            try
+            {
+                var windowHandle = new WindowInteropHelper(window).Handle;
+                if (windowHandle != IntPtr.Zero)
+                {
+
+                    var monitor = MonitorFromWindow(windowHandle, MONITOR_DEFAULTTONEAREST);
+                    if (monitor != IntPtr.Zero)
+                    {
+
+                        var monitorInfo = new MONITORINFO
+                        {
+                            Size = Marshal.SizeOf(typeof(MONITORINFO))
+                        };
+
+                        if (GetMonitorInfo(monitor, ref monitorInfo))
+                        {
+
+                            var screenWidth = (double)monitorInfo.WorkArea.Width;
+                            var screenHeight = (double)monitorInfo.WorkArea.Height;
+
+                            var fullScreenWidth = (double)monitorInfo.Monitor.Width;
+                            var fullScreenHeight = (double)monitorInfo.Monitor.Height;
+
+                            return (fullScreenWidth, fullScreenHeight);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+
+                System.Diagnostics.Debug.WriteLine($"Error getting monitor info: {ex.Message}");
+            }
+
+            if (window.WindowState == WindowState.Maximized)
+            {
+                return (SystemParameters.WorkArea.Width, SystemParameters.WorkArea.Height);
+            }
+            return (SystemParameters.PrimaryScreenWidth, SystemParameters.PrimaryScreenHeight);
+        }
+
+        public double CalculateResponsiveScale(Window? window = null, double baseWidth = 1920, double baseHeight = 1080)
+        {
+            double screenWidth, screenHeight;
+
+            if (window != null)
+            {
+                var dimensions = GetScreenDimensionsForWindow(window);
+                screenWidth = dimensions.Width;
+                screenHeight = dimensions.Height;
+            }
+            else
+            {
+                screenWidth = SystemParameters.PrimaryScreenWidth;
+                screenHeight = SystemParameters.PrimaryScreenHeight;
+            }
 
             var widthScale = screenWidth / baseWidth;
             var heightScale = screenHeight / baseHeight;
 
-            // Use the smaller scale to ensure everything fits
             var scale = Math.Min(widthScale, heightScale);
 
-            // Clamp between reasonable bounds
-            return Math.Max(0.6, Math.Min(1.5, scale));
+            if (screenWidth < 1366 || screenHeight < 768)
+            {
+
+                scale = Math.Max(0.7, Math.Min(0.85, scale));
+            }
+            else if (screenWidth < 1600 || screenHeight < 900)
+            {
+
+                scale = Math.Max(0.85, Math.Min(0.95, scale));
+            }
+            else
+            {
+
+                scale = Math.Max(0.9, Math.Min(1.2, scale));
+            }
+
+            return scale;
         }
 
-        /// <summary>
-        /// Increases UI scale
-        /// </summary>
         public void ZoomIn()
         {
             CurrentScaleFactor += ScaleStep;
         }
 
-        /// <summary>
-        /// Decreases UI scale
-        /// </summary>
         public void ZoomOut()
         {
             CurrentScaleFactor -= ScaleStep;
         }
 
-        /// <summary>
-        /// Resets UI scale to default (1.0)
-        /// </summary>
         public void ResetZoom()
         {
             CurrentScaleFactor = 1.0;
         }
 
-        /// <summary>
-        /// Sets UI scale to a specific value
-        /// </summary>
         public void SetScale(double scale)
         {
             CurrentScaleFactor = scale;
         }
 
-        /// <summary>
-        /// Applies scaling transform to a FrameworkElement
-        /// </summary>
         public void ApplyScaleTransform(FrameworkElement element, double? scale = null)
         {
             var scaleValue = scale ?? CurrentScaleFactor;
-            
+
             if (element.RenderTransform is not ScaleTransform scaleTransform)
             {
                 scaleTransform = new ScaleTransform();
@@ -152,27 +228,18 @@ namespace Dorothy.Services
             scaleTransform.ScaleY = scaleValue;
         }
 
-        /// <summary>
-        /// Applies scaling to window-level font size
-        /// </summary>
         public void ApplyFontScaling(Window window, double baseFontSize = 12, double? scale = null)
         {
             var scaleValue = scale ?? CurrentScaleFactor;
             window.FontSize = baseFontSize * scaleValue;
         }
 
-        /// <summary>
-        /// Gets recommended font size based on scale
-        /// </summary>
         public double GetScaledFontSize(double baseFontSize, double? scale = null)
         {
             var scaleValue = scale ?? CurrentScaleFactor;
             return baseFontSize * scaleValue;
         }
 
-        /// <summary>
-        /// Gets recommended margin/padding based on scale
-        /// </summary>
         public Thickness GetScaledThickness(double baseThickness, double? scale = null)
         {
             var scaleValue = scale ?? CurrentScaleFactor;
@@ -180,9 +247,6 @@ namespace Dorothy.Services
             return new Thickness(scaled);
         }
 
-        /// <summary>
-        /// Gets recommended margin/padding with individual values
-        /// </summary>
         public Thickness GetScaledThickness(double left, double top, double right, double bottom, double? scale = null)
         {
             var scaleValue = scale ?? CurrentScaleFactor;
@@ -194,13 +258,21 @@ namespace Dorothy.Services
             );
         }
 
-        /// <summary>
-        /// Gets screen category for responsive design
-        /// </summary>
-        public ScreenCategory GetScreenCategory()
+        public ScreenCategory GetScreenCategory(Window? window = null)
         {
-            var screenWidth = SystemParameters.PrimaryScreenWidth;
-            var screenHeight = SystemParameters.PrimaryScreenHeight;
+            double screenWidth, screenHeight;
+
+            if (window != null)
+            {
+                var dimensions = GetScreenDimensionsForWindow(window);
+                screenWidth = dimensions.Width;
+                screenHeight = dimensions.Height;
+            }
+            else
+            {
+                screenWidth = SystemParameters.PrimaryScreenWidth;
+                screenHeight = SystemParameters.PrimaryScreenHeight;
+            }
 
             if (screenWidth < 1366 || screenHeight < 768)
                 return ScreenCategory.Small;
@@ -208,16 +280,13 @@ namespace Dorothy.Services
                 return ScreenCategory.Medium;
             if (screenWidth < 2560 || screenHeight < 1440)
                 return ScreenCategory.Large;
-            
+
             return ScreenCategory.ExtraLarge;
         }
 
-        /// <summary>
-        /// Gets recommended minimum window size based on screen category
-        /// </summary>
-        public (double Width, double Height) GetRecommendedMinSize()
+        public (double Width, double Height) GetRecommendedMinSize(Window? window = null)
         {
-            return GetScreenCategory() switch
+            return GetScreenCategory(window) switch
             {
                 ScreenCategory.Small => (800, 600),
                 ScreenCategory.Medium => (1000, 650),
@@ -230,16 +299,10 @@ namespace Dorothy.Services
 
     public enum ScreenCategory
     {
-        Small,      // < 1366x768
-        Medium,     // 1366x768 - 1600x900
-        Large,      // 1600x900 - 2560x1440
-        ExtraLarge  // > 2560x1440
+        Small,
+        Medium,
+        Large,
+        ExtraLarge
     }
 }
-
-
-
-
-
-
 

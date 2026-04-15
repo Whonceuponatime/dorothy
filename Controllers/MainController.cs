@@ -13,7 +13,7 @@ using System.Threading;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Collections.Generic;
-using System.Net.Sockets;  // For AddressFamily
+using System.Net.Sockets;
 using System.Diagnostics;
 
 namespace Dorothy.Controllers
@@ -23,9 +23,6 @@ namespace Dorothy.Controllers
         private readonly NetworkStorm _networkStorm;
         private readonly Button _startButton;
         private readonly Button _stopButton;
-        private readonly Border _statusBadge;
-        private readonly TextBlock _statusBadgeText;
-        private readonly Ellipse _statusDot;
         private readonly TextBox _logTextBox;
         private readonly Window _mainWindow;
         private readonly ILogger _logger;
@@ -33,68 +30,38 @@ namespace Dorothy.Controllers
         private ArpSpoof? _arpSpoofer;
         private CancellationTokenSource? _arpSpoofingCts;
 
+        private readonly Action<Dorothy.Services.FloodRunStatus> _reportStatus;
+
         [DllImport("iphlpapi.dll", ExactSpelling = true)]
         private static extern int SendARP(Int32 destIp, Int32 srcIp, byte[] macAddr, ref uint macAddrLen);
 
-        public MainController(NetworkStorm networkStorm, Button startButton, Button stopButton, Border statusBadge, TextBlock statusBadgeText, Ellipse statusDot, TextBox logTextBox, Window mainWindow)
+        public MainController(
+            NetworkStorm networkStorm,
+            Button startButton,
+            Button stopButton,
+            Action<Dorothy.Services.FloodRunStatus> reportStatus,
+            TextBox logTextBox,
+            Window mainWindow)
         {
-            _networkStorm = networkStorm ?? throw new ArgumentNullException(nameof(networkStorm));
-            _startButton = startButton ?? throw new ArgumentNullException(nameof(startButton));
-            _stopButton = stopButton ?? throw new ArgumentNullException(nameof(stopButton));
-            _statusBadge = statusBadge ?? throw new ArgumentNullException(nameof(statusBadge));
-            _statusBadgeText = statusBadgeText ?? throw new ArgumentNullException(nameof(statusBadgeText));
-            _statusDot = statusDot ?? throw new ArgumentNullException(nameof(statusDot));
-            _logTextBox = logTextBox ?? throw new ArgumentNullException(nameof(logTextBox));
-            _mainWindow = mainWindow ?? throw new ArgumentNullException(nameof(mainWindow));
-            _logger = LogManager.GetCurrentClassLogger();
-            _attackLogger = networkStorm.Logger;
+            _networkStorm  = networkStorm  ?? throw new ArgumentNullException(nameof(networkStorm));
+            _startButton   = startButton   ?? throw new ArgumentNullException(nameof(startButton));
+            _stopButton    = stopButton    ?? throw new ArgumentNullException(nameof(stopButton));
+            _reportStatus  = reportStatus  ?? throw new ArgumentNullException(nameof(reportStatus));
+            _logTextBox    = logTextBox    ?? throw new ArgumentNullException(nameof(logTextBox));
+            _mainWindow    = mainWindow    ?? throw new ArgumentNullException(nameof(mainWindow));
+            _logger        = LogManager.GetCurrentClassLogger();
+            _attackLogger  = networkStorm.Logger;
         }
 
-        private void UpdateStatusBadge(string status, string statusType)
-        {
-            _mainWindow.Dispatcher.Invoke(() =>
-            {
-                _statusBadgeText.Text = status;
-                
-                // Update badge style and color based on status type
-                switch (statusType.ToLower())
-                {
-                    case "ready":
-                    case "idle":
-                        _statusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D1FAE5"));
-                        _statusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
-                        _statusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
-                        break;
-                    case "attacking":
-                    case "running":
-                    case "active":
-                        _statusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEE2E2"));
-                        _statusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
-                        _statusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
-                        break;
-                    case "error":
-                        _statusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEE2E2"));
-                        _statusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
-                        _statusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
-                        break;
-                    default:
-                        _statusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D1FAE5"));
-                        _statusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
-                        _statusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
-                        break;
-                }
-            });
-        }
-
-        public async Task StartAttackAsync(AttackType attackType, string targetIp, int targetPort, long megabitsPerSecond)
+        public async Task StartAttackAsync(AttackType attackType, string targetIp, int targetPort, long bytesPerSecond)
         {
             try
             {
                 _startButton.IsEnabled = false;
                 _stopButton.IsEnabled = true;
-                UpdateStatusBadge("Attacking", "attacking");
+                _reportStatus(Dorothy.Services.FloodRunStatus.Running);
 
-                await _networkStorm.StartAttackAsync(attackType, targetIp, targetPort, megabitsPerSecond);
+                await _networkStorm.StartAttackAsync(attackType, targetIp, targetPort, bytesPerSecond);
             }
             catch (Exception ex)
             {
@@ -102,18 +69,18 @@ namespace Dorothy.Controllers
                 _attackLogger.LogError($"Attack failed: {ex.Message}");
                 _startButton.IsEnabled = true;
                 _stopButton.IsEnabled = false;
-                UpdateStatusBadge("Error", "error");
+                _reportStatus(Dorothy.Services.FloodRunStatus.Error);
             }
         }
 
-        public async Task StopAttackAsync(long packetsSent = 0)
+        public async Task StopAttackAsync(long packetsSent = 0, bool isAdvancedMode = false)
         {
             try
             {
                 await _networkStorm.StopAttackAsync(packetsSent);
                 _startButton.IsEnabled = true;
                 _stopButton.IsEnabled = false;
-                UpdateStatusBadge("Ready", "ready");
+                _reportStatus(Dorothy.Services.FloodRunStatus.Idle);
             }
             catch (Exception ex)
             {
@@ -143,8 +110,6 @@ namespace Dorothy.Controllers
                     return ParseMacAddress(arpEntry);
                 }
 
-                // If no ARP entry found, try to ping the IP to populate ARP cache
-                // Only ping if it's likely to help (same subnet or gateway)
                 var pingResult = await SendPingAsync(ipAddress);
                 if (pingResult)
                 {
@@ -155,7 +120,6 @@ namespace Dorothy.Controllers
                     }
                 }
 
-                // Return empty array instead of throwing - let caller handle gracefully
                 _logger.Info($"Could not resolve MAC address for {ipAddress} - ARP entry not found");
                 return Array.Empty<byte>();
             }
@@ -168,7 +132,7 @@ namespace Dorothy.Controllers
 
         private byte[] ParseMacAddress(string macAddress)
         {
-            // Remove any colons or hyphens and convert to bytes
+
             string cleanMac = macAddress.Replace(":", "").Replace("-", "");
             if (cleanMac.Length != 12)
             {
@@ -230,10 +194,10 @@ namespace Dorothy.Controllers
 
         private bool IsOnSameSubnet(IPAddress ip1, IPAddress ip2, byte[] subnetMask)
         {
-            byte[] subnet = subnetMask ?? new byte[] { 255, 255, 255, 0 }; // Default subnet mask
+            byte[] subnet = subnetMask ?? new byte[] { 255, 255, 255, 0 };
             byte[] bytes1 = ip1.GetAddressBytes();
             byte[] bytes2 = ip2.GetAddressBytes();
-            
+
             for (int i = 0; i < 4; i++)
             {
                 if ((bytes1[i] & subnet[i]) != (bytes2[i] & subnet[i]))
@@ -258,7 +222,7 @@ namespace Dorothy.Controllers
             {
                 _logger.Error(ex, "Failed to get subnet mask from interface");
             }
-            return new byte[] { 255, 255, 255, 0 }; // Default fallback
+            return new byte[] { 255, 255, 255, 0 };
         }
 
         public IPAddress? GetDefaultGateway()
@@ -278,7 +242,7 @@ namespace Dorothy.Controllers
             try
             {
                 if (nic == null) return null;
-                
+
                 var gateway = nic.GetIPProperties()?.GatewayAddresses
                     .Select(g => g?.Address)
                     .FirstOrDefault(a => a != null && a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
@@ -302,7 +266,7 @@ namespace Dorothy.Controllers
                 }
 
                 var bytes = sourceIpAddress.GetAddressBytes();
-                bytes[3] = 1; // Set last octet to 1 (x.x.x.x.1)
+                bytes[3] = 1;
                 return new IPAddress(bytes);
             }
             catch
@@ -313,14 +277,13 @@ namespace Dorothy.Controllers
 
         public IPAddress? GetDefaultGatewayWithFallback(string sourceIp)
         {
-            // Try to get system default gateway first
+
             var systemGateway = GetDefaultGateway();
             if (systemGateway != null)
             {
                 return systemGateway;
             }
 
-            // Fallback to calculated default (x.x.x.x.1)
             return CalculateDefaultGateway(sourceIp);
         }
 
@@ -347,9 +310,9 @@ namespace Dorothy.Controllers
         {
             try
             {
-                // Implement advanced settings logic here
+
                 Log($"Advanced Settings Applied: Additional Attack Type - {additionalAttackType}, Custom Parameters - {customParameters}");
-                
+
                 await Task.CompletedTask;
             }
             catch (Exception ex)
@@ -365,9 +328,8 @@ namespace Dorothy.Controllers
             {
                 _startButton.IsEnabled = false;
                 _stopButton.IsEnabled = true;
-                UpdateStatusBadge("ARP Spoofing", "attacking");
+                _reportStatus(Dorothy.Services.FloodRunStatus.Running);
 
-                // Convert MAC addresses from string format (XX:XX:XX:XX:XX:XX) to byte arrays
                 byte[] sourceMacBytes = ParseMacAddress(sourceMac);
                 byte[] targetMacBytes = ParseMacAddress(targetMac);
                 byte[] spoofedMacBytes = ParseMacAddress(spoofedMac);
@@ -382,12 +344,12 @@ namespace Dorothy.Controllers
                 _attackLogger.LogError($"ARP Spoofing failed: {ex.Message}");
                 _startButton.IsEnabled = true;
                 _stopButton.IsEnabled = false;
-                UpdateStatusBadge("Error", "error");
+                _reportStatus(Dorothy.Services.FloodRunStatus.Error);
                 throw;
             }
         }
 
-        public async Task StopArpSpoofingAsync(long packetsSent = 0)
+        public async Task StopArpSpoofingAsync(long packetsSent = 0, bool isAdvancedMode = false)
         {
             try
             {
@@ -400,7 +362,7 @@ namespace Dorothy.Controllers
                 _attackLogger.StopAttack(packetsSent);
                 _startButton.IsEnabled = true;
                 _stopButton.IsEnabled = false;
-                UpdateStatusBadge("Ready", "ready");
+                _reportStatus(Dorothy.Services.FloodRunStatus.Idle);
             }
             catch (Exception ex)
             {
@@ -419,13 +381,13 @@ namespace Dorothy.Controllers
             });
         }
 
-        public async Task StartBroadcastAttackAsync(string targetIp, int targetPort, long megabitsPerSecond)
+        public async Task StartBroadcastAttackAsync(string targetIp, int targetPort, long bytesPerSecond)
         {
             try
             {
-                _logger.Info($"Starting Broadcast attack: Target={targetIp}:{targetPort}, Rate={megabitsPerSecond}Mbps");
-                await _networkStorm.StartBroadcastAttackAsync(targetIp, targetPort, megabitsPerSecond);
-                UpdateStatusBadge("Broadcast Active", "attacking");
+                _logger.Info($"Starting Broadcast attack: Target={targetIp}:{targetPort}, Rate={Dorothy.Services.RateConverter.Format(bytesPerSecond)}");
+                await _networkStorm.StartBroadcastAttackAsync(targetIp, targetPort, bytesPerSecond);
+                _reportStatus(Dorothy.Services.FloodRunStatus.Running);
                 Log("Broadcast attack started successfully");
             }
             catch (Exception ex)
@@ -435,12 +397,12 @@ namespace Dorothy.Controllers
             }
         }
 
-        public async Task StopBroadcastAttackAsync(long packetsSent = 0)
+        public async Task StopBroadcastAttackAsync(long packetsSent = 0, bool isAdvancedMode = false)
         {
             try
             {
                 await _networkStorm.StopAttackAsync(packetsSent);
-                UpdateStatusBadge("Ready", "ready");
+                _reportStatus(Dorothy.Services.FloodRunStatus.Idle);
                 Log("Broadcast attack stopped");
             }
             catch (Exception ex)
@@ -455,7 +417,7 @@ namespace Dorothy.Controllers
             try
             {
                 var networkInterface = NetworkInterface.GetAllNetworkInterfaces()
-                    .FirstOrDefault(ni => ni.OperationalStatus == OperationalStatus.Up && 
+                    .FirstOrDefault(ni => ni.OperationalStatus == OperationalStatus.Up &&
                         ni.NetworkInterfaceType != NetworkInterfaceType.Loopback);
 
                 if (networkInterface == null)
@@ -477,7 +439,7 @@ namespace Dorothy.Controllers
             try
             {
                 var networkInterface = NetworkInterface.GetAllNetworkInterfaces()
-                    .FirstOrDefault(ni => ni.OperationalStatus == OperationalStatus.Up && 
+                    .FirstOrDefault(ni => ni.OperationalStatus == OperationalStatus.Up &&
                         ni.NetworkInterfaceType != NetworkInterfaceType.Loopback);
 
                 if (networkInterface == null)

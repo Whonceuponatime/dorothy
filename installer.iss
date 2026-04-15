@@ -1,38 +1,40 @@
 #ifndef AppVersion
-  #define AppVersion "2.4.1"
+  #define AppVersion "2.5.0"
 #endif
 
 [Setup]
 AppName=SEACURE(TOOL)
 AppVersion={#AppVersion}
 AppId={{A1B2C3D4-E5F6-4A5B-8C9D-0E1F2A3B4C5D}}
-AppPublisher=SeaNet
-AppPublisherURL=
+AppPublisher=SeaNet Co., Ltd.
+AppPublisherURL=https://seacuredb.com
+AppSupportURL=https://seacuredb.com
+AppUpdatesURL=https://seacuredb.com
 DefaultDirName={autopf}\SeaNet\SEACURE(TOOL)
 DefaultGroupName=SeaNet\SEACURE(TOOL)
 UninstallDisplayIcon={app}\Dorothy.exe
 Compression=lzma2
 SolidCompression=yes
 OutputDir=installer
-OutputBaseFilename=SEACURE(TOOL)-setup {#AppVersion}
-SetupIconFile=Resources\icon.ico
-WizardImageFile=Resources\SEACURE(SHIELD).png
-WizardSmallImageFile=Resources\SEACURE(SHIELD).png
+OutputBaseFilename=SEACURE(TOOL)_Setup_{#AppVersion}
+SetupIconFile=Resources\logo.ico
+WizardImageFile=Resources\installer-sidebar.bmp
+WizardSmallImageFile=Resources\installer-icon.bmp
 AllowNoIcons=yes
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=commandline dialog
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
-; Allow upgrades - uninstall previous version automatically
 UninstallDisplayName=SEACURE(TOOL)
 CreateUninstallRegKey=yes
 Uninstallable=yes
 VersionInfoVersion={#AppVersion}
-; Enable automatic upgrade detection
+VersionInfoProductVersion={#AppVersion}
 AppVerName=SEACURE(TOOL) {#AppVersion}
-VersionInfoCompany=SeaNet
+VersionInfoCompany=SeaNet Co., Ltd.
 VersionInfoProductName=SEACURE(TOOL)
-VersionInfoDescription=SEACURE(TOOL)
+VersionInfoDescription=SEACURE(TOOL) - Network Security Testing Tool
+VersionInfoCopyright=Copyright (C) 2024-2026 SeaNet Co., Ltd.
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -43,10 +45,7 @@ Name: "uninstallshortcut"; Description: "Create uninstall shortcut in installati
 
 [Files]
 Source: "dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; Optional helper for developers with the .NET SDK (elevated re-launch + build/run)
 Source: "Run-Dorothy.ps1"; DestDir: "{app}"; Flags: ignoreversion
-; Note: Localization folders (cs, de, es, fr, it, ja, ko, pl, pt-BR, ru, tr, zh-Hans, zh-Hant) 
-; are excluded via SatelliteResourceLanguages=en in Dorothy.csproj
 
 [Icons]
 Name: "{group}\SEACURE(TOOL)"; Filename: "{app}\Dorothy.exe"
@@ -55,12 +54,9 @@ Name: "{autodesktop}\SEACURE(TOOL)"; Filename: "{app}\Dorothy.exe"; Tasks: deskt
 Name: "{app}\Uninstall SEACURE(TOOL)"; Filename: "{uninstallexe}"; IconFilename: "{uninstallexe}"; Tasks: uninstallshortcut
 
 [Run]
-; Launch after install — no runascurrentuser flag so it inherits the installer's
-; admin token. The embedded requireAdministrator manifest also guarantees elevation
-; for every subsequent launch from shortcuts or Explorer.
 Filename: "{app}\Dorothy.exe"; \
   Description: "Launch SEACURE(TOOL)"; \
-  Flags: nowait postinstall skipifsilent
+  Flags: shellexec nowait postinstall skipifsilent
 
 [Code]
 var
@@ -173,5 +169,4 @@ begin
   // Post-install launch is handled by the [Run] section checkbox above.
   // No manual Exec call needed here.
 end;
-
 

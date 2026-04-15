@@ -24,14 +24,12 @@ namespace Dorothy.Views
         private DatabaseService? _databaseService;
         private PathAnalysisResult? _pathResult;
 
-        // Observable collections for data binding
         private ObservableCollection<InsideAssetDefinition> _insideAssets = new ObservableCollection<InsideAssetDefinition>();
         private ObservableCollection<IcmpReachabilityResult> _icmpResults = new ObservableCollection<IcmpReachabilityResult>();
         private ObservableCollection<TcpReachabilityResult> _tcpResults = new ObservableCollection<TcpReachabilityResult>();
         private ObservableCollection<PathHop> _pathHops = new ObservableCollection<PathHop>();
         private ObservableCollection<DeeperScanResult> _deeperScanResults = new ObservableCollection<DeeperScanResult>();
 
-        // Step completion tracking
         private bool _step2Completed = false;
         private bool _step3Completed = false;
         private bool _step4Completed = false;
@@ -44,12 +42,12 @@ namespace Dorothy.Views
                 System.Diagnostics.Debug.WriteLine("ReachabilityWizardWindow: Starting InitializeComponent...");
                 InitializeComponent();
                 System.Diagnostics.Debug.WriteLine("ReachabilityWizardWindow: InitializeComponent completed");
-                
+
                 System.Diagnostics.Debug.WriteLine("ReachabilityWizardWindow: Creating service...");
                 _service = new ReachabilityWizardService();
                 _databaseService = new DatabaseService();
                 System.Diagnostics.Debug.WriteLine("ReachabilityWizardWindow: Service created");
-                
+
                 System.Diagnostics.Debug.WriteLine("ReachabilityWizardWindow: Subscribing to Loaded event...");
                 this.Loaded += ReachabilityWizardWindow_Loaded;
                 System.Diagnostics.Debug.WriteLine("ReachabilityWizardWindow: Constructor completed successfully");
@@ -63,13 +61,13 @@ namespace Dorothy.Views
                 }
                 errorDetails += $"\nStack trace:\n{ex.StackTrace}";
                 System.Diagnostics.Debug.WriteLine(errorDetails);
-                throw; // Re-throw to be caught by caller
+                throw;
             }
         }
 
         private void ReachabilityWizardWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            // Use Dispatcher to ensure UI is fully ready
+
             Dispatcher.BeginInvoke(new Action(() =>
             {
                 try
@@ -78,18 +76,17 @@ namespace Dorothy.Views
                 }
                 catch (Exception ex)
                 {
-                    // Log to debug output
+
                     System.Diagnostics.Debug.WriteLine($"Error in Loaded event: {ex.Message}\n{ex.StackTrace}");
-                    
-                    // Try to show error, but don't fail if window isn't ready
+
                     try
                     {
-                        MessageBox.Show($"Error initializing wizard: {ex.Message}\n\n{ex.StackTrace}", 
+                        MessageBox.Show($"Error initializing wizard: {ex.Message}\n\n{ex.StackTrace}",
                             "Initialization Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                     catch
                     {
-                        // If MessageBox fails, just log it
+
                         System.Diagnostics.Debug.WriteLine("Could not show error message box");
                     }
                 }
@@ -98,7 +95,7 @@ namespace Dorothy.Views
 
         private void InitializeStep1()
         {
-            // Check critical UI elements first - throw detailed exception if missing
+
             if (SourceNicComboBox == null)
             {
                 throw new InvalidOperationException("SourceNicComboBox is not initialized. XAML may not have loaded correctly.");
@@ -116,10 +113,9 @@ namespace Dorothy.Views
 
             try
             {
-                // Populate NIC combo box
+
                 PopulateNetworkInterfaces();
 
-                // Bind DataGrids (check for null to avoid exceptions)
                 if (InsideIpsDataGrid != null)
                     InsideIpsDataGrid.ItemsSource = _insideAssets;
                 if (IcmpResultsDataGrid != null)
@@ -131,7 +127,6 @@ namespace Dorothy.Views
                 if (DeeperScanResultsDataGrid != null)
                     DeeperScanResultsDataGrid.ItemsSource = _deeperScanResults;
 
-                // Set default mode
                 if (ModeARadioButton != null)
                 {
                     ModeARadioButton.IsChecked = true;
@@ -146,10 +141,9 @@ namespace Dorothy.Views
                     errorMsg += $"\n\nInner exception: {ex.InnerException.Message}";
                 }
                 errorMsg += $"\n\nStack trace: {ex.StackTrace}";
-                
+
                 System.Diagnostics.Debug.WriteLine(errorMsg);
-                
-                // Re-throw to be caught by Loaded event handler
+
                 throw;
             }
         }
@@ -167,8 +161,7 @@ namespace Dorothy.Views
                     return;
 
                 bool isModeA = ModeARadioButton.IsChecked == true;
-                
-                // Show/hide cards based on mode (check for null)
+
                 if (TargetNetworkCard != null)
                     TargetNetworkCard.Visibility = isModeA ? Visibility.Visible : Visibility.Collapsed;
                 if (KnownInsideIpsCard != null)
@@ -178,7 +171,7 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                // Silently handle - UI might not be fully loaded
+
                 System.Diagnostics.Debug.WriteLine($"UpdateModeUI error: {ex.Message}");
             }
         }
@@ -210,7 +203,7 @@ namespace Dorothy.Views
                 }
 
                 var gatewayIp = _service.GetBoundaryGatewayForNic(nicId);
-                
+
                 if (BoundaryInfoTextBlock == null || BoundaryPreviewBorder == null)
                     return;
 
@@ -275,7 +268,7 @@ namespace Dorothy.Views
                         }
                         catch
                         {
-                            // Skip interfaces that cause errors
+
                             return null;
                         }
                     })
@@ -359,23 +352,20 @@ namespace Dorothy.Views
         {
             try
             {
-                // Validate current step
+
                 if (_currentStep == 1)
                 {
                     if (!ValidateStep1())
                         return;
 
-                    // Build context
                     BuildContext();
                 }
 
-                // Move to next step
                 if (_currentStep < 5)
                 {
                     _currentStep++;
                     UpdateUI();
 
-                    // Auto-run step 2, 3, 4 when entering
                     if (_currentStep == 2 && !_step2Completed)
                     {
                         await RunStep2Async();
@@ -405,7 +395,7 @@ namespace Dorothy.Views
                 }
                 else if (_currentStep == 5)
                 {
-                    // Generate summary
+
                     GenerateSummary();
                     NextButton.Content = "Finish";
                     NextButton.Click -= NextButton_Click;
@@ -429,7 +419,6 @@ namespace Dorothy.Views
                     return;
                 }
 
-                // Disable button during save
                 var finishButton = sender as Button;
                 if (finishButton != null)
                 {
@@ -437,7 +426,6 @@ namespace Dorothy.Views
                     finishButton.Content = "Saving...";
                 }
 
-                // Build ReachabilityWizardResult from collected data
                 var wizardResult = new ReachabilityWizardResult
                 {
                     Context = _context,
@@ -449,7 +437,6 @@ namespace Dorothy.Views
                     BoundaryVendor = _context.BoundaryVendor
                 };
 
-                // Calculate boundary reachability from results
                 if (_context.BoundaryGatewayIp != null)
                 {
                     var boundaryIcmp = _icmpResults.FirstOrDefault(r => r.Role == "Boundary device");
@@ -457,7 +444,6 @@ namespace Dorothy.Views
                     wizardResult.BoundaryAnyTcpReachable = _tcpResults.Any(r => r.TargetIp.Equals(_context.BoundaryGatewayIp) && r.State == Models.TcpState.Open);
                 }
 
-                // Save to database
                 if (_databaseService != null)
                 {
                     await _databaseService.SaveReachabilityTestAsync(wizardResult, null);
@@ -500,14 +486,13 @@ namespace Dorothy.Views
 
             if (isModeA)
             {
-                // Mode A: Validate CIDR
+
                 if (string.IsNullOrWhiteSpace(TargetCidrTextBox.Text))
                 {
                     MessageBox.Show("Please enter a target CIDR.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return false;
                 }
 
-                // Validate CIDR format
                 var cidrParts = TargetCidrTextBox.Text.Trim().Split('/');
                 if (cidrParts.Length != 2)
                 {
@@ -529,7 +514,7 @@ namespace Dorothy.Views
             }
             else
             {
-                // Mode B: Validate external test IP (optional, but if provided must be valid)
+
                 if (!string.IsNullOrWhiteSpace(ExternalTestIpTextBox.Text))
                 {
                     if (!IPAddress.TryParse(ExternalTestIpTextBox.Text.Trim(), out _))
@@ -551,7 +536,6 @@ namespace Dorothy.Views
 
             bool isModeA = ModeARadioButton.IsChecked == true;
 
-            // Discover boundary device
             IPAddress? boundaryIp = null;
             string? boundaryVendor = null;
             if (_service != null && !string.IsNullOrEmpty(nicId))
@@ -563,7 +547,6 @@ namespace Dorothy.Views
                 }
             }
 
-            // Parse external test IP for Mode B
             IPAddress? externalTestIp = null;
             if (!isModeA && !string.IsNullOrWhiteSpace(ExternalTestIpTextBox.Text))
             {
@@ -574,7 +557,7 @@ namespace Dorothy.Views
             }
             else if (!isModeA)
             {
-                // Default to 8.8.8.8 if not specified
+
                 externalTestIp = IPAddress.Parse("8.8.8.8");
             }
 
@@ -595,19 +578,17 @@ namespace Dorothy.Views
 
         private void UpdateUI()
         {
-            // Update step panels visibility
+
             Step1Panel.Visibility = _currentStep == 1 ? Visibility.Visible : Visibility.Collapsed;
             Step2Panel.Visibility = _currentStep == 2 ? Visibility.Visible : Visibility.Collapsed;
             Step3Panel.Visibility = _currentStep == 3 ? Visibility.Visible : Visibility.Collapsed;
             Step4Panel.Visibility = _currentStep == 4 ? Visibility.Visible : Visibility.Collapsed;
             Step5Panel.Visibility = _currentStep == 5 ? Visibility.Visible : Visibility.Collapsed;
 
-            // Update title and description
             UpdateStepHeader();
 
-            // Update navigation buttons
             BackButton.IsEnabled = _currentStep > 1;
-            
+
             if (_currentStep == 5)
             {
                 NextButton.Content = "Finish";
@@ -617,7 +598,6 @@ namespace Dorothy.Views
                 NextButton.Content = "Next";
             }
 
-            // Update status label
             StatusLabel.Text = $"Step {_currentStep} of 5";
         }
 
@@ -687,25 +667,23 @@ namespace Dorothy.Views
                 Dispatcher.Invoke(() =>
                 {
                     _icmpResults.Clear();
-                    
-                    // Add boundary device first, then others
+
                     var boundaryResult = results.FirstOrDefault(r => r.Role == "Boundary device");
                     if (boundaryResult != null)
                     {
                         _icmpResults.Add(boundaryResult);
                     }
-                    
+
                     foreach (var result in results.Where(r => r.Role != "Boundary device"))
                     {
                         _icmpResults.Add(result);
                     }
 
-                    // Update status
                     var reachableCount = results.Count(r => r.Reachable);
                     var boundaryReachable = boundaryResult?.Reachable == true;
-                    
+
                     string statusText = $"Boundary: {(boundaryReachable ? "reachable" : "not reachable")}";
-                    
+
                     if (_context?.Mode == AnalysisMode.RemoteNetworkKnown)
                     {
                         var gatewayReachable = results.Count(r => r.Role == "Gateway candidate" && r.Reachable);
@@ -721,7 +699,7 @@ namespace Dorothy.Views
                             statusText += $". External test: {(externalReachable > 0 ? "reachable" : "not reachable")}";
                         }
                     }
-                    
+
                     IcmpStatusTextBlock.Text = statusText;
 
                     _step2Completed = true;
@@ -769,9 +747,7 @@ namespace Dorothy.Views
 
             try
             {
-                // Button state is managed by RunTcpChecksButton_Click wrapper
 
-                // Parse probe ports
                 var portStrings = TcpProbePortsTextBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries);
                 var ports = new List<int>();
                 foreach (var portStr in portStrings)
@@ -796,7 +772,7 @@ namespace Dorothy.Views
                     Dispatcher.Invoke(() =>
                     {
                         TcpProgressBar.Value = update.percent;
-                        // Could update a status label here if needed
+
                     });
                 });
 
@@ -805,14 +781,13 @@ namespace Dorothy.Views
                 Dispatcher.Invoke(() =>
                 {
                     _tcpResults.Clear();
-                    
-                    // Add boundary device results first, then others
+
                     var boundaryIps = results.Where(r => _context?.BoundaryGatewayIp != null && r.TargetIp.Equals(_context.BoundaryGatewayIp));
                     foreach (var result in boundaryIps)
                     {
                         _tcpResults.Add(result);
                     }
-                    
+
                     foreach (var result in results.Where(r => _context?.BoundaryGatewayIp == null || !r.TargetIp.Equals(_context.BoundaryGatewayIp)))
                     {
                         _tcpResults.Add(result);
@@ -826,7 +801,7 @@ namespace Dorothy.Views
             {
                 Dispatcher.Invoke(() =>
                 {
-                    // Button state restored by wrapper
+
                 });
             }
             catch (Exception ex)
@@ -862,13 +837,11 @@ namespace Dorothy.Views
 
             try
             {
-                // Button state is managed by NextButton_Click wrapper when calling this
 
-                // Determine target IP for display
                 IPAddress? targetIp = null;
                 if (_context.Mode == AnalysisMode.RemoteNetworkKnown)
                 {
-                    // Prefer reachable target, else first gateway candidate or known asset
+
                     var reachableIps = _icmpResults
                         .Where(r => r.Reachable && r.Role != "Boundary device")
                         .Select(r => r.TargetIp)
@@ -884,7 +857,7 @@ namespace Dorothy.Views
                     }
                     else
                     {
-                        // Fallback to first gateway candidate or known asset
+
                         var gatewayCandidates = _service.ExtractGatewayCandidates(_context.TargetCidr);
                         targetIp = gatewayCandidates.FirstOrDefault() ?? _context.InsideAssets.FirstOrDefault()?.AssetIp;
                     }
@@ -917,7 +890,7 @@ namespace Dorothy.Views
                 {
                     if (result != null)
                     {
-                        _pathResult = result; // Store the path result for saving
+                        _pathResult = result;
                         PathTargetIpTextBox.Text = result.TargetIpString;
                         _pathHops.Clear();
                         foreach (var hop in result.Hops)
@@ -961,7 +934,6 @@ namespace Dorothy.Views
                 RunDeeperScanButton.Content = "Running...";
                 DeeperScanProgressBar.Visibility = Visibility.Visible;
 
-                // Parse scan ports
                 var portStrings = DeeperScanPortsTextBox.Text.Split(',', StringSplitOptions.RemoveEmptyEntries);
                 var ports = new List<int>();
                 foreach (var portStr in portStrings)
@@ -1008,7 +980,7 @@ namespace Dorothy.Views
                     RunDeeperScanButton.Content = "Run deeper scan";
                     DeeperScanProgressBar.Visibility = Visibility.Collapsed;
                     DeeperScanProgressBar.Value = 0;
-                    GenerateSummary(); // Regenerate summary with deeper scan results
+                    GenerateSummary();
                 });
             }
             catch (OperationCanceledException)
@@ -1044,26 +1016,24 @@ namespace Dorothy.Views
             summary.AppendLine($"Target Network: {_context.TargetNetworkName} ({_context.TargetCidr})");
             summary.AppendLine();
 
-            // Boundary device summary
             if (_context.BoundaryGatewayIp != null)
             {
                 var boundaryIcmp = _icmpResults.FirstOrDefault(r => r.Role == "Boundary device");
                 var boundaryTcp = _tcpResults.Where(r => r.TargetIp.Equals(_context.BoundaryGatewayIp)).ToList();
                 var boundaryTcpOpen = boundaryTcp.Count(r => r.State == Models.TcpState.Open);
-                
+
                 summary.AppendLine("Boundary Device:");
-                summary.AppendLine($"  {_context.BoundaryGatewayIp}" + 
+                summary.AppendLine($"  {_context.BoundaryGatewayIp}" +
                     (!string.IsNullOrEmpty(_context.BoundaryVendor) ? $" (Vendor: {_context.BoundaryVendor})" : ""));
                 summary.AppendLine($"  ICMP: {(boundaryIcmp?.Reachable == true ? "reachable" : "not reachable")}");
                 summary.AppendLine($"  TCP: {(boundaryTcpOpen > 0 ? $"{boundaryTcpOpen} ports open" : "no open ports")}");
                 summary.AppendLine();
             }
 
-            // ICMP Summary
             summary.AppendLine("ICMP Reachability:");
             var icmpReachable = _icmpResults.Count(r => r.Reachable);
             summary.AppendLine($"  {icmpReachable}/{_icmpResults.Count} targets reachable via ICMP");
-            
+
             if (_context.Mode == AnalysisMode.RemoteNetworkKnown)
             {
                 var gatewayReachable = _icmpResults.Count(r => r.Role == "Gateway candidate" && r.Reachable);
@@ -1071,14 +1041,12 @@ namespace Dorothy.Views
             }
             summary.AppendLine();
 
-            // TCP Summary
             summary.AppendLine("TCP Reachability:");
             var tcpOpen = _tcpResults.Count(r => r.State == Models.TcpState.Open);
             var tcpClosed = _tcpResults.Count(r => r.State == Models.TcpState.Closed);
             summary.AppendLine($"  {tcpOpen} ports open, {tcpClosed} ports closed");
             summary.AppendLine();
 
-            // Path Summary
             if (_pathHops.Count > 0)
             {
                 summary.AppendLine("Path Analysis:");
@@ -1104,7 +1072,6 @@ namespace Dorothy.Views
                 summary.AppendLine();
             }
 
-            // Deeper Scan Summary
             if (_deeperScanResults.Count > 0)
             {
                 summary.AppendLine("Deeper Scan Results:");

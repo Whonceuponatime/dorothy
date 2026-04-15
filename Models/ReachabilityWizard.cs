@@ -5,18 +5,13 @@ using System.Net;
 
 namespace Dorothy.Models
 {
-    /// <summary>
-    /// Analysis mode for the wizard
-    /// </summary>
+
     public enum AnalysisMode
     {
-        RemoteNetworkKnown,  // Mode A: User knows target CIDR + optional IPs
-        BoundaryOnly         // Mode B: Analyze boundary device only
+        RemoteNetworkKnown,
+        BoundaryOnly
     }
 
-    /// <summary>
-    /// Stores wizard state and context for reachability analysis
-    /// </summary>
     public class AnalysisContext
     {
         public AnalysisMode Mode { get; set; } = AnalysisMode.RemoteNetworkKnown;
@@ -26,60 +21,55 @@ namespace Dorothy.Models
         public string TargetNetworkName { get; set; } = string.Empty;
         public string TargetCidr { get; set; } = string.Empty;
         public List<InsideAssetDefinition> InsideAssets { get; set; } = new List<InsideAssetDefinition>();
-        
-        // Boundary device information
+
         public IPAddress? BoundaryGatewayIp { get; set; }
         public string? BoundaryVendor { get; set; }
-        
-        // For boundary-only mode
+
         public IPAddress? ExternalTestIp { get; set; }
     }
 
-    /// <summary>
-    /// Represents a known inside asset (IP + optional label)
-    /// </summary>
     public class InsideAssetDefinition
     {
         public IPAddress AssetIp { get; set; } = null!;
         public string? Label { get; set; }
 
-        /// <summary>
-        /// Asset IP as string for display
-        /// </summary>
         public string AssetIpString => AssetIp?.ToString() ?? string.Empty;
     }
 
-    /// <summary>
-    /// Result of ICMP reachability check for a target
-    /// </summary>
     public class IcmpReachabilityResult
     {
         public IPAddress TargetIp { get; set; } = null!;
-        public string Role { get; set; } = string.Empty; // "Gateway candidate" or "Known asset"
+        public string Role { get; set; } = string.Empty;
         public bool Reachable { get; set; }
         public int Sent { get; set; }
         public int Received { get; set; }
         public long? AvgRttMs { get; set; }
 
-        /// <summary>
-        /// Target IP as string for display
-        /// </summary>
         public string TargetIpString => TargetIp?.ToString() ?? string.Empty;
     }
 
-    /// <summary>
-    /// TCP port state classification
-    /// </summary>
     public enum TcpState
     {
-        Open,      // Connection succeeded
-        Closed,    // Connection refused
-        Filtered   // Timeout / no response
+        Open,
+        Closed,
+        Filtered,
+        TimedOut,
+        NetworkUnreachable,
+        HostUnreachable,
+        Error
     }
 
-    /// <summary>
-    /// Result of TCP reachability check for a specific port
-    /// </summary>
+    public static class TcpStateExtensions
+    {
+        public static bool IsActiveResponse(this TcpState s) =>
+            s == TcpState.Open || s == TcpState.Closed;
+
+        public static bool IsNoResponse(this TcpState s) =>
+            s == TcpState.Filtered || s == TcpState.TimedOut ||
+            s == TcpState.NetworkUnreachable || s == TcpState.HostUnreachable ||
+            s == TcpState.Error;
+    }
+
     public class TcpReachabilityResult
     {
         public IPAddress TargetIp { get; set; } = null!;
@@ -88,15 +78,9 @@ namespace Dorothy.Models
         public long RttMs { get; set; }
         public string? ErrorMessage { get; set; }
 
-        /// <summary>
-        /// Target IP as string for display
-        /// </summary>
         public string TargetIpString => TargetIp?.ToString() ?? string.Empty;
     }
 
-    /// <summary>
-    /// Represents a single hop in a traceroute path
-    /// </summary>
     public class PathHop
     {
         public int HopNumber { get; set; }
@@ -104,15 +88,9 @@ namespace Dorothy.Models
         public long? RttMs { get; set; }
         public string? Hostname { get; set; }
 
-        /// <summary>
-        /// Hop IP as string for display
-        /// </summary>
         public string HopIpString => HopIp?.ToString() ?? "*";
     }
 
-    /// <summary>
-    /// Complete path analysis result from traceroute
-    /// </summary>
     public class PathAnalysisResult
     {
         public IPAddress TargetIp { get; set; } = null!;
@@ -120,29 +98,17 @@ namespace Dorothy.Models
         public bool Completed { get; set; }
         public string? Notes { get; set; }
 
-        /// <summary>
-        /// Target IP as string for display
-        /// </summary>
         public string TargetIpString => TargetIp?.ToString() ?? string.Empty;
     }
 
-    /// <summary>
-    /// Result of deeper port scan on a reachable host
-    /// </summary>
     public class DeeperScanResult
     {
         public IPAddress TargetIp { get; set; } = null!;
         public Dictionary<int, TcpState> PortStates { get; set; } = new Dictionary<int, TcpState>();
         public string? Summary { get; set; }
 
-        /// <summary>
-        /// Target IP as string for display
-        /// </summary>
         public string TargetIpString => TargetIp?.ToString() ?? string.Empty;
 
-        /// <summary>
-        /// Get open ports as comma-separated string
-        /// </summary>
         public string OpenPortsString
         {
             get
@@ -155,16 +121,11 @@ namespace Dorothy.Models
             }
         }
 
-        /// <summary>
-        /// Get counts of closed and filtered ports
-        /// </summary>
         public int ClosedCount => PortStates.Count(kvp => kvp.Value == Models.TcpState.Closed);
-        public int FilteredCount => PortStates.Count(kvp => kvp.Value == Models.TcpState.Filtered);
+
+        public int FilteredCount => PortStates.Count(kvp => kvp.Value.IsNoResponse());
     }
 
-    /// <summary>
-    /// Complete wizard result containing all analysis data
-    /// </summary>
     public class ReachabilityWizardResult
     {
         public AnalysisContext Context { get; set; } = null!;
@@ -172,8 +133,7 @@ namespace Dorothy.Models
         public List<TcpReachabilityResult> TcpResults { get; set; } = new List<TcpReachabilityResult>();
         public PathAnalysisResult? PathResult { get; set; }
         public List<DeeperScanResult> DeeperScanResults { get; set; } = new List<DeeperScanResult>();
-        
-        // Boundary device summary (derived from results for convenience)
+
         public IPAddress? BoundaryGatewayIp { get; set; }
         public string? BoundaryVendor { get; set; }
         public bool BoundaryIcmpReachable { get; set; }

@@ -19,9 +19,9 @@ namespace Dorothy.Models
 
         protected LibPcapLiveDevice GetDevice()
         {
-            // Get all devices that have an IP address
+
             var device = LibPcapLiveDeviceList.Instance
-                .FirstOrDefault(d => d.Addresses != null && 
+                .FirstOrDefault(d => d.Addresses != null &&
                     d.Addresses.Any(a => a.Addr?.ipAddress != null));
 
             if (device == null)
@@ -38,7 +38,7 @@ namespace Dorothy.Models
         {
             if (disposing)
             {
-                // Cleanup resources
+
             }
         }
 

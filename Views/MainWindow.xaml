@@ -1,1226 +1,1426 @@
-﻿<Window x:Class="Dorothy.Views.MainWindow"
+<Window x:Class="Dorothy.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="SEACURE(TOOL) - Network Attack Simulator" 
+        Title="SEACURE(TOOL) - Network Attack Simulator"
         Icon="pack://application:,,,/Resources/icon.ico"
         WindowState="Maximized"
         WindowStartupLocation="CenterScreen"
-        MinWidth="800"
-        MinHeight="600"
+        MinWidth="900"
+        MinHeight="620"
         FontFamily="Segoe UI"
         FontSize="12"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
-        Background="#F3F4F6"
+        Background="{StaticResource PrimaryBg}"
+        Foreground="{StaticResource TextPrimary}"
         Closing="Window_Closing"
         KeyDown="Window_KeyDown"
-        SizeChanged="Window_SizeChanged">
-    <Window.Resources>
-        <!-- Modern TextBox Style -->
-        <Style x:Key="DefaultTextBox" TargetType="TextBox">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="BorderBrush" Value="#D1D5DB"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Style.Triggers>
-                <Trigger Property="IsFocused" Value="True">
-                    <Setter Property="BorderBrush" Value="#2563EB"/>
-                    <Setter Property="BorderThickness" Value="2"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Modern Label Style -->
-        <Style x:Key="DefaultLabel" TargetType="Label">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#374151"/>
-            <Setter Property="FontWeight" Value="Normal"/>
-        </Style>
-
-        <!-- Default Button Style -->
-        <Style x:Key="DefaultButton" TargetType="Button">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="Background" Value="#F3F4F6"/>
-            <Setter Property="Foreground" Value="#111827"/>
-            <Setter Property="BorderBrush" Value="#D1D5DB"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#E5E7EB"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#D1D5DB"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="#F3F4F6"/>
-                    <Setter Property="Foreground" Value="#9CA3AF"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Primary Button Style - Navy (SEACURE Brand) -->
-        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource DefaultButton}">
-            <Setter Property="Background" Value="#111827"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#111827"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1F2937"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#0F172A"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="#9CA3AF"/>
-                    <Setter Property="BorderBrush" Value="#9CA3AF"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Card Style (replaces GroupBox) - White cards on light grey -->
-        <Style x:Key="CardStyle" TargetType="Border">
-            <Setter Property="Margin" Value="0,0,0,12"/>
-            <Setter Property="Padding" Value="16"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="BorderBrush" Value="#E5E7EB"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background" Value="#FFFFFF"/>
-        </Style>
-
-        <!-- Card Header Style -->
-        <Style x:Key="CardHeaderStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="16"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#111827"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
-        </Style>
-
-        <!-- Status Badge Style - Ready/Idle -->
-        <Style x:Key="StatusBadgeReady" TargetType="Border">
-            <Setter Property="Background" Value="#D1FAE5"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-
-        <!-- Status Badge Style - Attacking -->
-        <Style x:Key="StatusBadgeAttacking" TargetType="Border">
-            <Setter Property="Background" Value="#FEE2E2"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-
-        <!-- Status Badge Style - Error -->
-        <Style x:Key="StatusBadgeError" TargetType="Border">
-            <Setter Property="Background" Value="#FEE2E2"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-
-        <!-- Status Badge Text Style -->
-        <Style x:Key="StatusBadgeText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-
-        <!-- Modern ComboBox Style -->
-        <Style x:Key="DefaultComboBox" TargetType="ComboBox">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="BorderBrush" Value="#D1D5DB"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Height" Value="32"/>
-            <Style.Triggers>
-                <Trigger Property="IsFocused" Value="True">
-                    <Setter Property="BorderBrush" Value="#2563EB"/>
-                    <Setter Property="BorderThickness" Value="2"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- TabControl Style -->
-        <Style x:Key="DefaultTabControl" TargetType="TabControl">
-            <Setter Property="FontSize" Value="14"/>
-        </Style>
-
-        <!-- Modern CheckBox Style -->
-        <Style x:Key="DefaultCheckBox" TargetType="CheckBox">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#374151"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-    </Window.Resources>
+        SizeChanged="Window_SizeChanged"
+        LocationChanged="Window_LocationChanged">
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        
-        <!-- Main Content -->
+
         <Grid Grid.Row="0">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" MinHeight="60"/>  <!-- Header -->
-            <RowDefinition Height="*"/>     <!-- Main content -->
-        </Grid.RowDefinitions>
-
-        <!-- HEADER BAR -->
-        <Border Grid.Row="0"
-                Background="#F3F4F6"
-                Padding="16,12"
-                BorderBrush="#E5E7EB"
-                BorderThickness="0,0,0,1"
-                Height="Auto"
-                x:Name="HeaderBar">
-            <Grid>
-        <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- LEFT: LOGO -->
-                <Image Grid.Column="0"
-                       x:Name="LogoImage"
-                       Source="/Resources/logo.png"
-                       Height="160"
-                       Stretch="Uniform"
-                       VerticalAlignment="Center"
-                       Margin="0,0,16,0"/>
-
-                <!-- TITLE + SUBTITLE + LAB MODE -->
-                <StackPanel Grid.Column="1"
-                            Orientation="Vertical"
-                            VerticalAlignment="Center"
-                            Margin="0,0,24,0">
-                    <TextBlock Text="Network Attack Simulator"
-                               FontSize="18"
-                               FontWeight="Bold"
-                               Foreground="#111827"
-                               Margin="0,0,0,2"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,0">
-                        <TextBlock Text="Cyber Security Solution by SEANET"
-                                   FontSize="12"
-                                   Foreground="#6B7280"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,8,0"/>
-                        <!-- Lab Mode Tag -->
-                        <Border x:Name="LabModeBadge"
-                                Background="#FEF3C7"
-                                BorderBrush="#F59E0B"
-                                BorderThickness="1"
-                                CornerRadius="12"
-                                Padding="8,2"
-                                VerticalAlignment="Center">
-                            <TextBlock x:Name="LabModeText"
-                                       Text="LAB MODE"
-                                       FontSize="10"
-                                       FontWeight="SemiBold"
-                                       Foreground="#92400E"/>
-                        </Border>
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- STATISTICS PANEL -->
-                <StackPanel Grid.Column="2"
-                            Orientation="Horizontal"
-                            VerticalAlignment="Center"
-                            HorizontalAlignment="Left"
-                            Margin="0,0,16,0">
-                    <StackPanel Orientation="Vertical" Margin="0,0,16,0">
-                        <TextBlock Text="Packets Sent"
-                                   FontSize="10"
-                                   Foreground="#6B7280"
-                                   Margin="0,0,0,2"/>
-                        <TextBlock x:Name="PacketsSentText"
-                                   Text="0"
-                                   FontSize="14"
-                                   FontWeight="SemiBold"
-                                   Foreground="#111827"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Vertical" Margin="0,0,16,0">
-                        <TextBlock Text="Elapsed Time"
-                                   FontSize="10"
-                                   Foreground="#6B7280"
-                                   Margin="0,0,0,2"/>
-                        <TextBlock x:Name="ElapsedTimeText"
-                                   Text="00:00:00"
-                                   FontSize="14"
-                                   FontWeight="SemiBold"
-                                   Foreground="#111827"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Vertical" Margin="0,0,16,0">
-                        <TextBlock Text="Mbps Sent"
-                                   FontSize="10"
-                                   Foreground="#6B7280"
-                                   Margin="0,0,0,2"/>
-                        <TextBlock x:Name="MbpsSentText"
-                                   Text="0.00"
-                                   FontSize="14"
-                                   FontWeight="SemiBold"
-                                   Foreground="#111827"/>
-                    </StackPanel>
-                    <!-- Separator between real-time stats and Profile -->
-                    <Border Width="1" 
-                            Height="32" 
-                            Background="#E5E7EB" 
-                            Margin="8,0,8,0"
-                            VerticalAlignment="Center"/>
-                    <!-- PROFILE SUMMARY -->
-                    <StackPanel Orientation="Vertical" Margin="0,0,0,0">
-                        <TextBlock Text="Profile"
-                                   FontSize="10"
-                                   Foreground="#6B7280"
-                                   Margin="0,0,0,2"/>
-                        <TextBlock x:Name="ProfileSummaryText"
-                                   Text=""
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   Foreground="#111827"/>
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- ICON TOOLBAR -->
-                <StackPanel Grid.Row="0" Grid.Column="3"
-                            Orientation="Horizontal"
-                            VerticalAlignment="Center"
-                            Margin="0,0,12,0">
-                    <Button x:Name="CloudSyncButton"
-                            Width="40"
-                            Height="40"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            ToolTip="Cloud Sync"
-                            Click="CloudSyncButton_Click"
-                            Margin="0,0,4,0">
-                        <Grid>
-                            <TextBlock Text="☁️"
-                                       FontSize="20"
-                                       Foreground="#6B7280"/>
-                            <Border x:Name="CloudSyncNotificationBadge"
-                                    Background="#EF4444"
-                                    CornerRadius="10"
-                                    MinWidth="18"
-                                    Height="18"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Top"
-                                    Margin="0,-6,-6,0"
-                                    Padding="4,2"
-                                    Visibility="Collapsed">
-                                <TextBlock x:Name="CloudSyncNotificationText"
-                                           Text="0"
-                                           Foreground="White"
-                                           FontSize="10"
-                                           FontWeight="Bold"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           Margin="0"/>
-                            </Border>
-                        </Grid>
-                    </Button>
-                    <Button x:Name="SettingsButton"
-                            Width="40"
-                            Height="40"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            ToolTip="Settings"
-                            Click="SettingsButton_Click">
-                        <Viewbox Width="18" Height="18">
-                            <Canvas Width="24" Height="24">
-                                <Path Fill="#6B7280" Data="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
-                            </Canvas>
-                        </Viewbox>
-                    </Button>
-                    <Button x:Name="HelpButton"
-                            Width="40"
-                            Height="40"
-                            Background="Transparent"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            ToolTip="Help / About"
-                            Margin="4,0,0,0"
-                            Click="HelpButton_Click">
-                        <Grid>
-                            <TextBlock Text="ℹ️"
-                                       FontSize="20"
-                                       Foreground="#6B7280"/>
-                            <Border x:Name="UpdateAvailableBadge"
-                                    Background="#EF4444"
-                                    BorderBrush="White"
-                                    BorderThickness="2"
-                                    CornerRadius="8"
-                                    Width="12"
-                                    Height="12"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Top"
-                                    Margin="0,-2,-2,0"
-                                    Visibility="Collapsed"/>
-                        </Grid>
-                    </Button>
-                </StackPanel>
-
-                <!-- RIGHT: STATUS BADGE -->
-                <Border x:Name="StatusBadge" 
-                        Grid.Column="4"
-                        Background="#D1FAE5"
-                        CornerRadius="999"
-                        Padding="12,6"
-                        VerticalAlignment="Center"
-                        HorizontalAlignment="Right"
-                        Height="32">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Ellipse x:Name="StatusDot"
-                                 Width="8" 
-                                 Height="8"
-                                 Fill="#059669"
-                                 Margin="0,0,6,0"/>
-                        <TextBlock x:Name="StatusBadgeText" 
-                                   Text="Ready"
-                                   Style="{StaticResource StatusBadgeText}"
-                                   Foreground="#059669"/>
-                    </StackPanel>
-                </Border>
-            </Grid>
-        </Border>
-
-        <!-- MAIN CONTENT -->
-        <Grid Grid.Row="1" Margin="16" x:Name="MainContentGrid">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" MinHeight="52"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="1*"/>
-                    <ColumnDefinition Width="1*"/>
-        </Grid.ColumnDefinitions>
-        
-        <!-- Left Panel: Configuration Tabs -->
-        <TabControl x:Name="MainTabControl" 
-                    Grid.Row="0" 
-                    Grid.Column="0" 
-                    Margin="0,0,12,0"
-                    SelectionChanged="MainTabControl_SelectionChanged"
-                    BorderThickness="0"
-                    HorizontalAlignment="Stretch"
-                    VerticalAlignment="Stretch"
-                    Style="{StaticResource DefaultTabControl}">
-            <TabItem Header="Basic Settings">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,2,0,0" HorizontalAlignment="Stretch">
-                    <StackPanel Grid.IsSharedSizeScope="True" HorizontalAlignment="Stretch">
-                        <!-- Network Configuration Card -->
-                        <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch" Margin="0,0,0,12">
-                            <StackPanel HorizontalAlignment="Stretch">
-                                <TextBlock Text="Network Configuration" Style="{StaticResource CardHeaderStyle}"/>
-                                <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
 
-                            <Label Grid.Row="0" Grid.Column="0" Content="NIC:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,8"/>
-                            <ComboBox x:Name="NetworkInterfaceComboBox" 
-                                      Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
-                                      Style="{StaticResource DefaultComboBox}"
-                                              Margin="0,0,0,8"
-                                      SelectionChanged="NetworkInterfaceComboBox_SelectionChanged"/>
-
-                            <Label Grid.Row="1" Grid.Column="0" Content="Source IP:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,8"/>
-                                    <TextBox x:Name="SourceIpTextBox" 
-                                             Grid.Row="1" Grid.Column="1"
-                                    Style="{StaticResource DefaultTextBox}"
-                                             Height="32"
-                                             Margin="0,0,8,8"
-                                    TextChanged="SourceIpTextBox_TextChanged"/>
-                                    <Button x:Name="RefreshSourceIpButton" 
-                                            Grid.Row="1" Grid.Column="2"
-                                            Content="Refresh" 
-                                            Width="80" 
-                                            Height="32"
-                                            Style="{StaticResource DefaultButton}"
-                                            Margin="0,0,0,8"
-                                            Click="RefreshSourceIpButton_Click"
-                                            ToolTip="Refresh source IP from selected network interface"/>
-
-                            <Label Grid.Row="2" Grid.Column="0" Content="Source MAC:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,8"/>
-                                    <TextBox x:Name="SourceMacTextBox" 
-                                             Grid.Row="2" Grid.Column="1"
-                                    Style="{StaticResource DefaultTextBox}"
-                                             Height="32"
-                                             Margin="0,0,0,8"
-                                    IsReadOnly="True"/>
-
-                            <Label Grid.Row="3" Grid.Column="0" Content="Gateway IP:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,0"/>
-                                    <TextBox x:Name="GatewayIpTextBox" 
-                                             Grid.Row="3" Grid.Column="1"
-                                    Style="{StaticResource DefaultTextBox}"
-                                             Height="32"
-                                             Margin="0,0,0,0"
-                                    TextChanged="GatewayIpTextBox_TextChanged"/>
-                        </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Target Configuration Card -->
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <TextBlock Text="Target Configuration" Style="{StaticResource CardHeaderStyle}"/>
-                                <Grid>
-                            <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-
-                            <Label Grid.Row="0" Grid.Column="0" Content="Target IP:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,8"/>
-                                    <TextBox x:Name="TargetIpTextBox" 
-                                             Grid.Row="0" Grid.Column="1"
-                                    Style="{StaticResource DefaultTextBox}"
-                                             Height="32"
-                                             Margin="0,0,8,8"
-                                    TextChanged="TargetIpTextBox_TextChanged"/>
-                                    <Button x:Name="PingButton" 
-                                            Grid.Row="0" Grid.Column="2"
-                                            Content="Ping" 
-                                            Width="80" 
-                                            Height="32"
-                                    Style="{StaticResource DefaultButton}"
-                                            Margin="0,0,0,8"
-                                    Click="PingButton_Click"/>
-
-                            <Label Grid.Row="1" Grid.Column="0" Content="Target MAC:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,8"/>
-                                    <TextBox x:Name="TargetMacTextBox" 
-                                             Grid.Row="1" Grid.Column="1"
-                                    Style="{StaticResource DefaultTextBox}"
-                                             Height="32"
-                                             Margin="0,0,8,8"
-                                    IsReadOnly="True"
-                                    TextChanged="TargetMacTextBox_TextChanged"/>
-                                    <Button x:Name="ResolveMacButton" 
-                                            Grid.Row="1" Grid.Column="2"
-                                            Content="Resolve" 
-                                            Width="80" 
-                                            Height="32"
-                                    Style="{StaticResource DefaultButton}"
-                                            Margin="0,0,0,8"
-                                    Click="ResolveMacButton_Click"/>
-
-                                    <CheckBox x:Name="MacFallbackCheckBox" 
-                                              Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
-                                              Content="Enable Manual MAC Entry (Fallback Mode)"
-                                              Style="{StaticResource DefaultCheckBox}"
-                                              Margin="0,0,0,8"
-                                              Checked="MacFallbackCheckBox_Checked"
-                                              Unchecked="MacFallbackCheckBox_Unchecked"/>
-
-                                    <Label Grid.Row="3" Grid.Column="0" Content="Target Port:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Top"
-                                           Margin="0,0,12,0"/>
-                                    <Grid Grid.Row="3" Grid.Column="1">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <TextBox x:Name="TargetPortTextBox"
-                                        Style="{StaticResource DefaultTextBox}"
-                                                 Height="32"
-                                                 Margin="0,0,8,0"
-                                        Text="0"/>
-                                        <ProgressBar x:Name="ScanProgressBar" 
-                                                     Grid.Row="1"
-                                                     Height="5" 
-                                                     Margin="0,4,8,0"
-                                           Visibility="Collapsed"/>
-                            </Grid>
-                                    <Button x:Name="ScanButton" 
-                                            Grid.Row="3" Grid.Column="2"
-                                            Content="Scan" 
-                                            Width="80" 
-                                            Height="32"
-                                    Style="{StaticResource DefaultButton}"
-                                    VerticalAlignment="Top"
-                                    Click="ScanButton_Click"/>
-                        </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Attack Configuration Card -->
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <TextBlock Text="Attack Configuration" Style="{StaticResource CardHeaderStyle}"/>
-                                <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <Label Grid.Row="0" Grid.Column="0" Content="Attack Type:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,8"/>
-                                    <ComboBox x:Name="AttackTypeComboBox" 
-                                              Grid.Row="0" Grid.Column="1" 
-                                              Style="{StaticResource DefaultComboBox}"
-                                              Margin="0,0,0,8"
-                                     SelectionChanged="AttackTypeComboBox_SelectionChanged"/>
-
-                            <Label Grid.Row="1" Grid.Column="0" Content="Mbps:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,0"/>
-                                    <TextBox x:Name="MegabitsPerSecondTextBox" 
-                                             Grid.Row="1" Grid.Column="1" 
-                                    Style="{StaticResource DefaultTextBox}"
-                                             Height="32"
-                                             Margin="0,0,0,0"
-                                             PreviewTextInput="MegabitsPerSecondTextBox_PreviewTextInput"
-                                             TextChanged="MegabitsPerSecondTextBox_TextChanged"
-                                    Text="100"/>
-                        </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Action Buttons -->
-                        <StackPanel Orientation="Horizontal" 
-                                    HorizontalAlignment="Right" 
-                                    Margin="0,8,0,0">
-                            <Button x:Name="StartButton" 
-                                    Content="Start Attack" 
-                                    Width="140" 
-                                    Height="32"
-                                    Style="{StaticResource PrimaryButton}"
-                                    IsEnabled="False"
-                                Click="StartButton_Click"/>
-                            <Button x:Name="StopButton" 
-                                    Content="Stop Attack" 
-                                    Width="140" 
-                                    Height="32"
-                                    Margin="12,0,0,0" 
-                                    IsEnabled="False"
-                                Style="{StaticResource DefaultButton}"
-                                Click="StopButton_Click"/>
-                            <Button x:Name="TraceRouteButton" 
-                                    Content="Trace Route" 
-                                    Width="140" 
-                                    Height="32"
-                                    Margin="12,0,0,0"
-                                Style="{StaticResource DefaultButton}"
-                                Click="TraceRouteButton_Click"/>
-                            <Button x:Name="NetworkScanButton" 
-                                    Content="Network Scan" 
-                                    Width="140" 
-                                    Height="32"
-                                    Margin="12,0,0,0"
-                                Style="{StaticResource DefaultButton}"
-                                Click="NetworkScanButton_Click"/>
-                    </StackPanel>
-                </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <TabItem x:Name="AdvancedTab" Header="Advanced Settings" PreviewMouseDown="AdvancedTab_PreviewMouseDown">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,2,0,0" HorizontalAlignment="Stretch">
-                    <StackPanel Grid.IsSharedSizeScope="True" HorizontalAlignment="Stretch">
-                        <!-- Network Configuration Card -->
-                        <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch" Margin="0,0,0,12">
-                            <StackPanel HorizontalAlignment="Stretch">
-                                <TextBlock Text="Network Configuration" Style="{StaticResource CardHeaderStyle}"/>
-                                <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-
-                            <Label Grid.Row="0" Grid.Column="0" Content="NIC:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,8"/>
-                            <ComboBox x:Name="AdvNetworkInterfaceComboBox" 
-                                      Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
-                                      Style="{StaticResource DefaultComboBox}"
-                                              Margin="0,0,0,8"
-                                      SelectionChanged="NetworkInterfaceComboBox_SelectionChanged"/>
-
-                            <Label Grid.Row="1" Grid.Column="0" Content="Source IP:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,8"/>
-                                    <TextBox x:Name="AdvSourceIpTextBox" 
-                                             Grid.Row="1" Grid.Column="1"
-                                    Style="{StaticResource DefaultTextBox}"
-                                             Height="32"
-                                             Margin="0,0,8,8"
-                                    IsReadOnly="True"/>
-                                    <Button x:Name="AdvRefreshSourceIpButton" 
-                                            Grid.Row="1" Grid.Column="2"
-                                            Content="Refresh" 
-                                            Width="80" 
-                                            Height="32"
-                                            Style="{StaticResource DefaultButton}"
-                                            Margin="0,0,0,8"
-                                            Click="RefreshSourceIpButton_Click"
-                                            ToolTip="Refresh source IP from selected network interface"/>
-
-                            <Label Grid.Row="2" Grid.Column="0" Content="Source MAC:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,8"/>
-                                    <TextBox x:Name="AdvSourceMacTextBox" 
-                                             Grid.Row="2" Grid.Column="1"
-                                    Style="{StaticResource DefaultTextBox}"
-                                             Height="32"
-                                             Margin="0,0,0,8"
-                                    IsReadOnly="True"/>
-
-                            <Label Grid.Row="3" Grid.Column="0" Content="Gateway IP:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,0"/>
-                                    <TextBox x:Name="AdvGatewayIpTextBox" 
-                                             Grid.Row="3" Grid.Column="1"
-                                    Style="{StaticResource DefaultTextBox}"
-                                             Height="32"
-                                             Margin="0,0,0,0"
-                                    IsReadOnly="True"/>
-                        </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Target Configuration Card -->
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <TextBlock Text="Target Configuration" Style="{StaticResource CardHeaderStyle}"/>
-                                <Grid>
-                            <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-
-                            <Label Grid.Row="0" Grid.Column="0" Content="Target IP:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,8"/>
-                                    <TextBox x:Name="AdvTargetIpTextBox" 
-                                             Grid.Row="0" Grid.Column="1"
-                                    Style="{StaticResource DefaultTextBox}"
-                                             Height="32"
-                                             Margin="0,0,8,8"
-                                    TextChanged="TargetIpTextBox_TextChanged"/>
-                                    <Button x:Name="AdvPingButton" 
-                                            Grid.Row="0" Grid.Column="2"
-                                            Content="Ping" 
-                                            Width="80" 
-                                            Height="32"
-                                    Style="{StaticResource DefaultButton}"
-                                            Margin="0,0,0,8"
-                                    Click="PingButton_Click"/>
-
-                            <Label Grid.Row="1" Grid.Column="0" Content="Target MAC:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,8"/>
-                                    <TextBox x:Name="AdvTargetMacTextBox" 
-                                             Grid.Row="1" Grid.Column="1"
-                                    Style="{StaticResource DefaultTextBox}"
-                                             Height="32"
-                                             Margin="0,0,8,8"
-                                    IsReadOnly="True"
-                                    TextChanged="TargetMacTextBox_TextChanged"/>
-                                    <Button x:Name="AdvResolveMacButton" 
-                                            Grid.Row="1" Grid.Column="2"
-                                            Content="Resolve" 
-                                            Width="80" 
-                                            Height="32"
-                                    Style="{StaticResource DefaultButton}"
-                                            Margin="0,0,0,8"
-                                    Click="ResolveMacButton_Click"/>
-
-                                    <CheckBox x:Name="AdvMacFallbackCheckBox" 
-                                              Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
-                                              Content="Enable Manual MAC Entry (Fallback Mode)"
-                                              Style="{StaticResource DefaultCheckBox}"
-                                              Margin="0,0,0,8"
-                                              Checked="MacFallbackCheckBox_Checked"
-                                              Unchecked="MacFallbackCheckBox_Unchecked"/>
-
-                                    <Label Grid.Row="3" Grid.Column="0" Content="Target Port:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Top"
-                                           Margin="0,0,12,0"/>
-                                    <Grid Grid.Row="3" Grid.Column="1">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <TextBox x:Name="AdvTargetPortTextBox"
-                                        Style="{StaticResource DefaultTextBox}"
-                                                 Height="32"
-                                                 Margin="0,0,8,0"
-                                        Text="0"/>
-                                        <ProgressBar x:Name="AdvScanProgressBar" 
-                                                     Grid.Row="1"
-                                                     Height="5" 
-                                                     Margin="0,4,8,0"
-                                           Visibility="Collapsed"/>
-                            </Grid>
-                                    <Button x:Name="AdvScanButton" 
-                                            Grid.Row="3" Grid.Column="2"
-                                            Content="Scan" 
-                                            Width="80" 
-                                            Height="32"
-                                    Style="{StaticResource DefaultButton}"
-                                    VerticalAlignment="Top"
-                                    Click="ScanButton_Click"/>
-                        </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Attack Configuration Card -->
-                        <Border Style="{StaticResource CardStyle}">
-                            <StackPanel>
-                                <TextBlock Text="Attack Configuration" Style="{StaticResource CardHeaderStyle}"/>
-                                <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <Label Grid.Row="0" Grid.Column="0" Content="Attack Type:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,8"/>
-                                    <ComboBox x:Name="AdvancedAttackTypeComboBox" 
-                                              Grid.Row="0" Grid.Column="1"
-                                              Style="{StaticResource DefaultComboBox}"
-                                              Margin="0,0,0,8"
-                                      SelectionChanged="AdvancedAttackTypeComboBox_SelectionChanged">
-                                <ComboBoxItem Content="ARP Spoofing"/>
-                                <ComboBoxItem Content="NMEA 0183 (UDP Unicast)"/>
-                                <ComboBoxItem Content="NMEA 0183 (UDP Multicast)"/>
-                                <ComboBoxItem Content="Modbus/TCP Flood (Read Requests)"/>
-                            </ComboBox>
-
-                            <Label Grid.Row="1" Grid.Column="0" Content="Mbps:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,8"/>
-                                    <TextBox x:Name="AdvMegabitsPerSecondTextBox" 
-                                             Grid.Row="1" Grid.Column="1"
-                                    Style="{StaticResource DefaultTextBox}"
-                                             Height="32"
-                                             Margin="0,0,0,8"
-                                             PreviewTextInput="AdvMegabitsPerSecondTextBox_PreviewTextInput"
-                                             TextChanged="AdvMegabitsPerSecondTextBox_TextChanged"
-                                    Text="100"/>
-
-                            <Label Grid.Row="2" Grid.Column="0" Content="Spoofed MAC:" 
-                                   Style="{StaticResource DefaultLabel}"
-                                   VerticalAlignment="Center"
-                                           Margin="0,0,12,0"/>
-                                    <TextBox x:Name="SpoofedMacTextBox" 
-                                             Grid.Row="2" Grid.Column="1"
-                                    Style="{StaticResource DefaultTextBox}"
-                                             Height="32"
-                                             Margin="0,0,0,0"
-                                    TextChanged="SpoofedMacTextBox_TextChanged"
-                                    MaxLength="17"
-                                    Text="12:34:56:78:90:AB"/>
-                        </Grid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Action Buttons -->
-                        <StackPanel Orientation="Horizontal" 
-                                    HorizontalAlignment="Right" 
-                                    Margin="0,8,0,0">
-                            <!-- Password Section -->
-                            <StackPanel Margin="0,0,16,0">
-                                <StackPanel Orientation="Horizontal">
-                                    <Label Content="Password:" 
-                                           FontSize="14" 
-                                           Foreground="#6B7280"
-                                           Margin="0,0,8,0"
-                                           Padding="0"
-                                           VerticalAlignment="Center"/>
-                                    <PasswordBox x:Name="AdvPasswordBox" 
-                                                 Width="160" 
-                                                 Height="32"
-                                                 Margin="0,0,8,0"
-                                                 VerticalContentAlignment="Center"
-                                                 FontSize="14"
-                                                 Padding="8,0"
-                                                 PasswordChanged="PasswordBox_PasswordChanged"
-                                                 KeyDown="PasswordBox_KeyDown"
-                                                 ToolTip="Enter password to enable attack controls (Press Enter to validate)"/>
-                                    <Button x:Name="AdvValidatePasswordButton"
-                                            Content="Validate"
-                                            Width="100"
-                                            Height="32"
-                                            FontSize="14"
-                                            FontWeight="Medium"
-                                            Style="{StaticResource DefaultButton}"
-                                            Click="ValidatePasswordButton_Click"
-                                            ToolTip="Click to validate password"/>
-                                </StackPanel>
-                                <!-- Inline Authentication Feedback -->
-                                <TextBlock x:Name="PasswordFeedbackText"
-                                           FontSize="11"
-                                           Foreground="#DC2626"
-                                           Margin="88,4,0,0"
-                                           Visibility="Collapsed"
-                                           TextWrapping="Wrap"/>
-                            </StackPanel>
-                            
-                            <!-- Attack Control Buttons Group -->
-                            <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
-                                <Button x:Name="StartAdvancedAttackButton" 
-                                        Content="Start Attack" 
-                                        Width="140" 
-                                        Height="32" 
-                                        Style="{StaticResource PrimaryButton}"
-                                        IsEnabled="False"
-                                        Click="StartAdvancedAttack_Click"/>
-                                <Button x:Name="StopAdvancedAttackButton" 
-                                        Content="Stop Attack" 
-                                        Width="140" 
-                                        Height="32" 
-                                        Margin="8,0,0,0" 
-                                        IsEnabled="False"
-                                        Style="{StaticResource PrimaryButton}"
-                                        Click="StopAdvancedAttack_Click"/>
-                            </StackPanel>
-                            
-                            <!-- Utility Buttons Group -->
-                            <StackPanel Orientation="Horizontal">
-                                <Button x:Name="TraceRouteAdvancedButton" 
-                                        Content="Trace Route" 
-                                        Width="120" 
-                                        Height="32"
-                                        Style="{StaticResource DefaultButton}"
-                                        Click="TraceRouteButton_Click"/>
-                                <Button x:Name="NetworkScanAdvancedButton" 
-                                        Content="Network Scan" 
-                                        Width="120" 
-                                        Height="32"
-                                        Margin="8,0,0,0"
-                                        Style="{StaticResource DefaultButton}"
-                                        Click="NetworkScanButton_Click"/>
-                            </StackPanel>
-                    </StackPanel>
-                </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <TabItem x:Name="FirewallNetworksTab" Header="Reachability Tests">
+            <Border Grid.Row="0"
+                    x:Name="HeaderBar"
+                    Background="{StaticResource SecondaryBg}"
+                    BorderBrush="{StaticResource BorderDefault}"
+                    BorderThickness="0,0,0,1"
+                    Padding="16,10">
                 <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    
-                    <!-- Safety Disclaimer - Fixed at top of left panel -->
-                    <Border Grid.Row="0" 
-                            Style="{StaticResource CardStyle}" 
-                            HorizontalAlignment="Stretch" 
-                            Margin="0,0,0,12" 
-                            Background="#FEF3C7" 
-                            BorderBrush="#F59E0B">
-                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#92400E" Margin="0">
-                            <Run Text="⚠️ " FontWeight="Bold"/>
-                            <Run Text="Use only on networks and systems you are explicitly authorized to test. This feature performs active scanning."/>
-                        </TextBlock>
-                    </Border>
-                    
-                    <!-- Scrollable Content -->
-                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,2,0,0" HorizontalAlignment="Stretch">
-                        <StackPanel Grid.IsSharedSizeScope="True" HorizontalAlignment="Stretch" Margin="0,0,0,12">
-                            <!-- Path Analysis Wizard Button -->
-                            <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch" Margin="0,0,0,12">
-                                <StackPanel>
-                                    <TextBlock Text="Reachability &amp; Path Analysis" Style="{StaticResource CardHeaderStyle}"/>
-                                    <TextBlock Text="Guided wizard to analyze reachability and network path from your current location to a target network." 
-                                               FontSize="14" Foreground="#6B7280" Margin="0,0,0,12" TextWrapping="Wrap"/>
-                                    <Button x:Name="ReachabilityPathAnalysisButton" 
-                                            Content="Reachability / Path Analysis..." 
-                                            Width="220" Height="36" 
-                                            Style="{StaticResource PrimaryButton}" 
-                                            Click="ReachabilityPathAnalysisButton_Click"
-                                            HorizontalAlignment="Left"/>
-                                </StackPanel>
-                            </Border>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
 
-                            <!-- SNMP Walk Attack -->
-                            <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch" Margin="0,0,0,12">
-                                <StackPanel>
-                                    <TextBlock Text="SNMP Walk Attack" Style="{StaticResource CardHeaderStyle}"/>
-                                    <TextBlock Text="Performs SNMP walk operations using 100 common community strings to test SNMP access." 
-                                               FontSize="14" Foreground="#6B7280" Margin="0,0,0,12" TextWrapping="Wrap"/>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
-                                        </Grid.RowDefinitions>
-
-                                        <Label Grid.Row="0" Grid.Column="0" Content="Target IP:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,8"/>
-                                        <TextBox x:Name="SnmpWalkTargetIpTextBox" Grid.Row="0" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" Margin="0,0,0,8"/>
-
-                                        <Label Grid.Row="1" Grid.Column="0" Content="SNMP Port:" Style="{StaticResource DefaultLabel}" VerticalAlignment="Center" Margin="0,0,12,0"/>
-                                        <TextBox x:Name="SnmpWalkPortTextBox" Grid.Row="1" Grid.Column="1" Style="{StaticResource DefaultTextBox}" Height="32" Text="161"/>
-                                    </Grid>
-                                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                        <Button x:Name="StartSnmpWalkButton" 
-                                                Content="Start SNMP Walk" 
-                                                Width="150" Height="36" 
-                                                Style="{StaticResource PrimaryButton}" 
-                                                Click="StartSnmpWalkButton_Click"
-                                                Margin="0,0,8,0"/>
-                                        <Button x:Name="StopSnmpWalkButton" 
-                                                Content="Stop" 
-                                                Width="100" Height="36" 
-                                                Style="{StaticResource DefaultButton}" 
-                                                Click="StopSnmpWalkButton_Click"
-                                                IsEnabled="False"/>
-                                    </StackPanel>
-                                    <ProgressBar x:Name="SnmpWalkProgressBar" Height="6" Margin="0,12,0,0" Visibility="Collapsed" Maximum="100" Value="0"/>
-                                </StackPanel>
-                            </Border>
-
-                        </StackPanel>
-                    </ScrollViewer>
-                    
-                    <!-- Security Assessment Status -->
-                    <Border Grid.Row="2" 
-                            Style="{StaticResource CardStyle}" 
-                            HorizontalAlignment="Stretch" 
-                            Margin="0,12,0,0"
-                            x:Name="SecurityAssessmentStatusBorder"
-                            Visibility="Collapsed">
-                        <StackPanel>
-                            <TextBlock Text="Security Assessment" Style="{StaticResource CardHeaderStyle}"/>
-                            <TextBlock x:Name="SecurityAssessmentStatusTextBlock" 
-                                       FontSize="14" 
-                                       Foreground="#059669" 
-                                       TextWrapping="Wrap"
-                                       Margin="0,8,0,0"/>
-                        </StackPanel>
-                    </Border>
-                </Grid>
-            </TabItem>
-        </TabControl>
-        
-        <!-- Right Panel: Security Logs -->
-        <Grid Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-
-            <!-- Log Header -->
-            <StackPanel Grid.Row="0" 
-                        Orientation="Horizontal" 
-                        Margin="12,0,12,12"
-                        VerticalAlignment="Center">
-                <TextBlock Text="Security Logs" 
-                           FontWeight="SemiBold" 
-                           FontSize="16" 
-                           Margin="0,0,16,0"
-                           VerticalAlignment="Center"
-                           Foreground="#111827"/>
-                <Button x:Name="TaskManagerButton"
-                        Content="Task Manager"
-                        Width="120"
-                        Height="32"
-                        VerticalAlignment="Center"
-                        Style="{StaticResource DefaultButton}"
-                        Click="TaskManagerButton_Click"/>
-            </StackPanel>
-
-            <!-- Log Content Card -->
-            <Border Grid.Row="1" 
-                    BorderBrush="#E5E7EB" 
-                    BorderThickness="1" 
-                    CornerRadius="8"
-                    Background="White">
-                <Grid Margin="12">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <!-- Note input section -->
-                    <Grid Grid.Row="0" Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="NoteTextBox" 
-                                     Grid.Column="0"
-                                     Height="50"
-                                     TextWrapping="Wrap"
-                                     AcceptsReturn="True"
-                                     VerticalScrollBarVisibility="Auto"
-                                     Style="{StaticResource DefaultTextBox}"
-                                     Text=""
-                                     GotFocus="NoteTextBox_GotFocus"
-                                     LostFocus="NoteTextBox_LostFocus"
-                                 Margin="0,0,8,0"
-                                     Foreground="Gray"/>
-                            <Button x:Name="AddNoteButton"
-                                    Grid.Column="1"
-                                    Content="Add Note"
-                                Width="100"
-                                    Height="50"
-                                    Style="{StaticResource DefaultButton}"
-                                    Click="AddNoteButton_Click"/>
-                        </Grid>
-                        
-                        <!-- Log output section -->
-                    <Border Grid.Row="1" 
-                            BorderBrush="#E5E7EB" 
-                            BorderThickness="1" 
+                    <Border Grid.Column="0"
+                            Background="#F0F2F5"
+                            BorderBrush="#D8DEE4"
+                            BorderThickness="0.5"
                             CornerRadius="6"
-                            Background="#F9FAFB"
-                            Margin="0,0,0,12">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="8">
-                        <TextBox x:Name="LogTextBox" 
-                                 IsReadOnly="True" 
-                                 TextWrapping="Wrap"
-                                     BorderThickness="0"
-                                     Background="Transparent"
-                                     FontFamily="Consolas"
-                                     FontSize="12"
-                                     VerticalScrollBarVisibility="Disabled"/>
-                        </ScrollViewer>
+                            Padding="3"
+                            Margin="0,0,14,0"
+                            VerticalAlignment="Center">
+                        <Image x:Name="LogoImage"
+                               Source="/Resources/logo.png"
+                               Height="32"
+                               Width="32"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
                     </Border>
 
-                    <!-- Log action buttons -->
-                    <StackPanel Grid.Row="2" 
-                                Orientation="Horizontal" 
-                                HorizontalAlignment="Right">
-                        <Button x:Name="SaveLogButton"
-                                Content="Save Log"
-                                Width="100"
-                                Height="32"
-                                Margin="0,0,8,0"
-                                Style="{StaticResource DefaultButton}"
-                                Click="SaveLogButton_Click"/>
-                        <Button x:Name="ClearLogButton"
-                                Content="Clear Log"
-                                Width="100"
-                                Height="32"
-                                Style="{StaticResource DefaultButton}"
-                                Click="ClearLogButton_Click"/>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Vertical"
+                                VerticalAlignment="Center"
+                                Margin="0,0,20,0">
+                        <TextBlock Text="Network Attack Simulator"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimary}"
+                                   Margin="0,0,0,1"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Cyber Security Solution by SEANET"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextMuted}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"/>
+                            <Border x:Name="LabModeBadge"
+                                    Background="#1e3a5f"
+                                    BorderBrush="#2563eb"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="7,1"
+                                    VerticalAlignment="Center"
+                                    Cursor="Help">
+                                <Border.ToolTip>
+                                    <ToolTip MaxWidth="420">
+                                        <StackPanel>
+                                            <TextBlock FontWeight="SemiBold"
+                                                       FontSize="13"
+                                                       Text="Running as Administrator"
+                                                       Margin="0,0,0,6"/>
+                                            <TextBlock TextWrapping="Wrap" FontSize="12"
+                                                       Text="Raw packet generation (flood attacks, Layer-2 injection via Npcap/SharpPcap) requires elevated access to open packet capture devices. The application is therefore always launched as Administrator."
+                                                       Margin="0,0,0,6"/>
+                                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#9CA3AF"
+                                                       Text="TCP Connect Scan and Reachability Test features do not inherently require Administrator, but the application runs elevated because raw packet generation is the primary workflow."/>
+                                        </StackPanel>
+                                    </ToolTip>
+                                </Border.ToolTip>
+                                <TextBlock x:Name="LabModeText"
+                                           Text="LAB MODE  🔒"
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           Foreground="#60a5fa"/>
+                            </Border>
+                        </StackPanel>
                     </StackPanel>
+
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"
+                                Margin="0,0,20,0">
+                        <StackPanel Orientation="Vertical" Margin="0,0,18,0">
+                            <TextBlock Text="Packets Sent"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextMuted}"
+                                       Margin="0,0,0,2"/>
+                            <TextBlock x:Name="PacketsSentText"
+                                       Text="0"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Vertical" Margin="0,0,18,0">
+                            <TextBlock Text="Elapsed Time"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextMuted}"
+                                       Margin="0,0,0,2"/>
+                            <TextBlock x:Name="ElapsedTimeText"
+                                       Text="00:00:00"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Vertical" Margin="0,0,18,0">
+                            <TextBlock Text="Actual Rate"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextMuted}"
+                                       Margin="0,0,0,2">
+                                <TextBlock.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock TextWrapping="Wrap" MaxWidth="320">
+                                            L2 wire-rate (EMA ~1 s). Accounts for Ethernet header + FCS (+4 B).
+                                            Does not include preamble or inter-frame gap (added by NIC hardware).
+                                        </TextBlock>
+                                    </ToolTip>
+                                </TextBlock.ToolTip>
+                            </TextBlock>
+                            <TextBlock x:Name="MbpsSentText"
+                                       Text="—"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Vertical" Margin="0,0,18,0">
+                            <TextBlock Text="Target Rate"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextMuted}"
+                                       Margin="0,0,0,2"/>
+                            <TextBlock x:Name="TargetRateText"
+                                       Text="—"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Vertical" Margin="0,0,18,0">
+                            <TextBlock Text="vs Target"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextMuted}"
+                                       Margin="0,0,0,2"/>
+                            <TextBlock x:Name="RateDeltaText"
+                                       Text="—"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextSecondary}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Vertical" MaxWidth="220" Margin="0,0,0,0">
+                            <TextBlock FontSize="10"
+                                       Foreground="{StaticResource TextMuted}"
+                                       Margin="0,0,0,2">
+                                <Run Text="Likely cause"/>
+                                <Run Text=" (heuristic)" Foreground="{StaticResource TextMuted}" FontStyle="Italic"/>
+                            </TextBlock>
+                            <TextBlock x:Name="DiagnosticReasonText"
+                                       Text="—"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextSecondary}"
+                                       TextWrapping="NoWrap"
+                                       TextTrimming="CharacterEllipsis">
+                                <TextBlock.ToolTip>
+                                    <ToolTip>
+                                        <StackPanel MaxWidth="400">
+                                            <TextBlock FontWeight="SemiBold" FontSize="12"
+                                                       Text="Likely cause (heuristic)"
+                                                       Margin="0,0,0,4"/>
+                                            <TextBlock x:Name="DiagnosticReasonTooltipText"
+                                                       TextWrapping="Wrap" FontSize="12"
+                                                       Text="No diagnostic information yet."/>
+                                            <TextBlock Foreground="#9CA3AF" FontSize="10"
+                                                       TextWrapping="Wrap" Margin="0,6,0,0"
+                                                       Text="All causes are inferred from scheduler counters, not directly measured. Confidence shows the evidential strength of the inference."/>
+                                        </StackPanel>
+                                    </ToolTip>
+                                </TextBlock.ToolTip>
+                            </TextBlock>
+                            <TextBlock x:Name="ConfidenceText"
+                                       Text="—"
+                                       FontSize="9"
+                                       Foreground="{StaticResource TextMuted}"
+                                       FontStyle="Italic"
+                                       Margin="0,2,0,0"
+                                       TextTrimming="CharacterEllipsis">
+                                <TextBlock.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock TextWrapping="Wrap" MaxWidth="320"
+                                                   Text="Confidence is estimated from the strength of the observable scheduler counter evidence. High = direct counter. Medium = one indirect indicator. Low = weak signal that may be misclassified."/>
+                                    </ToolTip>
+                                </TextBlock.ToolTip>
+                            </TextBlock>
+                        </StackPanel>
+                        <Border Width="1"
+                                Height="28"
+                                Background="{StaticResource BorderDefault}"
+                                Margin="10,0,14,0"
+                                VerticalAlignment="Center"/>
+                        <StackPanel Orientation="Vertical">
+                            <TextBlock Text="Profile"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextMuted}"
+                                       Margin="0,0,0,2"/>
+                            <TextBlock x:Name="ProfileSummaryText"
+                                       Text=""
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimary}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="3"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                MinWidth="140"
+                                ClipToBounds="False"
+                                Margin="8,0,20,0">
+                        <Button x:Name="CloudSyncButton"
+                                MinWidth="36"
+                                MinHeight="36"
+                                Width="36"
+                                Height="36"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                ClipToBounds="False"
+                                ToolTip="Cloud Sync"
+                                Click="CloudSyncButton_Click"
+                                Margin="0,0,8,0">
+                            <Grid ClipToBounds="False">
+                                <TextBlock Text="☁"
+                                           FontSize="18"
+                                           Foreground="{StaticResource TextSecondary}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                                <Border x:Name="CloudSyncNotificationBadge"
+                                        Background="{StaticResource ErrorRed}"
+                                        CornerRadius="9"
+                                        MinWidth="16"
+                                        Height="16"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        Margin="0,0,0,0"
+                                        Padding="3,1"
+                                        Visibility="Collapsed">
+                                    <TextBlock x:Name="CloudSyncNotificationText"
+                                               Text="0"
+                                               Foreground="White"
+                                               FontSize="9"
+                                               FontWeight="Bold"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="SettingsButton"
+                                MinWidth="36"
+                                MinHeight="36"
+                                Width="36"
+                                Height="36"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                ClipToBounds="False"
+                                ToolTip="Settings"
+                                Margin="0,0,4,0"
+                                Click="SettingsButton_Click">
+                            <Viewbox Width="18" Height="18">
+                                <Canvas Width="24" Height="24">
+                                    <Path Fill="#94a3b8" Data="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Button>
+                        <Button x:Name="HelpButton"
+                                MinWidth="36"
+                                MinHeight="36"
+                                Width="36"
+                                Height="36"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                ClipToBounds="False"
+                                ToolTip="Help / About"
+                                Margin="0,0,0,0"
+                                Click="HelpButton_Click">
+                            <Grid ClipToBounds="False">
+                                <TextBlock Text="ⓘ"
+                                           FontSize="18"
+                                           Foreground="{StaticResource TextSecondary}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                                <Border x:Name="UpdateAvailableBadge"
+                                        Background="{StaticResource ErrorRed}"
+                                        BorderBrush="{StaticResource SecondaryBg}"
+                                        BorderThickness="2"
+                                        CornerRadius="6"
+                                        Width="10"
+                                        Height="10"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        Margin="0,0,0,0"
+                                        Visibility="Collapsed"/>
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+
+                    <Border x:Name="StatusBadge"
+                            Grid.Column="4"
+                            Background="{StaticResource SuccessBgSubtle}"
+                            BorderBrush="{StaticResource SuccessBorder}"
+                            BorderThickness="1"
+                            CornerRadius="999"
+                            Padding="10,4"
+                            VerticalAlignment="Center"
+                            HorizontalAlignment="Right"
+                            Height="28">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Ellipse x:Name="StatusDot"
+                                     Width="8"
+                                     Height="8"
+                                     Fill="{StaticResource SuccessGreen}"
+                                     Margin="0,0,6,0"/>
+                            <TextBlock x:Name="StatusBadgeText"
+                                       Text="Ready"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource SuccessGreen}"/>
+                        </StackPanel>
+                    </Border>
                 </Grid>
             </Border>
-        </Grid>
+
+            <Grid Grid.Row="1" Margin="16,16,16,16" x:Name="MainContentGrid">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1*" MinWidth="420"/>
+                    <ColumnDefinition Width="1*" MinWidth="400"/>
+                </Grid.ColumnDefinitions>
+
+                <TabControl x:Name="MainTabControl"
+                            Grid.Row="0"
+                            Grid.Column="0"
+                            Margin="0,0,12,0"
+                            SelectionChanged="MainTabControl_SelectionChanged"
+                            BorderThickness="0"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            Background="Transparent">
+
+                    <TabItem Header="Basic Settings">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,16,0,0" HorizontalAlignment="Stretch">
+                            <StackPanel Grid.IsSharedSizeScope="True" HorizontalAlignment="Stretch">
+
+                                <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch">
+                                    <StackPanel HorizontalAlignment="Stretch">
+                                        <TextBlock Text="Interface &amp; Source" Style="{StaticResource CardHeaderStyle}"/>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Label Grid.Row="0" Grid.Column="0" Content="NIC:"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,10"/>
+                                            <ComboBox x:Name="NetworkInterfaceComboBox"
+                                                      Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                                                      Margin="0,0,0,10"
+                                                      SelectionChanged="NetworkInterfaceComboBox_SelectionChanged"/>
+
+                                            <Label Grid.Row="1" Grid.Column="0" Content="Source IP:"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,10"/>
+                                            <TextBox x:Name="SourceIpTextBox"
+                                                     Grid.Row="1" Grid.Column="1"
+                                                     Height="30"
+                                                     Margin="0,0,8,10"
+                                                     TextChanged="SourceIpTextBox_TextChanged"/>
+                                            <Button x:Name="RefreshSourceIpButton"
+                                                    Grid.Row="1" Grid.Column="2"
+                                                    Content="Refresh"
+                                                    Width="80"
+                                                    Height="30"
+                                                    Margin="0,0,0,10"
+                                                    Click="RefreshSourceIpButton_Click"
+                                                    ToolTip="Refresh source IP from selected network interface"/>
+
+                                            <Label Grid.Row="2" Grid.Column="0" Content="Source MAC:"
+                                                   VerticalAlignment="Center"
+                                                   ToolTip="Auto-detected from the selected NIC. Read-only."
+                                                   Margin="0,0,16,10"/>
+                                            <TextBox x:Name="SourceMacTextBox"
+                                                     Grid.Row="2" Grid.Column="1"
+                                                     Height="30"
+                                                     Margin="0,0,0,10"
+                                                     IsReadOnly="True"
+                                                     ToolTip="Hardware address of the selected interface — auto-populated, cannot be edited."/>
+
+                                            <Label Grid.Row="3" Grid.Column="0"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,0">
+                                                <Label.ToolTip>
+                                                    <ToolTip>
+                                                        <TextBlock TextWrapping="Wrap" MaxWidth="300">
+                                                            Required when the target IP is on a different subnet.
+                                                            Frames to remote hosts are sent to the gateway MAC,
+                                                            not the remote host MAC.
+                                                        </TextBlock>
+                                                    </ToolTip>
+                                                </Label.ToolTip>
+                                                <StackPanel Orientation="Vertical">
+                                                    <TextBlock Text="Gateway IP:" FontSize="13" Foreground="{StaticResource TextPrimary}"/>
+                                                    <TextBlock Text="cross-subnet" FontSize="9" Foreground="{StaticResource TextMuted}" Margin="0,1,0,0"/>
+                                                </StackPanel>
+                                            </Label>
+                                            <TextBox x:Name="GatewayIpTextBox"
+                                                     Grid.Row="3" Grid.Column="1"
+                                                     Height="30"
+                                                     ToolTip="Router/gateway IP. Required when the target is on a different subnet."
+                                                     TextChanged="GatewayIpTextBox_TextChanged"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource CardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="Target" Style="{StaticResource CardHeaderStyle}"/>
+                                        <TextBlock Text="Destination host and port for the test."
+                                                   FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,-10,0,12"/>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Label Grid.Row="0" Grid.Column="0" Content="Target IP:"
+                                                   VerticalAlignment="Center"
+                                                   ToolTip="IPv4 address of the destination host"
+                                                   Margin="0,0,16,10"/>
+                                            <TextBox x:Name="TargetIpTextBox"
+                                                     Grid.Row="0" Grid.Column="1"
+                                                     Height="30"
+                                                     Margin="0,0,8,10"
+                                                     Background="{DynamicResource InputBg}"
+                                                     Foreground="{DynamicResource TextPrimary}"
+                                                     BorderBrush="{DynamicResource BorderDefault}"
+                                                     ToolTip="IPv4 address of the destination host to test"
+                                                     TextChanged="TargetIpTextBox_TextChanged"/>
+                                            <Button x:Name="PingButton"
+                                                    Grid.Row="0" Grid.Column="2"
+                                                    Content="Ping"
+                                                    Width="80"
+                                                    Height="30"
+                                                    Margin="0,0,0,10"
+                                                    Click="PingButton_Click"/>
+
+                                            <Label Grid.Row="1" Grid.Column="0" Content="Dest./Next-hop MAC:"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,10"
+                                                   ToolTip="On-link target: destination host MAC. Routed target: next-hop gateway MAC (remote host MAC is not reachable across routed hops)."/>
+                                            <TextBox x:Name="TargetMacTextBox"
+                                                     Grid.Row="1" Grid.Column="1"
+                                                     Height="30"
+                                                     Margin="0,0,8,10"
+                                                     IsReadOnly="True"
+                                                     TextChanged="TargetMacTextBox_TextChanged"/>
+                                            <Button x:Name="ResolveMacButton"
+                                                    Grid.Row="1" Grid.Column="2"
+                                                    Content="Resolve"
+                                                    Width="80"
+                                                    Height="30"
+                                                    Margin="0,0,0,10"
+                                                    Click="ResolveMacButton_Click"/>
+
+                                            <CheckBox x:Name="MacFallbackCheckBox"
+                                                      Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
+                                                      Content="Allow manual MAC entry"
+                                                      Margin="0,0,0,4"
+                                                      Checked="MacFallbackCheckBox_Checked"
+                                                      Unchecked="MacFallbackCheckBox_Unchecked"/>
+
+                                            <TextBlock x:Name="MacRouteHintText"
+                                                       Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3"
+                                                       TextWrapping="Wrap"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextMuted}"
+                                                       Margin="0,0,0,8"
+                                                       Visibility="Collapsed"/>
+
+                                            <Label Grid.Row="4" Grid.Column="0" Content="Target Port:"
+                                                   VerticalAlignment="Top"
+                                                   Margin="0,0,16,0"
+                                                   ToolTip="TCP/UDP destination port. Use 0 for ICMP (no port concept)."/>
+                                            <Grid Grid.Row="4" Grid.Column="1">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <TextBox x:Name="TargetPortTextBox"
+                                                         Height="30"
+                                                         Margin="0,0,8,0"
+                                                         Background="{DynamicResource InputBg}"
+                                                         Foreground="{DynamicResource TextPrimary}"
+                                                         BorderBrush="{DynamicResource BorderDefault}"
+                                                         Text="0"/>
+                                                <ProgressBar x:Name="ScanProgressBar"
+                                                             Grid.Row="1"
+                                                             Height="5"
+                                                             Margin="0,4,8,0"
+                                                             Visibility="Collapsed"/>
+                                            </Grid>
+                                            <Button x:Name="ScanButton"
+                                                    Grid.Row="4" Grid.Column="2"
+                                                    Content="Scan"
+                                                    Width="80"
+                                                    Height="30"
+                                                    VerticalAlignment="Top"
+                                                    Click="ScanButton_Click"/>
+                                        </Grid>
+
+                                        <StackPanel x:Name="DestinationTypePanel" Margin="0,12,0,0">
+                                            <TextBlock Text="Destination Type"
+                                                       Foreground="{DynamicResource TextSecondary}"
+                                                       FontSize="11"
+                                                       Margin="0,0,0,4"/>
+                                            <UniformGrid Columns="3">
+                                                <RadioButton x:Name="UnicastRadio"
+                                                             Content="Unicast"
+                                                             GroupName="DestType"
+                                                             IsChecked="True"
+                                                             Foreground="{DynamicResource TextPrimary}"
+                                                             FontSize="11"
+                                                             Margin="0,0,4,0"
+                                                             Checked="DestType_Changed"/>
+                                                <RadioButton x:Name="MulticastRadio"
+                                                             Content="Multicast"
+                                                             GroupName="DestType"
+                                                             Foreground="{DynamicResource TextPrimary}"
+                                                             FontSize="11"
+                                                             Margin="0,0,4,0"
+                                                             Checked="DestType_Changed"/>
+                                                <RadioButton x:Name="BroadcastRadio"
+                                                             Content="Broadcast"
+                                                             GroupName="DestType"
+                                                             Foreground="{DynamicResource TextPrimary}"
+                                                             FontSize="11"
+                                                             Checked="DestType_Changed"/>
+                                            </UniformGrid>
+                                            <TextBlock x:Name="DestTypeHintText"
+                                                       Text=""
+                                                       Foreground="{DynamicResource TextMuted}"
+                                                       FontSize="10"
+                                                       Margin="0,4,0,0"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource CardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="Protocol &amp; Rate" Style="{StaticResource CardHeaderStyle}"/>
+
+                                        <UniformGrid x:Name="ProtocolCardsPanel" Columns="2" Margin="0,0,0,8">
+                                            <Border Tag="0" Style="{StaticResource ProtocolCardStyle}" MouseLeftButtonUp="ProtocolCard_Click">
+                                                <StackPanel>
+                                                    <TextBlock Text="TCP SYN" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+                                                    <TextBlock Text="Half-open flood" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Tag="1" Style="{StaticResource ProtocolCardStyle}" MouseLeftButtonUp="ProtocolCard_Click">
+                                                <StackPanel>
+                                                    <TextBlock Text="UDP" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+                                                    <TextBlock Text="Datagram flood" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Tag="2" Style="{StaticResource ProtocolCardStyle}" MouseLeftButtonUp="ProtocolCard_Click">
+                                                <StackPanel>
+                                                    <TextBlock Text="ICMP" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+                                                    <TextBlock Text="Echo-request flood" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Tag="3" Style="{StaticResource ProtocolCardStyle}" MouseLeftButtonUp="ProtocolCard_Click">
+                                                <StackPanel>
+                                                    <TextBlock Text="Ethernet Unicast" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+                                                    <TextBlock Text="L2 IPv4 storm" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Tag="5" Style="{StaticResource ProtocolCardStyle}" MouseLeftButtonUp="ProtocolCard_Click">
+                                                <StackPanel>
+                                                    <TextBlock Text="Ethernet Multicast" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+                                                    <TextBlock Text="L2 IPv4 multicast" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Tag="7" Style="{StaticResource ProtocolCardStyle}" MouseLeftButtonUp="ProtocolCard_Click">
+                                                <StackPanel>
+                                                    <TextBlock Text="Ethernet Broadcast" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
+                                                    <TextBlock Text="L2 IPv4 broadcast" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </UniformGrid>
+
+                                        <ComboBox x:Name="AttackTypeComboBox"
+                                                  Visibility="Collapsed"
+                                                  SelectionChanged="AttackTypeComboBox_SelectionChanged"/>
+
+                                        <TextBlock x:Name="AttackTypeDescText"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource TextMuted}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,0,0,10"
+                                                   Text="Select a protocol to see a description."/>
+
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Label Grid.Column="0"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,0"
+                                                   Content="Rate:">
+                                                <Label.ToolTip>
+                                                    <ToolTip>
+                                                        <TextBlock TextWrapping="Wrap" MaxWidth="320">
+                                                            Wire-rate target. Measured at L2: Ethernet header + payload + FCS (+4 B).
+                                                            Preamble and IFG are excluded (added by NIC hardware).
+                                                            Formula: ActualMbps = wireBytesSent × 8 / (elapsed × 1 000 000)
+                                                        </TextBlock>
+                                                    </ToolTip>
+                                                </Label.ToolTip>
+                                            </Label>
+                                            <Grid Grid.Column="1">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="80"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox x:Name="MegabitsPerSecondTextBox"
+                                                         Grid.Column="0"
+                                                         Height="30"
+                                                         Margin="0,0,4,0"
+                                                         Background="{DynamicResource InputBg}"
+                                                         Foreground="{DynamicResource TextPrimary}"
+                                                         BorderBrush="{DynamicResource BorderDefault}"
+                                                         PreviewTextInput="MegabitsPerSecondTextBox_PreviewTextInput"
+                                                         TextChanged="MegabitsPerSecondTextBox_TextChanged"
+                                                         Text="100"
+                                                         ToolTip="Enter target rate value (e.g. 100 for 100 Mbps)"/>
+                                                <ComboBox x:Name="RateUnitComboBox"
+                                                          Grid.Column="1"
+                                                          Height="30"
+                                                          Padding="6,0"
+                                                          ToolTip="Select rate unit"
+                                                          SelectionChanged="RateUnitComboBox_SelectionChanged">
+                                                    <ComboBoxItem Content="Bps"/>
+                                                    <ComboBoxItem Content="Kbps"/>
+                                                    <ComboBoxItem Content="Mbps" IsSelected="True"/>
+                                                    <ComboBoxItem Content="Gbps"/>
+                                                </ComboBox>
+                                            </Grid>
+                                        </Grid>
+
+                                        <StackPanel x:Name="TcpSynModePanel" Margin="0,12,0,0">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding ElementName=AttackTypeComboBox, Path=SelectedIndex}" Value="0">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <TextBlock Text="Attack Mode"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource TextSecondary}"
+                                                       Margin="0,0,0,6"/>
+                                            <UniformGrid x:Name="TcpSynModeGrid" Columns="2">
+                                                <Border x:Name="BasicModeCard"
+                                                        Tag="Basic"
+                                                        Style="{StaticResource ProtocolCardStyle}"
+                                                        MouseLeftButtonUp="TcpSynModeCard_Click">
+                                                    <StackPanel>
+                                                        <TextBlock Text="Basic"
+                                                                   FontSize="13"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextPrimary}"/>
+                                                        <TextBlock Text="Standard SYN — max throughput"
+                                                                   FontSize="11"
+                                                                   Foreground="{StaticResource TextMuted}"
+                                                                   Margin="0,2,0,0"
+                                                                   TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border x:Name="EvasionModeCard"
+                                                        Tag="Evasion"
+                                                        Style="{StaticResource ProtocolCardStyle}"
+                                                        MouseLeftButtonUp="TcpSynModeCard_Click">
+                                                    <StackPanel>
+                                                        <TextBlock Text="Evasion"
+                                                                   FontSize="13"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextPrimary}"/>
+                                                        <TextBlock Text="Firewall bypass — randomised headers"
+                                                                   FontSize="11"
+                                                                   Foreground="{StaticResource TextMuted}"
+                                                                   Margin="0,2,0,0"
+                                                                   TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </UniformGrid>
+                                            <TextBlock x:Name="TcpSynModeDescText"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextMuted}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="4,8,0,0"
+                                                       Text="Standard TCP SYN packets. Best for raw throughput tests against session tables."/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Margin="0,4,0,0"
+                                        Padding="16,14"
+                                        CornerRadius="8"
+                                        BorderBrush="{StaticResource BorderDefault}"
+                                        BorderThickness="1"
+                                        Background="{StaticResource SecondaryBg}">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                            <Button x:Name="StartButton"
+                                                    Content="▶  Start Test"
+                                                    Width="148"
+                                                    Height="36"
+                                                    Style="{StaticResource PrimaryButton}"
+                                                    IsEnabled="False"
+                                                    Click="StartButton_Click"
+                                                    ToolTip="Begin the selected traffic test (requires Administrator)"/>
+                                            <Button x:Name="StopButton"
+                                                    Content="■  Stop"
+                                                    Width="120"
+                                                    Height="36"
+                                                    Margin="8,0,0,0"
+                                                    IsEnabled="False"
+                                                    Click="StopButton_Click"
+                                                    ToolTip="Halt the running test and display final statistics"/>
+                                        </StackPanel>
+                                        <Grid>
+                                            <TextBlock VerticalAlignment="Center"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextMuted}"
+                                                       TextWrapping="Wrap">
+                                                <Run Text="⚠" Foreground="{StaticResource WarningAmber}"/>
+                                                <Run Text=" Apply only to networks and systems you are authorized to test."/>
+                                            </TextBlock>
+                                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                                <Button x:Name="TraceRouteButton"
+                                                        Content="Trace Route"
+                                                        Width="110"
+                                                        Height="30"
+                                                        Click="TraceRouteButton_Click"
+                                                        ToolTip="Run a traceroute to the configured target IP"/>
+                                                <Button x:Name="NetworkScanButton"
+                                                        Content="Network Scan"
+                                                        Width="115"
+                                                        Height="30"
+                                                        Margin="6,0,0,0"
+                                                        Click="NetworkScanButton_Click"
+                                                        ToolTip="Scan for active hosts on the local network"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem x:Name="AdvancedTab" Header="Advanced Settings" PreviewMouseDown="AdvancedTab_PreviewMouseDown">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,16,0,0" HorizontalAlignment="Stretch">
+                            <StackPanel Grid.IsSharedSizeScope="True" HorizontalAlignment="Stretch">
+
+                                <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch">
+                                    <StackPanel HorizontalAlignment="Stretch">
+                                        <TextBlock Text="Network Configuration" Style="{StaticResource CardHeaderStyle}"/>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Label Grid.Row="0" Grid.Column="0" Content="NIC:"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,10"/>
+                                            <ComboBox x:Name="AdvNetworkInterfaceComboBox"
+                                                      Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                                                      Margin="0,0,0,10"
+                                                      SelectionChanged="NetworkInterfaceComboBox_SelectionChanged"/>
+
+                                            <Label Grid.Row="1" Grid.Column="0" Content="Source IP:"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,10"/>
+                                            <TextBox x:Name="AdvSourceIpTextBox"
+                                                     Grid.Row="1" Grid.Column="1"
+                                                     Height="30"
+                                                     Margin="0,0,8,10"
+                                                     IsReadOnly="True"/>
+                                            <Button x:Name="AdvRefreshSourceIpButton"
+                                                    Grid.Row="1" Grid.Column="2"
+                                                    Content="Refresh"
+                                                    Width="80"
+                                                    Height="30"
+                                                    Margin="0,0,0,10"
+                                                    Click="RefreshSourceIpButton_Click"
+                                                    ToolTip="Refresh source IP from selected network interface"/>
+
+                                            <Label Grid.Row="2" Grid.Column="0" Content="Source MAC:"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,10"/>
+                                            <TextBox x:Name="AdvSourceMacTextBox"
+                                                     Grid.Row="2" Grid.Column="1"
+                                                     Height="30"
+                                                     Margin="0,0,0,10"
+                                                     IsReadOnly="True"/>
+
+                                            <Label Grid.Row="3" Grid.Column="0" Content="Gateway IP:"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,0"/>
+                                            <TextBox x:Name="AdvGatewayIpTextBox"
+                                                     Grid.Row="3" Grid.Column="1"
+                                                     Height="30"
+                                                     IsReadOnly="True"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource CardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="Target Configuration" Style="{StaticResource CardHeaderStyle}"/>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Label Grid.Row="0" Grid.Column="0" Content="Target IP:"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,10"/>
+                                            <TextBox x:Name="AdvTargetIpTextBox"
+                                                     Grid.Row="0" Grid.Column="1"
+                                                     Height="30"
+                                                     Margin="0,0,8,10"
+                                                     Background="{DynamicResource InputBg}"
+                                                     Foreground="{DynamicResource TextPrimary}"
+                                                     BorderBrush="{DynamicResource BorderDefault}"
+                                                     TextChanged="TargetIpTextBox_TextChanged"/>
+                                            <Button x:Name="AdvPingButton"
+                                                    Grid.Row="0" Grid.Column="2"
+                                                    Content="Ping"
+                                                    Width="80"
+                                                    Height="30"
+                                                    Margin="0,0,0,10"
+                                                    Click="PingButton_Click"/>
+
+                                            <Label Grid.Row="1" Grid.Column="0" Content="Dest./Next-hop MAC:"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,10"
+                                                   ToolTip="On-link target: destination host MAC. Routed target: next-hop gateway MAC (remote host MAC is not reachable across routed hops)."/>
+                                            <TextBox x:Name="AdvTargetMacTextBox"
+                                                     Grid.Row="1" Grid.Column="1"
+                                                     Height="30"
+                                                     Margin="0,0,8,10"
+                                                     IsReadOnly="True"
+                                                     TextChanged="TargetMacTextBox_TextChanged"/>
+                                            <Button x:Name="AdvResolveMacButton"
+                                                    Grid.Row="1" Grid.Column="2"
+                                                    Content="Resolve"
+                                                    Width="80"
+                                                    Height="30"
+                                                    Margin="0,0,0,10"
+                                                    Click="ResolveMacButton_Click"/>
+
+                                            <CheckBox x:Name="AdvMacFallbackCheckBox"
+                                                      Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
+                                                      Content="Allow manual MAC entry"
+                                                      Margin="0,0,0,4"
+                                                      Checked="MacFallbackCheckBox_Checked"
+                                                      Unchecked="MacFallbackCheckBox_Unchecked"/>
+
+                                            <TextBlock x:Name="AdvMacRouteHintText"
+                                                       Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3"
+                                                       TextWrapping="Wrap"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextMuted}"
+                                                       Margin="0,0,0,8"
+                                                       Visibility="Collapsed"/>
+
+                                            <Label Grid.Row="4" Grid.Column="0" Content="Target Port:"
+                                                   VerticalAlignment="Top"
+                                                   Margin="0,0,16,0"/>
+                                            <Grid Grid.Row="4" Grid.Column="1">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <TextBox x:Name="AdvTargetPortTextBox"
+                                                         Height="30"
+                                                         Margin="0,0,8,0"
+                                                         Background="{DynamicResource InputBg}"
+                                                         Foreground="{DynamicResource TextPrimary}"
+                                                         BorderBrush="{DynamicResource BorderDefault}"
+                                                         Text="0"/>
+                                                <ProgressBar x:Name="AdvScanProgressBar"
+                                                             Grid.Row="1"
+                                                             Height="5"
+                                                             Margin="0,4,8,0"
+                                                             Visibility="Collapsed"/>
+                                            </Grid>
+                                            <Button x:Name="AdvScanButton"
+                                                    Grid.Row="4" Grid.Column="2"
+                                                    Content="Scan"
+                                                    Width="80"
+                                                    Height="30"
+                                                    VerticalAlignment="Top"
+                                                    Click="ScanButton_Click"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource CardStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="Attack Configuration" Style="{StaticResource CardHeaderStyle}"/>
+
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Label Grid.Column="0" Content="Attack Type:"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,0"/>
+                                            <ComboBox x:Name="AdvancedAttackTypeComboBox"
+                                                      Grid.Column="1"
+                                                      Height="30"
+                                                      SelectionChanged="AdvancedAttackTypeComboBox_SelectionChanged">
+                                            <ComboBoxItem Content="ARP Spoofing"/>
+                                            <ComboBoxItem Content="NMEA 0183 (UDP Unicast)"/>
+                                            <ComboBoxItem Content="NMEA 0183 (UDP Multicast)"/>
+                                            <ComboBoxItem Content="Modbus/TCP Flood (Read Requests)"/>
+                                            </ComboBox>
+                                        </Grid>
+
+                                        <Grid Margin="0,4,0,0">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Label Grid.Row="0" Grid.Column="0"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,10"
+                                                   Content="Rate:">
+                                                <Label.ToolTip>
+                                                    <ToolTip>
+                                                        <TextBlock TextWrapping="Wrap" MaxWidth="320">
+                                                            Wire-rate target at L2 (Ethernet header + payload + FCS).
+                                                            Select unit in the dropdown. Supports Mbps, Kbps, and Bps.
+                                                        </TextBlock>
+                                                    </ToolTip>
+                                                </Label.ToolTip>
+                                            </Label>
+                                            <Grid Grid.Row="0" Grid.Column="1" Margin="0,0,0,10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="80"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox x:Name="AdvMegabitsPerSecondTextBox"
+                                                         Grid.Column="0"
+                                                         Height="30"
+                                                         Margin="0,0,4,0"
+                                                         Background="{DynamicResource InputBg}"
+                                                         Foreground="{DynamicResource TextPrimary}"
+                                                         BorderBrush="{DynamicResource BorderDefault}"
+                                                         PreviewTextInput="AdvMegabitsPerSecondTextBox_PreviewTextInput"
+                                                         TextChanged="AdvMegabitsPerSecondTextBox_TextChanged"
+                                                         Text="100"
+                                                         ToolTip="Enter target rate value"/>
+                                                <ComboBox x:Name="AdvRateUnitComboBox"
+                                                          Grid.Column="1"
+                                                          Height="30"
+                                                          Padding="6,0"
+                                                          ToolTip="Select rate unit"
+                                                          SelectionChanged="AdvRateUnitComboBox_SelectionChanged">
+                                                    <ComboBoxItem Content="Bps"/>
+                                                    <ComboBoxItem Content="Kbps"/>
+                                                    <ComboBoxItem Content="Mbps" IsSelected="True"/>
+                                                    <ComboBoxItem Content="Gbps"/>
+                                                </ComboBox>
+                                            </Grid>
+
+                                            <Label Grid.Row="1" Grid.Column="0" Content="Spoofed MAC:"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,16,0"/>
+                                            <TextBox x:Name="SpoofedMacTextBox"
+                                                     Grid.Row="1" Grid.Column="1"
+                                                     Height="30"
+                                                     TextChanged="SpoofedMacTextBox_TextChanged"
+                                                     MaxLength="17"
+                                                     Text="12:34:56:78:90:AB"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource CardStyle}">
+                                    <Expander Header="TCP SYN Advanced Options"
+                                              Foreground="{DynamicResource TextPrimary}"
+                                              FontSize="12"
+                                              FontWeight="SemiBold"
+                                              IsExpanded="False">
+                                        <StackPanel Margin="0,8,0,0">
+                                            <TextBlock Text="Override the selected Attack Mode. Checkboxes are OR-ed on top of the mode's defaults."
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource TextMuted}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,8"/>
+                                            <CheckBox x:Name="FirewallBypassModeCheckBox"
+                                                      Content="Firewall Bypass Mode (randomise IP ID / TTL / window / MSS / timestamps)"
+                                                      Margin="0,0,0,6"
+                                                      ToolTip="Builds per-packet Linux-style 20-byte SYN options to defeat default-policy firewall drops"
+                                                      Checked="FirewallBypassModeCheckBox_Changed"
+                                                      Unchecked="FirewallBypassModeCheckBox_Changed"/>
+                                            <CheckBox x:Name="ForceSoftwareChecksumCheckBox"
+                                                      Content="Force software IP/TCP checksums before transmit"
+                                                      Margin="0,0,0,6"
+                                                      ToolTip="Recompute checksums in software even though raw injection already bypasses NIC offload"
+                                                      Checked="ForceSoftwareChecksumCheckBox_Changed"
+                                                      Unchecked="ForceSoftwareChecksumCheckBox_Changed"/>
+                                            <CheckBox x:Name="UseRealSourceIpCheckBox"
+                                                      Content="Use real source IP (disable spoofing — defeats uRPF)"
+                                                      Margin="0,0,0,6"
+                                                      ToolTip="When checked, SpoofSourceIp is ignored and the NIC's actual IP is used"
+                                                      Checked="UseRealSourceIpCheckBox_Changed"
+                                                      Unchecked="UseRealSourceIpCheckBox_Changed"/>
+                                            <CheckBox x:Name="RandomizeWithinSubnetCheckBox"
+                                                      Content="Randomise spoofed source within local /24 subnet"
+                                                      ToolTip="Confines spoofed source IPs to the NIC's /24 — only applies when 'Use real source IP' is off"
+                                                      Checked="RandomizeWithinSubnetCheckBox_Changed"
+                                                      Unchecked="RandomizeWithinSubnetCheckBox_Changed"/>
+                                        </StackPanel>
+                                    </Expander>
+                                </Border>
+
+                                <Border Margin="0,4,0,0"
+                                        Padding="16,14"
+                                        CornerRadius="8"
+                                        BorderBrush="{StaticResource BorderDefault}"
+                                        BorderThickness="1"
+                                        Background="{StaticResource SecondaryBg}">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                            <Label Content="Password:"
+                                                   FontSize="13"
+                                                   Foreground="{StaticResource TextSecondary}"
+                                                   Margin="0,0,8,0"
+                                                   Padding="0"
+                                                   VerticalAlignment="Center"/>
+                                            <PasswordBox x:Name="AdvPasswordBox"
+                                                         Width="160"
+                                                         Height="30"
+                                                         Margin="0,0,8,0"
+                                                         VerticalContentAlignment="Center"
+                                                         FontSize="13"
+                                                         Padding="8,0"
+                                                         PasswordChanged="PasswordBox_PasswordChanged"
+                                                         KeyDown="PasswordBox_KeyDown"
+                                                         ToolTip="Enter password to enable attack controls (Press Enter to validate)"/>
+                                            <Button x:Name="AdvValidatePasswordButton"
+                                                    Content="Validate"
+                                                    Width="100"
+                                                    Height="30"
+                                                    FontSize="13"
+                                                    FontWeight="Medium"
+                                                    Click="ValidatePasswordButton_Click"
+                                                    ToolTip="Click to validate password"/>
+                                        </StackPanel>
+                                        <TextBlock x:Name="PasswordFeedbackText"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource ErrorRed}"
+                                                   Margin="0,0,0,10"
+                                                   Visibility="Collapsed"
+                                                   TextWrapping="Wrap"/>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                            <Button x:Name="StartAdvancedAttackButton"
+                                                    Content="▶  Start Attack"
+                                                    Width="148"
+                                                    Height="36"
+                                                    Style="{StaticResource PrimaryButton}"
+                                                    IsEnabled="False"
+                                                    Click="StartAdvancedAttack_Click"/>
+                                            <Button x:Name="StopAdvancedAttackButton"
+                                                    Content="■  Stop Attack"
+                                                    Width="120"
+                                                    Height="36"
+                                                    Margin="8,0,0,0"
+                                                    IsEnabled="False"
+                                                    Click="StopAdvancedAttack_Click"/>
+                                        </StackPanel>
+
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Button x:Name="TraceRouteAdvancedButton"
+                                                    Content="Trace Route"
+                                                    Width="120"
+                                                    Height="30"
+                                                    Click="TraceRouteButton_Click"/>
+                                            <Button x:Name="NetworkScanAdvancedButton"
+                                                    Content="Network Scan"
+                                                    Width="120"
+                                                    Height="30"
+                                                    Margin="8,0,0,0"
+                                                    Click="NetworkScanButton_Click"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem x:Name="FirewallNetworksTab" Header="Reachability Tests">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0"
+                                    HorizontalAlignment="Stretch"
+                                    Margin="0,16,0,12"
+                                    Background="#2a1f05"
+                                    BorderBrush="{StaticResource WarningAmber}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="16,12">
+                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource WarningAmber}">
+                                    <Run Text="⚠  " FontWeight="Bold"/>
+                                    <Run Text="Use only on networks and systems you are explicitly authorized to test. This feature performs active scanning."/>
+                                </TextBlock>
+                            </Border>
+
+                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,0,0" HorizontalAlignment="Stretch">
+                                <StackPanel Grid.IsSharedSizeScope="True" HorizontalAlignment="Stretch">
+                                    <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch">
+                                        <StackPanel>
+                                            <TextBlock Text="Simple Reachability Test" Style="{StaticResource CardHeaderStyle}"/>
+                                            <TextBlock Text="Test reachability to a single host: ICMP ping, TCP port check, and path analysis. Best for quick targeted checks."
+                                                       FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                                            <Button x:Name="ReachabilityPathAnalysisButton"
+                                                    Content="Simple Reachability Test…"
+                                                    MinWidth="220"
+                                                    MinHeight="36"
+                                                    Style="{StaticResource PrimaryButton}"
+                                                    Click="ReachabilityPathAnalysisButton_Click"
+                                                    HorizontalAlignment="Left"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch">
+                                        <StackPanel>
+                                            <TextBlock Text="Bounded TCP Connect Scan" Style="{StaticResource CardHeaderStyle}"/>
+                                            <TextBlock Text="Scan a single IP, IP range, CIDR, or imported list using standard TCP connect probing. Concurrency-limited and cancelable. Authorized use only."
+                                                       FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                                            <Button x:Name="BoundedTcpScanButton"
+                                                    Content="Bounded TCP Connect Scan…"
+                                                    MinWidth="240"
+                                                    MinHeight="36"
+                                                    Style="{StaticResource PrimaryButton}"
+                                                    Click="BoundedTcpScanButton_Click"
+                                                    HorizontalAlignment="Left"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch">
+                                        <StackPanel>
+                                            <TextBlock Text="SNMP Walk Attack" Style="{StaticResource CardHeaderStyle}"/>
+                                            <TextBlock Text="Performs SNMP walk operations using 100 common community strings to test SNMP access."
+                                                       FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Label Grid.Row="0" Grid.Column="0" Content="Target IP:" VerticalAlignment="Center" Margin="0,0,16,10"/>
+                                                <TextBox x:Name="SnmpWalkTargetIpTextBox" Grid.Row="0" Grid.Column="1" Height="30" Margin="0,0,0,10"
+                                                         Background="{DynamicResource InputBg}"
+                                                         Foreground="{DynamicResource TextPrimary}"
+                                                         BorderBrush="{DynamicResource BorderDefault}"/>
+                                                <Label Grid.Row="1" Grid.Column="0" Content="SNMP Port:" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                                <TextBox x:Name="SnmpWalkPortTextBox" Grid.Row="1" Grid.Column="1" Height="30" Text="161"
+                                                         Background="{DynamicResource InputBg}"
+                                                         Foreground="{DynamicResource TextPrimary}"
+                                                         BorderBrush="{DynamicResource BorderDefault}"/>
+                                            </Grid>
+                                            <StackPanel Orientation="Horizontal" Margin="0,16,0,0" HorizontalAlignment="Left">
+                                                <Button x:Name="StartSnmpWalkButton"
+                                                        Content="Start SNMP Walk"
+                                                        Width="150" Height="34"
+                                                        Style="{StaticResource PrimaryButton}"
+                                                        Click="StartSnmpWalkButton_Click"
+                                                        Margin="0,0,12,0"/>
+                                                <Button x:Name="StopSnmpWalkButton"
+                                                        Content="Stop"
+                                                        Width="100" Height="34"
+                                                        Click="StopSnmpWalkButton_Click"
+                                                        IsEnabled="False"/>
+                                            </StackPanel>
+                                            <ProgressBar x:Name="SnmpWalkProgressBar" Height="6" Margin="0,12,0,0" Visibility="Collapsed" Maximum="100" Value="0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <Border Grid.Row="2"
+                                    Style="{StaticResource CardStyle}"
+                                    HorizontalAlignment="Stretch"
+                                    Margin="0,12,0,0"
+                                    x:Name="SecurityAssessmentStatusBorder"
+                                    Visibility="Collapsed">
+                                <StackPanel>
+                                    <TextBlock Text="Security Assessment" Style="{StaticResource CardHeaderStyle}"/>
+                                    <TextBlock x:Name="SecurityAssessmentStatusTextBlock"
+                                               FontSize="13"
+                                               Foreground="{StaticResource SuccessGreen}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+
+                <Grid Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0"
+                                Orientation="Horizontal"
+                                Margin="0,0,0,16"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="Security Logs"
+                                   FontWeight="SemiBold"
+                                   FontSize="16"
+                                   Margin="0,0,16,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextPrimary}"/>
+                        <Button x:Name="TaskManagerButton"
+                                Content="Task Manager"
+                                Width="120"
+                                Height="30"
+                                VerticalAlignment="Center"
+                                Click="TaskManagerButton_Click"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1"
+                            Style="{StaticResource CardStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0" Margin="0,0,0,16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="NoteTextBox"
+                                         Grid.Column="0"
+                                         Height="50"
+                                         TextWrapping="Wrap"
+                                         AcceptsReturn="True"
+                                         VerticalScrollBarVisibility="Auto"
+                                         Text=""
+                                         GotFocus="NoteTextBox_GotFocus"
+                                         LostFocus="NoteTextBox_LostFocus"
+                                         Margin="0,0,12,0"
+                                         Background="{DynamicResource InputBg}"
+                                         BorderBrush="{DynamicResource BorderDefault}"
+                                         Foreground="{DynamicResource TextMuted}"/>
+                                <Button x:Name="AddNoteButton"
+                                        Grid.Column="1"
+                                        Content="Add Note"
+                                        Width="100"
+                                        Height="50"
+                                        Click="AddNoteButton_Click"/>
+                            </Grid>
+
+                            <Border Grid.Row="1"
+                                    BorderBrush="{StaticResource BorderDefault}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Background="{StaticResource PrimaryBg}"
+                                    Margin="0,0,0,16">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
+                                    <TextBox x:Name="LogTextBox"
+                                             IsReadOnly="True"
+                                             TextWrapping="Wrap"
+                                             BorderThickness="0"
+                                             Background="Transparent"
+                                             Foreground="{StaticResource TextCode}"
+                                             FontFamily="Consolas"
+                                             FontSize="12"
+                                             VerticalScrollBarVisibility="Disabled"/>
+                                </ScrollViewer>
+                            </Border>
+
+                            <StackPanel Grid.Row="2"
+                                        Orientation="Horizontal"
+                                        HorizontalAlignment="Right">
+                                <Button x:Name="SaveLogButton"
+                                        Content="Save Log"
+                                        Width="100"
+                                        Height="30"
+                                        Margin="0,0,12,0"
+                                        Click="SaveLogButton_Click"/>
+                                <Button x:Name="ClearLogButton"
+                                        Content="Clear Log"
+                                        Width="100"
+                                        Height="30"
+                                        Click="ClearLogButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
             </Grid>
         </Grid>
-        
-        <!-- Toast Container -->
+
         <StackPanel x:Name="ToastContainer"
                     Grid.Row="0"
                     VerticalAlignment="Top"
                     HorizontalAlignment="Right"
                     Margin="0,20,20,0"
                     Panel.ZIndex="9999"/>
-        
-        <!-- Sync Loading Overlay -->
+
         <Border x:Name="SyncLoadingOverlay"
                 Grid.Row="0"
-                Background="#80000000"
+                Background="#B0000000"
                 Visibility="Collapsed"
                 Panel.ZIndex="10000">
-            <Border Background="White"
+            <Border Background="{StaticResource SecondaryBg}"
+                    BorderBrush="{StaticResource BorderDefault}"
+                    BorderThickness="1"
                     CornerRadius="8"
                     Padding="24"
                     HorizontalAlignment="Center"
@@ -1230,7 +1430,7 @@
                     <TextBlock Text="Syncing to Cloud..."
                                FontSize="16"
                                FontWeight="SemiBold"
-                               Foreground="#111827"
+                               Foreground="{StaticResource TextPrimary}"
                                Margin="0,0,0,12"
                                HorizontalAlignment="Center"/>
                     <ProgressBar x:Name="SyncProgressBar"
@@ -1240,7 +1440,7 @@
                     <TextBlock x:Name="SyncProgressText"
                                Text="Preparing sync..."
                                FontSize="12"
-                               Foreground="#6B7280"
+                               Foreground="{StaticResource TextMuted}"
                                TextWrapping="Wrap"
                                HorizontalAlignment="Center"
                                TextAlignment="Center"/>
@@ -1248,4 +1448,4 @@
             </Border>
         </Border>
     </Grid>
-</Window> 
+</Window>

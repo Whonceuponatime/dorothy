@@ -27,41 +27,34 @@ namespace Dorothy.Services
             Directory.CreateDirectory(appDataPath);
             _dbPath = Path.Combine(appDataPath, "dorothy.db");
             _connectionString = $"Data Source={_dbPath}";
-            
-            // For version 2.2.7 only: Check if database needs recreation due to missing columns
+
             CheckAndRecreateDatabaseIfNeeded();
-            
+
             InitializeDatabase();
         }
 
-        /// <summary>
-        /// For version 2.2.7 only: Check if database is old (missing HardwareId columns) and recreate it.
-        /// This is a one-time migration to fix databases that were created before the migration logic was added.
-        /// </summary>
         private void CheckAndRecreateDatabaseIfNeeded()
         {
             try
             {
-                // Check current version
+
                 var currentVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
                 if (currentVersion == null || currentVersion.Major != 2 || currentVersion.Minor != 2 || currentVersion.Build != 7)
                 {
-                    // Not version 2.2.7, skip recreation
+
                     Logger.Info($"Skipping database recreation check - not version 2.2.7 (current: {currentVersion?.Major}.{currentVersion?.Minor}.{currentVersion?.Build})");
                     return;
                 }
 
                 Logger.Info("Version 2.2.7: Checking database schema for required columns...");
 
-                // Check if database file exists
                 if (!File.Exists(_dbPath))
                 {
-                    // Database doesn't exist, will be created fresh
+
                     Logger.Info("Database file does not exist - will be created with correct schema.");
                     return;
                 }
 
-                // Check if database is old (missing HardwareId columns)
                 bool needsRecreation = false;
                 SqliteConnection? checkConnection = null;
                 try
@@ -69,7 +62,6 @@ namespace Dorothy.Services
                     checkConnection = new SqliteConnection(_connectionString);
                     checkConnection.Open();
 
-                    // Check Assets table
                     bool assetsNeedsRecreation = false;
                     try
                     {
@@ -90,18 +82,17 @@ namespace Dorothy.Services
                     }
                     catch
                     {
-                        // If we can't check, assume it needs recreation
+
                         assetsNeedsRecreation = true;
                     }
 
-                    // Check Ports table
                     bool portsNeedsRecreation = false;
                     try
                     {
                         var checkPorts = checkConnection.CreateCommand();
                         checkPorts.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='Ports'";
                         var portsTableExists = checkPorts.ExecuteScalar() != null;
-                        
+
                         if (portsTableExists)
                         {
                             checkPorts.CommandText = "PRAGMA table_info(Ports)";
@@ -121,18 +112,17 @@ namespace Dorothy.Services
                     }
                     catch
                     {
-                        // If we can't check, assume it needs recreation
+
                         portsNeedsRecreation = true;
                     }
 
-                    // Check AttackLogs table
                     bool attackLogsNeedsRecreation = false;
                     try
                     {
                         var checkAttackLogs = checkConnection.CreateCommand();
                         checkAttackLogs.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='AttackLogs'";
                         var attackLogsTableExists = checkAttackLogs.ExecuteScalar() != null;
-                        
+
                         if (attackLogsTableExists)
                         {
                             checkAttackLogs.CommandText = "PRAGMA table_info(AttackLogs)";
@@ -152,21 +142,20 @@ namespace Dorothy.Services
                     }
                     catch
                     {
-                        // If we can't check, assume it needs recreation
+
                         attackLogsNeedsRecreation = true;
                     }
 
-                    // If any table is missing HardwareId, mark for recreation
                     needsRecreation = assetsNeedsRecreation || portsNeedsRecreation || attackLogsNeedsRecreation;
                 }
                 catch (Exception checkEx)
                 {
                     Logger.Warn(checkEx, "Error checking database schema - will attempt recreation as safety measure.");
-                    needsRecreation = true; // If we can't check, assume it needs recreation
+                    needsRecreation = true;
                 }
                 finally
                 {
-                    // Always close the connection
+
                     if (checkConnection != null)
                     {
                         checkConnection.Close();
@@ -174,12 +163,10 @@ namespace Dorothy.Services
                     }
                 }
 
-                // If any table is missing HardwareId, delete and recreate the database
                 if (needsRecreation)
                 {
                     Logger.Info("Version 2.2.7: Detected old database schema (missing HardwareId columns). Deleting and recreating database...");
 
-                    // Backup old database (optional - for safety)
                     var backupPath = _dbPath + ".backup." + DateTime.Now.ToString("yyyyMMddHHmmss");
                     try
                     {
@@ -194,12 +181,10 @@ namespace Dorothy.Services
                         Logger.Warn(backupEx, "Failed to backup database, proceeding with deletion anyway.");
                     }
 
-                    // Force garbage collection to release any file handles
                     GC.Collect();
                     GC.WaitForPendingFinalizers();
-                    System.Threading.Thread.Sleep(100); // Brief pause to ensure file handles are released
+                    System.Threading.Thread.Sleep(100);
 
-                    // Delete old database - retry if file is locked
                     int retries = 5;
                     bool deleted = false;
                     for (int i = 0; i < retries && !deleted; i++)
@@ -214,7 +199,7 @@ namespace Dorothy.Services
                             }
                             else
                             {
-                                deleted = true; // Already deleted
+                                deleted = true;
                             }
                         }
                         catch (Exception deleteEx)
@@ -222,12 +207,12 @@ namespace Dorothy.Services
                             if (i < retries - 1)
                             {
                                 Logger.Warn($"Failed to delete database (attempt {i + 1}/{retries}), retrying in 500ms...");
-                                System.Threading.Thread.Sleep(500); // Wait 500ms before retry
+                                System.Threading.Thread.Sleep(500);
                             }
                             else
                             {
                                 Logger.Error(deleteEx, "Failed to delete old database after multiple attempts. User may need to manually delete the database file.");
-                                // Don't throw - allow initialization to proceed, migration will attempt to add columns
+
                             }
                         }
                     }
@@ -240,7 +225,7 @@ namespace Dorothy.Services
             catch (Exception ex)
             {
                 Logger.Error(ex, "Failed to check/recreate database for version 2.2.7. Will attempt to delete and recreate anyway.");
-                // Try to delete the database file anyway as a safety measure
+
                 try
                 {
                     if (File.Exists(_dbPath))
@@ -263,19 +248,19 @@ namespace Dorothy.Services
         {
             try
             {
-                // Migrate ReachabilityTests table: Add IsSynced if it doesn't exist
+
                 try
                 {
                     var checkReachabilityTable = connection.CreateCommand();
                     checkReachabilityTable.CommandText = @"
-                        SELECT name FROM sqlite_master 
+                        SELECT name FROM sqlite_master
                         WHERE type='table' AND name='ReachabilityTests';
                     ";
                     var reachabilityTableExists = checkReachabilityTable.ExecuteScalar() != null;
 
                     if (reachabilityTableExists)
                     {
-                        // Check columns
+
                         var checkColumns = connection.CreateCommand();
                         checkColumns.CommandText = "PRAGMA table_info(ReachabilityTests)";
                         var columns = new HashSet<string>();
@@ -287,7 +272,6 @@ namespace Dorothy.Services
                             }
                         }
 
-                        // If Synced exists but IsSynced doesn't, add IsSynced and copy data
                         if (columns.Contains("Synced") && !columns.Contains("IsSynced"))
                         {
                             var addColumn = connection.CreateCommand();
@@ -298,7 +282,7 @@ namespace Dorothy.Services
                             addColumn.ExecuteNonQuery();
                             Logger.Info("Migrated ReachabilityTests: Added IsSynced column and copied data from Synced");
                         }
-                        // If neither exists, add IsSynced
+
                         else if (!columns.Contains("IsSynced") && !columns.Contains("Synced"))
                         {
                             var addColumn = connection.CreateCommand();
@@ -313,10 +297,9 @@ namespace Dorothy.Services
                     Logger.Warn(ex, "Failed to migrate ReachabilityTests table - continuing");
                 }
 
-                // Check if Assets table exists first
                 var checkTableExists = connection.CreateCommand();
                 checkTableExists.CommandText = @"
-                    SELECT name FROM sqlite_master 
+                    SELECT name FROM sqlite_master
                     WHERE type='table' AND name='Assets';
                 ";
                 var assetsTableExists = checkTableExists.ExecuteScalar() != null;
@@ -327,35 +310,32 @@ namespace Dorothy.Services
                 }
                 else
                 {
-                    // Check if Assets table needs migration (add metadata columns)
+
                     var columns = new HashSet<string>();
                     try
                     {
                         var checkCommand = connection.CreateCommand();
                         checkCommand.CommandText = "PRAGMA table_info(Assets)";
-                        
+
                         using (var reader = checkCommand.ExecuteReader())
                         {
                             while (reader.Read())
                             {
-                                columns.Add(reader.GetString(1)); // Column name is at index 1
+                                columns.Add(reader.GetString(1));
                             }
                         }
                     }
                     catch (Exception ex)
                     {
                         Logger.Warn(ex, "Failed to check Assets table columns, will attempt to add all columns");
-                        // If check fails, assume columns don't exist and try to add them
+
                         columns.Clear();
                     }
 
-                    // Add missing columns to Assets table - always try to add, handle "column already exists" gracefully
-                    // This ensures columns exist even if the check failed or was incomplete
                     var assetsColumnsToAdd = new[] { "HardwareId", "MachineName", "Username", "UserId", "Ports" };
                     foreach (var columnName in assetsColumnsToAdd)
                     {
-                        // Always try to add the column - if it already exists, SQLite will throw an error which we'll catch
-                        // This is safer than relying on the column check which might fail
+
                         try
                         {
                             var addColumn = connection.CreateCommand();
@@ -365,22 +345,20 @@ namespace Dorothy.Services
                         }
                         catch (Microsoft.Data.Sqlite.SqliteException sqlEx) when (sqlEx.Message.Contains("duplicate column") || sqlEx.Message.Contains("already exists") || sqlEx.SqliteErrorCode == 1)
                         {
-                            // Column already exists - this is fine, just log it
+
                             Logger.Debug($"{columnName} column already exists in Assets table");
                         }
                         catch (Exception ex)
                         {
                             Logger.Warn(ex, $"Failed to add {columnName} column to Assets table (may already exist)");
-                            // Don't throw - continue with other columns
+
                         }
                     }
                 }
 
-                // Check if Ports table needs migration (add metadata columns)
-                // First check if Ports table exists
                 var checkPortsTableExists = connection.CreateCommand();
                 checkPortsTableExists.CommandText = @"
-                    SELECT name FROM sqlite_master 
+                    SELECT name FROM sqlite_master
                     WHERE type='table' AND name='Ports';
                 ";
                 var portsTableExists = checkPortsTableExists.ExecuteScalar() != null;
@@ -392,23 +370,22 @@ namespace Dorothy.Services
                     {
                         var portsCheckCommand = connection.CreateCommand();
                         portsCheckCommand.CommandText = "PRAGMA table_info(Ports)";
-                        
+
                         using (var portsReader = portsCheckCommand.ExecuteReader())
                         {
                             while (portsReader.Read())
                             {
-                                portsColumns.Add(portsReader.GetString(1)); // Column name is at index 1
+                                portsColumns.Add(portsReader.GetString(1));
                             }
                         }
                     }
                     catch (Exception ex)
                     {
                         Logger.Warn(ex, "Failed to check Ports table columns, will attempt to add all columns");
-                        // If check fails, assume columns don't exist and try to add them
+
                         portsColumns.Clear();
                     }
 
-                    // Add missing columns to Ports table - use try-catch for each to handle "column already exists" errors
                     var columnsToAdd = new[] { "HardwareId", "MachineName", "Username", "UserId" };
                     foreach (var columnName in columnsToAdd)
                     {
@@ -424,13 +401,13 @@ namespace Dorothy.Services
                             }
                             catch (Microsoft.Data.Sqlite.SqliteException sqlEx) when (sqlEx.Message.Contains("duplicate column") || sqlEx.Message.Contains("already exists"))
                             {
-                                // Column already exists - this is fine, just log it
+
                                 Logger.Info($"{columnName} column already exists in Ports table");
                             }
                             catch (Exception ex)
                             {
                                 Logger.Error(ex, $"Failed to add {columnName} column to Ports table");
-                                // Don't throw - continue with other columns
+
                             }
                         }
                     }
@@ -440,10 +417,9 @@ namespace Dorothy.Services
                     Logger.Info("Ports table does not exist yet - will be created with all columns");
                 }
 
-                // Check if AttackLogs table needs migration (add metadata columns)
                 var checkAttackLogsTableExists = connection.CreateCommand();
                 checkAttackLogsTableExists.CommandText = @"
-                    SELECT name FROM sqlite_master 
+                    SELECT name FROM sqlite_master
                     WHERE type='table' AND name='AttackLogs';
                 ";
                 var attackLogsTableExists = checkAttackLogsTableExists.ExecuteScalar() != null;
@@ -455,28 +431,26 @@ namespace Dorothy.Services
                     {
                         var attackLogsCheckCommand = connection.CreateCommand();
                         attackLogsCheckCommand.CommandText = "PRAGMA table_info(AttackLogs)";
-                        
+
                         using (var attackLogsReader = attackLogsCheckCommand.ExecuteReader())
                         {
                             while (attackLogsReader.Read())
                             {
-                                attackLogsColumns.Add(attackLogsReader.GetString(1)); // Column name is at index 1
+                                attackLogsColumns.Add(attackLogsReader.GetString(1));
                             }
                         }
                     }
                     catch (Exception ex)
                     {
                         Logger.Warn(ex, "Failed to check AttackLogs table columns, will attempt to add all columns");
-                        // If check fails, assume columns don't exist and try to add them
+
                         attackLogsColumns.Clear();
                     }
 
-                    // Add missing columns to AttackLogs table - always try to add, handle "column already exists" gracefully
                     var attackLogsColumnsToAdd = new[] { "HardwareId", "MachineName", "Username", "UserId" };
                     foreach (var columnName in attackLogsColumnsToAdd)
                     {
-                        // Always try to add the column - if it already exists, SQLite will throw an error which we'll catch
-                        // This is safer than relying on the column check which might fail
+
                         try
                         {
                             var addColumn = connection.CreateCommand();
@@ -486,13 +460,13 @@ namespace Dorothy.Services
                         }
                         catch (Microsoft.Data.Sqlite.SqliteException sqlEx) when (sqlEx.Message.Contains("duplicate column") || sqlEx.Message.Contains("already exists") || sqlEx.SqliteErrorCode == 1)
                         {
-                            // Column already exists - this is fine, just log it
+
                             Logger.Debug($"{columnName} column already exists in AttackLogs table");
                         }
                         catch (Exception ex)
                         {
                             Logger.Warn(ex, $"Failed to add {columnName} column to AttackLogs table (may already exist)");
-                            // Don't throw - continue with other columns
+
                         }
                     }
                 }
@@ -506,7 +480,7 @@ namespace Dorothy.Services
             catch (Exception ex)
             {
                 Logger.Error(ex, "Error during database migration");
-                // Don't throw - allow initialization to continue
+
             }
         }
 
@@ -544,7 +518,7 @@ namespace Dorothy.Services
                         Username TEXT,
                         UserId TEXT
                     );
-                    
+
                     CREATE TABLE IF NOT EXISTS Assets (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         HostIp TEXT NOT NULL,
@@ -564,7 +538,7 @@ namespace Dorothy.Services
                         UserId TEXT,
                         Ports TEXT
                     );
-                    
+
                     CREATE TABLE IF NOT EXISTS Ports (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         AssetId INTEGER,
@@ -584,7 +558,7 @@ namespace Dorothy.Services
                         UserId TEXT,
                         FOREIGN KEY (AssetId) REFERENCES Assets(Id) ON DELETE CASCADE
                     );
-                    
+
                     CREATE TABLE IF NOT EXISTS ReachabilityTests (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         ProjectName TEXT,
@@ -605,7 +579,7 @@ namespace Dorothy.Services
                         Username TEXT,
                         UserId TEXT
                     );
-                    
+
                     CREATE TABLE IF NOT EXISTS ReachabilityIcmpResults (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         TestId INTEGER NOT NULL,
@@ -618,7 +592,7 @@ namespace Dorothy.Services
                         CreatedAt TEXT NOT NULL,
                         FOREIGN KEY (TestId) REFERENCES ReachabilityTests(Id) ON DELETE CASCADE
                     );
-                    
+
                     CREATE TABLE IF NOT EXISTS ReachabilityTcpResults (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         TestId INTEGER NOT NULL,
@@ -630,7 +604,7 @@ namespace Dorothy.Services
                         CreatedAt TEXT NOT NULL,
                         FOREIGN KEY (TestId) REFERENCES ReachabilityTests(Id) ON DELETE CASCADE
                     );
-                    
+
                     CREATE TABLE IF NOT EXISTS ReachabilityPathHops (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         TestId INTEGER NOT NULL,
@@ -642,7 +616,7 @@ namespace Dorothy.Services
                         CreatedAt TEXT NOT NULL,
                         FOREIGN KEY (TestId) REFERENCES ReachabilityTests(Id) ON DELETE CASCADE
                     );
-                    
+
                     CREATE TABLE IF NOT EXISTS ReachabilityDeeperScans (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         TestId INTEGER NOT NULL,
@@ -652,7 +626,7 @@ namespace Dorothy.Services
                         CreatedAt TEXT NOT NULL,
                         FOREIGN KEY (TestId) REFERENCES ReachabilityTests(Id) ON DELETE CASCADE
                     );
-                    
+
                     CREATE TABLE IF NOT EXISTS ReachabilitySnmpWalks (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         TestId INTEGER NOT NULL,
@@ -669,10 +643,9 @@ namespace Dorothy.Services
                 ";
                 command.ExecuteNonQuery();
                 Logger.Info("Database tables created");
-                
-                // Run migrations AFTER tables are created
+
                 MigrateDatabase(connection);
-                
+
                 Logger.Info("Database initialized successfully");
             }
             catch (Exception ex)
@@ -682,15 +655,11 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Ensures database migrations are run. Can be called before queries to ensure schema is up to date.
-        /// </summary>
         private async Task EnsureMigrationsAsync(SqliteConnection connection)
         {
             try
             {
-                // Run migration synchronously on the connection
-                // Since we're already in an async context, we'll use Task.Run to avoid blocking
+
                 await Task.Run(() =>
                 {
                     MigrateDatabase(connection);
@@ -699,7 +668,7 @@ namespace Dorothy.Services
             catch (Exception ex)
             {
                 Logger.Warn(ex, "Failed to ensure migrations - continuing anyway");
-                // Don't throw - allow query to proceed
+
             }
         }
 
@@ -709,17 +678,16 @@ namespace Dorothy.Services
             {
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
-                
-                // Ensure migrations are run before inserting
+
                 await EnsureMigrationsAsync(connection);
 
                 var command = connection.CreateCommand();
                 command.CommandText = @"
-                    INSERT INTO AttackLogs 
-                    (ProjectName, AttackType, Protocol, SourceIp, SourceMac, TargetIp, TargetMac, TargetPort, 
+                    INSERT INTO AttackLogs
+                    (ProjectName, AttackType, Protocol, SourceIp, SourceMac, TargetIp, TargetMac, TargetPort,
                      TargetRateMbps, PacketsSent, DurationSeconds, StartTime, StopTime, Note, LogContent, CreatedAt, IsSynced,
                      HardwareId, MachineName, Username, UserId)
-                    VALUES 
+                    VALUES
                     (@ProjectName, @AttackType, @Protocol, @SourceIp, @SourceMac, @TargetIp, @TargetMac, @TargetPort,
                      @TargetRateMbps, @PacketsSent, @DurationSeconds, @StartTime, @StopTime, @Note, @LogContent, @CreatedAt, 0,
                      @HardwareId, @MachineName, @Username, @UserId);
@@ -764,10 +732,8 @@ namespace Dorothy.Services
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
 
-                // Ensure migrations are run before querying
                 await EnsureMigrationsAsync(connection);
 
-                // Check if HardwareId column exists
                 bool hasHardwareId = false;
                 try
                 {
@@ -796,7 +762,7 @@ namespace Dorothy.Services
                 {
                     query = @"
                         SELECT Id, ProjectName, AttackType, Protocol, SourceIp, SourceMac, TargetIp, TargetMac, TargetPort,
-                               TargetRateMbps, PacketsSent, DurationSeconds, StartTime, StopTime, Note, LogContent, 
+                               TargetRateMbps, PacketsSent, DurationSeconds, StartTime, StopTime, Note, LogContent,
                                CreatedAt, SyncedAt, IsSynced, HardwareId, MachineName, Username, UserId
                         FROM AttackLogs
                         WHERE IsSynced = 0";
@@ -805,20 +771,20 @@ namespace Dorothy.Services
                 {
                     query = @"
                         SELECT Id, ProjectName, AttackType, Protocol, SourceIp, SourceMac, TargetIp, TargetMac, TargetPort,
-                               TargetRateMbps, PacketsSent, DurationSeconds, StartTime, StopTime, Note, LogContent, 
+                               TargetRateMbps, PacketsSent, DurationSeconds, StartTime, StopTime, Note, LogContent,
                                CreatedAt, SyncedAt, IsSynced
                         FROM AttackLogs
                         WHERE IsSynced = 0";
                 }
-                
+
                 if (selectedIds != null && selectedIds.Count > 0)
                 {
                     var ids = string.Join(",", selectedIds);
                     query += $" AND Id IN ({ids})";
                 }
-                
+
                 query += " ORDER BY CreatedAt ASC";
-                
+
                 command.CommandText = query;
 
                 var logs = new List<AttackLogEntry>();
@@ -852,7 +818,6 @@ namespace Dorothy.Services
                 var idsList = ids.ToList();
                 if (idsList.Count == 0) return;
 
-                // Use parameterized query to prevent SQL injection
                 var placeholders = string.Join(",", idsList.Select((_, i) => $"@Id{i}"));
                 var command = connection.CreateCommand();
                 command.CommandText = $@"
@@ -886,7 +851,6 @@ namespace Dorothy.Services
                 var idsList = ids.ToList();
                 if (idsList.Count == 0) return;
 
-                // Use parameterized query to prevent SQL injection
                 var placeholders = string.Join(",", idsList.Select((_, i) => $"@Id{i}"));
                 var command = connection.CreateCommand();
                 command.CommandText = $@"
@@ -962,7 +926,7 @@ namespace Dorothy.Services
 
                 var command = connection.CreateCommand();
                 command.CommandText = @"
-                    UPDATE Assets 
+                    UPDATE Assets
                     SET Synced = 0, SyncedAt = NULL
                     WHERE Id = @AssetId
                 ";
@@ -981,19 +945,16 @@ namespace Dorothy.Services
         {
             try
             {
-                // Get all ports for this host
+
                 var ports = await GetPortsByHostIpAsync(hostIp);
-                
-                // Generate ports display string - ONLY port numbers, NO banners
-                // Banners are stored separately in the ports table
+
                 string portsDisplay = null;
                 if (ports != null && ports.Count > 0)
                 {
-                    // Only include port/protocol, no banners
+
                     portsDisplay = string.Join(", ", ports.OrderBy(p => p.Port).Select(p => $"{p.Port}/{p.Protocol}"));
                 }
 
-                // Update asset's Ports column
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
 
@@ -1012,7 +973,7 @@ namespace Dorothy.Services
             catch (Exception ex)
             {
                 Logger.Error(ex, $"Failed to update Ports column for asset {assetId}");
-                // Don't throw - this is a non-critical update
+
             }
         }
 
@@ -1022,20 +983,18 @@ namespace Dorothy.Services
             {
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
-                
-                // Ensure migrations are run before inserting
+
                 await EnsureMigrationsAsync(connection);
 
-                // Check if asset already exists
                 var existingAssetId = await GetAssetIdByHostIpAsync(asset.HostIp);
-                
+
                 if (existingAssetId.HasValue)
                 {
-                    // Update existing asset and mark as unsynced
+
                     var updateCommand = connection.CreateCommand();
                     updateCommand.CommandText = @"
-                        UPDATE Assets 
-                        SET HostName = @HostName, MacAddress = @MacAddress, Vendor = @Vendor, 
+                        UPDATE Assets
+                        SET HostName = @HostName, MacAddress = @MacAddress, Vendor = @Vendor,
                             IsOnline = @IsOnline, PingTime = @PingTime, ScanTime = @ScanTime,
                             Ports = @Ports, Synced = 0, SyncedAt = NULL
                         WHERE Id = @Id
@@ -1056,13 +1015,13 @@ namespace Dorothy.Services
                 }
                 else
                 {
-                    // Insert new asset
+
                     var command = connection.CreateCommand();
                     command.CommandText = @"
-                        INSERT INTO Assets 
+                        INSERT INTO Assets
                         (HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, CreatedAt, Synced,
                          HardwareId, MachineName, Username, UserId, Ports)
-                        VALUES 
+                        VALUES
                         (@HostIp, @HostName, @MacAddress, @Vendor, @IsOnline, @PingTime, @ScanTime, @ProjectName, @CreatedAt, 0,
                          @HardwareId, @MachineName, @Username, @UserId, @Ports);
                         SELECT last_insert_rowid();
@@ -1101,10 +1060,9 @@ namespace Dorothy.Services
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
 
-                // Check if port already exists for this asset/host
                 var checkCommand = connection.CreateCommand();
                 checkCommand.CommandText = @"
-                    SELECT Id FROM Ports 
+                    SELECT Id FROM Ports
                     WHERE HostIp = @HostIp AND Port = @Port AND Protocol = @Protocol
                     LIMIT 1
                 ";
@@ -1116,16 +1074,16 @@ namespace Dorothy.Services
 
                 if (existingPortId != null && existingPortId != DBNull.Value)
                 {
-                    // Update existing port - always update banner even if it was previously empty
+
                     var updateCommand = connection.CreateCommand();
                     updateCommand.CommandText = @"
-                        UPDATE Ports 
+                        UPDATE Ports
                         SET Service = @Service, Banner = @Banner, ScanTime = @ScanTime, Synced = 0
                         WHERE Id = @Id
                     ";
                     updateCommand.Parameters.AddWithValue("@Id", Convert.ToInt64(existingPortId));
                     updateCommand.Parameters.AddWithValue("@Service", port.Service ?? (object)DBNull.Value);
-                    // Always update banner - if it's empty/null, set to NULL; otherwise set to the banner value
+
                     var bannerValue = string.IsNullOrWhiteSpace(port.Banner) ? (object)DBNull.Value : port.Banner.Trim();
                     updateCommand.Parameters.AddWithValue("@Banner", bannerValue);
                     updateCommand.Parameters.AddWithValue("@ScanTime", port.ScanTime.ToString("O"));
@@ -1135,13 +1093,13 @@ namespace Dorothy.Services
                 }
                 else
                 {
-                    // Insert new port
+
                     var command = connection.CreateCommand();
                     command.CommandText = @"
-                        INSERT INTO Ports 
+                        INSERT INTO Ports
                         (AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName, CreatedAt, Synced,
                          HardwareId, MachineName, Username, UserId)
-                        VALUES 
+                        VALUES
                         (@AssetId, @HostIp, @Port, @Protocol, @Service, @Banner, @ScanTime, @ProjectName, @CreatedAt, 0,
                          @HardwareId, @MachineName, @Username, @UserId);
                     ";
@@ -1151,7 +1109,7 @@ namespace Dorothy.Services
                     command.Parameters.AddWithValue("@Port", port.Port);
                     command.Parameters.AddWithValue("@Protocol", port.Protocol);
                     command.Parameters.AddWithValue("@Service", port.Service ?? (object)DBNull.Value);
-                    // Always save banner - if it's empty/null, set to NULL; otherwise set to the trimmed banner value
+
                     var bannerValue = string.IsNullOrWhiteSpace(port.Banner) ? (object)DBNull.Value : port.Banner.Trim();
                     command.Parameters.AddWithValue("@Banner", bannerValue);
                     command.Parameters.AddWithValue("@ScanTime", port.ScanTime.ToString("O"));
@@ -1166,14 +1124,13 @@ namespace Dorothy.Services
                     Logger.Info($"Inserted new port {port.Port}/{port.Protocol} for {port.HostIp}");
                 }
 
-                // Update asset's Ports column with all ports for this host
                 if (port.AssetId > 0)
                 {
                     await UpdateAssetPortsColumnAsync(port.AssetId, port.HostIp);
                 }
                 else if (!string.IsNullOrEmpty(port.HostIp))
                 {
-                    // If AssetId is not set, try to find asset by HostIp and update it
+
                     var assetId = await GetAssetIdByHostIpAsync(port.HostIp);
                     if (assetId.HasValue)
                     {
@@ -1181,14 +1138,13 @@ namespace Dorothy.Services
                     }
                 }
 
-                // Mark asset as unsynced when ports are added/updated
                 if (markAssetUnsynced && port.AssetId > 0)
                 {
                     await MarkAssetAsUnsyncedAsync(port.AssetId);
                 }
                 else if (markAssetUnsynced && !string.IsNullOrEmpty(port.HostIp))
                 {
-                    // If AssetId is not set, try to find asset by HostIp and mark as unsynced
+
                     var assetId = await GetAssetIdByHostIpAsync(port.HostIp);
                     if (assetId.HasValue)
                     {
@@ -1209,11 +1165,9 @@ namespace Dorothy.Services
             {
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
-                
-                // Ensure migrations are run before querying
+
                 await EnsureMigrationsAsync(connection);
 
-                // Check if HardwareId column exists
                 bool hasHardwareId = false;
                 try
                 {
@@ -1241,7 +1195,7 @@ namespace Dorothy.Services
                 if (hasHardwareId)
                 {
                     query = @"
-                        SELECT Id, AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName, 
+                        SELECT Id, AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName,
                                CreatedAt, Synced, HardwareId, MachineName, Username, UserId
                         FROM Ports
                         WHERE HostIp = @HostIp
@@ -1251,7 +1205,7 @@ namespace Dorothy.Services
                 else
                 {
                     query = @"
-                        SELECT Id, AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName, 
+                        SELECT Id, AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName,
                                CreatedAt, Synced
                         FROM Ports
                         WHERE HostIp = @HostIp
@@ -1280,8 +1234,7 @@ namespace Dorothy.Services
                             CreatedAt = DateTime.Parse(portsReader.GetString(9)),
                             Synced = portsReader.GetInt32(10) == 1
                         };
-                        
-                        // Only set metadata fields if they exist in the query result
+
                         if (hasHardwareId && portsReader.FieldCount > 11)
                         {
                             port.HardwareId = portsReader.IsDBNull(11) ? null : portsReader.GetString(11);
@@ -1289,7 +1242,7 @@ namespace Dorothy.Services
                             port.Username = portsReader.IsDBNull(13) ? null : portsReader.GetString(13);
                             port.UserId = portsReader.IsDBNull(14) ? null : (Guid.TryParse(portsReader.GetString(14), out var userId) ? userId : (Guid?)null);
                         }
-                        
+
                         ports.Add(port);
                     }
                 }
@@ -1309,11 +1262,9 @@ namespace Dorothy.Services
             {
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
-                
-                // Ensure migrations are run before querying
+
                 await EnsureMigrationsAsync(connection);
 
-                // Check if HardwareId column exists
                 bool hasHardwareId = false;
                 try
                 {
@@ -1341,7 +1292,7 @@ namespace Dorothy.Services
                 if (hasHardwareId)
                 {
                     query = @"
-                        SELECT Id, AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName, 
+                        SELECT Id, AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName,
                                CreatedAt, Synced, HardwareId, MachineName, Username, UserId
                         FROM Ports
                         WHERE HostIp = @HostIp AND Synced = 0
@@ -1351,7 +1302,7 @@ namespace Dorothy.Services
                 else
                 {
                     query = @"
-                        SELECT Id, AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName, 
+                        SELECT Id, AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName,
                                CreatedAt, Synced
                         FROM Ports
                         WHERE HostIp = @HostIp AND Synced = 0
@@ -1380,8 +1331,7 @@ namespace Dorothy.Services
                             CreatedAt = DateTime.Parse(portsReader.GetString(9)),
                             Synced = portsReader.GetInt32(10) == 1
                         };
-                        
-                        // Only set metadata fields if they exist in the query result
+
                         if (hasHardwareId && portsReader.FieldCount > 11)
                         {
                             port.HardwareId = portsReader.IsDBNull(11) ? null : portsReader.GetString(11);
@@ -1389,7 +1339,7 @@ namespace Dorothy.Services
                             port.Username = portsReader.IsDBNull(13) ? null : portsReader.GetString(13);
                             port.UserId = portsReader.IsDBNull(14) ? null : (Guid.TryParse(portsReader.GetString(14), out var userId) ? userId : (Guid?)null);
                         }
-                        
+
                         ports.Add(port);
                     }
                 }
@@ -1413,7 +1363,6 @@ namespace Dorothy.Services
                 var idsList = portIds.ToList();
                 if (idsList.Count == 0) return;
 
-                // Check if SyncedAt column exists
                 var checkColumn = connection.CreateCommand();
                 checkColumn.CommandText = "PRAGMA table_info(Ports)";
                 var hasSyncedAt = false;
@@ -1431,7 +1380,7 @@ namespace Dorothy.Services
 
                 var placeholders = string.Join(",", idsList.Select((_, i) => $"@Id{i}"));
                 var command = connection.CreateCommand();
-                
+
                 if (hasSyncedAt)
                 {
                     command.CommandText = $@"
@@ -1470,11 +1419,9 @@ namespace Dorothy.Services
             {
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
-                
-                // Ensure migrations are run before querying
+
                 await EnsureMigrationsAsync(connection);
 
-                // Check if HardwareId column exists - if not, use a query without it
                 bool hasHardwareId = false;
                 try
                 {
@@ -1494,7 +1441,7 @@ namespace Dorothy.Services
                 }
                 catch
                 {
-                    // If check fails, assume column doesn't exist
+
                     hasHardwareId = false;
                 }
 
@@ -1510,21 +1457,21 @@ namespace Dorothy.Services
                 }
                 else
                 {
-                    // Fallback query without HardwareId columns (will be added by migration)
+
                     query = @"
                         SELECT Id, HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, Synced, CreatedAt, SyncedAt
                         FROM Assets
                         WHERE Synced = 0";
                 }
-                
+
                 if (selectedIds != null && selectedIds.Count > 0)
                 {
                     var ids = string.Join(",", selectedIds);
                     query += $" AND Id IN ({ids})";
                 }
-                
+
                 query += " ORDER BY CreatedAt ASC";
-                
+
                 command.CommandText = query;
 
                 var assets = new List<AssetEntry>();
@@ -1678,9 +1625,6 @@ namespace Dorothy.Services
             };
         }
 
-        /// <summary>
-        /// Save a complete reachability test result to the database
-        /// </summary>
         public async Task<long> SaveReachabilityTestAsync(
             Models.ReachabilityWizardResult result,
             string? projectName = null,
@@ -1693,23 +1637,22 @@ namespace Dorothy.Services
             {
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
-                
+
                 await EnsureMigrationsAsync(connection);
 
-                // Start transaction
                 using var transaction = connection.BeginTransaction();
 
                 try
                 {
-                    // Insert main test record
+
                     var testCommand = connection.CreateCommand();
                     testCommand.Transaction = transaction;
                     testCommand.CommandText = @"
-                        INSERT INTO ReachabilityTests 
-                        (ProjectName, AnalysisMode, VantagePointName, SourceNicId, SourceIp, 
+                        INSERT INTO ReachabilityTests
+                        (ProjectName, AnalysisMode, VantagePointName, SourceNicId, SourceIp,
                          TargetNetworkName, TargetCidr, BoundaryGatewayIp, BoundaryVendor, ExternalTestIp,
                          CreatedAt, IsSynced, HardwareId, MachineName, Username, UserId)
-                        VALUES 
+                        VALUES
                         (@ProjectName, @AnalysisMode, @VantagePointName, @SourceNicId, @SourceIp,
                          @TargetNetworkName, @TargetCidr, @BoundaryGatewayIp, @BoundaryVendor, @ExternalTestIp,
                          @CreatedAt, 0, @HardwareId, @MachineName, @Username, @UserId);
@@ -1737,15 +1680,14 @@ namespace Dorothy.Services
 
                     var createdAt = DateTime.UtcNow.ToString("O");
 
-                    // Insert ICMP results
                     foreach (var icmp in result.IcmpResults)
                     {
                         var icmpCommand = connection.CreateCommand();
                         icmpCommand.Transaction = transaction;
                         icmpCommand.CommandText = @"
-                            INSERT INTO ReachabilityIcmpResults 
+                            INSERT INTO ReachabilityIcmpResults
                             (TestId, TargetIp, Role, Reachable, Sent, Received, AvgRttMs, CreatedAt)
-                            VALUES 
+                            VALUES
                             (@TestId, @TargetIp, @Role, @Reachable, @Sent, @Received, @AvgRttMs, @CreatedAt);
                         ";
                         icmpCommand.Parameters.AddWithValue("@TestId", testId);
@@ -1759,15 +1701,14 @@ namespace Dorothy.Services
                         await icmpCommand.ExecuteNonQueryAsync();
                     }
 
-                    // Insert TCP results
                     foreach (var tcp in result.TcpResults)
                     {
                         var tcpCommand = connection.CreateCommand();
                         tcpCommand.Transaction = transaction;
                         tcpCommand.CommandText = @"
-                            INSERT INTO ReachabilityTcpResults 
+                            INSERT INTO ReachabilityTcpResults
                             (TestId, TargetIp, Port, State, RttMs, ErrorMessage, CreatedAt)
-                            VALUES 
+                            VALUES
                             (@TestId, @TargetIp, @Port, @State, @RttMs, @ErrorMessage, @CreatedAt);
                         ";
                         tcpCommand.Parameters.AddWithValue("@TestId", testId);
@@ -1780,7 +1721,6 @@ namespace Dorothy.Services
                         await tcpCommand.ExecuteNonQueryAsync();
                     }
 
-                    // Insert path hops
                     if (result.PathResult != null)
                     {
                         foreach (var hop in result.PathResult.Hops)
@@ -1788,9 +1728,9 @@ namespace Dorothy.Services
                             var hopCommand = connection.CreateCommand();
                             hopCommand.Transaction = transaction;
                             hopCommand.CommandText = @"
-                                INSERT INTO ReachabilityPathHops 
+                                INSERT INTO ReachabilityPathHops
                                 (TestId, TargetIp, HopNumber, HopIp, RttMs, Hostname, CreatedAt)
-                                VALUES 
+                                VALUES
                                 (@TestId, @TargetIp, @HopNumber, @HopIp, @RttMs, @Hostname, @CreatedAt);
                             ";
                             hopCommand.Parameters.AddWithValue("@TestId", testId);
@@ -1804,18 +1744,17 @@ namespace Dorothy.Services
                         }
                     }
 
-                    // Insert deeper scans
                     foreach (var scan in result.DeeperScanResults)
                     {
-                        // Serialize port states to JSON
+
                         var portStatesJson = System.Text.Json.JsonSerializer.Serialize(scan.PortStates);
-                        
+
                         var scanCommand = connection.CreateCommand();
                         scanCommand.Transaction = transaction;
                         scanCommand.CommandText = @"
-                            INSERT INTO ReachabilityDeeperScans 
+                            INSERT INTO ReachabilityDeeperScans
                             (TestId, TargetIp, PortStates, Summary, CreatedAt)
-                            VALUES 
+                            VALUES
                             (@TestId, @TargetIp, @PortStates, @Summary, @CreatedAt);
                         ";
                         scanCommand.Parameters.AddWithValue("@TestId", testId);
@@ -1843,9 +1782,6 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Save SNMP walk result and link it to a reachability test (or create a new test entry)
-        /// </summary>
         public async Task<long> SaveSnmpWalkResultAsync(
             Services.SnmpWalkResult snmpResult,
             long? existingTestId = null,
@@ -1859,7 +1795,7 @@ namespace Dorothy.Services
             {
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
-                
+
                 await EnsureMigrationsAsync(connection);
 
                 using var transaction = connection.BeginTransaction();
@@ -1871,20 +1807,20 @@ namespace Dorothy.Services
 
                     if (existingTestId.HasValue)
                     {
-                        // Link to existing test
+
                         testId = existingTestId.Value;
                     }
                     else
                     {
-                        // Create a new minimal reachability test entry for SNMP walk
+
                         var testCommand = connection.CreateCommand();
                         testCommand.Transaction = transaction;
                         testCommand.CommandText = @"
-                            INSERT INTO ReachabilityTests 
-                            (ProjectName, AnalysisMode, VantagePointName, SourceNicId, SourceIp, 
+                            INSERT INTO ReachabilityTests
+                            (ProjectName, AnalysisMode, VantagePointName, SourceNicId, SourceIp,
                              TargetNetworkName, TargetCidr, BoundaryGatewayIp, BoundaryVendor, ExternalTestIp,
                              CreatedAt, IsSynced, HardwareId, MachineName, Username, UserId)
-                            VALUES 
+                            VALUES
                             (@ProjectName, @AnalysisMode, @VantagePointName, @SourceNicId, @SourceIp,
                              @TargetNetworkName, @TargetCidr, @BoundaryGatewayIp, @BoundaryVendor, @ExternalTestIp,
                              @CreatedAt, 0, @HardwareId, @MachineName, @Username, @UserId);
@@ -1911,16 +1847,14 @@ namespace Dorothy.Services
                         testId = Convert.ToInt64(testIdObj);
                     }
 
-                    // Serialize OIDs to JSON
                     var oidsJson = System.Text.Json.JsonSerializer.Serialize(snmpResult.SuccessfulOids);
 
-                    // Insert SNMP walk result
                     var snmpCommand = connection.CreateCommand();
                     snmpCommand.Transaction = transaction;
                     snmpCommand.CommandText = @"
-                        INSERT INTO ReachabilitySnmpWalks 
+                        INSERT INTO ReachabilitySnmpWalks
                         (TestId, TargetIp, Port, Success, SuccessfulCommunity, SuccessfulOids, Attempts, DurationMs, CreatedAt)
-                        VALUES 
+                        VALUES
                         (@TestId, @TargetIp, @Port, @Success, @SuccessfulCommunity, @SuccessfulOids, @Attempts, @DurationMs, @CreatedAt);
                     ";
 
@@ -1953,9 +1887,6 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Get unsynced reachability tests
-        /// </summary>
         public async Task<List<ReachabilityTestEntry>> GetUnsyncedReachabilityTestsAsync(List<long>? selectedIds = null)
         {
             try
@@ -1963,7 +1894,6 @@ namespace Dorothy.Services
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
 
-                // Ensure migrations are run before querying
                 await EnsureMigrationsAsync(connection);
 
                 var command = connection.CreateCommand();
@@ -2049,9 +1979,6 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Get ICMP results for a specific test ID
-        /// </summary>
         public async Task<List<ReachabilityIcmpResultEntry>> GetReachabilityIcmpResultsAsync(long testId)
         {
             try
@@ -2095,9 +2022,6 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Get TCP results for a specific test ID
-        /// </summary>
         public async Task<List<ReachabilityTcpResultEntry>> GetReachabilityTcpResultsAsync(long testId)
         {
             try
@@ -2140,9 +2064,6 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Get path hops for a specific test ID
-        /// </summary>
         public async Task<List<ReachabilityPathHopEntry>> GetReachabilityPathHopsAsync(long testId)
         {
             try
@@ -2185,9 +2106,6 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Get deeper scans for a specific test ID
-        /// </summary>
         public async Task<List<ReachabilityDeeperScanEntry>> GetReachabilityDeeperScansAsync(long testId)
         {
             try
@@ -2228,9 +2146,6 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Get SNMP walks for a specific test ID
-        /// </summary>
         public async Task<List<ReachabilitySnmpWalkEntry>> GetReachabilitySnmpWalksAsync(long testId)
         {
             try
@@ -2275,9 +2190,6 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Delete reachability tests (and cascade delete child records)
-        /// </summary>
         public async Task DeleteReachabilityTestsAsync(IEnumerable<long> ids)
         {
             try
@@ -2310,9 +2222,6 @@ namespace Dorothy.Services
             }
         }
 
-        /// <summary>
-        /// Mark reachability tests as synced
-        /// </summary>
         public async Task MarkReachabilityTestsAsSyncedAsync(IEnumerable<long> ids, DateTime syncedAt)
         {
             try
@@ -2372,7 +2281,6 @@ namespace Dorothy.Services
                 Synced = reader.GetInt32(reader.GetOrdinal("IsSynced")) == 1
             };
 
-            // Map metadata fields (may not exist in older databases)
             try
             {
                 var hardwareIdOrdinal = reader.GetOrdinal("HardwareId");
@@ -2425,8 +2333,7 @@ namespace Dorothy.Services
 
             if (disposing)
             {
-                // SQLite connections are managed per-operation (using statements)
-                // No persistent connections to close, but we can log disposal
+
                 Logger.Debug("DatabaseService disposed");
             }
 

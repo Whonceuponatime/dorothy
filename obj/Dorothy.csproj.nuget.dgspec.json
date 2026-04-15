@@ -5,7 +5,7 @@
   },
   "projects": {
     "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\DoSNetworkStorm-seacure\\Dorothy.csproj": {
-      "version": "2.2.5",
+      "version": "2.5.0",
       "restore": {
         "projectUniqueName": "C:\\Users\\SAMSUNG\\Desktop\\P.Projects\\DoSNetworkStorm-seacure\\Dorothy.csproj",
         "projectName": "Dorothy",
@@ -37,7 +37,12 @@
         "restoreAuditProperties": {
           "enableAudit": "true",
           "auditLevel": "low",
-          "auditMode": "all"
+          "auditMode": "all",
+          "suppressedAdvisories": {
+            "https://github.com/advisories/GHSA-5f2m-466j-3848": null,
+            "https://github.com/advisories/GHSA-x5qj-9vmx-7g6g": null,
+            "https://github.com/advisories/GHSA-xhfc-gr8f-ffwc": null
+          }
         },
         "SdkAnalysisLevel": "9.0.100"
       },
@@ -49,15 +54,13 @@
               "target": "Package",
               "version": "[0.102.2, )"
             },
+            "Lextm.SharpSnmpLib": {
+              "target": "Package",
+              "version": "[12.2.0, )"
+            },
             "Microsoft.Data.Sqlite": {
               "target": "Package",
               "version": "[8.0.0, )"
-            },
-            "Microsoft.NET.ILLink.Tasks": {
-              "suppressParent": "All",
-              "target": "Package",
-              "version": "[8.0.11, )",
-              "autoReferenced": true
             },
             "NLog": {
               "target": "Package",
@@ -78,6 +81,10 @@
             "System.Drawing.Common": {
               "target": "Package",
               "version": "[8.0.0, )"
+            },
+            "System.IO.Packaging": {
+              "target": "Package",
+              "version": "[8.0.1, )"
             },
             "System.Management": {
               "target": "Package",

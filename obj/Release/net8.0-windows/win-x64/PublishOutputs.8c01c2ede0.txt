@@ -1,2 +1,0 @@
-C:\Users\SAMSUNG\Desktop\Dorothy\bin\Release\net8.0-windows\win-x64\publish\Dorothy.pdb
-C:\Users\SAMSUNG\Desktop\Dorothy\bin\Release\net8.0-windows\win-x64\publish\Dorothy.exe

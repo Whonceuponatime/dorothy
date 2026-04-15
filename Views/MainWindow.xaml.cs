@@ -26,15 +26,14 @@ using Dorothy.Controllers;
 using Dorothy.Models;
 using Dorothy.Network;
 using Dorothy.Network.Headers;
+using Dorothy.Services.Reachability;
 using Microsoft.Win32;
 using NLog;
 using SharpPcap;
 
 namespace Dorothy.Views
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
+
     public partial class MainWindow : Window
     {
         private readonly MainController _mainController;
@@ -44,145 +43,160 @@ namespace Dorothy.Views
         private readonly TraceRoute _traceRoute;
         private Services.SnmpWalkService? _snmpWalkService;
         private CancellationTokenSource? _snmpWalkCancellationTokenSource;
-        
-        // Security assessment tracking
+
         private bool _reachabilityTestPassed = false;
         private bool _snmpWalkNotVulnerable = false;
         private bool _isAdvancedMode;
-        private string _validationToken; // Session-based validation token
-        private const string VALIDATION_TOKEN_FILE = "validation.token"; // Encrypted validation token file
-        private bool _disclaimerAcknowledged = false; // Track if disclaimer has been shown and acknowledged
-        private bool _isHandlingTabChange = false; // Prevent re-entrancy during tab changes
-        private TabItem? _previousTab = null; // Track previous tab for proper navigation
-        private const string DISCLAIMER_ACK_FILE = "disclaimer.ack"; // Disclaimer acknowledgment file
+        private string _validationToken;
+        private const string VALIDATION_TOKEN_FILE = "validation.token";
+        private bool _disclaimerAcknowledged = false;
+        private bool _isHandlingTabChange = false;
+        private TabItem? _previousTab = null;
+        private const string DISCLAIMER_ACK_FILE = "disclaimer.ack";
         private bool? _lastSubnetStatus;
         private string? _lastSubnetMessage;
         private DateTime _lastSubnetLogTime = DateTime.MinValue;
-        private const int SUBNET_LOG_THROTTLE_MS = 1000; // Throttle duplicate messages within 1 second
+        private const int SUBNET_LOG_THROTTLE_MS = 1000;
         private CancellationTokenSource? _targetIpDebounceTokenSource;
         private const string NOTE_PLACEHOLDER = "Add a note to the security log... (Ctrl+Enter to save)";
-        private bool _isSyncingComboBoxes = false; // Flag to prevent duplicate logging when syncing comboboxes
+        private bool _isSyncingComboBoxes = false;
 
-        // Statistics tracking
         private long _totalPacketsSent = 0;
-        private long _totalBytesSent = 0; // Track actual bytes sent for accurate Mbps calculation
-        private DateTime _attackStartTime;
-        private DateTime _lastStatsUpdateTime;
-        private long _lastBytesSent = 0; // Track bytes sent at last stats update for current rate calculation
-        private System.Windows.Threading.DispatcherTimer? _statsTimer;
-        private long _targetMbps = 0;
-        private string? _currentRunningAttackType = null; // Track the currently running attack type
 
-        // Settings
+        private long _targetWireBytesPerSec = 0;
+
+        private DateTime _attackStartTime;
+
+        private DateTime _runStartTime;
+
+        private System.Windows.Threading.DispatcherTimer? _statsTimer;
+        private string? _currentRunningAttackType = null;
+
+        private bool _isTcpCalibrating = false;
+
+        private Dorothy.Services.FloodRunStatus _currentRunStatus = Dorothy.Services.FloodRunStatus.Idle;
+
+        private Dorothy.Services.FloodProtocolCapabilities _protocolCaps =
+            Dorothy.Services.FloodProtocolCapabilities.None;
+
+        private Dorothy.Services.RateUnit _currentRateUnit    = Dorothy.Services.RateUnit.Mbps;
+        private Dorothy.Services.RateUnit _advCurrentRateUnit = Dorothy.Services.RateUnit.Mbps;
+
         private string _logFileLocation = string.Empty;
         private double _fontSize = 12.0;
         private int _themeIndex = 0;
 
-        // Database and Sync Services
         private readonly Services.DatabaseService _databaseService;
         private readonly Services.SupabaseSyncService _supabaseSyncService;
         private readonly Services.ToastNotificationService _toastService;
         private System.Windows.Threading.DispatcherTimer? _syncCheckTimer;
-        
-        // Metadata for tracking
+
         private readonly string _hardwareId;
         private readonly string _machineName;
         private readonly string _username;
-        
-        // Track if we've shown sync notification this session
+
         private bool _hasShownAttackLogSyncNotification = false;
         private Services.UIScalingService? _uiScalingService;
         private double _baseFontSize = 12;
         private Services.UpdateCheckService? _updateCheckService;
         private System.Windows.Threading.DispatcherTimer? _updateCheckTimer;
 
-        // Firewall Reachability Discovery
         private Services.FirewallDiscoveryEngine? _firewallDiscoveryEngine;
 
         public MainWindow()
         {
             InitializeComponent();
-            
-            // Initialize database and sync services first
+
             _databaseService = new Services.DatabaseService();
             _supabaseSyncService = new Services.SupabaseSyncService(_databaseService);
             _toastService = new Services.ToastNotificationService(this);
-            
-            // Initialize logger with database service and metadata
+
             var licenseService = new Services.LicenseService();
             _hardwareId = licenseService.HardwareId;
             _machineName = Environment.MachineName;
             _username = Environment.UserName;
-            
+
             _attackLogger = new AttackLogger(
-                LogTextBox, 
+                LogTextBox,
                 _databaseService,
                 hardwareId: _hardwareId,
                 machineName: _machineName,
                 username: _username,
-                userId: null // Can be set if user authentication is implemented
+                userId: null
             );
-            
-            // Then initialize components that depend on logger
+
             _networkStorm = new NetworkStorm(_attackLogger);
             _traceRoute = new TraceRoute(_attackLogger);
-            _mainController = new MainController(_networkStorm, StartButton, StopButton, StatusBadge, StatusBadgeText, StatusDot, LogTextBox, this);
-            
-            // Subscribe to packet sent events for statistics
-            _networkStorm.PacketSent += NetworkStorm_PacketSent;
-            
-            // Initialize statistics timer
+
+            _mainController = new MainController(
+                _networkStorm,
+                StartButton,
+                StopButton,
+                status => Dispatcher.Invoke(() => UpdateRunStatus(status)),
+                LogTextBox,
+                this);
+
+            _networkStorm.PacketSent          += NetworkStorm_PacketSent;
+            _networkStorm.StatsPublished      += NetworkStorm_StatsPublished;
+            _networkStorm.TcpCalibrationStarted  += (_, _) => Dispatcher.BeginInvoke(() =>
+            {
+                _isTcpCalibrating = true;
+                UpdateRunStatus(Dorothy.Services.FloodRunStatus.Calibrating);
+            });
+            _networkStorm.TcpCalibrationCompleted += (_, _) => Dispatcher.BeginInvoke(() =>
+            {
+                _isTcpCalibrating = false;
+
+                _runStartTime = DateTime.Now;
+                _mainController.Log("TCP calibration complete — main send loop starting");
+                UpdateRunStatus(Dorothy.Services.FloodRunStatus.Running);
+            });
+
             _statsTimer = new System.Windows.Threading.DispatcherTimer();
-            _statsTimer.Interval = TimeSpan.FromMilliseconds(100); // Update every 100ms
+            _statsTimer.Interval = TimeSpan.FromMilliseconds(250);
             _statsTimer.Tick += StatsTimer_Tick;
 
-            // Initialize sync check timer (check every 30 seconds)
             _syncCheckTimer = new System.Windows.Threading.DispatcherTimer();
             _syncCheckTimer.Interval = TimeSpan.FromSeconds(30);
             _syncCheckTimer.Tick += SyncCheckTimer_Tick;
             _syncCheckTimer.Start();
 
-            // Initialize Firewall Discovery Engine
             _firewallDiscoveryEngine = new Services.FirewallDiscoveryEngine();
 
-            // Initialize SNMP Walk Service
             _snmpWalkService = new Services.SnmpWalkService(_attackLogger);
 
-            // Initialize UI scaling service
             _uiScalingService = Services.UIScalingService.Instance;
-            
-            // Initialize UI components first
+
             PopulateNetworkInterfaces();
             PopulateAttackTypes();
             UpdateProfileSummary();
             LoadSettings();
 
-            // Initialize toast notification service after UI is ready
             Loaded += MainWindow_Loaded;
 
             AttackTypeComboBox.SelectedIndex = 0;
             AdvancedAttackTypeComboBox.SelectedIndex = 0;
 
-            // Set placeholder text
+            UpdateAttackTypeDescription();
+            UpdateTcpSynModeSelection();
+
             NoteTextBox.Text = NOTE_PLACEHOLDER;
-            NoteTextBox.Foreground = SystemColors.GrayTextBrush;
+            NoteTextBox.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x99, 0xAA));
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             try
             {
-                // Disclaimer is shown every time user enters Advanced tab (not saved)
+
                 _disclaimerAcknowledged = false;
-                
-                // Try to load saved validation token (persists across sessions)
+
                 if (LoadValidationToken())
                 {
-                    // Token loaded and validated - enable buttons without requiring password
+
                     _isAdvancedMode = true;
                     ValidatePasswordAndUpdateUI();
-                    
-                    // Disable Validate button since validation is already active
+
                     Application.Current.Dispatcher.Invoke(() =>
                     {
                         if (AdvValidatePasswordButton != null)
@@ -190,23 +204,19 @@ namespace Dorothy.Views
                             AdvValidatePasswordButton.IsEnabled = false;
                         }
                     }, System.Windows.Threading.DispatcherPriority.Normal);
-                    
+
                     _attackLogger.LogInfo("🔓 Previous validation restored - Attack controls enabled");
                 }
-                
-                // Apply responsive scaling based on screen size
+
                 ApplyResponsiveScaling();
-                
-                // Apply enhanced UI scaling
+
                 ApplyUIScaling();
 
-                // Initialize toast notification service after window is fully loaded
                 if (ToastContainer != null)
                 {
                     _toastService.Initialize(ToastContainer);
                 }
 
-                // Show disclaimer after window is loaded
                 if (ShouldShowDisclaimer())
                 {
                     var disclaimerWindow = new DisclaimerWindow
@@ -220,21 +230,16 @@ namespace Dorothy.Views
                         return;
                     }
 
-                    // Save "don't show again" preference
                     if (disclaimerWindow.DontShowAgain)
                     {
                         SaveDisclaimerPreference();
                     }
                 }
 
-                // Start sync status check
                 _ = Task.Run(async () => await UpdateSyncStatus());
-                
-                // Initialize update check service and start checking for updates
-                // Always initialize (even if Supabase not configured, it will show "Cloud" status)
-                _updateCheckService = new Services.UpdateCheckService(_supabaseSyncService.GetSupabaseClient(), _attackLogger);
-                
-                // Check for updates immediately on startup
+
+                _updateCheckService = new Services.UpdateCheckService(_attackLogger);
+
                 _ = Task.Run(async () =>
                 {
                     try
@@ -246,8 +251,7 @@ namespace Dorothy.Views
                         _logger.Error(ex, "Error during startup update check");
                     }
                 });
-                
-                // Set up periodic update check (every 30 minutes)
+
                 _updateCheckTimer = new System.Windows.Threading.DispatcherTimer
                 {
                     Interval = TimeSpan.FromMinutes(30)
@@ -267,126 +271,107 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error during initialization: {ex.Message}\n\n{ex.StackTrace}", 
-                    "Initialization Error", 
-                    MessageBoxButton.OK, 
+                MessageBox.Show($"Error during initialization: {ex.Message}\n\n{ex.StackTrace}",
+                    "Initialization Error",
+                    MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
         }
 
-        /// <summary>
-        /// Applies comprehensive UI scaling based on screen size and DPI
-        /// </summary>
         private void ApplyUIScaling()
         {
             try
             {
                 if (_uiScalingService == null) return;
-                
-                // Get DPI-aware scale for this window
+
                 var dpiScale = _uiScalingService.GetDpiScaleForWindow(this);
-                
-                // Get screen dimensions FIRST - needed for scaling calculations
+
                 var (screenWidth, screenHeight) = _uiScalingService.GetScreenDimensionsForWindow(this);
-                
-                // Get responsive scale based on the actual screen this window is on
+
                 var responsiveScale = _uiScalingService.CalculateResponsiveScale(this);
-                
-                // Get screen category
+
                 var screenCategory = _uiScalingService.GetScreenCategory(this);
-                
-                // More aggressive scaling - apply scaling based on actual screen size, not just category
-                // Even 1920x1080 can benefit from scaling if content doesn't fit
+
                 double combinedScale;
-                
-                // Calculate scale based on actual screen size relative to a baseline (1920x1080)
-                // If screen is smaller than baseline, scale down
+
                 double baselineWidth = 1920;
                 double baselineHeight = 1080;
                 double widthRatio = screenWidth / baselineWidth;
                 double heightRatio = screenHeight / baselineHeight;
                 double sizeRatio = Math.Min(widthRatio, heightRatio);
-                
+
                 if (screenCategory == Services.ScreenCategory.Small)
                 {
-                    // For small screens, use aggressive scaling (0.70-0.80 range)
+
                     combinedScale = Math.Min(dpiScale, sizeRatio * 0.75);
                     combinedScale = Math.Max(0.70, Math.Min(0.80, combinedScale));
                 }
                 else if (screenCategory == Services.ScreenCategory.Medium)
                 {
-                    // Medium screens - moderate scaling (0.80-0.90 range)
+
                     combinedScale = Math.Min(dpiScale, sizeRatio * 0.85);
                     combinedScale = Math.Max(0.80, Math.Min(0.90, combinedScale));
                 }
                 else
                 {
-                    // Large screens - still apply some scaling if screen is smaller than baseline
-                    // This helps with laptops that are 1920x1080 but need content to fit
+
                     if (sizeRatio < 1.0)
                     {
-                        // Screen is smaller than baseline - apply scaling
+
                         combinedScale = Math.Min(dpiScale, sizeRatio * 0.95);
                         combinedScale = Math.Max(0.85, Math.Min(0.95, combinedScale));
                     }
                     else
                     {
-                        // Screen is larger than baseline - minimal or no scaling
+
                         combinedScale = Math.Min(dpiScale, responsiveScale);
                     }
                 }
-                
-                // Apply font scaling
+
                 _uiScalingService.ApplyFontScaling(this, _baseFontSize, combinedScale);
-                
-                // Get recommended minimum size based on actual screen
+
                 var (minWidth, minHeight) = _uiScalingService.GetRecommendedMinSize(this);
-                
+
                 this.MinWidth = minWidth;
                 this.MinHeight = minHeight;
-                
-                // Adjust window size if not maximized and on a small screen
+
                 if (this.WindowState != WindowState.Maximized)
                 {
                     if (screenCategory == Services.ScreenCategory.Small)
                     {
-                        // On small screens, make window fit better
+
                         this.Width = Math.Min(screenWidth * 0.98, 1200);
                         this.Height = Math.Min(screenHeight * 0.95, 800);
                     }
                 }
-                
-                // Adjust margins based on scale - reduce margins on smaller screens
+
                 if (MainContentGrid != null)
                 {
-                    var baseMargin = screenCategory == Services.ScreenCategory.Small ? 8.0 : 
+                    var baseMargin = screenCategory == Services.ScreenCategory.Small ? 8.0 :
                                     screenCategory == Services.ScreenCategory.Medium ? 12.0 : 16.0;
                     var margin = _uiScalingService.GetScaledThickness(baseMargin, combinedScale);
                     MainContentGrid.Margin = margin;
                 }
-                
-                // Adjust column widths for small screens to prevent scrolling
+
                 if (MainContentGrid != null && MainContentGrid.ColumnDefinitions.Count >= 2)
                 {
                     if (screenCategory == Services.ScreenCategory.Small)
                     {
-                        // On small screens, make columns more flexible - reduce min width significantly
+
                         MainContentGrid.ColumnDefinitions[0].MinWidth = 320;
                         MainContentGrid.ColumnDefinitions[1].MinWidth = 320;
                     }
                     else
                     {
-                        // Reset to default on larger screens
+
                         MainContentGrid.ColumnDefinitions[0].MinWidth = 400;
                         MainContentGrid.ColumnDefinitions[1].MinWidth = 400;
                     }
                 }
-                
-                // Apply scaling transform to TabControl to make content fit better
-                // Apply to all screens that need scaling (not just small)
+
                 if (MainTabControl != null)
                 {
-                    // Reduce margin between left and right panels on smaller screens
+
                     if (screenCategory == Services.ScreenCategory.Small)
                     {
                         MainTabControl.Margin = new Thickness(0, 0, 6, 0);
@@ -399,18 +384,14 @@ namespace Dorothy.Views
                     {
                         MainTabControl.Margin = new Thickness(0, 0, 12, 0);
                     }
-                    
-                    // Apply LayoutTransform to prevent scrolling on all screen sizes
-                    // Always apply some scaling to ensure content fits, even on large screens
-                    // Use a minimum scale of 0.90 for large screens to prevent overflow
+
                     double transformScale = combinedScale;
                     if (screenCategory == Services.ScreenCategory.Large || screenCategory == Services.ScreenCategory.ExtraLarge)
                     {
-                        // For large screens, apply minimum scaling to prevent scrolling
-                        // This ensures Advanced tab content fits even with all fields visible
+
                         transformScale = Math.Max(0.90, Math.Min(1.0, combinedScale));
                     }
-                    
+
                     if (transformScale < 1.0)
                     {
                         var scaleTransform = new ScaleTransform(transformScale, transformScale);
@@ -420,7 +401,7 @@ namespace Dorothy.Views
                     }
                     else
                     {
-                        // Even if scale is 1.0, apply slight scaling for large screens to prevent overflow
+
                         if (screenCategory == Services.ScreenCategory.Large || screenCategory == Services.ScreenCategory.ExtraLarge)
                         {
                             var scaleTransform = new ScaleTransform(0.95, 0.95);
@@ -437,24 +418,19 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                // Silently handle scaling errors
+
                 System.Diagnostics.Debug.WriteLine($"Error applying UI scaling: {ex.Message}");
             }
         }
 
-        /// <summary>
-        /// Handles scale change events
-        /// </summary>
         private void UIScalingService_ScaleChanged(object? sender, EventArgs e)
         {
             try
             {
                 if (_uiScalingService == null) return;
-                
-                // Reapply font scaling when scale changes
+
                 _uiScalingService.ApplyFontScaling(this, _baseFontSize);
-                
-                // Optionally apply transform to entire window content
+
                 if (MainContentGrid != null)
                 {
                     _uiScalingService.ApplyScaleTransform(MainContentGrid);
@@ -466,13 +442,10 @@ namespace Dorothy.Views
             }
         }
 
-        /// <summary>
-        /// Handles keyboard shortcuts for zoom (Ctrl + Plus/Minus/0)
-        /// </summary>
         private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
             if (_uiScalingService == null) return;
-            
+
             if (e.KeyboardDevice.Modifiers == System.Windows.Input.ModifierKeys.Control)
             {
                 if (e.Key == System.Windows.Input.Key.Add || e.Key == System.Windows.Input.Key.OemPlus)
@@ -495,8 +468,7 @@ namespace Dorothy.Views
 
         private void Window_SizeChanged(object sender, SizeChangedEventArgs e)
         {
-            // Reapply scaling when window size changes or moves between screens
-            // This ensures proper scaling when moving from large monitor to laptop screen
+
             if (IsLoaded)
             {
                 ApplyUIScaling();
@@ -505,8 +477,7 @@ namespace Dorothy.Views
 
         private void Window_LocationChanged(object? sender, EventArgs e)
         {
-            // Reapply scaling when window location changes (moves to different screen)
-            // This ensures proper scaling when moving from large monitor to laptop screen
+
             if (IsLoaded)
             {
                 ApplyUIScaling();
@@ -517,54 +488,46 @@ namespace Dorothy.Views
         {
             try
             {
-                // Get primary screen dimensions
+
                 var screenWidth = SystemParameters.PrimaryScreenWidth;
                 var screenHeight = SystemParameters.PrimaryScreenHeight;
-                
-                // Calculate scale factor based on screen size
-                // Use 1920x1080 as baseline (scale = 1.0)
+
                 double baseWidth = 1920;
                 double baseHeight = 1080;
-                
+
                 double widthScale = screenWidth / baseWidth;
                 double heightScale = screenHeight / baseHeight;
-                
-                // Use the smaller scale to ensure everything fits
+
                 double scale = Math.Min(widthScale, heightScale);
-                
-                // Clamp scale between 0.6 and 1.2 to prevent extreme scaling
+
                 scale = Math.Max(0.6, Math.Min(1.2, scale));
-                
-                // Adjust window minimum size based on screen size
+
                 if (screenWidth < 1366 || screenHeight < 768)
                 {
-                    // Small screens (laptops, tablets)
+
                     this.MinWidth = 800;
                     this.MinHeight = 600;
                 }
                 else if (screenWidth < 1600 || screenHeight < 900)
                 {
-                    // Medium screens
+
                     this.MinWidth = 1000;
                     this.MinHeight = 650;
                 }
                 else
                 {
-                    // Large screens (default)
+
                     this.MinWidth = 1200;
                     this.MinHeight = 700;
                 }
-                
-                // Adjust font sizes if screen is small
+
                 if (scale < 0.85)
                 {
-                    // Reduce base font size for small screens
+
                     double fontSizeMultiplier = 0.9;
-                    
-                    // Apply to window-level font size
+
                     this.FontSize = 12 * fontSizeMultiplier;
-                    
-                    // Adjust specific UI elements that might be too large
+
                     if (PacketsSentText != null)
                         PacketsSentText.FontSize = 14 * fontSizeMultiplier;
                     if (ElapsedTimeText != null)
@@ -574,39 +537,36 @@ namespace Dorothy.Views
                     if (ProfileSummaryText != null)
                         ProfileSummaryText.FontSize = 11 * fontSizeMultiplier;
                 }
-                
-                // Adjust window size if not maximized and screen is small
+
                 if (this.WindowState != WindowState.Maximized)
                 {
                     if (screenWidth < 1366 || screenHeight < 768)
                     {
-                        // For small screens, set a reasonable default size
+
                         this.Width = Math.Min(screenWidth * 0.95, 1200);
                         this.Height = Math.Min(screenHeight * 0.95, 800);
                     }
                 }
-                
-                // Adjust margins for smaller screens
+
                 if (MainContentGrid != null)
                 {
                     if (screenWidth < 1366 || screenHeight < 768)
                     {
-                        // Reduce margins on small screens
+
                         MainContentGrid.Margin = new Thickness(8);
                     }
                     else if (screenWidth < 1600 || screenHeight < 900)
                     {
-                        // Medium margins for medium screens
+
                         MainContentGrid.Margin = new Thickness(12);
                     }
                     else
                     {
-                        // Default margins for large screens
+
                         MainContentGrid.Margin = new Thickness(16);
                     }
                 }
-                
-                // Adjust header padding for smaller screens
+
                 if (HeaderBar != null)
                 {
                     if (screenWidth < 1366 || screenHeight < 768)
@@ -618,16 +578,15 @@ namespace Dorothy.Views
                         HeaderBar.Padding = new Thickness(16, 12, 16, 12);
                     }
                 }
-                
-                // Adjust logo size for smaller screens
+
                 if (LogoImage != null && (screenWidth < 1366 || screenHeight < 768))
                 {
-                    // Reduce logo size on small screens
+
                     LogoImage.Height = 120;
                 }
                 else if (LogoImage != null && (screenWidth < 1600 || screenHeight < 900))
                 {
-                    // Medium size for medium screens
+
                     LogoImage.Height = 140;
                 }
             }
@@ -649,7 +608,7 @@ namespace Dorothy.Views
             }
             catch
             {
-                return true; // Show disclaimer if we can't check
+                return true;
             }
         }
 
@@ -666,7 +625,7 @@ namespace Dorothy.Views
             }
             catch
             {
-                // Ignore errors saving preference
+
             }
         }
 
@@ -680,99 +639,188 @@ namespace Dorothy.Views
             _attackLogger.LogWarning(message);
         }
 
-        private void UpdateStatusBadge(string status, string statusType)
+        private void UpdateRunStatus(Dorothy.Services.FloodRunStatus status)
         {
-            StatusBadgeText.Text = status;
-            
-            // Update badge style and color based on status type
-            switch (statusType.ToLower())
+            _currentRunStatus = status;
+            switch (status)
             {
-                case "ready":
-                case "idle":
-                    StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D1FAE5"));
-                    StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
-                    StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+                case Dorothy.Services.FloodRunStatus.Idle:
+                case Dorothy.Services.FloodRunStatus.Stopped:
+                    ApplyBadge("Ready",        "#1A3A2A", "#4ADE80");
                     break;
-                case "attacking":
-                case "running":
-                case "active":
-                    StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEE2E2"));
-                    StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
-                    StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
+
+                case Dorothy.Services.FloodRunStatus.Calibrating:
+                    ApplyBadge("Calibrating…", "#3A3520", "#FBBF24");
                     break;
-                case "error":
-                    StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#FEE2E2"));
-                    StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
-                    StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#E45757"));
+
+                case Dorothy.Services.FloodRunStatus.Running:
+                    ApplyBadge("Running",      "#3A2020", "#F87171");
                     break;
-                default:
-                    StatusBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#D1FAE5"));
-                    StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
-                    StatusDot.Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#059669"));
+
+                case Dorothy.Services.FloodRunStatus.UnderTarget:
+                    ApplyBadge("Under Target", "#3A3520", "#FBBF24");
+                    break;
+
+                case Dorothy.Services.FloodRunStatus.Error:
+                    ApplyBadge("Error",        "#3A2020", "#F87171");
                     break;
             }
+        }
+
+        private void ApplyBadge(string text, string bgHex, string fgHex, string? dotHex = null)
+        {
+            StatusBadge.Background     = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bgHex));
+            StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(fgHex));
+            StatusDot.Fill             = new SolidColorBrush((Color)ColorConverter.ConvertFromString(dotHex ?? fgHex));
+            StatusBadgeText.Text       = text;
         }
 
         private void NetworkStorm_PacketSent(object? sender, Models.PacketEventArgs e)
         {
-            _totalPacketsSent++;
-            // e.Packet is the L2 Ethernet frame (all attacks now use SharpPcap injection).
-            // Adding 4 bytes for the Ethernet FCS gives the true wire size, so the displayed
-            // Mbps matches what the user entered and what appears on the wire.
-            _totalBytesSent += e.Packet.Length + 4;
+
             _attackLogger.IncrementPacketCount();
+        }
+
+        private void NetworkStorm_StatsPublished(object? sender, Dorothy.Services.FloodSnapshot snapshot)
+        {
+
+            _totalPacketsSent = snapshot.PacketsSent;
+
+            Dispatcher.InvokeAsync(() =>
+            {
+
+                MbpsSentText.Text   = $"{snapshot.ActualMbps:F1} Mbps";
+                TargetRateText.Text = $"{snapshot.TargetMbps:F1} Mbps";
+
+                if (snapshot.IsCalibrating || _isTcpCalibrating)
+                {
+                    RateDeltaText.Text = "Calibrating…";
+                    RateDeltaText.Foreground = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(217, 119, 6));
+                    DiagnosticReasonText.Text = "Calibrating";
+                    DiagnosticReasonText.Foreground = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(107, 114, 128));
+                    if (ConfidenceText != null) ConfidenceText.Text = "—";
+                    if (DiagnosticReasonTooltipText != null)
+                        DiagnosticReasonTooltipText.Text =
+                            "TCP is measuring max PPS to size the payload. " +
+                            "Rate comparison and diagnostics resume after calibration.";
+                    return;
+                }
+
+                if (snapshot.TargetWireBytesPerSec == 0)
+                {
+                    RateDeltaText.Text       = "—";
+                    RateDeltaText.Foreground = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(107, 114, 128));
+                }
+                else
+                {
+                    double vs = snapshot.VsTargetPercent;
+                    RateDeltaText.Text = $"{vs:F0}%";
+
+                    System.Windows.Media.Color vsColor;
+                    if (vs >= 95)      vsColor = System.Windows.Media.Color.FromRgb(5, 150, 105);
+                    else if (vs >= 70) vsColor = System.Windows.Media.Color.FromRgb(217, 119, 6);
+                    else               vsColor = System.Windows.Media.Color.FromRgb(220, 38, 38);
+                    RateDeltaText.Foreground = new System.Windows.Media.SolidColorBrush(vsColor);
+
+                    UpdateRunStatus(vs >= 95
+                        ? Dorothy.Services.FloodRunStatus.Running
+                        : Dorothy.Services.FloodRunStatus.UnderTarget);
+                }
+
+                string reason = string.IsNullOrWhiteSpace(snapshot.ReasonString)
+                    ? "—"
+                    : snapshot.ReasonString;
+
+                System.Windows.Media.Color reasonColor = reason switch
+                {
+                    "On target"      => System.Windows.Media.Color.FromRgb(5, 150, 105),
+                    "NIC saturated"  => System.Windows.Media.Color.FromRgb(220, 38, 38),
+                    "CPU bound"      => System.Windows.Media.Color.FromRgb(217, 119, 6),
+                    "Drain starved"  => System.Windows.Media.Color.FromRgb(217, 119, 6),
+                    _                => System.Windows.Media.Color.FromRgb(107, 114, 128)
+                };
+                DiagnosticReasonText.Text = reason;
+                DiagnosticReasonText.Foreground = new System.Windows.Media.SolidColorBrush(reasonColor);
+
+                if (ConfidenceText != null)
+                    ConfidenceText.Text =
+                        $"Confidence: {Dorothy.Services.RateConverter.FormatConfidenceShort(snapshot.Confidence)}";
+
+                if (DiagnosticReasonTooltipText != null)
+                    DiagnosticReasonTooltipText.Text =
+                        Dorothy.Services.RateConverter.ExplainFull(snapshot.LastReason) +
+                        $"\n\nReason (plain): {reason}" +
+                        $"\n[Code: {snapshot.LastReason}]" +
+                        "\n\nAll diagnostics are heuristic inferences from counters, " +
+                        "not directly measured root causes.";
+            });
         }
 
         private void StatsTimer_Tick(object? sender, EventArgs e)
         {
-            if (_attackStartTime != default)
+            if (_attackStartTime == default) return;
+
+            var runStart = _runStartTime != default ? _runStartTime : _attackStartTime;
+            var elapsed  = DateTime.Now - runStart;
+            ElapsedTimeText.Text = elapsed.ToString(@"hh\:mm\:ss");
+
+            PacketsSentText.Text = _totalPacketsSent.ToString("N0");
+
+            TargetRateText.Text = Dorothy.Services.RateConverter.Format(_targetWireBytesPerSec);
+
+            var snap = _networkStorm.LatestSnapshot;
+            if (snap == null)
             {
-                var elapsed = DateTime.Now - _attackStartTime;
-                ElapsedTimeText.Text = elapsed.ToString(@"hh\:mm\:ss");
-                
-                // Calculate Mbps sent using current rate (bytes sent in last second)
-                // This matches Task Manager's instantaneous rate display
-                var now = DateTime.Now;
-                if (_lastStatsUpdateTime != default)
+                if (_protocolCaps.SupportsRateSnapshots)
                 {
-                    var timeSinceLastUpdate = (now - _lastStatsUpdateTime).TotalSeconds;
-                    if (timeSinceLastUpdate > 0)
-                    {
-                        // Calculate current rate: bytes sent since last update
-                        var bytesSentSinceLastUpdate = _totalBytesSent - _lastBytesSent;
-                        var mbpsSent = (bytesSentSinceLastUpdate * 8.0) / (timeSinceLastUpdate * 1_000_000);
-                        MbpsSentText.Text = mbpsSent.ToString("F2");
-                    }
+
+                    MbpsSentText.Text = "—";
                 }
                 else
                 {
-                    // First update - use average rate
-                if (elapsed.TotalSeconds > 0)
-                {
-                        var mbpsSent = (_totalBytesSent * 8.0) / (elapsed.TotalSeconds * 1_000_000);
-                    MbpsSentText.Text = mbpsSent.ToString("F2");
-                    }
+
+                    MbpsSentText.Text         = "N/A";
+                    RateDeltaText.Text        = "N/A";
+                    RateDeltaText.Foreground  = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(107, 114, 128));
+                    DiagnosticReasonText.Text = "—";
+                    DiagnosticReasonText.Foreground = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(107, 114, 128));
+                    if (ConfidenceText != null) ConfidenceText.Text = "N/A";
+                    if (DiagnosticReasonTooltipText != null)
+                        DiagnosticReasonTooltipText.Text = _protocolCaps.UnavailableMessage;
                 }
-                
-                // Update tracking for next calculation
-                _lastBytesSent = _totalBytesSent;
-                _lastStatsUpdateTime = now;
-                
-                PacketsSentText.Text = _totalPacketsSent.ToString("N0");
             }
+
+            if (_isTcpCalibrating && _currentRunStatus != Dorothy.Services.FloodRunStatus.Calibrating)
+                UpdateRunStatus(Dorothy.Services.FloodRunStatus.Calibrating);
         }
 
         private void ResetStatistics()
         {
-            _totalPacketsSent = 0;
-            _totalBytesSent = 0;
-            _attackStartTime = default;
-            _lastStatsUpdateTime = default;
-            _lastBytesSent = 0;
-            PacketsSentText.Text = "0";
-            ElapsedTimeText.Text = "00:00:00";
-            MbpsSentText.Text = "0.00";
-            _currentRunningAttackType = null; // Clear attack type when resetting statistics
+            _totalPacketsSent      = 0;
+            _attackStartTime       = default;
+            _runStartTime          = default;
+            _targetWireBytesPerSec = 0;
+            _isTcpCalibrating      = false;
+            _currentRunStatus      = Dorothy.Services.FloodRunStatus.Idle;
+            _protocolCaps          = Dorothy.Services.FloodProtocolCapabilities.None;
+
+            PacketsSentText.Text  = "0";
+            ElapsedTimeText.Text  = "00:00:00";
+            MbpsSentText.Text     = "—";
+            TargetRateText.Text   = "—";
+            RateDeltaText.Text    = "—";
+            RateDeltaText.Foreground = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(107, 114, 128));
+            DiagnosticReasonText.Text = "—";
+            DiagnosticReasonText.Foreground = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(107, 114, 128));
+            if (ConfidenceText != null) ConfidenceText.Text = "—";
+            _currentRunningAttackType = null;
         }
 
         private void UpdateProfileSummary()
@@ -780,8 +828,7 @@ namespace Dorothy.Views
             try
             {
                 var parts = new List<string>();
-                
-                // Get attack type
+
                 string attackType = "None";
                 if (MainTabControl.SelectedItem == AdvancedTab)
                 {
@@ -796,7 +843,6 @@ namespace Dorothy.Views
                         attackType = basicType;
                 }
 
-                // Get Mbps
                 string mbps = "0";
                 if (MainTabControl.SelectedItem == AdvancedTab)
                 {
@@ -812,7 +858,6 @@ namespace Dorothy.Views
                     parts.Add($"Profile: {attackType} ({mbps} Mbps)");
                 }
 
-                // Get NIC
                 string nicName = "";
                 if (MainTabControl.SelectedItem == AdvancedTab)
                 {
@@ -830,7 +875,6 @@ namespace Dorothy.Views
                     parts.Add($"NIC: {nicName}");
                 }
 
-                // Get Target
                 string targetIp = "";
                 string targetPort = "";
                 if (MainTabControl.SelectedItem == AdvancedTab)
@@ -846,17 +890,15 @@ namespace Dorothy.Views
 
                 if (!string.IsNullOrEmpty(targetIp))
                 {
-                    var targetStr = string.IsNullOrEmpty(targetPort) || targetPort == "0" 
-                        ? targetIp 
+                    var targetStr = string.IsNullOrEmpty(targetPort) || targetPort == "0"
+                        ? targetIp
                         : $"{targetIp}:{targetPort}";
                     parts.Add($"Target: {targetStr}");
                 }
 
-                // Get Mode
                 string mode = MainTabControl.SelectedItem == AdvancedTab ? "Advanced" : "Basic";
                 parts.Add($"Mode: {mode}");
 
-                // Format profile on single line with proper spacing
                 ProfileSummaryText.Text = string.Join("  |  ", parts);
             }
             catch (Exception ex)
@@ -877,7 +919,7 @@ namespace Dorothy.Views
                 _logFileLocation = settingsWindow.LogLocation;
                 _fontSize = settingsWindow.FontSize;
                 _themeIndex = settingsWindow.ThemeIndex;
-                
+
                 SaveSettings();
                 ApplyUISettings();
                 _ = UpdateSyncStatus();
@@ -888,7 +930,7 @@ namespace Dorothy.Views
         {
             try
             {
-                // Load from user settings or use defaults
+
                 var settingsFile = System.IO.Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                     "SEACURE(TOOL)",
@@ -905,7 +947,7 @@ namespace Dorothy.Views
                             double.TryParse(line.Substring("FontSize=".Length), out _fontSize);
                         else if (line.StartsWith("FontSizeIndex="))
                         {
-                            // Legacy support: convert old index to font size
+
                             if (int.TryParse(line.Substring("FontSizeIndex=".Length), out int oldIndex))
                             {
                                 _fontSize = oldIndex switch
@@ -923,11 +965,10 @@ namespace Dorothy.Views
                 }
                 else
                 {
-                    // Default to installation directory
+
                     _logFileLocation = AppDomain.CurrentDomain.BaseDirectory;
                 }
 
-                // Initialize Supabase with hardcoded credentials (always configured)
                 _supabaseSyncService.Initialize(Services.SupabaseConfig.Url, Services.SupabaseConfig.AnonKey);
 
                 ApplyUISettings();
@@ -977,19 +1018,16 @@ namespace Dorothy.Views
         {
             try
             {
-                // Apply font size to all UI elements in both panels
+
                 double fontSize = _fontSize;
-                
-                // Apply to window-level font size (affects all elements)
+
                 this.FontSize = fontSize;
-                
-                // Apply to log textbox (right panel)
+
                 if (LogTextBox != null)
                 {
                     LogTextBox.FontSize = fontSize;
                 }
-                
-                // Apply to all text elements in left panel (Basic Settings)
+
                 ApplyFontSizeToElement(TargetIpTextBox, fontSize);
                 ApplyFontSizeToElement(TargetMacTextBox, fontSize);
                 ApplyFontSizeToElement(SourceIpTextBox, fontSize);
@@ -998,8 +1036,7 @@ namespace Dorothy.Views
                 ApplyFontSizeToElement(TargetPortTextBox, fontSize);
                 ApplyFontSizeToElement(MegabitsPerSecondTextBox, fontSize);
                 ApplyFontSizeToElement(NoteTextBox, fontSize);
-                
-                // Apply to all text elements in left panel (Advanced Settings)
+
                 ApplyFontSizeToElement(AdvTargetIpTextBox, fontSize);
                 ApplyFontSizeToElement(AdvTargetMacTextBox, fontSize);
                 ApplyFontSizeToElement(AdvSourceIpTextBox, fontSize);
@@ -1007,14 +1044,12 @@ namespace Dorothy.Views
                 ApplyFontSizeToElement(AdvGatewayIpTextBox, fontSize);
                 ApplyFontSizeToElement(AdvTargetPortTextBox, fontSize);
                 ApplyFontSizeToElement(AdvMegabitsPerSecondTextBox, fontSize);
-                
-                // Apply to combo boxes
+
                 ApplyFontSizeToElement(NetworkInterfaceComboBox, fontSize);
                 ApplyFontSizeToElement(AttackTypeComboBox, fontSize);
                 ApplyFontSizeToElement(AdvNetworkInterfaceComboBox, fontSize);
                 ApplyFontSizeToElement(AdvancedAttackTypeComboBox, fontSize);
-                
-                // Apply to labels and other text elements
+
                 ApplyFontSizeToElement(StatusBadgeText, fontSize);
                 ApplyFontSizeToElement(PacketsSentText, fontSize);
                 ApplyFontSizeToElement(ElapsedTimeText, fontSize);
@@ -1026,17 +1061,17 @@ namespace Dorothy.Views
                 _logger.Error(ex, "Error applying UI settings");
             }
         }
-        
+
         private void ApplyFontSizeToElement(FrameworkElement element, double fontSize)
         {
             if (element != null)
             {
-                // Apply font size to Control elements (TextBox, ComboBox, etc.)
+
                 if (element is Control control)
                 {
                     control.FontSize = fontSize;
                 }
-                // Apply font size to TextBlock elements
+
                 else if (element is TextBlock textBlock)
                 {
                     textBlock.FontSize = fontSize;
@@ -1044,40 +1079,72 @@ namespace Dorothy.Views
             }
         }
 
+        private void ProtocolCard_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.Tag is string tag && int.TryParse(tag, out int idx))
+            {
+                if (idx >= 0 && idx < AttackTypeComboBox.Items.Count)
+                    AttackTypeComboBox.SelectedIndex = idx;
+            }
+        }
+
+        private void UpdateProtocolCardSelection()
+        {
+            if (ProtocolCardsPanel == null || AttackTypeComboBox == null) return;
+            int selected = AttackTypeComboBox.SelectedIndex;
+            var accent = (SolidColorBrush)FindResource("AccentBlue");
+            var selectedBg = new SolidColorBrush(Color.FromRgb(0x2E, 0x3F, 0x5C));
+            foreach (var child in ProtocolCardsPanel.Children)
+            {
+                if (child is Border b && b.Tag is string tag && int.TryParse(tag, out int idx))
+                {
+                    if (idx == selected)
+                    {
+                        b.BorderBrush = accent;
+                        b.BorderThickness = new Thickness(2);
+                        b.Background = selectedBg;
+                    }
+                    else
+                    {
+                        b.ClearValue(Border.BorderBrushProperty);
+                        b.ClearValue(Border.BorderThicknessProperty);
+                        b.ClearValue(Border.BackgroundProperty);
+                    }
+                }
+            }
+        }
+
         private void HelpButton_Click(object sender, RoutedEventArgs e)
         {
-            // Use existing update check service if available, otherwise create new one
-            var updateCheckService = _updateCheckService ?? 
-                (_supabaseSyncService.IsConfigured 
-                    ? new Services.UpdateCheckService(_supabaseSyncService.GetSupabaseClient(), _attackLogger) 
-                    : null);
-            
+
+            var updateCheckService = _updateCheckService ?? new Services.UpdateCheckService(_attackLogger);
+
             var aboutWindow = new AboutWindow(updateCheckService)
             {
                 Owner = this
             };
             aboutWindow.ShowDialog();
         }
-        
+
         private async Task CheckForUpdatesAsync()
         {
             if (_updateCheckService == null)
                 return;
-                
+
             try
             {
                 var result = await _updateCheckService.CheckForUpdatesAsync();
-                
+
                 Dispatcher.Invoke(() =>
                 {
                     if (result.IsOnline && result.IsUpdateAvailable)
                     {
-                        // Show red alert badge on About button
+
                         UpdateAvailableBadge.Visibility = Visibility.Visible;
                     }
                     else
                     {
-                        // Hide badge if no update available or offline
+
                         UpdateAvailableBadge.Visibility = Visibility.Collapsed;
                     }
                 });
@@ -1092,11 +1159,11 @@ namespace Dorothy.Views
         {
             try
             {
-                // Use saved log location or default to installation directory
-                string logLocation = string.IsNullOrEmpty(_logFileLocation) 
-                    ? AppDomain.CurrentDomain.BaseDirectory 
+
+                string logLocation = string.IsNullOrEmpty(_logFileLocation)
+                    ? AppDomain.CurrentDomain.BaseDirectory
                     : _logFileLocation;
-                
+
                 var saveFileDialog = new SaveFileDialog
                 {
                     Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
@@ -1122,15 +1189,15 @@ namespace Dorothy.Views
         {
             try
             {
-                // Get current values
-                string sourceIp = MainTabControl.SelectedItem == AdvancedTab 
-                    ? AdvSourceIpTextBox.Text.Trim() 
+
+                string sourceIp = MainTabControl.SelectedItem == AdvancedTab
+                    ? AdvSourceIpTextBox.Text.Trim()
                     : SourceIpTextBox.Text.Trim();
-                
-                string targetIp = MainTabControl.SelectedItem == AdvancedTab 
-                    ? AdvTargetIpTextBox.Text.Trim() 
+
+                string targetIp = MainTabControl.SelectedItem == AdvancedTab
+                    ? AdvTargetIpTextBox.Text.Trim()
                     : TargetIpTextBox.Text.Trim();
-                
+
                 string attackType = "None";
                 if (MainTabControl.SelectedItem == AdvancedTab)
                 {
@@ -1145,15 +1212,12 @@ namespace Dorothy.Views
                         attackType = basicType.Replace(" ", "_");
                 }
 
-                // Sanitize values for filename
                 sourceIp = string.IsNullOrEmpty(sourceIp) ? "unknown" : sourceIp.Replace(".", "_");
                 targetIp = string.IsNullOrEmpty(targetIp) ? "unknown" : targetIp.Replace(".", "_");
                 attackType = string.IsNullOrEmpty(attackType) ? "None" : attackType.Replace(" ", "_").Replace("(", "").Replace(")", "");
 
-                // Format: datetime_srcip_to_targetip_attacktype.txt
                 var fileName = $"{DateTime.Now:yyyyMMdd_HHmmss}_{sourceIp}_to_{targetIp}_{attackType}.txt";
-                
-                // Remove invalid filename characters
+
                 var invalidChars = System.IO.Path.GetInvalidFileNameChars();
                 foreach (var c in invalidChars)
                 {
@@ -1175,16 +1239,13 @@ namespace Dorothy.Views
             {
                 _logger.Info("Application closing - starting cleanup...");
 
-                // Stop all timers first
                 _statsTimer?.Stop();
                 _syncCheckTimer?.Stop();
                 _updateCheckTimer?.Stop();
 
-                // Cancel any pending cancellation tokens
                 _targetIpDebounceTokenSource?.Cancel();
                 _targetIpDebounceTokenSource?.Dispose();
 
-                // Stop any running attacks with timeout
                 if (StartButton.IsEnabled == false || StopButton.IsEnabled == true)
                 {
                     try
@@ -1203,7 +1264,6 @@ namespace Dorothy.Views
                     }
                 }
 
-                // Stop advanced attacks
                 if (StartAdvancedAttackButton.IsEnabled == false || StopAdvancedAttackButton.IsEnabled == true)
                 {
                     try
@@ -1222,7 +1282,6 @@ namespace Dorothy.Views
                     }
                 }
 
-                // Dispose network resources
                 try
                 {
                     _logger.Info("Disposing network resources...");
@@ -1233,7 +1292,6 @@ namespace Dorothy.Views
                     _logger.Warn(ex, "Error disposing network storm");
                 }
 
-                // Close database connections
                 try
                 {
                     _logger.Info("Closing database connections...");
@@ -1244,16 +1302,14 @@ namespace Dorothy.Views
                     _logger.Warn(ex, "Error disposing database service");
                 }
 
-                // Auto-save log
                 if (!string.IsNullOrEmpty(LogTextBox.Text))
                 {
                     try
                     {
-                        string logLocation = string.IsNullOrEmpty(_logFileLocation) 
-                            ? AppDomain.CurrentDomain.BaseDirectory 
+                        string logLocation = string.IsNullOrEmpty(_logFileLocation)
+                            ? AppDomain.CurrentDomain.BaseDirectory
                             : _logFileLocation;
 
-                        // Ensure directory exists
                         if (!System.IO.Directory.Exists(logLocation))
                         {
                             System.IO.Directory.CreateDirectory(logLocation);
@@ -1268,11 +1324,10 @@ namespace Dorothy.Views
                     catch (Exception ex)
                     {
                         _logger.Error(ex, "Error auto-saving log on close");
-                        // Don't prevent window from closing if save fails
+
                     }
                 }
 
-                // Force garbage collection to clean up any remaining resources
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
                 GC.Collect();
@@ -1321,7 +1376,7 @@ namespace Dorothy.Views
                 var unsyncedLogs = await _databaseService.GetUnsyncedLogsAsync();
                 var unsyncedAssets = await _databaseService.GetUnsyncedAssetsAsync();
                 var unsyncedTests = await _databaseService.GetUnsyncedReachabilityTestsAsync();
-                
+
                 if (unsyncedLogs.Count == 0 && unsyncedAssets.Count == 0 && unsyncedTests.Count == 0)
                 {
                     _toastService.ShowInfo("No pending logs, assets, or tests to sync.");
@@ -1338,11 +1393,9 @@ namespace Dorothy.Views
                     CloudSyncButton.IsEnabled = false;
                     var originalTooltip = CloudSyncButton.ToolTip;
 
-                    // Show loading overlay
                     SyncLoadingOverlay.Visibility = Visibility.Visible;
                     SyncProgressText.Text = "Preparing sync...";
-                    
-                    // Subscribe to progress updates
+
                     _supabaseSyncService.ProgressChanged += OnSyncProgressChanged;
 
                     try
@@ -1352,38 +1405,33 @@ namespace Dorothy.Views
                         int syncedTestsCount = 0;
                         bool hasDeletions = syncWindow.DeletedLogIds.Count > 0 || syncWindow.DeletedAssetIds.Count > 0 || syncWindow.DeletedTestIds.Count > 0 || syncWindow.DeletedSnmpWalkIds.Count > 0;
 
-                    // Delete selected logs if any (always process deletions, even if not syncing)
                     if (syncWindow.DeletedLogIds.Count > 0)
                     {
                         await _databaseService.DeleteLogsAsync(syncWindow.DeletedLogIds);
                         _attackLogger.LogInfo($"Deleted {syncWindow.DeletedLogIds.Count} log(s).");
                     }
 
-                    // Delete selected assets if any (always process deletions, even if not syncing)
                     if (syncWindow.DeletedAssetIds.Count > 0)
                     {
                         await _databaseService.DeleteAssetsAsync(syncWindow.DeletedAssetIds);
                         _attackLogger.LogInfo($"Deleted {syncWindow.DeletedAssetIds.Count} asset(s).");
                     }
 
-                    // Delete selected tests if any (always process deletions, even if not syncing)
                     if (syncWindow.DeletedTestIds.Count > 0)
                     {
                         await _databaseService.DeleteReachabilityTestsAsync(syncWindow.DeletedTestIds);
                         _attackLogger.LogInfo($"Deleted {syncWindow.DeletedTestIds.Count} reachability test(s).");
                     }
 
-                    // Delete selected SNMP walks if any (always process deletions, even if not syncing)
                     if (syncWindow.DeletedSnmpWalkIds.Count > 0)
                     {
                         await _databaseService.DeleteReachabilityTestsAsync(syncWindow.DeletedSnmpWalkIds);
                         _attackLogger.LogInfo($"Deleted {syncWindow.DeletedSnmpWalkIds.Count} SNMP walk(s).");
                     }
 
-                    // Only sync if user clicked "Sync Selected" button
                     if (syncWindow.ShouldSync)
                     {
-                        // Sync selected logs
+
                         if (syncWindow.SelectedLogIds.Count > 0)
                         {
                             var result = await _supabaseSyncService.SyncAsync(syncWindow.ProjectName, syncWindow.SelectedLogIds);
@@ -1400,10 +1448,9 @@ namespace Dorothy.Views
                             }
                         }
 
-                        // Sync selected assets
                         if (syncWindow.SelectedAssetIds.Count > 0)
                         {
-                            // Pass enhance data option to sync service
+
                             var result = await _supabaseSyncService.SyncAssetsAsync(syncWindow.ProjectName, syncWindow.SelectedAssetIds, syncWindow.EnhanceData);
 
                             if (result.Success)
@@ -1418,7 +1465,6 @@ namespace Dorothy.Views
                             }
                         }
 
-                        // Sync selected reachability tests (combine regular tests and SNMP walks)
                         var allTestIds = syncWindow.SelectedTestIds.Concat(syncWindow.SelectedSnmpWalkIds).ToList();
                         if (allTestIds.Count > 0)
                         {
@@ -1437,14 +1483,13 @@ namespace Dorothy.Views
                             }
                         }
 
-                        // Show success message
                         if (syncedLogsCount > 0 || syncedAssetsCount > 0 || syncedTestsCount > 0)
                         {
                             var parts = new List<string>();
                             if (syncedLogsCount > 0) parts.Add($"{syncedLogsCount} log(s)");
                             if (syncedAssetsCount > 0) parts.Add($"{syncedAssetsCount} asset(s)");
                             if (syncedTestsCount > 0) parts.Add($"{syncedTestsCount} test(s)");
-                            
+
                             var message = $"Sync complete ✅ {string.Join(", ", parts)} synced successfully.";
                             _toastService.ShowSuccess(message);
                         }
@@ -1455,29 +1500,27 @@ namespace Dorothy.Views
                     }
                     else if (hasDeletions)
                     {
-                        // User deleted items but didn't sync - just show deletion confirmation
+
                         var deletedCount = syncWindow.DeletedLogIds.Count + syncWindow.DeletedAssetIds.Count + syncWindow.DeletedTestIds.Count;
                         _toastService.ShowInfo($"Deleted {deletedCount} item(s).");
                     }
 
-                        // Hide loading overlay
                         SyncLoadingOverlay.Visibility = Visibility.Collapsed;
                         _supabaseSyncService.ProgressChanged -= OnSyncProgressChanged;
-                        
+
                         CloudSyncButton.IsEnabled = true;
                         CloudSyncButton.ToolTip = originalTooltip;
 
-                        // Always update sync status after window closes (deletions or sync)
                         _ = Task.Run(async () => await UpdateSyncStatus());
                     }
                     catch (Exception ex)
                     {
-                        // Ensure loading overlay is hidden even on error
+
                         SyncLoadingOverlay.Visibility = Visibility.Collapsed;
                         _supabaseSyncService.ProgressChanged -= OnSyncProgressChanged;
                         CloudSyncButton.IsEnabled = true;
                         CloudSyncButton.ToolTip = originalTooltip;
-                        
+
                         _attackLogger.LogError($"Sync operation failed: {ex.Message}");
                         _toastService.ShowError($"Sync failed: {ex.Message}");
                     }
@@ -1521,14 +1564,14 @@ namespace Dorothy.Views
                 var pendingAssetsCount = await _supabaseSyncService.GetPendingAssetsCountAsync();
                 var pendingTestsCount = await _supabaseSyncService.GetPendingReachabilityTestsCountAsync();
                 var totalPending = pendingLogsCount + pendingAssetsCount + pendingTestsCount;
-                
+
                 Dispatcher.Invoke(() =>
                 {
                     if (totalPending > 0)
                     {
                         CloudSyncNotificationBadge.Visibility = Visibility.Visible;
                         CloudSyncNotificationText.Text = totalPending > 99 ? "99+" : totalPending.ToString();
-                        
+
                         var tooltipParts = new List<string>();
                         if (pendingLogsCount > 0) tooltipParts.Add($"{pendingLogsCount} log(s)");
                         if (pendingAssetsCount > 0) tooltipParts.Add($"{pendingAssetsCount} asset(s)");
@@ -1552,7 +1595,7 @@ namespace Dorothy.Views
             {
                 var button = sender as Button;
                 if (button == null) return;
-                
+
             try
             {
                 button.IsEnabled = false;
@@ -1567,7 +1610,6 @@ namespace Dorothy.Views
                     return;
                 }
 
-                // Check subnet and gateway requirement before pinging
                 if (!CheckSubnetAndGatewayRequirement(targetIp))
                 {
                     MessageBox.Show("Gateway IP is required for targets on different subnets.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -1575,25 +1617,32 @@ namespace Dorothy.Views
                 }
 
                 var result = await _mainController.PingHostAsync(targetIp);
+
+                if (sender == PingButton) UpdateMacRouteHint(targetIp);
+
                 if (result.Success)
                 {
-                    targetTextBox.Background = new SolidColorBrush(Color.FromRgb(200, 255, 200));
+                    targetTextBox.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x3A, 0x2A));
+                    targetTextBox.Foreground = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80));
+                    targetTextBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x5A, 0x3A));
                     _attackLogger.LogPing(targetIp, true, (int)result.RoundtripTime);
-                    
-                    // If ARP Spoofing is selected, sync the other tab's IP field color
-                    if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem && 
+
+                    if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem &&
                         selectedItem.Content.ToString() == "ARP Spoofing")
                     {
                         var otherTextBox = (sender == PingButton) ? AdvTargetIpTextBox : TargetIpTextBox;
-                        otherTextBox.Background = new SolidColorBrush(Color.FromRgb(200, 255, 200));
+                        otherTextBox.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x3A, 0x2A));
+                        otherTextBox.Foreground = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80));
+                        otherTextBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x5A, 0x3A));
                     }
                 }
                 else
                 {
-                    targetTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                    targetTextBox.Background = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                    targetTextBox.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                    targetTextBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5A, 0x30, 0x30));
                     _attackLogger.LogPing(targetIp, false);
-                    
-                    // Auto-enable fallback mode when ping fails
+
                     var fallbackCheckBox = (sender == PingButton) ? MacFallbackCheckBox : AdvMacFallbackCheckBox;
                     if (fallbackCheckBox != null && (!fallbackCheckBox.IsChecked.HasValue || !fallbackCheckBox.IsChecked.Value))
                     {
@@ -1605,10 +1654,10 @@ namespace Dorothy.Views
             catch (Exception ex)
             {
                 _attackLogger.LogError($"Ping error: {ex}");
-                if (sender == PingButton)
-                    TargetIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
-                else
-                    AdvTargetIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                var errorBox = (sender == PingButton) ? TargetIpTextBox : AdvTargetIpTextBox;
+                errorBox.Background = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                errorBox.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                errorBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5A, 0x30, 0x30));
             }
             finally
             {
@@ -1634,7 +1683,6 @@ namespace Dorothy.Views
                     return false;
                 }
 
-                // Get the network interface for the source IP
                 var selectedInterface = NetworkInterfaceComboBox.SelectedItem as dynamic;
                 if (selectedInterface?.Interface is NetworkInterface nic)
                 {
@@ -1644,12 +1692,11 @@ namespace Dorothy.Views
 
                     if (unicastInfo != null)
                     {
-                        // Convert subnet mask to uint32
+
                         var maskBytes = unicastInfo.IPv4Mask.GetAddressBytes();
                         Array.Reverse(maskBytes);
                         var mask = BitConverter.ToUInt32(maskBytes, 0);
 
-                        // Convert IPs to uint32
                         var sourceBytes = sourceIpAddress.GetAddressBytes();
                         var targetBytes = targetIpAddress.GetAddressBytes();
                         Array.Reverse(sourceBytes);
@@ -1657,14 +1704,13 @@ namespace Dorothy.Views
                         var sourceInt = BitConverter.ToUInt32(sourceBytes, 0);
                         var targetInt = BitConverter.ToUInt32(targetBytes, 0);
 
-                        // Compare network portions
                         var sameSubnet = (sourceInt & mask) == (targetInt & mask);
-                        
+
                         if (!sameSubnet)
                         {
                             if (isResolvingMac)
                             {
-                                // For MAC resolution, we can't resolve MACs for IPs outside our local network
+
                                 _attackLogger.LogWarning($"Cannot resolve MAC for {targetIp} - Not on local network");
                                 return false;
                             }
@@ -1678,17 +1724,14 @@ namespace Dorothy.Views
                             }
                         }
 
-                        // Update gateway field
                         GatewayIpTextBox.IsEnabled = !sameSubnet;
                         if (sameSubnet)
                         {
                             GatewayIpTextBox.Text = string.Empty;
-                            GatewayIpTextBox.Background = SystemColors.ControlBrush;
                         }
-                        else
-                        {
-                            GatewayIpTextBox.Background = SystemColors.WindowBrush;
-                        }
+                        GatewayIpTextBox.ClearValue(TextBox.BackgroundProperty);
+                        GatewayIpTextBox.ClearValue(TextBox.ForegroundProperty);
+                        GatewayIpTextBox.ClearValue(TextBox.BorderBrushProperty);
 
                         return true;
                     }
@@ -1708,141 +1751,314 @@ namespace Dorothy.Views
             var button = sender as Button;
             try
             {
-                if (button != null)
-                button.Content = "Resolving...";
+                if (button != null) button.Content = "Resolving...";
 
-                var targetIp = (sender == ResolveMacButton) ? TargetIpTextBox.Text : AdvTargetIpTextBox.Text;
-                var targetMacTextBox = (sender == ResolveMacButton) ? TargetMacTextBox : AdvTargetMacTextBox;
-                var fallbackCheckBox = (sender == ResolveMacButton) ? MacFallbackCheckBox : AdvMacFallbackCheckBox;
+                bool isBasic        = sender == ResolveMacButton;
+                var targetIp        = isBasic ? TargetIpTextBox.Text        : AdvTargetIpTextBox.Text;
+                var sourceIpText    = isBasic ? SourceIpTextBox.Text         : AdvSourceIpTextBox.Text;
+                var targetMacTB     = isBasic ? TargetMacTextBox             : AdvTargetMacTextBox;
+                var fallbackCB      = isBasic ? MacFallbackCheckBox          : AdvMacFallbackCheckBox;
 
                 if (string.IsNullOrWhiteSpace(targetIp))
                 {
-                    MessageBox.Show("Please enter a target IP address.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show("Please enter a target IP address.", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
-                _attackLogger.LogInfo($"🔍 Resolving MAC address for {targetIp}...");
-
-                // First, try to ping the target to populate ARP cache
-                var pingResult = await _mainController.PingHostAsync(targetIp);
-                if (!pingResult.Success)
+                var routeType = RouteType.Unknown;
+                if (IPAddress.TryParse(targetIp, out var targetIpAddr) &&
+                    IPAddress.TryParse(sourceIpText, out var sourceIpAddr))
                 {
-                    _attackLogger.LogWarning($"Ping failed for {targetIp} - MAC resolution may fail. Fallback mode available for manual entry.");
+                    routeType = TargetExpansionService.DetermineRoute(sourceIpAddr, targetIpAddr);
                 }
 
-                // Check if target is on different subnet
+                if (routeType == RouteType.NoRoute)
+                {
+                    _attackLogger.LogError(
+                        $"No route to {targetIp} from {sourceIpText} — raw packet send will fail. " +
+                        "Check NIC selection and routing.");
+                    MessageBox.Show(
+                        $"No route to target {targetIp} from source IP {sourceIpText}.\n\n" +
+                        "Raw packet transmission will fail. Check NIC selection and routing configuration.",
+                        "No Route to Target", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (routeType == RouteType.Unknown)
+                {
+                    var proceed = MessageBox.Show(
+                        $"Cannot determine route to {targetIp} from {sourceIpText}.\n\n" +
+                        "If the target is on a different subnet, use the next-hop gateway MAC.\n" +
+                        "The remote host MAC cannot be used as L2 destination across routed hops.\n\n" +
+                        "Proceed with resolution attempt?",
+                        "Route Unknown — Confirm", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    if (proceed != MessageBoxResult.Yes) return;
+                }
+
                 if (!CheckSubnetAndGatewayRequirement(targetIp, true))
                 {
-                    // For external IPs, use the gateway MAC
+
                     if (string.IsNullOrWhiteSpace(_networkStorm.GatewayIp))
                     {
-                        _attackLogger.LogError("Gateway IP not configured. Cannot resolve MAC for external target.");
-                        targetMacTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
-                        
-                        // Enable fallback mode if not already enabled
-                        if (fallbackCheckBox != null && (!fallbackCheckBox.IsChecked.HasValue || !fallbackCheckBox.IsChecked.Value))
+                        _attackLogger.LogError(
+                            $"Routed target {targetIp} — gateway IP not configured. " +
+                            "Cannot resolve remote host MAC across routed hops; next-hop gateway MAC is required.");
+                        MessageBox.Show(
+                            $"Cannot resolve MAC for routed target {targetIp}.\n\n" +
+                            "The remote host MAC is NOT reachable at Layer 2 across routed hops.\n" +
+                            "A Gateway IP must be configured so the next-hop MAC can be resolved.\n\n" +
+                            "Please set Gateway IP in Network Configuration, then retry.",
+                            "Gateway Required for Routed Target",
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                        if (fallbackCB != null && fallbackCB.IsChecked != true)
                         {
-                            fallbackCheckBox.IsChecked = true;
-                            _attackLogger.LogInfo("⚠️ Fallback mode enabled - Please enter gateway MAC address manually");
+                            fallbackCB.IsChecked = true;
+                            _attackLogger.LogInfo(
+                                "⚠ Fallback mode enabled — enter next-hop gateway MAC manually");
                         }
                         return;
                     }
 
+                    _attackLogger.LogInfo(
+                        $"🔍 Resolving next-hop gateway MAC for {_networkStorm.GatewayIp} " +
+                        $"(routed target {targetIp} — remote host MAC unreachable at L2)...");
+
                     var gatewayMac = await _mainController.GetMacAddressAsync(_networkStorm.GatewayIp);
                     if (gatewayMac.Length > 0)
                     {
-                        var macAddress = BitConverter.ToString(gatewayMac).Replace("-", ":");
-                        targetMacTextBox.Text = macAddress;
-                        targetMacTextBox.Background = new SolidColorBrush(Color.FromRgb(200, 255, 200));
-                        _attackLogger.LogMacResolution(targetIp, macAddress, true);
+                        var mac = BitConverter.ToString(gatewayMac).Replace("-", ":");
+                        targetMacTB.Text       = mac;
+                        targetMacTB.Background  = new SolidColorBrush(Color.FromRgb(0x1A, 0x3A, 0x2A));
+                        targetMacTB.Foreground  = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80));
+                        targetMacTB.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x5A, 0x3A));
+                        _attackLogger.LogMacResolution(targetIp, mac, true);
+                        _attackLogger.LogSuccess(
+                            $"✓ Next-hop gateway MAC resolved: {mac}  (gateway: {_networkStorm.GatewayIp})");
 
-                        // If ARP Spoofing is selected, sync the other tab's MAC field
-                        if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem && 
-                            selectedItem.Content.ToString() == "ARP Spoofing")
+                        if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem si &&
+                            si.Content?.ToString() == "ARP Spoofing")
                         {
-                            var otherMacTextBox = (sender == ResolveMacButton) ? AdvTargetMacTextBox : TargetMacTextBox;
-                            otherMacTextBox.Text = macAddress;
-                            otherMacTextBox.Background = new SolidColorBrush(Color.FromRgb(200, 255, 200));
+                            var other = isBasic ? AdvTargetMacTextBox : TargetMacTextBox;
+                            other.Text = mac;
+                            other.Background  = new SolidColorBrush(Color.FromRgb(0x1A, 0x3A, 0x2A));
+                            other.Foreground  = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80));
+                            other.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x5A, 0x3A));
                         }
                     }
                     else
                     {
-                        _attackLogger.LogError($"Failed to resolve gateway MAC address for {_networkStorm.GatewayIp} - Required for routed target");
-                        targetMacTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
-                        
-                        // Enable fallback mode if not already enabled
-                        if (fallbackCheckBox != null && (!fallbackCheckBox.IsChecked.HasValue || !fallbackCheckBox.IsChecked.Value))
+                        _attackLogger.LogError(
+                            $"Failed to resolve gateway MAC for {_networkStorm.GatewayIp}. " +
+                            "Cannot resolve remote host MAC across routed hops — enter next-hop gateway MAC manually.");
+                        targetMacTB.Background  = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                        targetMacTB.Foreground  = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                        targetMacTB.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5A, 0x30, 0x30));
+                        if (fallbackCB != null && fallbackCB.IsChecked != true)
                         {
-                            fallbackCheckBox.IsChecked = true;
-                            _attackLogger.LogInfo("⚠️ Fallback mode enabled - Please enter MAC address manually");
+                            fallbackCB.IsChecked = true;
+                            _attackLogger.LogInfo(
+                                "⚠ Fallback mode enabled — enter next-hop gateway MAC manually");
                         }
                     }
                 }
                 else
                 {
-                    // For local IPs, resolve the actual MAC
-                    var macBytes = await _mainController.GetMacAddressAsync(targetIp);
-                if (macBytes.Length > 0)
-                {
-                    var macAddress = BitConverter.ToString(macBytes).Replace("-", ":");
-                    targetMacTextBox.Text = macAddress;
-                    targetMacTextBox.Background = new SolidColorBrush(Color.FromRgb(200, 255, 200));
-                        _attackLogger.LogMacResolution(targetIp, macAddress, false);
 
-                    // If ARP Spoofing is selected, sync the other tab's MAC field
-                    if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem && 
-                        selectedItem.Content.ToString() == "ARP Spoofing")
+                    _attackLogger.LogInfo(
+                        $"🔍 Resolving destination host MAC for {targetIp} (on-link target)...");
+
+                    var pingResult = await _mainController.PingHostAsync(targetIp);
+                    if (!pingResult.Success)
+                        _attackLogger.LogWarning(
+                            $"Ping to {targetIp} did not respond — ARP may still succeed if host is on-link");
+
+                    var macBytes = await _mainController.GetMacAddressAsync(targetIp);
+                    if (macBytes.Length > 0)
                     {
-                        var otherMacTextBox = (sender == ResolveMacButton) ? AdvTargetMacTextBox : TargetMacTextBox;
-                        otherMacTextBox.Text = macAddress;
-                        otherMacTextBox.Background = new SolidColorBrush(Color.FromRgb(200, 255, 200));
-                    }
-                }
-                else
-                {
-                        _attackLogger.LogWarning($"Could not resolve MAC address for {targetIp}. Target may be blocking ping/ARP or not responding.");
-                        _attackLogger.LogInfo("This is normal if the target has firewall rules blocking ICMP or ARP requests.");
-                    targetMacTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
-                        
-                        // Enable fallback mode if not already enabled
-                        if (fallbackCheckBox != null && (!fallbackCheckBox.IsChecked.HasValue || !fallbackCheckBox.IsChecked.Value))
+                        var mac = BitConverter.ToString(macBytes).Replace("-", ":");
+                        targetMacTB.Text       = mac;
+                        targetMacTB.Background  = new SolidColorBrush(Color.FromRgb(0x1A, 0x3A, 0x2A));
+                        targetMacTB.Foreground  = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80));
+                        targetMacTB.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x5A, 0x3A));
+                        _attackLogger.LogMacResolution(targetIp, mac, false);
+                        _attackLogger.LogSuccess($"✓ Destination host MAC resolved: {mac}");
+
+                        if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem si &&
+                            si.Content?.ToString() == "ARP Spoofing")
                         {
-                            fallbackCheckBox.IsChecked = true;
-                            _attackLogger.LogInfo("⚠️ Fallback mode enabled - Target MAC field is now editable for manual entry");
+                            var other = isBasic ? AdvTargetMacTextBox : TargetMacTextBox;
+                            other.Text = mac;
+                            other.Background  = new SolidColorBrush(Color.FromRgb(0x1A, 0x3A, 0x2A));
+                            other.Foreground  = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80));
+                            other.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x5A, 0x3A));
+                        }
+                    }
+                    else
+                    {
+                        _attackLogger.LogWarning(
+                            $"Could not resolve destination host MAC for {targetIp} — " +
+                            "host may block ARP, may not be on-link, or may be offline.");
+                        targetMacTB.Background  = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                        targetMacTB.Foreground  = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                        targetMacTB.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5A, 0x30, 0x30));
+                        if (fallbackCB != null && fallbackCB.IsChecked != true)
+                        {
+                            fallbackCB.IsChecked = true;
+                            _attackLogger.LogInfo(
+                                "⚠ Fallback mode enabled — enter destination host MAC manually");
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                _attackLogger.LogError($"Error resolving MAC address: {ex.Message}");
-                _attackLogger.LogInfo("This is normal if the target blocks ICMP/ARP requests. Use fallback mode to enter MAC manually.");
-                var targetMacTextBox = (sender == ResolveMacButton) ? TargetMacTextBox : AdvTargetMacTextBox;
-                var fallbackCheckBox = (sender == ResolveMacButton) ? MacFallbackCheckBox : AdvMacFallbackCheckBox;
-                targetMacTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
-                
-                // Enable fallback mode on error
-                if (fallbackCheckBox != null && (!fallbackCheckBox.IsChecked.HasValue || !fallbackCheckBox.IsChecked.Value))
+                _attackLogger.LogError($"Error resolving MAC: {ex.Message}");
+                var targetMacTB = (sender == ResolveMacButton) ? TargetMacTextBox : AdvTargetMacTextBox;
+                var fallbackCB  = (sender == ResolveMacButton) ? MacFallbackCheckBox : AdvMacFallbackCheckBox;
+                targetMacTB.Background  = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                targetMacTB.Foreground  = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                targetMacTB.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5A, 0x30, 0x30));
+                if (fallbackCB != null && fallbackCB.IsChecked != true)
                 {
-                    fallbackCheckBox.IsChecked = true;
-                    _attackLogger.LogInfo("Fallback mode enabled. Please enter MAC address manually.");
+                    fallbackCB.IsChecked = true;
+                    _attackLogger.LogInfo("Fallback mode enabled — enter MAC address manually");
                 }
             }
             finally
             {
-                if (button != null)
-                    button.Content = "Resolve";
+                if (button != null) button.Content = "Resolve";
             }
+        }
+
+        private enum DestType { Unicast, Multicast, Broadcast }
+
+        private DestType GetSelectedDestType()
+        {
+            if (BroadcastRadio?.IsChecked == true) return DestType.Broadcast;
+            if (MulticastRadio?.IsChecked == true) return DestType.Multicast;
+            return DestType.Unicast;
+        }
+
+        private void DestType_Changed(object sender, RoutedEventArgs e)
+        {
+            if (TargetIpTextBox == null || DestTypeHintText == null) return;
+
+            var destType = GetSelectedDestType();
+            string protocol = (AttackTypeComboBox?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? string.Empty;
+
+            if (destType == DestType.Broadcast)
+            {
+                string sourceIp = SourceIpTextBox?.Text?.Trim() ?? string.Empty;
+                if (IPAddress.TryParse(sourceIp, out var srcIp) && srcIp.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                {
+                    var bytes = srcIp.GetAddressBytes();
+                    bytes[3] = 255;
+                    TargetIpTextBox.Text = new IPAddress(bytes).ToString();
+                }
+                else
+                {
+                    TargetIpTextBox.Text = "255.255.255.255";
+                }
+                if (TargetMacTextBox != null)
+                    TargetMacTextBox.Text = "FF:FF:FF:FF:FF:FF";
+                if (ResolveMacButton != null)
+                    ResolveMacButton.IsEnabled = false;
+
+                DestTypeHintText.Text = "Broadcast: packets sent to all hosts on the subnet. Dest MAC auto-set to FF:FF:FF:FF:FF:FF.";
+            }
+            else if (destType == DestType.Multicast)
+            {
+                TargetIpTextBox.Text = "224.0.0.1";
+                if (TargetMacTextBox != null)
+                    TargetMacTextBox.Text = ComputeMulticastMacString("224.0.0.1");
+                if (ResolveMacButton != null)
+                    ResolveMacButton.IsEnabled = false;
+
+                DestTypeHintText.Text = "Multicast: packets sent to a multicast group (224.0.0.0/4). Dest MAC auto-derived as 01:00:5E + lower 23 bits of IP.";
+            }
+            else
+            {
+                string t = TargetIpTextBox.Text ?? string.Empty;
+                if (t.StartsWith("224.") || t.StartsWith("239.") || t.EndsWith(".255") || t == "255.255.255.255")
+                {
+                    TargetIpTextBox.Text = string.Empty;
+                }
+                if (TargetMacTextBox != null && !string.IsNullOrEmpty(TargetMacTextBox.Text)
+                    && (TargetMacTextBox.Text.StartsWith("FF:FF:FF") || TargetMacTextBox.Text.StartsWith("01:00:5E")))
+                {
+                    TargetMacTextBox.Text = string.Empty;
+                    TargetMacTextBox.ClearValue(TextBox.BackgroundProperty);
+                    TargetMacTextBox.ClearValue(TextBox.ForegroundProperty);
+                    TargetMacTextBox.ClearValue(TextBox.BorderBrushProperty);
+                }
+                if (ResolveMacButton != null)
+                    ResolveMacButton.IsEnabled = true;
+                DestTypeHintText.Text = string.Empty;
+            }
+
+            if (protocol == "TCP SYN Flood" && destType != DestType.Unicast)
+            {
+                DestTypeHintText.Text += " Note: TCP SYN to broadcast/multicast is uncommon and may be dropped.";
+            }
+        }
+
+        private static string ComputeMulticastMacString(string multicastIp)
+        {
+            if (!IPAddress.TryParse(multicastIp, out var ip)) return string.Empty;
+            var b = ip.GetAddressBytes();
+            return $"01:00:5E:{(b[1] & 0x7F):X2}:{b[2]:X2}:{b[3]:X2}";
+        }
+
+        private byte[]? ComputeDestinationMacOverride(string targetIp)
+        {
+            var destType = GetSelectedDestType();
+            if (destType == DestType.Broadcast)
+                return new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+            if (destType == DestType.Multicast && IPAddress.TryParse(targetIp, out var ip))
+            {
+                var b = ip.GetAddressBytes();
+                return new byte[] { 0x01, 0x00, 0x5E, (byte)(b[1] & 0x7F), b[2], b[3] };
+            }
+            return null;
+        }
+
+        private bool ValidateDestinationType(string targetIp)
+        {
+            var destType = GetSelectedDestType();
+            if (destType == DestType.Unicast) return true;
+
+            if (!IPAddress.TryParse(targetIp, out var ip) || ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+            {
+                MessageBox.Show("Invalid target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
+
+            if (destType == DestType.Multicast)
+            {
+                byte first = ip.GetAddressBytes()[0];
+                if (first < 224 || first > 239)
+                {
+                    MessageBox.Show("Multicast requires an IP in range 224.0.0.0 - 239.255.255.255.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return false;
+                }
+            }
+            else
+            {
+                if (!targetIp.EndsWith(".255") && targetIp != "255.255.255.255")
+                {
+                    MessageBox.Show("Broadcast requires a broadcast address (e.g. 192.168.1.255 or 255.255.255.255).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return false;
+                }
+            }
+            return true;
         }
 
         private async void StartButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                // Basic Settings doesn't require password - skip validation
-                // Only Advanced Settings requires password
-                
-                // Get the selected attack type based on current tab
+
                 var attackType = MainTabControl.SelectedItem == AdvancedTab ?
                     (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() :
                     (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
@@ -1904,7 +2120,6 @@ namespace Dorothy.Views
                     return false;
                 }
 
-                // Get the network interface for the source IP
                 var selectedInterface = NetworkInterfaceComboBox.SelectedItem as dynamic;
                 if (selectedInterface?.Interface is NetworkInterface nic)
                 {
@@ -1914,12 +2129,11 @@ namespace Dorothy.Views
 
                     if (unicastInfo != null)
                     {
-                        // Use actual subnet mask
+
                         var maskBytes = unicastInfo.IPv4Mask.GetAddressBytes();
                         Array.Reverse(maskBytes);
                         var mask = BitConverter.ToUInt32(maskBytes, 0);
 
-                        // Convert IPs to uint32
                         var sourceBytes = sourceIpAddress.GetAddressBytes();
                         var targetBytes = targetIpAddress.GetAddressBytes();
                         Array.Reverse(sourceBytes);
@@ -1927,17 +2141,16 @@ namespace Dorothy.Views
                         var sourceInt = BitConverter.ToUInt32(sourceBytes, 0);
                         var targetInt = BitConverter.ToUInt32(targetBytes, 0);
 
-                        // Compare network portions
                         var sameSubnet = (sourceInt & mask) == (targetInt & mask);
 
                         if (!sameSubnet)
                         {
-                            // Check if gateway is set
+
                             var gatewayIp = GatewayIpTextBox.Text.Trim();
                             if (string.IsNullOrWhiteSpace(gatewayIp))
                             {
                                 _attackLogger.LogError("Gateway IP is required for cross-subnet targets. Please configure gateway or use a target on the same subnet.");
-                                MessageBox.Show("Gateway IP is required for targets on different subnets.\nPlease configure the gateway IP address.", 
+                                MessageBox.Show("Gateway IP is required for targets on different subnets.\nPlease configure the gateway IP address.",
                                     "Gateway Required", MessageBoxButton.OK, MessageBoxImage.Warning);
                                 return false;
                             }
@@ -1968,7 +2181,7 @@ namespace Dorothy.Views
                 string targetIp;
                 string sourceIp;
                 int targetPort;
-                long megabitsPerSecond;
+                long bytesPerSecond;
 
                 if (MainTabControl.SelectedItem == AdvancedTab)
                 {
@@ -1979,11 +2192,8 @@ namespace Dorothy.Views
                         MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
-                    if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out megabitsPerSecond))
-                    {
-                        MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    if (!TryParseRateInput(AdvMegabitsPerSecondTextBox, _advCurrentRateUnit, out bytesPerSecond))
                         return;
-                    }
                 }
                 else
                 {
@@ -1994,44 +2204,51 @@ namespace Dorothy.Views
                         MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
-                    if (!long.TryParse(MegabitsPerSecondTextBox.Text, out megabitsPerSecond))
-                    {
-                        MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    if (!TryParseRateInput(MegabitsPerSecondTextBox, _currentRateUnit, out bytesPerSecond))
                         return;
-                    }
                 }
 
-                // Validate cross-subnet gateway requirement
-                if (!ValidateCrossSubnetGateway(targetIp, sourceIp))
-                {
+                bool isBasicTab = MainTabControl.SelectedItem != AdvancedTab;
+                if (isBasicTab && !ValidateDestinationType(targetIp))
                     return;
-                }
+
+                byte[]? destMacOverride = isBasicTab ? ComputeDestinationMacOverride(targetIp) : null;
+
+                if (destMacOverride == null && !ValidateCrossSubnetGateway(targetIp, sourceIp))
+                    return;
 
                 var selectedAttackType = attackType switch
                 {
-                    "UDP Flood" => AttackType.UdpFlood,
-                    "TCP SYN Flood" => AttackType.TcpSynFlood,
-                    "ICMP Flood" => AttackType.IcmpFlood,
+                    "UDP Flood"    => AttackType.UdpFlood,
+                    "TCP SYN Flood"=> AttackType.TcpSynFlood,
+                    "ICMP Flood"   => AttackType.IcmpFlood,
                     _ => throw new ArgumentException($"Unsupported flood attack type: {attackType}")
                 };
 
-                // Initialize statistics
-                _totalPacketsSent = 0;
-                _totalBytesSent = 0;
-                _attackStartTime = DateTime.Now;
-                _lastStatsUpdateTime = DateTime.Now; // Initialize for rate calculation
-                _lastBytesSent = 0;
-                _targetMbps = megabitsPerSecond;
+                _totalPacketsSent      = 0;
+                _attackStartTime       = DateTime.Now;
+                _targetWireBytesPerSec = bytesPerSecond;
+
+                bool isTcpAttack = selectedAttackType is AttackType.TcpSynFlood
+                                                      or AttackType.TcpRoutedFlood;
+                _runStartTime  = isTcpAttack ? default : DateTime.Now;
+                _protocolCaps  = isTcpAttack
+                    ? Dorothy.Services.FloodProtocolCapabilities.TcpWithCalibration
+                    : Dorothy.Services.FloodProtocolCapabilities.FullScheduler;
+
+                TargetRateText.Text = Dorothy.Services.RateConverter.Format(bytesPerSecond);
                 _statsTimer?.Start();
 
-                // Get MAC addresses for logging
                 var sourceMacBytes = await _mainController.GetLocalMacAddressAsync();
-                var targetMacBytes = await _mainController.GetMacAddressAsync(targetIp);
-                
-                // Log attack start with comprehensive details
-                _attackLogger.StartAttack(selectedAttackType, sourceIp, sourceMacBytes, targetIp, targetMacBytes, megabitsPerSecond, targetPort);
+                var targetMacBytes = destMacOverride
+                                     ?? await _mainController.GetMacAddressAsync(targetIp);
 
-                await _mainController.StartAttackAsync(selectedAttackType, targetIp, targetPort, megabitsPerSecond);
+                _attackLogger.StartAttack(selectedAttackType, sourceIp, sourceMacBytes, targetIp, targetMacBytes, bytesPerSecond, targetPort);
+
+                _networkStorm.TcpFloodOptions = BuildFloodOptions();
+                _networkStorm.DestinationMacOverride = destMacOverride;
+
+                await _mainController.StartAttackAsync(selectedAttackType, targetIp, targetPort, bytesPerSecond);
             }
             catch (Exception ex)
             {
@@ -2049,7 +2266,7 @@ namespace Dorothy.Views
                 string targetIp;
                 string sourceIp;
                 int targetPort;
-                long megabitsPerSecond;
+                long bytesPerSecond;
 
                 if (MainTabControl.SelectedItem == AdvancedTab)
                 {
@@ -2058,13 +2275,10 @@ namespace Dorothy.Views
                     if (!int.TryParse(AdvTargetPortTextBox.Text, out targetPort))
                     {
                         MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-                    if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out megabitsPerSecond))
-                {
-                        MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
+                        return;
+                    }
+                    if (!TryParseRateInput(AdvMegabitsPerSecondTextBox, _advCurrentRateUnit, out bytesPerSecond))
+                        return;
                 }
                 else
                 {
@@ -2073,45 +2287,32 @@ namespace Dorothy.Views
                     if (!int.TryParse(TargetPortTextBox.Text, out targetPort))
                     {
                         MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-                    if (!long.TryParse(MegabitsPerSecondTextBox.Text, out megabitsPerSecond))
-                    {
-                        MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                         return;
                     }
+                    if (!TryParseRateInput(MegabitsPerSecondTextBox, _currentRateUnit, out bytesPerSecond))
+                        return;
                 }
 
-                // Validate cross-subnet gateway requirement
                 if (!ValidateCrossSubnetGateway(targetIp, sourceIp))
-                {
                     return;
-                }
 
-                // Track the running attack type
                 _currentRunningAttackType = "Broadcast";
-
-                // Initialize statistics
-                _totalPacketsSent = 0;
-                _totalBytesSent = 0;
-                _attackStartTime = DateTime.Now;
-                _lastStatsUpdateTime = DateTime.Now; // Initialize for rate calculation
-                _lastBytesSent = 0;
-                _targetMbps = megabitsPerSecond;
+                _totalPacketsSent         = 0;
+                _attackStartTime          = DateTime.Now;
+                _runStartTime             = DateTime.Now;
+                _targetWireBytesPerSec    = bytesPerSecond;
+                _protocolCaps             = Dorothy.Services.FloodProtocolCapabilities.None;
+                TargetRateText.Text       = Dorothy.Services.RateConverter.Format(bytesPerSecond);
                 _statsTimer?.Start();
 
-                // Get MAC addresses for logging
                 var sourceMacBytes = await _mainController.GetLocalMacAddressAsync();
                 var targetMacBytes = await _mainController.GetMacAddressAsync(targetIp);
                 if (targetMacBytes.Length == 0)
-                {
-                    targetMacBytes = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF }; // Broadcast MAC
-                }
+                    targetMacBytes = new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 
-                // Log attack start with comprehensive details
-                _attackLogger.StartAttack(AttackType.UdpFlood, sourceIp, sourceMacBytes, targetIp, targetMacBytes, megabitsPerSecond, targetPort);
+                _attackLogger.StartAttack(AttackType.UdpFlood, sourceIp, sourceMacBytes, targetIp, targetMacBytes, bytesPerSecond, targetPort);
 
-                await _mainController.StartBroadcastAttackAsync(targetIp, targetPort, megabitsPerSecond);
+                await _mainController.StartBroadcastAttackAsync(targetIp, targetPort, bytesPerSecond);
             }
             catch (Exception ex)
             {
@@ -2126,20 +2327,16 @@ namespace Dorothy.Views
         {
             try
             {
-                // Basic Settings doesn't require password for stop
-                // Only Advanced Settings requires password
-                
+
                 _statsTimer?.Stop();
-                
-                // Use the tracked running attack type instead of combobox selection
-                var attackType = _currentRunningAttackType ?? 
+
+                var attackType = _currentRunningAttackType ??
                     (MainTabControl.SelectedItem == AdvancedTab ?
                     (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() :
                         (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString());
-                
-                // Check if we're in Advanced Mode (ATTACK MODE)
+
                 bool isAdvancedMode = MainTabControl.SelectedItem == AdvancedTab && _isAdvancedMode;
-                
+
                 if (attackType == "Broadcast")
                 {
                     await _mainController.StopBroadcastAttackAsync(_totalPacketsSent, isAdvancedMode);
@@ -2150,24 +2347,22 @@ namespace Dorothy.Views
                 }
                 else if (attackType != null && attackType.StartsWith("Ethernet"))
                 {
-                    // Ethernet attacks use the same stop method as regular flood attacks
+
                     await _mainController.StopAttackAsync(_totalPacketsSent, isAdvancedMode);
                 }
                 else
                 {
                     await _mainController.StopAttackAsync(_totalPacketsSent, isAdvancedMode);
                 }
-                
-                _currentRunningAttackType = null; // Clear the running attack type
+
+                _currentRunningAttackType = null;
                 ResetStatistics();
-                
-                // Update sync status immediately to show cloud notification
+
                 _ = Task.Run(async () =>
                 {
-                    await Task.Delay(500); // Reduced delay for faster notification
+                    await Task.Delay(500);
                     await UpdateSyncStatus();
-                    
-                    // Show one-time notification per session about cloud sync
+
                     if (!_hasShownAttackLogSyncNotification && _supabaseSyncService.IsConfigured)
                     {
                         _hasShownAttackLogSyncNotification = true;
@@ -2196,18 +2391,18 @@ namespace Dorothy.Views
                     .Where(n => n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
                     .Select(n =>
                     {
-                        // Get bandwidth in bits per second, convert to Mbps or Gbps
-                        long speedBps = n.Speed; // Speed is in bits per second
+
+                        long speedBps = n.Speed;
                         string bandwidthDisplay;
                         double maxMbps;
-                        
-                        if (speedBps >= 1_000_000_000) // >= 1 Gbps
+
+                        if (speedBps >= 1_000_000_000)
                         {
                             double gbps = speedBps / 1_000_000_000.0;
                             bandwidthDisplay = $"{gbps:F1} Gbps";
                             maxMbps = gbps * 1000;
                         }
-                        else if (speedBps >= 1_000_000) // >= 1 Mbps
+                        else if (speedBps >= 1_000_000)
                         {
                             double mbps = speedBps / 1_000_000.0;
                             bandwidthDisplay = $"{mbps:F0} Mbps";
@@ -2222,9 +2417,9 @@ namespace Dorothy.Views
                         else
                         {
                             bandwidthDisplay = "Unknown";
-                            maxMbps = 1000; // Default to 1 Gbps if unknown
+                            maxMbps = 1000;
                         }
-                        
+
                         return new
                         {
                             Description = $"{n.Description} ({n.Name}) - {bandwidthDisplay}",
@@ -2244,8 +2439,7 @@ namespace Dorothy.Views
                 AdvNetworkInterfaceComboBox.DisplayMemberPath = "Description";
                 NetworkInterfaceComboBox.SelectedIndex = 0;
                 AdvNetworkInterfaceComboBox.SelectedIndex = 0;
-                
-                // Update Mbps validation when interfaces are populated
+
                 UpdateMbpsValidation();
 
                 if (interfaces.Any())
@@ -2258,8 +2452,7 @@ namespace Dorothy.Views
                     SourceMacTextBox.Text = macAddress;
                     AdvSourceMacTextBox.Text = macAddress;
                 }
-                
-                // Update Mbps validation when interfaces are populated
+
                 UpdateMbpsValidation();
             }
             catch (Exception ex)
@@ -2268,22 +2461,21 @@ namespace Dorothy.Views
                 _attackLogger.LogError($"Error populating network interfaces: {ex}");
             }
         }
-        
+
         private void UpdateMbpsValidation()
         {
             try
             {
-                // Get selected NIC from current tab
-                var comboBox = MainTabControl.SelectedItem == AdvancedTab 
-                    ? AdvNetworkInterfaceComboBox 
+
+                var comboBox = MainTabControl.SelectedItem == AdvancedTab
+                    ? AdvNetworkInterfaceComboBox
                     : NetworkInterfaceComboBox;
-                
+
                 if (comboBox?.SelectedItem is { } selectedItem)
                 {
                     var selectedInterface = (dynamic)selectedItem;
-                    double maxMbps = selectedInterface.MaxMbps ?? 1000; // Default to 1 Gbps if unknown
-                    
-                    // Update tooltip to show bandwidth limit
+                    double maxMbps = selectedInterface.MaxMbps ?? 1000;
+
                     string tooltipText = $"Enter Mbps value (0 - {maxMbps:F0})";
                     MegabitsPerSecondTextBox.ToolTip = tooltipText;
                     AdvMegabitsPerSecondTextBox.ToolTip = tooltipText;
@@ -2291,10 +2483,117 @@ namespace Dorothy.Views
             }
             catch
             {
-                // Ignore errors
+
             }
         }
-        
+
+        private void RateUnitComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            _currentRateUnit = GetSelectedRateUnit(RateUnitComboBox);
+        }
+
+        private void AdvRateUnitComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            _advCurrentRateUnit = GetSelectedRateUnit(AdvRateUnitComboBox);
+        }
+
+        private static Dorothy.Services.RateUnit GetSelectedRateUnit(ComboBox box)
+        {
+            return (box?.SelectedItem as ComboBoxItem)?.Content?.ToString() switch
+            {
+                "Bps"  => Dorothy.Services.RateUnit.Bps,
+                "Kbps" => Dorothy.Services.RateUnit.Kbps,
+                "Gbps" => Dorothy.Services.RateUnit.Gbps,
+                _      => Dorothy.Services.RateUnit.Mbps
+            };
+        }
+
+        private bool TryParseRateInput(
+            TextBox rateBox,
+            Dorothy.Services.RateUnit unit,
+            out long bytesPerSecond)
+        {
+            bytesPerSecond = 0;
+
+            if (!double.TryParse(
+                    rateBox.Text,
+                    System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out double rateValue) || rateValue <= 0)
+            {
+                MessageBox.Show(
+                    $"Please enter a valid positive rate value (e.g. 100 for 100 {unit}).",
+                    "Invalid Rate",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return false;
+            }
+
+            bytesPerSecond = Dorothy.Services.RateConverter.ToWireBytesPerSec(rateValue, unit);
+
+            if (bytesPerSecond <= 0)
+            {
+                MessageBox.Show(
+                    "The rate value is too small. Enter a positive value in the selected unit.",
+                    "Invalid Rate",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return false;
+            }
+
+            return true;
+        }
+
+        private string _tcpSynMode = "Basic";
+
+        private void TcpSynModeCard_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.Tag is string tag)
+            {
+                _tcpSynMode = tag;
+                UpdateTcpSynModeSelection();
+            }
+        }
+
+        private void UpdateTcpSynModeSelection()
+        {
+            if (BasicModeCard == null || EvasionModeCard == null) return;
+            var accent = (SolidColorBrush)FindResource("AccentBlue");
+            var selectedBg = new SolidColorBrush(Color.FromRgb(0x2E, 0x3F, 0x5C));
+            Border selected = _tcpSynMode == "Evasion" ? EvasionModeCard : BasicModeCard;
+            Border unselected = _tcpSynMode == "Evasion" ? BasicModeCard : EvasionModeCard;
+            selected.BorderBrush = accent;
+            selected.BorderThickness = new Thickness(2);
+            selected.Background = selectedBg;
+            unselected.ClearValue(Border.BorderBrushProperty);
+            unselected.ClearValue(Border.BorderThicknessProperty);
+            unselected.ClearValue(Border.BackgroundProperty);
+
+            if (TcpSynModeDescText != null)
+            {
+                TcpSynModeDescText.Text = _tcpSynMode == "Evasion"
+                    ? "Per-packet randomised IP ID / TTL / window / MSS / timestamps plus software checksums. Slower but defeats default firewall heuristics."
+                    : "Standard TCP SYN packets. Best for raw throughput tests against session tables.";
+            }
+        }
+
+        private void FirewallBypassModeCheckBox_Changed(object sender, RoutedEventArgs e)      {  }
+        private void ForceSoftwareChecksumCheckBox_Changed(object sender, RoutedEventArgs e)   {  }
+        private void UseRealSourceIpCheckBox_Changed(object sender, RoutedEventArgs e)         {  }
+        private void RandomizeWithinSubnetCheckBox_Changed(object sender, RoutedEventArgs e)   {  }
+
+        private Dorothy.Services.FloodOptions BuildFloodOptions()
+        {
+            bool evasion = _tcpSynMode == "Evasion";
+            return new Dorothy.Services.FloodOptions
+            {
+                FirewallBypassMode    = evasion || FirewallBypassModeCheckBox?.IsChecked == true,
+                ForceSoftwareChecksum = evasion || ForceSoftwareChecksumCheckBox?.IsChecked == true,
+                UseRealSourceIp       = UseRealSourceIpCheckBox?.IsChecked == true,
+                RandomizeWithinSubnet = RandomizeWithinSubnetCheckBox?.IsChecked == true
+            };
+        }
+
         private void MegabitsPerSecondTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
         {
             var textBox = sender as TextBox;
@@ -2303,58 +2602,48 @@ namespace Dorothy.Views
                 e.Handled = true;
                 return;
             }
-            
-            // Allow only digits and decimal point
+
             if (!char.IsDigit(e.Text, 0) && e.Text != ".")
             {
                 e.Handled = true;
                 return;
             }
-            
-            // Prevent multiple decimal points
+
             if (e.Text == "." && textBox.Text.Contains("."))
             {
                 e.Handled = true;
                 return;
             }
-            
-            // Build the new text that would result from this input
+
             string currentText = textBox.Text ?? "";
             int selectionStart = textBox.SelectionStart;
             int selectionLength = textBox.SelectionLength;
-            
-            // Remove selected text and insert new text
-            string newText = currentText.Substring(0, selectionStart) + 
-                            e.Text + 
+
+            string newText = currentText.Substring(0, selectionStart) +
+                            e.Text +
                             currentText.Substring(selectionStart + selectionLength);
-            
-            // Allow empty text or just a decimal point (user might be typing)
+
             if (string.IsNullOrWhiteSpace(newText) || newText == ".")
             {
-                return; // Allow it
+                return;
             }
-            
-            // Try to parse as number
+
             if (double.TryParse(newText, out double value))
             {
-                // Get max Mbps from selected NIC
+
                 var comboBox = NetworkInterfaceComboBox;
                 if (comboBox?.SelectedItem is { } selectedItem)
                 {
                     var selectedInterface = (dynamic)selectedItem;
                     double maxMbps = selectedInterface.MaxMbps ?? 1000;
-                    
-                    // Only block if value is clearly out of range (negative or way over max)
-                    // Allow intermediate values during typing
+
                     if (value < 0)
                     {
                         e.Handled = true;
                         return;
                     }
-                    
-                    // Only block if it's clearly exceeding max (with some tolerance for typing)
-                    // For example, if max is 1000, allow typing "1000" but block "10000"
-                    if (value > maxMbps * 1.1) // 10% tolerance for intermediate typing
+
+                    if (value > maxMbps * 1.1)
                     {
                         e.Handled = true;
                         return;
@@ -2363,11 +2652,11 @@ namespace Dorothy.Views
             }
             else
             {
-                // Invalid format - block it
+
                 e.Handled = true;
             }
         }
-        
+
         private void AdvMegabitsPerSecondTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
         {
             var textBox = sender as TextBox;
@@ -2376,58 +2665,48 @@ namespace Dorothy.Views
                 e.Handled = true;
                 return;
             }
-            
-            // Allow only digits and decimal point
+
             if (!char.IsDigit(e.Text, 0) && e.Text != ".")
             {
                 e.Handled = true;
                 return;
             }
-            
-            // Prevent multiple decimal points
+
             if (e.Text == "." && textBox.Text.Contains("."))
             {
                 e.Handled = true;
                 return;
             }
-            
-            // Build the new text that would result from this input
+
             string currentText = textBox.Text ?? "";
             int selectionStart = textBox.SelectionStart;
             int selectionLength = textBox.SelectionLength;
-            
-            // Remove selected text and insert new text
-            string newText = currentText.Substring(0, selectionStart) + 
-                            e.Text + 
+
+            string newText = currentText.Substring(0, selectionStart) +
+                            e.Text +
                             currentText.Substring(selectionStart + selectionLength);
-            
-            // Allow empty text or just a decimal point (user might be typing)
+
             if (string.IsNullOrWhiteSpace(newText) || newText == ".")
             {
-                return; // Allow it
+                return;
             }
-            
-            // Try to parse as number
+
             if (double.TryParse(newText, out double value))
             {
-                // Get max Mbps from selected NIC
+
                 var comboBox = AdvNetworkInterfaceComboBox;
                 if (comboBox?.SelectedItem is { } selectedItem)
                 {
                     var selectedInterface = (dynamic)selectedItem;
                     double maxMbps = selectedInterface.MaxMbps ?? 1000;
-                    
-                    // Only block if value is clearly out of range (negative or way over max)
-                    // Allow intermediate values during typing
+
                     if (value < 0)
                     {
                         e.Handled = true;
                         return;
                     }
-                    
-                    // Only block if it's clearly exceeding max (with some tolerance for typing)
-                    // For example, if max is 1000, allow typing "1000" but block "10000"
-                    if (value > maxMbps * 1.1) // 10% tolerance for intermediate typing
+
+                    if (value > maxMbps * 1.1)
                     {
                         e.Handled = true;
                         return;
@@ -2436,32 +2715,28 @@ namespace Dorothy.Views
             }
             else
             {
-                // Invalid format - block it
+
                 e.Handled = true;
             }
         }
-        
+
         private void MegabitsPerSecondTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             var textBox = sender as TextBox;
             if (textBox == null) return;
-            
-            // Allow empty text (user might be clearing it)
+
             if (string.IsNullOrWhiteSpace(textBox.Text)) return;
-            
-            // Only validate when user finishes editing (lost focus) or when value is clearly invalid
-            // Don't interfere while typing
+
             if (double.TryParse(textBox.Text, out double value))
             {
-                // Get max Mbps from selected NIC
+
                 var comboBox = NetworkInterfaceComboBox;
                 if (comboBox?.SelectedItem is { } selectedItem)
                 {
                     var selectedInterface = (dynamic)selectedItem;
                     double maxMbps = selectedInterface.MaxMbps ?? 1000;
-                    
-                    // Only clamp if significantly over max (not during normal typing)
-                    if (value > maxMbps * 1.01) // 1% tolerance
+
+                    if (value > maxMbps * 1.01)
                     {
                         int caretPos = textBox.CaretIndex;
                         textBox.Text = maxMbps.ToString("F0");
@@ -2476,28 +2751,24 @@ namespace Dorothy.Views
                 }
             }
         }
-        
+
         private void AdvMegabitsPerSecondTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             var textBox = sender as TextBox;
             if (textBox == null) return;
-            
-            // Allow empty text (user might be clearing it)
+
             if (string.IsNullOrWhiteSpace(textBox.Text)) return;
-            
-            // Only validate when user finishes editing (lost focus) or when value is clearly invalid
-            // Don't interfere while typing
+
             if (double.TryParse(textBox.Text, out double value))
             {
-                // Get max Mbps from selected NIC
+
                 var comboBox = AdvNetworkInterfaceComboBox;
                 if (comboBox?.SelectedItem is { } selectedItem)
                 {
                     var selectedInterface = (dynamic)selectedItem;
                     double maxMbps = selectedInterface.MaxMbps ?? 1000;
-                    
-                    // Only clamp if significantly over max (not during normal typing)
-                    if (value > maxMbps * 1.01) // 1% tolerance
+
+                    if (value > maxMbps * 1.01)
                     {
                         int caretPos = textBox.CaretIndex;
                         textBox.Text = maxMbps.ToString("F0");
@@ -2543,14 +2814,12 @@ namespace Dorothy.Views
 
         private void NetworkInterfaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Check if this call is from syncing (prevent duplicate processing) - CHECK FIRST!
-            // This must be the very first check to prevent any duplicate processing
+
             if (_isSyncingComboBoxes)
             {
-                return; // Skip processing if this was triggered by sync
+                return;
             }
 
-            // Set flag immediately to prevent recursive calls
             _isSyncingComboBoxes = true;
 
             try
@@ -2563,8 +2832,7 @@ namespace Dorothy.Views
                     var macBytes = selectedInterface.Interface.GetPhysicalAddress().GetAddressBytes();
                     var macAddress = BitConverter.ToString(macBytes).Replace("-", ":");
 
-                    // Get subnet mask from network interface
-                    byte[] subnetMask = new byte[] { 255, 255, 255, 0 }; // Default fallback
+                    byte[] subnetMask = new byte[] { 255, 255, 255, 0 };
                     NetworkInterface? selectedNic = null;
                     string nicDescription = "Unknown";
                     if (selectedInterface.Interface is NetworkInterface nic)
@@ -2580,13 +2848,11 @@ namespace Dorothy.Views
                         }
                     }
 
-                    // Update both basic and advanced settings
                     SourceIpTextBox.Text = ipAddress;
                     SourceMacTextBox.Text = macAddress;
                     AdvSourceIpTextBox.Text = ipAddress;
                     AdvSourceMacTextBox.Text = macAddress;
-                    
-                    // Sync the other combobox selection - temporarily unsubscribe to prevent recursive call
+
                     ComboBox targetComboBox;
                     if (comboBox == NetworkInterfaceComboBox)
                     {
@@ -2616,25 +2882,20 @@ namespace Dorothy.Views
                     }
 
                     _networkStorm.SetSourceInfo(ipAddress, macBytes, subnetMask);
-                    
-                    // Get gateway for the specific NIC
+
                     IPAddress? gatewayIp = null;
                     if (selectedNic != null)
                     {
                         gatewayIp = _mainController.GetGatewayForInterface(selectedNic);
                     }
-                    
-                    // Fallback to calculated gateway if NIC doesn't have one configured
+
                     if (gatewayIp == null)
                     {
                         gatewayIp = _mainController.CalculateDefaultGateway(ipAddress);
                     }
-                    
-                    // Update Mbps validation when NIC changes
+
                     UpdateMbpsValidation();
-                    
-                    // Always update gateway IP when NIC changes
-                    // Suppress TextChanged events to prevent duplicate processing
+
                     if (gatewayIp != null)
                     {
                         GatewayIpTextBox.TextChanged -= GatewayIpTextBox_TextChanged;
@@ -2648,7 +2909,7 @@ namespace Dorothy.Views
                             GatewayIpTextBox.TextChanged += GatewayIpTextBox_TextChanged;
                         }
                         _networkStorm.SetGatewayIp(gatewayIp.ToString());
-                        // Log only once
+
                         _attackLogger.LogSuccess($"Gateway updated: {gatewayIp} (NIC: {nicDescription})");
                     }
                     else
@@ -2664,13 +2925,13 @@ namespace Dorothy.Views
                             GatewayIpTextBox.TextChanged += GatewayIpTextBox_TextChanged;
                         }
                         _networkStorm.SetGatewayIp(string.Empty);
-                        // Log only once
+
                         _attackLogger.LogWarning($"No gateway found for NIC: {nicDescription}");
                     }
-                    
-                    // Check subnet for the new interface
+
                     CheckSubnetAndUpdateGatewayField();
                     UpdateProfileSummary();
+                    UpdateMacRouteHint();
                 }
             }
             catch (Exception ex)
@@ -2679,88 +2940,75 @@ namespace Dorothy.Views
             }
             finally
             {
-                // Always reset the flag when done
+
                 _isSyncingComboBoxes = false;
             }
         }
 
         private void AdvancedTab_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
-            // Password check is now handled in MainTabControl_SelectionChanged
-            // This handler is kept for any future use but no longer blocks access
+
         }
-        
+
         private bool ValidatePassword(string inputPassword)
         {
-            // Direct password comparison
-            // Password: KyeRRkfccbGBCNCKYPha1lrYS2PO8koL
+
             if (string.IsNullOrEmpty(inputPassword))
                 return false;
-            
-            // Trim and compare (handle any whitespace issues)
+
             string trimmedInput = inputPassword.Trim();
             string correctPassword = "KyeRRkfccbGBCNCKYPha1lrYS2PO8koL";
-            
-            // Use secure comparison to prevent timing attacks
+
             return SecureCompare(trimmedInput, correctPassword);
         }
-        
+
         private string GetMachineIdentifier()
         {
-            // Generate a machine-specific identifier that's hard to tamper with
-            // Uses machine name + a hardware identifier
+
             string machineName = Environment.MachineName;
             string userName = Environment.UserName;
             string osVersion = Environment.OSVersion.ToString();
-            
-            // Combine to create a machine identifier
+
             string machineId = $"{machineName}_{userName}_{osVersion}";
-            
-            // Hash it for consistency
+
             using (SHA256 sha256 = SHA256.Create())
             {
                 byte[] hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(machineId));
-                return Convert.ToBase64String(hashBytes).Substring(0, 32); // Use first 32 chars
+                return Convert.ToBase64String(hashBytes).Substring(0, 32);
             }
         }
-        
+
         private string GenerateValidationToken()
         {
-            // Generate a secure validation token tied to the machine
-            // This token persists across sessions but is tied to this machine
+
             string machineId = GetMachineIdentifier();
             string baseSecret = "SeAcUrE_VaLiDaTiOn_SeCrEt_2024";
-            
-            // Combine machine ID and secret
+
             string tokenData = $"{machineId}_{baseSecret}";
-            
-            // Generate SHA256 hash
+
             using (SHA256 sha256 = SHA256.Create())
             {
                 byte[] hashBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(tokenData));
                 return Convert.ToBase64String(hashBytes);
             }
         }
-        
+
         private void SaveValidationToken()
         {
             try
             {
                 if (string.IsNullOrEmpty(_validationToken))
                     return;
-                
-                // Encrypt the token before saving
+
                 string machineId = GetMachineIdentifier();
                 byte[] tokenBytes = Encoding.UTF8.GetBytes(_validationToken);
                 byte[] keyBytes = Encoding.UTF8.GetBytes(machineId.Substring(0, 32));
-                
-                // Simple XOR encryption with machine ID as key
+
                 for (int i = 0; i < tokenBytes.Length; i++)
                 {
                     tokenBytes[i] = (byte)(tokenBytes[i] ^ keyBytes[i % keyBytes.Length]);
                 }
-                
-                // Save encrypted token to file
+
                 string encryptedToken = Convert.ToBase64String(tokenBytes);
                 File.WriteAllText(VALIDATION_TOKEN_FILE, encryptedToken);
             }
@@ -2769,31 +3017,27 @@ namespace Dorothy.Views
                 _attackLogger?.LogError($"Failed to save validation token: {ex.Message}");
             }
         }
-        
+
         private bool LoadValidationToken()
         {
             try
             {
                 if (!File.Exists(VALIDATION_TOKEN_FILE))
                     return false;
-                
-                // Read encrypted token
+
                 string encryptedToken = File.ReadAllText(VALIDATION_TOKEN_FILE);
                 byte[] tokenBytes = Convert.FromBase64String(encryptedToken);
-                
-                // Decrypt using machine ID
+
                 string machineId = GetMachineIdentifier();
                 byte[] keyBytes = Encoding.UTF8.GetBytes(machineId.Substring(0, 32));
-                
-                // XOR decrypt
+
                 for (int i = 0; i < tokenBytes.Length; i++)
                 {
                     tokenBytes[i] = (byte)(tokenBytes[i] ^ keyBytes[i % keyBytes.Length]);
                 }
-                
+
                 _validationToken = Encoding.UTF8.GetString(tokenBytes);
-                
-                // Validate the loaded token
+
                 return IsValidationTokenValid(_validationToken);
             }
             catch (Exception ex)
@@ -2802,24 +3046,22 @@ namespace Dorothy.Views
                 return false;
             }
         }
-        
+
         private bool IsValidationTokenValid(string token)
         {
             if (string.IsNullOrEmpty(token))
                 return false;
-            
-            // Regenerate expected token and compare
+
             string expectedToken = GenerateValidationToken();
-            
-            // Use constant-time comparison to prevent timing attacks
+
             return SecureCompare(token, expectedToken);
         }
-        
+
         private bool SecureCompare(string a, string b)
         {
             if (a == null || b == null || a.Length != b.Length)
                 return false;
-            
+
             int result = 0;
             for (int i = 0; i < a.Length; i++)
             {
@@ -2827,39 +3069,38 @@ namespace Dorothy.Views
             }
             return result == 0;
         }
-        
+
         private void ShowAdvancedSettingsDisclaimer()
         {
-            // Reset flag before showing dialog
+
             _disclaimerAcknowledged = false;
-            
+
             var disclaimerDialog = new DisclaimerDialog
             {
                 Owner = this
             };
-            
-            // Show dialog and check result
+
             bool? dialogResult = disclaimerDialog.ShowDialog();
             if (dialogResult == true && disclaimerDialog.IsAuthorized)
             {
                 _disclaimerAcknowledged = true;
-                // Don't save acknowledgment - show every time
+
             }
             else
             {
                 _disclaimerAcknowledged = false;
             }
         }
-        
+
         private bool IsDisclaimerAcknowledged()
         {
             try
             {
                 if (File.Exists(DISCLAIMER_ACK_FILE))
                 {
-                    // Read and validate the acknowledgment file
+
                     string content = File.ReadAllText(DISCLAIMER_ACK_FILE);
-                    // Simple validation - file should contain machine identifier
+
                     string machineId = GetMachineIdentifier();
                     if (content.Contains(machineId))
                     {
@@ -2874,7 +3115,7 @@ namespace Dorothy.Views
             }
             return false;
         }
-        
+
         private void SaveDisclaimerAcknowledgment()
         {
             try
@@ -2889,26 +3130,26 @@ namespace Dorothy.Views
                 _attackLogger?.LogError($"Failed to save disclaimer acknowledgment: {ex.Message}");
             }
         }
-        
+
         private void UpdateLabModeBadge(bool isAttackMode)
         {
             if (LabModeBadge == null || LabModeText == null) return;
-            
+
             if (isAttackMode)
             {
-                // ATTACK MODE - Red
-                LabModeBadge.Background = new SolidColorBrush(Color.FromRgb(254, 226, 226)); // #FEE2E2
-                LabModeBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(220, 38, 38)); // #DC2626
+
+                LabModeBadge.Background  = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                LabModeBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
                 LabModeText.Text = "ATTACK MODE";
-                LabModeText.Foreground = new SolidColorBrush(Color.FromRgb(153, 27, 27)); // #991B1B
+                LabModeText.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
             }
             else
             {
-                // LAB MODE - Yellow/Amber
-                LabModeBadge.Background = new SolidColorBrush(Color.FromRgb(254, 243, 199)); // #FEF3C7
-                LabModeBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(245, 158, 11)); // #F59E0B
+
+                LabModeBadge.Background = new SolidColorBrush(Color.FromRgb(0x1e, 0x3a, 0x5f));
+                LabModeBadge.BorderBrush = new SolidColorBrush(Color.FromRgb(0x25, 0x63, 0xeb));
                 LabModeText.Text = "LAB MODE";
-                LabModeText.Foreground = new SolidColorBrush(Color.FromRgb(146, 64, 14)); // #92400E
+                LabModeText.Foreground = new SolidColorBrush(Color.FromRgb(0x60, 0xa5, 0xfa));
             }
         }
 
@@ -2918,19 +3159,26 @@ namespace Dorothy.Views
             {
                 if (string.IsNullOrWhiteSpace(GatewayIpTextBox.Text))
                 {
-                    GatewayIpTextBox.Background = SystemColors.WindowBrush;
+                    GatewayIpTextBox.ClearValue(TextBox.BackgroundProperty);
+                    GatewayIpTextBox.ClearValue(TextBox.ForegroundProperty);
+                    GatewayIpTextBox.ClearValue(TextBox.BorderBrushProperty);
                     return;
                 }
 
                 if (IPAddress.TryParse(GatewayIpTextBox.Text, out _))
                 {
-                    GatewayIpTextBox.Background = SystemColors.WindowBrush;
+                    GatewayIpTextBox.ClearValue(TextBox.BackgroundProperty);
+                    GatewayIpTextBox.ClearValue(TextBox.ForegroundProperty);
+                    GatewayIpTextBox.ClearValue(TextBox.BorderBrushProperty);
                     _networkStorm.SetGatewayIp(GatewayIpTextBox.Text);
                 }
                 else
                 {
-                    GatewayIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                    GatewayIpTextBox.Background  = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                    GatewayIpTextBox.Foreground  = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                    GatewayIpTextBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5A, 0x30, 0x30));
                 }
+                UpdateMacRouteHint();
             }
             catch (Exception ex)
             {
@@ -3014,20 +3262,27 @@ namespace Dorothy.Views
             {
                 if (string.IsNullOrWhiteSpace(SourceIpTextBox.Text))
                 {
-                    SourceIpTextBox.Background = SystemColors.WindowBrush;
+                    SourceIpTextBox.ClearValue(TextBox.BackgroundProperty);
+                    SourceIpTextBox.ClearValue(TextBox.ForegroundProperty);
+                    SourceIpTextBox.ClearValue(TextBox.BorderBrushProperty);
                     return;
                 }
 
                 if (IPAddress.TryParse(SourceIpTextBox.Text, out _))
                 {
-                    SourceIpTextBox.Background = SystemColors.WindowBrush;
+                    SourceIpTextBox.ClearValue(TextBox.BackgroundProperty);
+                    SourceIpTextBox.ClearValue(TextBox.ForegroundProperty);
+                    SourceIpTextBox.ClearValue(TextBox.BorderBrushProperty);
                 }
                 else
                 {
-                    SourceIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                    SourceIpTextBox.Background  = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                    SourceIpTextBox.Foreground  = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                    SourceIpTextBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5A, 0x30, 0x30));
                 }
 
                 CheckSubnetAndUpdateGatewayField();
+                UpdateMacRouteHint();
             }
             catch (Exception ex)
             {
@@ -3041,24 +3296,95 @@ namespace Dorothy.Views
             {
                 if (string.IsNullOrWhiteSpace(TargetIpTextBox.Text))
                 {
-                    TargetIpTextBox.Background = SystemColors.WindowBrush;
+                    TargetIpTextBox.ClearValue(TextBox.BackgroundProperty);
+                    TargetIpTextBox.ClearValue(TextBox.ForegroundProperty);
+                    TargetIpTextBox.ClearValue(TextBox.BorderBrushProperty);
+                    UpdateMacRouteHint(null);
                     UpdateProfileSummary();
                     return;
                 }
 
                 if (IPAddress.TryParse(TargetIpTextBox.Text, out _))
                 {
-                    TargetIpTextBox.Background = SystemColors.WindowBrush;
+                    TargetIpTextBox.ClearValue(TextBox.BackgroundProperty);
+                    TargetIpTextBox.ClearValue(TextBox.ForegroundProperty);
+                    TargetIpTextBox.ClearValue(TextBox.BorderBrushProperty);
                 }
                 else
                 {
-                    TargetIpTextBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                    TargetIpTextBox.Background  = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                    TargetIpTextBox.Foreground  = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                    TargetIpTextBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5A, 0x30, 0x30));
                 }
+                UpdateMacRouteHint(TargetIpTextBox.Text);
                 UpdateProfileSummary();
             }
             catch (Exception ex)
             {
                 _logger.Error(ex, "Error in TargetIpTextBox_TextChanged");
+            }
+        }
+
+        private void UpdateMacRouteHint(string? overrideBasicTargetIp = null)
+        {
+
+            ApplyMacRouteHint(
+                overrideBasicTargetIp ?? TargetIpTextBox?.Text,
+                SourceIpTextBox?.Text,
+                MacRouteHintText);
+
+            ApplyMacRouteHint(
+                AdvTargetIpTextBox?.Text,
+                AdvSourceIpTextBox?.Text,
+                AdvMacRouteHintText);
+        }
+
+        private void ApplyMacRouteHint(string? targetIpText, string? sourceIpText, TextBlock? hint)
+        {
+            try
+            {
+                if (hint == null) return;
+
+                if (string.IsNullOrWhiteSpace(targetIpText) ||
+                    !IPAddress.TryParse(targetIpText, out var targetIp))
+                {
+                    hint.Visibility = Visibility.Collapsed;
+                    return;
+                }
+                if (!IPAddress.TryParse(sourceIpText, out var sourceIp))
+                {
+                    hint.Visibility = Visibility.Collapsed;
+                    return;
+                }
+
+                var route = TargetExpansionService.DetermineRoute(sourceIp, targetIp);
+
+                (hint.Text, hint.Foreground) = route switch
+                {
+                    RouteType.OnLink =>
+                        ("On-link target — Dest./Next-hop MAC refers to the destination host MAC address.",
+                         new SolidColorBrush(Color.FromRgb(5, 150, 105))),
+
+                    RouteType.ViaGateway =>
+                        ("⚠ Routed target — Dest./Next-hop MAC must be the next-hop gateway MAC. " +
+                         "The remote host MAC is not visible across routed hops and cannot be used as L2 destination.",
+                         new SolidColorBrush(Color.FromRgb(217, 119, 6))),
+
+                    RouteType.NoRoute =>
+                        ("⛔ No route detected to this target from the selected source IP. " +
+                         "Raw packet send will likely fail — check NIC selection and routing.",
+                         new SolidColorBrush(Color.FromRgb(185, 28, 28))),
+
+                    _ =>
+                        ("Route unknown — if target is on a different subnet, use the next-hop gateway MAC.",
+                         new SolidColorBrush(Color.FromRgb(107, 114, 128)))
+                };
+                hint.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error in ApplyMacRouteHint");
+                if (hint != null) hint.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -3069,16 +3395,20 @@ namespace Dorothy.Views
                 var textBox = sender as TextBox;
                 if (string.IsNullOrWhiteSpace(textBox.Text))
                 {
-                    textBox.Background = SystemColors.WindowBrush;
+                    textBox.ClearValue(TextBox.BackgroundProperty);
+                    textBox.ClearValue(TextBox.ForegroundProperty);
+                    textBox.ClearValue(TextBox.BorderBrushProperty);
                     return;
                 }
 
                 var macRegex = new Regex("^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$");
                 if (macRegex.IsMatch(textBox.Text))
                 {
-                    textBox.Background = SystemColors.WindowBrush;
-                    // Sync between basic and advanced if ARP Spoofing is selected
-                    if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem && 
+                    textBox.ClearValue(TextBox.BackgroundProperty);
+                    textBox.ClearValue(TextBox.ForegroundProperty);
+                    textBox.ClearValue(TextBox.BorderBrushProperty);
+
+                    if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem &&
                         selectedItem.Content.ToString() == "ARP Spoofing")
                     {
                         if (sender == TargetMacTextBox)
@@ -3086,11 +3416,13 @@ namespace Dorothy.Views
                         else
                             TargetMacTextBox.Text = textBox.Text;
                     }
-                            }
-                            else
-                            {
-                    textBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
-                            }
+                }
+                else
+                {
+                    textBox.Background  = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                    textBox.Foreground  = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                    textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5A, 0x30, 0x30));
+                }
             }
             catch (Exception ex)
             {
@@ -3101,6 +3433,47 @@ namespace Dorothy.Views
         private void AttackTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             UpdateProfileSummary();
+            UpdateAttackTypeDescription();
+            UpdateProtocolCardSelection();
+        }
+
+        private void UpdateAttackTypeDescription()
+        {
+            if (AttackTypeDescText == null) return;
+            var item = AttackTypeComboBox?.SelectedItem as ComboBoxItem;
+            string protocol = item?.Content?.ToString() ?? string.Empty;
+            AttackTypeDescText.Text = protocol switch
+            {
+                "UDP Flood"
+                    => "Randomised UDP datagrams at wire rate. Effective for bandwidth saturation tests.",
+                "TCP SYN Flood"
+                    => "TCP SYN packets with realistic OS fingerprints (MSS, WScale, SACK). Tests stateful session-table capacity.",
+                "ICMP Flood"
+                    => "ICMP Echo Request packets. Tests host and path reachability under load. Target port is ignored.",
+                string s when s.StartsWith("Ethernet Unicast")
+                    => "Layer-2 unicast frames injected directly onto the wire. Tests switch and NIC throughput.",
+                string s when s.StartsWith("Ethernet Multicast")
+                    => "Layer-2 multicast frames. Tests multicast handling in the local segment.",
+                string s when s.StartsWith("Ethernet Broadcast")
+                    => "Layer-2 broadcast frames. Tests broadcast domain saturation.",
+                _ => string.Empty
+            };
+            UpdateDestinationTypeVisibility(protocol);
+        }
+
+        private void UpdateDestinationTypeVisibility(string protocol)
+        {
+            if (DestinationTypePanel == null) return;
+            bool show = protocol is "UDP Flood" or "TCP SYN Flood" or "ICMP Flood";
+            DestinationTypePanel.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            if (show)
+            {
+
+                if (UnicastRadio != null && UnicastRadio.IsChecked != true)
+                    UnicastRadio.IsChecked = true;
+                else
+                    DestType_Changed(UnicastRadio!, new RoutedEventArgs());
+            }
         }
 
         private void AdvTargetIpTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -3111,18 +3484,24 @@ namespace Dorothy.Views
                 {
                     if (string.IsNullOrWhiteSpace(textBox.Text))
                     {
-                        textBox.Background = SystemColors.WindowBrush;
+                        textBox.ClearValue(TextBox.BackgroundProperty);
+                        textBox.ClearValue(TextBox.ForegroundProperty);
+                        textBox.ClearValue(TextBox.BorderBrushProperty);
                         UpdateProfileSummary();
                         return;
                     }
 
                     if (IPAddress.TryParse(textBox.Text, out _))
                     {
-                        textBox.Background = SystemColors.WindowBrush;
+                        textBox.ClearValue(TextBox.BackgroundProperty);
+                        textBox.ClearValue(TextBox.ForegroundProperty);
+                        textBox.ClearValue(TextBox.BorderBrushProperty);
                     }
                     else
                     {
-                        textBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                        textBox.Background  = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                        textBox.Foreground  = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                        textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5A, 0x30, 0x30));
                     }
                     UpdateProfileSummary();
                 }
@@ -3147,8 +3526,8 @@ namespace Dorothy.Views
                             AdvTargetPortTextBox.IsEnabled = false;
                             AdvMegabitsPerSecondTextBox.IsEnabled = false;
                             AdvTargetMacTextBox.IsEnabled = true;
-                            SpoofedMacTextBox.IsEnabled = true;  // Enable spoofed MAC only for ARP Spoofing
-                            // Sync all target information with basic settings
+                            SpoofedMacTextBox.IsEnabled = true;
+
                             AdvTargetIpTextBox.Text = TargetIpTextBox.Text;
                             AdvTargetMacTextBox.Text = TargetMacTextBox.Text;
                             AdvSourceIpTextBox.Text = SourceIpTextBox.Text;
@@ -3159,26 +3538,26 @@ namespace Dorothy.Views
                             AdvMegabitsPerSecondTextBox.IsEnabled = true;
                             AdvTargetMacTextBox.IsEnabled = false;
                             SpoofedMacTextBox.IsEnabled = false;
-                            // Set default port for NMEA 0183
+
                             if (string.IsNullOrWhiteSpace(AdvTargetPortTextBox.Text) || AdvTargetPortTextBox.Text == "0")
                             {
                                 AdvTargetPortTextBox.Text = "10110";
                             }
-                            // Default target IP is blank (user must enter)
+
                             break;
                         case "NMEA 0183 (UDP Multicast)":
                             AdvTargetPortTextBox.IsEnabled = true;
                             AdvMegabitsPerSecondTextBox.IsEnabled = true;
                             AdvTargetMacTextBox.IsEnabled = false;
                             SpoofedMacTextBox.IsEnabled = false;
-                            // Set default port and multicast IP for NMEA 0183
+
                             if (string.IsNullOrWhiteSpace(AdvTargetPortTextBox.Text) || AdvTargetPortTextBox.Text == "0")
                             {
                                 AdvTargetPortTextBox.Text = "10110";
                             }
                             if (string.IsNullOrWhiteSpace(AdvTargetIpTextBox.Text))
                             {
-                                AdvTargetIpTextBox.Text = "239.192.0.1"; // Default multicast group
+                                AdvTargetIpTextBox.Text = "239.192.0.1";
                             }
                             break;
                         case "Modbus/TCP Flood (Read Requests)":
@@ -3186,7 +3565,7 @@ namespace Dorothy.Views
                             AdvMegabitsPerSecondTextBox.IsEnabled = true;
                             AdvTargetMacTextBox.IsEnabled = false;
                             SpoofedMacTextBox.IsEnabled = false;
-                            // Set default port for Modbus/TCP
+
                             if (string.IsNullOrWhiteSpace(AdvTargetPortTextBox.Text) || AdvTargetPortTextBox.Text == "0")
                             {
                                 AdvTargetPortTextBox.Text = "502";
@@ -3196,7 +3575,7 @@ namespace Dorothy.Views
                             AdvTargetPortTextBox.IsEnabled = true;
                             AdvMegabitsPerSecondTextBox.IsEnabled = true;
                             AdvTargetMacTextBox.IsEnabled = false;
-                            SpoofedMacTextBox.IsEnabled = false;  // Disable spoofed MAC by default
+                            SpoofedMacTextBox.IsEnabled = false;
                             break;
                     }
                 }
@@ -3218,25 +3597,24 @@ namespace Dorothy.Views
 
                     if (string.IsNullOrWhiteSpace(textBox.Text))
                     {
-                        textBox.Background = SystemColors.WindowBrush;
+                        textBox.ClearValue(TextBox.BackgroundProperty);
+                        textBox.ClearValue(TextBox.ForegroundProperty);
+                        textBox.ClearValue(TextBox.BorderBrushProperty);
                         return;
                     }
 
-                    // Remove any non-hex characters and colons
-                    string cleanText = new string(textBox.Text.Where(c => 
-                        (c >= '0' && c <= '9') || 
-                        (c >= 'a' && c <= 'f') || 
-                        (c >= 'A' && c <= 'F') || 
+                    string cleanText = new string(textBox.Text.Where(c =>
+                        (c >= '0' && c <= '9') ||
+                        (c >= 'a' && c <= 'f') ||
+                        (c >= 'A' && c <= 'F') ||
                         c == ':').ToArray()).ToUpper();
 
-                    // Handle the case where user types colons manually
                     if (cleanText.Contains(':'))
                     {
                         var parts = cleanText.Split(':');
                         cleanText = string.Join("", parts);
                     }
 
-                    // Format MAC address
                     var formattedMac = new StringBuilder();
                     for (int i = 0; i < cleanText.Length && i < 12; i++)
                     {
@@ -3249,47 +3627,48 @@ namespace Dorothy.Views
 
                     string result = formattedMac.ToString();
 
-                    // Only update if text has changed
                     if (result != originalText)
                     {
                         textBox.Text = result;
-                        
-                        // Calculate new cursor position based on the number of characters typed
+
                         int hexDigitsBeforeCaret = originalText.Take(currentCaretIndex)
                             .Count(c => (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F'));
-                        
-                        // Calculate how many colons should be before the cursor
+
                         int colonCount = hexDigitsBeforeCaret / 2;
                         if (hexDigitsBeforeCaret > 0 && hexDigitsBeforeCaret % 2 == 0 && hexDigitsBeforeCaret < 12)
                         {
                             colonCount--;
                         }
-                        
-                        // Set new cursor position
+
                         int newPosition = hexDigitsBeforeCaret + colonCount;
                         if (newPosition > result.Length)
                         {
                             newPosition = result.Length;
                         }
-                        
+
                         textBox.CaretIndex = newPosition;
                     }
 
-                    // Validate the MAC address format
                     var isComplete = new Regex("^([0-9A-F]{2}:){5}[0-9A-F]{2}$").IsMatch(result);
                     var isPartial = new Regex("^([0-9A-F]{2}:)*[0-9A-F]{0,2}$").IsMatch(result);
 
                     if (isComplete)
                     {
-                        textBox.Background = new SolidColorBrush(Color.FromRgb(200, 255, 200));
+                        textBox.Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x3A, 0x2A));
+                        textBox.Foreground = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80));
+                        textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x2A, 0x5A, 0x3A));
                     }
                     else if (isPartial)
                     {
-                        textBox.Background = SystemColors.WindowBrush;
+                        textBox.ClearValue(TextBox.BackgroundProperty);
+                        textBox.ClearValue(TextBox.ForegroundProperty);
+                        textBox.ClearValue(TextBox.BorderBrushProperty);
                     }
                     else
                     {
-                        textBox.Background = new SolidColorBrush(Color.FromRgb(255, 200, 200));
+                        textBox.Background = new SolidColorBrush(Color.FromRgb(0x3A, 0x20, 0x20));
+                        textBox.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                        textBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x5A, 0x30, 0x30));
                     }
                 }
             }
@@ -3303,15 +3682,14 @@ namespace Dorothy.Views
         {
             try
             {
-                // Check password
-                // Check if password has been validated (one-time validation per session)
+
                 if (string.IsNullOrEmpty(_validationToken) || !IsValidationTokenValid(_validationToken))
                 {
                     MessageBox.Show("Please validate your password first by clicking the 'Validate' button.", "Authentication Required", MessageBoxButton.OK, MessageBoxImage.Warning);
                     AdvPasswordBox?.Focus();
                     return;
                 }
-                
+
                 if (AdvancedAttackTypeComboBox.SelectedItem is ComboBoxItem selectedItem)
                 {
                     var attackType = selectedItem.Content.ToString();
@@ -3333,18 +3711,18 @@ namespace Dorothy.Views
                         case "Ethernet Multicast (IPv6)":
                         case "Ethernet Broadcast (IPv4)":
                         case "Ethernet Broadcast (IPv6)":
-                            // Parse the attack type to determine packet type
+
                             EthernetFlood.EthernetPacketType packetType = EthernetFlood.EthernetPacketType.Unicast;
                             bool useIPv6 = false;
-                            
+
                             if (attackType.Contains("Multicast"))
                                 packetType = EthernetFlood.EthernetPacketType.Multicast;
                             else if (attackType.Contains("Broadcast"))
                                 packetType = EthernetFlood.EthernetPacketType.Broadcast;
-                            
+
                             if (attackType.Contains("IPv6"))
                                 useIPv6 = true;
-                            
+
                             await StartEthernetAttack(packetType);
                             break;
                         default:
@@ -3366,93 +3744,81 @@ namespace Dorothy.Views
             {
                 string targetIp = AdvTargetIpTextBox.Text.Trim();
                 string sourceIp = AdvSourceIpTextBox.Text.Trim();
-                
+
                 if (string.IsNullOrWhiteSpace(targetIp))
                 {
                     MessageBox.Show("Please enter a target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                
+
                 if (!IPAddress.TryParse(targetIp, out var parsedTargetIp))
                 {
                     MessageBox.Show("Invalid target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                
+
                 if (!int.TryParse(AdvTargetPortTextBox.Text, out int targetPort) || targetPort <= 0 || targetPort > 65535)
                 {
                     MessageBox.Show("Invalid target port. Please enter a port between 1 and 65535.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                
-                if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out long megabitsPerSecond) || megabitsPerSecond <= 0)
-                {
-                    MessageBox.Show("Invalid rate (Mbps). Please enter a positive number.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                if (!TryParseRateInput(AdvMegabitsPerSecondTextBox, _advCurrentRateUnit, out long bytesPerSecond))
                     return;
-                }
 
                 bool isMulticast = attackType == "NMEA 0183 (UDP Multicast)";
                 string actualMulticastGroupIp = targetIp;
                 string destinationIpForLogging = targetIp;
-                
-                // For multicast attacks: if user entered a unicast IP, use it as config/interface IP
-                // and derive/use a default multicast group IP
+
                 if (isMulticast)
                 {
                     var ipBytes = parsedTargetIp.GetAddressBytes();
                     bool isUnicastIp = ipBytes.Length < 1 || ipBytes[0] < 224 || ipBytes[0] > 239;
-                    
+
                     if (isUnicastIp)
                     {
-                        // User entered a unicast IP - treat as interface/config IP
-                        // Use default multicast group or derive from the unicast IP
-                        // For now, use a default multicast group (239.192.0.1)
+
                         actualMulticastGroupIp = "239.192.0.1";
-                        destinationIpForLogging = targetIp; // Keep the unicast IP for logging
+                        destinationIpForLogging = targetIp;
                         _attackLogger.LogInfo($"Using unicast IP {targetIp} as interface/config; targeting multicast group {actualMulticastGroupIp}");
                     }
                     else
                     {
-                        // User entered a valid multicast IP - use it directly
+
                         actualMulticastGroupIp = targetIp;
                         destinationIpForLogging = targetIp;
                     }
                 }
 
-                // Set the running attack type
                 _currentRunningAttackType = attackType;
+                _totalPacketsSent         = 0;
+                _attackStartTime          = DateTime.Now;
+                _runStartTime             = DateTime.Now;
+                _targetWireBytesPerSec    = bytesPerSecond;
 
-                // Initialize statistics
-                _totalPacketsSent = 0;
-                _totalBytesSent = 0;
-                _attackStartTime = DateTime.Now;
-                _lastStatsUpdateTime = DateTime.Now;
-                _lastBytesSent = 0;
-                _targetMbps = megabitsPerSecond;
+                _protocolCaps             = Dorothy.Services.FloodProtocolCapabilities.None;
+                TargetRateText.Text       = Dorothy.Services.RateConverter.Format(bytesPerSecond);
                 _statsTimer?.Start();
 
                 StartAdvancedAttackButton.IsEnabled = false;
                 StopAdvancedAttackButton.IsEnabled = true;
 
-                // Get MAC addresses for logging
                 var sourceMacBytes = await _mainController.GetLocalMacAddressAsync();
                 byte[] targetMacBytes;
-                
+
                 if (isMulticast)
                 {
-                    // For multicast, derive multicast MAC from the actual multicast group IP
+
                     var multicastIpBytes = IPAddress.Parse(actualMulticastGroupIp).GetAddressBytes();
                     targetMacBytes = new byte[] { 0x01, 0x00, 0x5E, (byte)(multicastIpBytes[1] & 0x7F), multicastIpBytes[2], multicastIpBytes[3] };
                 }
                 else
                 {
-                    // For unicast, try to resolve MAC
-                    // GetMacAddressAsync already handles routed targets by returning gateway MAC
+
                     targetMacBytes = await _mainController.GetMacAddressAsync(targetIp);
                     if (targetMacBytes.Length == 0)
                     {
-                        // If MAC resolution failed, try to resolve gateway MAC if gateway IP is set
-                        // This handles cases where gateway MAC wasn't resolved yet
+
                         if (!string.IsNullOrEmpty(_networkStorm.GatewayIp))
                         {
                             targetMacBytes = await _mainController.GetMacAddressAsync(_networkStorm.GatewayIp);
@@ -3462,7 +3828,7 @@ namespace Dorothy.Views
                                 _attackLogger.LogInfo($"Using gateway MAC for NMEA unicast target: {BitConverter.ToString(targetMacBytes).Replace("-", ":")}");
                             }
                         }
-                        
+
                         if (targetMacBytes.Length == 0)
                         {
                             _attackLogger.LogError("Failed to resolve target MAC address. Please enable fallback mode and enter MAC manually.");
@@ -3474,13 +3840,10 @@ namespace Dorothy.Views
                     }
                 }
 
-                // Log attack start with NMEA-specific labels
-                // For multicast with unicast destination IP, show both
-                _attackLogger.StartNmea0183Attack(isMulticast, sourceIp, sourceMacBytes, 
-                    actualMulticastGroupIp, targetMacBytes, megabitsPerSecond, targetPort, destinationIpForLogging);
+                _attackLogger.StartNmea0183Attack(isMulticast, sourceIp, sourceMacBytes,
+                    actualMulticastGroupIp, targetMacBytes, bytesPerSecond, targetPort, destinationIpForLogging);
 
-                // Use the actual multicast group IP for the attack (not the unicast config IP)
-                await _networkStorm.StartNmea0183AttackAsync(actualMulticastGroupIp, targetPort, megabitsPerSecond, isMulticast);
+                await _networkStorm.StartNmea0183AttackAsync(actualMulticastGroupIp, targetPort, bytesPerSecond, isMulticast);
             }
             catch (Exception ex)
             {
@@ -3500,55 +3863,47 @@ namespace Dorothy.Views
             {
                 string targetIp = AdvTargetIpTextBox.Text.Trim();
                 string sourceIp = AdvSourceIpTextBox.Text.Trim();
-                
+
                 if (string.IsNullOrWhiteSpace(targetIp))
                 {
                     MessageBox.Show("Please enter a target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                
+
                 if (!IPAddress.TryParse(targetIp, out var parsedTargetIp))
                 {
                     MessageBox.Show("Invalid target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                
+
                 if (!int.TryParse(AdvTargetPortTextBox.Text, out int targetPort) || targetPort <= 0 || targetPort > 65535)
                 {
                     MessageBox.Show("Invalid target port. Please enter a port between 1 and 65535.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                
-                if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out long megabitsPerSecond) || megabitsPerSecond <= 0)
-                {
-                    MessageBox.Show("Invalid rate (Mbps). Please enter a positive number.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+                if (!TryParseRateInput(AdvMegabitsPerSecondTextBox, _advCurrentRateUnit, out long bytesPerSecond))
                     return;
-                }
 
-                // Set the running attack type
                 _currentRunningAttackType = "Modbus/TCP Flood (Read Requests)";
-
-                // Initialize statistics
-                _totalPacketsSent = 0;
-                _totalBytesSent = 0;
-                _attackStartTime = DateTime.Now;
-                _lastStatsUpdateTime = DateTime.Now;
-                _lastBytesSent = 0;
-                _targetMbps = megabitsPerSecond;
+                _totalPacketsSent         = 0;
+                _attackStartTime          = DateTime.Now;
+                _runStartTime             = DateTime.Now;
+                _targetWireBytesPerSec    = bytesPerSecond;
+                _protocolCaps             = Dorothy.Services.FloodProtocolCapabilities.None;
+                TargetRateText.Text       = Dorothy.Services.RateConverter.Format(bytesPerSecond);
                 _statsTimer?.Start();
 
                 StartAdvancedAttackButton.IsEnabled = false;
                 StopAdvancedAttackButton.IsEnabled = true;
 
-                // Get MAC addresses for logging
                 var sourceMacBytes = await _mainController.GetLocalMacAddressAsync();
                 byte[] targetMacBytes;
-                
-                // For Modbus/TCP, try to resolve MAC (handles routed targets by returning gateway MAC)
+
                 targetMacBytes = await _mainController.GetMacAddressAsync(targetIp);
                 if (targetMacBytes.Length == 0)
                 {
-                    // If MAC resolution failed, try to resolve gateway MAC if gateway IP is set
+
                     if (!string.IsNullOrEmpty(_networkStorm.GatewayIp))
                     {
                         targetMacBytes = await _mainController.GetMacAddressAsync(_networkStorm.GatewayIp);
@@ -3558,7 +3913,7 @@ namespace Dorothy.Views
                             _attackLogger.LogInfo($"Using gateway MAC for Modbus/TCP target: {BitConverter.ToString(targetMacBytes).Replace("-", ":")}");
                         }
                     }
-                    
+
                     if (targetMacBytes.Length == 0)
                     {
                         _attackLogger.LogError("Failed to resolve target MAC address. Please enable fallback mode and enter MAC manually.");
@@ -3569,11 +3924,9 @@ namespace Dorothy.Views
                     }
                 }
 
-                // Log attack start with Modbus-specific labels
-                _attackLogger.StartModbusTcpAttack(sourceIp, sourceMacBytes, targetIp, targetMacBytes, megabitsPerSecond, targetPort);
+                _attackLogger.StartModbusTcpAttack(sourceIp, sourceMacBytes, targetIp, targetMacBytes, bytesPerSecond, targetPort);
 
-                // Start the Modbus/TCP attack
-                await _networkStorm.StartModbusTcpAttackAsync(targetIp, targetPort, megabitsPerSecond);
+                await _networkStorm.StartModbusTcpAttackAsync(targetIp, targetPort, bytesPerSecond);
             }
             catch (Exception ex)
             {
@@ -3598,19 +3951,14 @@ namespace Dorothy.Views
                     MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                if (!long.TryParse(MegabitsPerSecondTextBox.Text, out long megabitsPerSecond))
-                {
-                    MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                if (!TryParseRateInput(MegabitsPerSecondTextBox, _currentRateUnit, out long bytesPerSecond))
                     return;
-                }
 
-                // Track the running attack type
                 _currentRunningAttackType = attackType;
 
-                // Parse attack type to determine packet type and IP version
                 bool useIPv6 = attackType.Contains("IPv6");
                 EthernetFlood.EthernetPacketType packetType;
-                
+
                 if (attackType.Contains("Unicast"))
                     packetType = EthernetFlood.EthernetPacketType.Unicast;
                 else if (attackType.Contains("Multicast"))
@@ -3620,20 +3968,19 @@ namespace Dorothy.Views
                 else
                     throw new ArgumentException($"Invalid Ethernet attack type: {attackType}");
 
-                // Validate cross-subnet gateway requirement (only for Unicast IPv4)
                 if (packetType == EthernetFlood.EthernetPacketType.Unicast && !useIPv6 && !ValidateCrossSubnetGateway(targetIp, sourceIp))
                 {
                     _currentRunningAttackType = null;
                     return;
                 }
 
-                // Initialize statistics
-                _totalPacketsSent = 0;
-                _totalBytesSent = 0;
-                _attackStartTime = DateTime.Now;
-                _lastStatsUpdateTime = DateTime.Now; // Initialize for rate calculation
-                _lastBytesSent = 0;
-                _targetMbps = megabitsPerSecond;
+                _totalPacketsSent      = 0;
+                _attackStartTime       = DateTime.Now;
+                _runStartTime          = DateTime.Now;
+                _targetWireBytesPerSec = bytesPerSecond;
+
+                _protocolCaps          = Dorothy.Services.FloodProtocolCapabilities.FullScheduler;
+                TargetRateText.Text    = Dorothy.Services.RateConverter.Format(bytesPerSecond);
                 _statsTimer?.Start();
 
                 StartButton.IsEnabled = false;
@@ -3658,7 +4005,7 @@ namespace Dorothy.Views
                 {
                     targetMac = packetType switch
                     {
-                        EthernetFlood.EthernetPacketType.Multicast => useIPv6 
+                        EthernetFlood.EthernetPacketType.Multicast => useIPv6
                             ? new byte[] { 0x33, 0x33, 0x00, 0x00, 0x00, 0x01 }
                             : new byte[] { 0x01, 0x00, 0x5E, 0x00, 0x00, 0x01 },
                         EthernetFlood.EthernetPacketType.Broadcast => new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF },
@@ -3666,19 +4013,9 @@ namespace Dorothy.Views
                     };
                 }
 
-                // Initialize statistics
-                _totalPacketsSent = 0;
-                _totalBytesSent = 0;
-                _attackStartTime = DateTime.Now;
-                _lastStatsUpdateTime = DateTime.Now; // Initialize for rate calculation
-                _lastBytesSent = 0;
-                _targetMbps = megabitsPerSecond;
-                _statsTimer?.Start();
+                _attackLogger.StartEthernetAttack(packetType, sourceIp, sourceMacBytes, targetIp, targetMac, bytesPerSecond, targetPort);
 
-                // Initialize attack logger with Ethernet attack details
-                _attackLogger.StartEthernetAttack(packetType, sourceIp, sourceMacBytes, targetIp, targetMac, megabitsPerSecond, targetPort);
-
-                await _networkStorm.StartEthernetAttackAsync(targetIp, targetPort, megabitsPerSecond, packetType, useIPv6, targetMac);
+                await _networkStorm.StartEthernetAttackAsync(targetIp, targetPort, bytesPerSecond, packetType, useIPv6, targetMac);
             }
             catch (Exception ex)
             {
@@ -3703,21 +4040,15 @@ namespace Dorothy.Views
                     MessageBox.Show("Invalid target port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                if (!long.TryParse(AdvMegabitsPerSecondTextBox.Text, out long megabitsPerSecond))
-                {
-                    MessageBox.Show("Invalid rate (Mbps).", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                if (!TryParseRateInput(AdvMegabitsPerSecondTextBox, _advCurrentRateUnit, out long bytesPerSecond))
                     return;
-                }
 
-                // Determine the attack type string from the combobox
                 var attackType = MainTabControl.SelectedItem == AdvancedTab ?
                     (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() :
                     (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
-                
-                // Track the running attack type
+
                 _currentRunningAttackType = attackType ?? $"Ethernet {packetType}";
 
-                // Validate cross-subnet gateway requirement (only for Unicast)
                 if (packetType == EthernetFlood.EthernetPacketType.Unicast && !ValidateCrossSubnetGateway(targetIp, sourceIp))
                 {
                     _currentRunningAttackType = null;
@@ -3740,16 +4071,9 @@ namespace Dorothy.Views
                 };
 
                 _attackLogger.StartEthernetAttack(
-                    packetType,
-                    localSourceIp,
-                    sourceMacBytes,
-                    targetIp,
-                    targetMac,
-                    megabitsPerSecond,
-                    targetPort
-                );
+                    packetType, localSourceIp, sourceMacBytes, targetIp, targetMac, bytesPerSecond, targetPort);
 
-                await _networkStorm.StartEthernetAttackAsync(targetIp, targetPort, megabitsPerSecond, packetType, false, targetMac);
+                await _networkStorm.StartEthernetAttackAsync(targetIp, targetPort, bytesPerSecond, packetType, false, targetMac);
             }
             catch (Exception ex)
             {
@@ -3765,52 +4089,50 @@ namespace Dorothy.Views
         {
             try
             {
-                // Check if password has been validated (one-time validation per session)
+
                 if (string.IsNullOrEmpty(_validationToken) || !IsValidationTokenValid(_validationToken))
                 {
                     MessageBox.Show("Please validate your password first by clicking the 'Validate' button.", "Authentication Required", MessageBoxButton.OK, MessageBoxImage.Warning);
                     AdvPasswordBox?.Focus();
                     return;
                 }
-                
+
                 _statsTimer?.Stop();
-                // Use the tracked running attack type instead of combobox selection
-                var attackType = _currentRunningAttackType ?? 
+
+                var attackType = _currentRunningAttackType ??
                     (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
-                
+
                 _attackLogger.LogInfo($"Stopping advanced attack. Attack type: '{attackType}', Current running type: '{_currentRunningAttackType}'");
-                
-                // Check if we're in Advanced Mode (ATTACK MODE)
+
                 bool isAdvancedMode = MainTabControl.SelectedItem == AdvancedTab && _isAdvancedMode;
-                
+
                 if (attackType == "ARP Spoofing")
                 {
                     await _mainController.StopArpSpoofingAsync(_totalPacketsSent, isAdvancedMode);
                 }
                 else if (attackType != null && (attackType.StartsWith("Ethernet") || attackType.StartsWith("NMEA 0183") || attackType.Contains("NMEA")))
                 {
-                    // Ethernet and NMEA attacks use the same stop method as regular flood attacks
+
                     _attackLogger.LogInfo($"Stopping attack type: {attackType}");
                     await _mainController.StopAttackAsync(_totalPacketsSent, isAdvancedMode);
                 }
                 else if (attackType != null)
                 {
-                    // Fallback: try to stop any attack that's running
+
                     _attackLogger.LogInfo($"Stopping attack (fallback) for type: {attackType}");
                     await _mainController.StopAttackAsync(_totalPacketsSent, isAdvancedMode);
                 }
                 else
                 {
-                    // If attack type is null, still try to stop (might be a race condition)
+
                     _attackLogger.LogInfo("Stopping attack (attack type was null, using fallback)");
                     await _mainController.StopAttackAsync(_totalPacketsSent, isAdvancedMode);
                 }
-                
-                _currentRunningAttackType = null; // Clear the running attack type
+
+                _currentRunningAttackType = null;
                 ResetStatistics();
                 ResetStatistics();
-                
-                // Ensure button states are correct
+
                 StartAdvancedAttackButton.IsEnabled = true;
                 StopAdvancedAttackButton.IsEnabled = false;
             }
@@ -3818,7 +4140,7 @@ namespace Dorothy.Views
             {
                 MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 _attackLogger.LogError($"Error stopping advanced attack: {ex}");
-                // Reset button states on error
+
                 StartAdvancedAttackButton.IsEnabled = true;
                 StopAdvancedAttackButton.IsEnabled = false;
             }
@@ -3830,7 +4152,6 @@ namespace Dorothy.Views
             {
                 string sourceIp, sourceMac, targetIp, targetMac, spoofedMac;
 
-                // Check which tab is active and get values accordingly
                 if (MainTabControl.SelectedItem == AdvancedTab)
                 {
                     sourceIp = AdvSourceIpTextBox.Text.Trim();
@@ -3848,7 +4169,6 @@ namespace Dorothy.Views
                     spoofedMac = SpoofedMacTextBox.Text.Trim();
                 }
 
-                // Validate all required fields
                 var missingFields = new List<string>();
                 if (string.IsNullOrWhiteSpace(sourceIp)) missingFields.Add("Source IP");
                 if (string.IsNullOrWhiteSpace(sourceMac)) missingFields.Add("Source MAC");
@@ -3859,47 +4179,42 @@ namespace Dorothy.Views
                 if (missingFields.Any())
                 {
                     MessageBox.Show(
-                        $"Please fill in all required fields:\n{string.Join("\n", missingFields)}", 
-                        "Missing Fields", 
-                        MessageBoxButton.OK, 
+                        $"Please fill in all required fields:\n{string.Join("\n", missingFields)}",
+                        "Missing Fields",
+                        MessageBoxButton.OK,
                         MessageBoxImage.Warning);
                 return;
             }
 
-                // Validate cross-subnet gateway requirement
                 if (!ValidateCrossSubnetGateway(targetIp, sourceIp))
                 {
                 return;
             }
 
-                // Check network interface status
-                var selectedInterface = MainTabControl.SelectedItem == AdvancedTab ? 
-                    AdvNetworkInterfaceComboBox.SelectedItem as dynamic : 
+                var selectedInterface = MainTabControl.SelectedItem == AdvancedTab ?
+                    AdvNetworkInterfaceComboBox.SelectedItem as dynamic :
                     NetworkInterfaceComboBox.SelectedItem as dynamic;
 
                 if (selectedInterface?.Interface.OperationalStatus != OperationalStatus.Up)
                 {
                     MessageBox.Show(
-                        "Selected network interface is not active.\nPlease check your network connection.", 
+                        "Selected network interface is not active.\nPlease check your network connection.",
                         "Network Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-                // Track the running attack type
                 _currentRunningAttackType = "ARP Spoofing";
 
-                // Initialize statistics for ARP Spoofing
-                _totalPacketsSent = 0;
-                _attackStartTime = DateTime.Now;
-                _targetMbps = 0; // ARP spoofing doesn't have Mbps rate
+                _totalPacketsSent      = 0;
+                _attackStartTime       = DateTime.Now;
+                _runStartTime          = DateTime.Now;
+                _targetWireBytesPerSec = 0;
+                _protocolCaps          = Dorothy.Services.FloodProtocolCapabilities.None;
                 _statsTimer?.Start();
 
-                // Convert MAC addresses for logging
-                // Parse MAC addresses from string format
                 byte[] sourceMacBytes = sourceMac.Split(':').Select(b => Convert.ToByte(b, 16)).ToArray();
                 byte[] targetMacBytes = targetMac.Split(':').Select(b => Convert.ToByte(b, 16)).ToArray();
 
-                // Log comprehensive ARP Spoofing start
                 var arpStartMessage = "════════════════════════════════════════════════════════\n" +
                                     $"✅ Status: Attack Started\n" +
                                     $"🌐 Protocol: ARP Spoofing\n" +
@@ -3937,7 +4252,7 @@ namespace Dorothy.Views
                     return;
                 }
 
-                if (!IPAddress.TryParse(sourceIp, out var sourceIpAddress) || 
+                if (!IPAddress.TryParse(sourceIp, out var sourceIpAddress) ||
                     !IPAddress.TryParse(targetIp, out var targetIpAddress))
                 {
                     GatewayIpTextBox.IsEnabled = true;
@@ -3946,7 +4261,6 @@ namespace Dorothy.Views
                     return;
                 }
 
-                // Get the network interface for the source IP
                 var selectedInterface = NetworkInterfaceComboBox.SelectedItem as dynamic;
                 if (selectedInterface?.Interface is NetworkInterface nic)
                 {
@@ -3956,12 +4270,11 @@ namespace Dorothy.Views
 
                     if (unicastInfo != null)
                     {
-                        // Convert subnet mask to uint32
+
                         var maskBytes = unicastInfo.IPv4Mask.GetAddressBytes();
                         Array.Reverse(maskBytes);
                         var mask = BitConverter.ToUInt32(maskBytes, 0);
 
-                        // Convert IPs to uint32
                         var sourceBytes = sourceIpAddress.GetAddressBytes();
                         var targetBytes = targetIpAddress.GetAddressBytes();
                         Array.Reverse(sourceBytes);
@@ -3969,15 +4282,13 @@ namespace Dorothy.Views
                         var sourceInt = BitConverter.ToUInt32(sourceBytes, 0);
                         var targetInt = BitConverter.ToUInt32(targetBytes, 0);
 
-                        // Compare network portions
                         var sameSubnet = (sourceInt & mask) == (targetInt & mask);
-                        var currentMessage = sameSubnet ? 
+                        var currentMessage = sameSubnet ?
                             "Source and target are on the same subnet. Gateway not required." :
                             "Source and target are on different subnets. Gateway required.";
 
-                        // Only log if the subnet status has changed or enough time has passed
                         var now = DateTime.Now;
-                        if (_lastSubnetStatus != sameSubnet || 
+                        if (_lastSubnetStatus != sameSubnet ||
                             _lastSubnetMessage != currentMessage ||
                             (now - _lastSubnetLogTime).TotalMilliseconds > SUBNET_LOG_THROTTLE_MS)
                         {
@@ -3987,7 +4298,6 @@ namespace Dorothy.Views
                             _attackLogger.LogInfo(currentMessage);
                         }
 
-                        // Update gateway field
                         GatewayIpTextBox.IsEnabled = !sameSubnet;
                         if (sameSubnet)
                         {
@@ -4000,12 +4310,16 @@ namespace Dorothy.Views
                             {
                                 GatewayIpTextBox.TextChanged += GatewayIpTextBox_TextChanged;
                             }
-                            GatewayIpTextBox.Background = SystemColors.ControlBrush;
+                            GatewayIpTextBox.ClearValue(TextBox.BackgroundProperty);
+                            GatewayIpTextBox.ClearValue(TextBox.ForegroundProperty);
+                            GatewayIpTextBox.ClearValue(TextBox.BorderBrushProperty);
                         }
                         else
                         {
-                            GatewayIpTextBox.Background = SystemColors.WindowBrush;
-                            // Auto-populate gateway if empty
+                            GatewayIpTextBox.ClearValue(TextBox.BackgroundProperty);
+                            GatewayIpTextBox.ClearValue(TextBox.ForegroundProperty);
+                            GatewayIpTextBox.ClearValue(TextBox.BorderBrushProperty);
+
                             if (string.IsNullOrWhiteSpace(GatewayIpTextBox.Text))
                             {
                                 var defaultGateway = _mainController.GetDefaultGatewayWithFallback(sourceIp);
@@ -4039,54 +4353,48 @@ namespace Dorothy.Views
 
         private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Prevent re-entrancy during tab changes
+
             if (_isHandlingTabChange)
                 return;
-            
+
             try
             {
                 if (e.Source is TabControl)
                 {
                     TabItem? currentTab = MainTabControl.SelectedItem as TabItem;
-                    
-                    // Track the previous tab from the removed items (before the change)
+
                     TabItem? previousTabFromEvent = null;
                     if (e.RemovedItems.Count > 0)
                     {
                         previousTabFromEvent = e.RemovedItems[0] as TabItem;
-                        // Only track if it's not Advanced tab
+
                         if (previousTabFromEvent != null && previousTabFromEvent != AdvancedTab)
                         {
                             _previousTab = previousTabFromEvent;
                         }
                     }
-                    
+
                     if (currentTab == AdvancedTab)
                     {
                         _isHandlingTabChange = true;
-                        
-                        // Always reset disclaimer flag when entering Advanced tab
+
                         _disclaimerAcknowledged = false;
-                        
-                        // Always show disclaimer when entering Advanced Settings tab
+
                         ShowAdvancedSettingsDisclaimer();
-                        
-                        // If user didn't acknowledge (clicked Back or Cancel), switch back to previous tab
+
                         if (!_disclaimerAcknowledged)
                         {
-                            // Use the tracked previous tab, or use the one from the event, or default to Basic tab
+
                             TabItem? targetTab = _previousTab ?? previousTabFromEvent;
-                            
-                            // If no previous tab tracked, default to Basic tab (first item)
+
                             if (targetTab == null && MainTabControl.Items.Count > 0)
                             {
                                 targetTab = MainTabControl.Items[0] as TabItem;
                             }
-                            
-                            // Ensure we're not trying to switch to Advanced tab
+
                             if (targetTab == AdvancedTab && MainTabControl.Items.Count > 0)
                             {
-                                // Find first non-Advanced tab
+
                                 foreach (TabItem item in MainTabControl.Items)
                                 {
                                     if (item != AdvancedTab)
@@ -4096,91 +4404,76 @@ namespace Dorothy.Views
                                     }
                                 }
                             }
-                            
-                            // Switch to the target tab
+
                             if (targetTab != null)
                             {
                                 MainTabControl.SelectionChanged -= MainTabControl_SelectionChanged;
                                 MainTabControl.SelectedItem = targetTab;
                                 MainTabControl.SelectionChanged += MainTabControl_SelectionChanged;
                             }
-                            
+
                             _isHandlingTabChange = false;
                             return;
                         }
-                        
-                        // User acknowledged disclaimer - ensure we stay on Advanced tab
-                        // Explicitly set the Advanced tab as selected to prevent any tab switching
+
                         if (MainTabControl.SelectedItem != AdvancedTab)
                         {
                             MainTabControl.SelectionChanged -= MainTabControl_SelectionChanged;
                             MainTabControl.SelectedItem = AdvancedTab;
                             MainTabControl.SelectionChanged += MainTabControl_SelectionChanged;
                         }
-                        
-                        // Change badge to ATTACK MODE when entering Advanced Settings tab
+
                         UpdateLabModeBadge(true);
-                        
-                        // Sync from basic to advanced tab
+
                         AdvTargetIpTextBox.Text = TargetIpTextBox.Text;
                         AdvTargetMacTextBox.Text = TargetMacTextBox.Text;
                         AdvSourceIpTextBox.Text = SourceIpTextBox.Text;
                         AdvSourceMacTextBox.Text = SourceMacTextBox.Text;
                         AdvGatewayIpTextBox.Text = GatewayIpTextBox.Text;
-                        
-                        // Sync network interface selection
+
                         if (NetworkInterfaceComboBox.SelectedItem != null)
                         {
                             AdvNetworkInterfaceComboBox.SelectedItem = NetworkInterfaceComboBox.SelectedItem;
                         }
-                        
-                        // Clear password when switching to Advanced tab (user must re-enter)
-                        // Validation token persists for the session (one-time validation)
-                        // Don't clear validation token - it should persist even when password field is cleared
+
                         if (AdvPasswordBox != null)
                         {
-                            // Temporarily disable the password changed handler to prevent clearing validation token
+
                             AdvPasswordBox.PasswordChanged -= PasswordBox_PasswordChanged;
                             AdvPasswordBox.Password = string.Empty;
                             AdvPasswordBox.PasswordChanged += PasswordBox_PasswordChanged;
                             ValidatePasswordAndUpdateUI();
                         }
-                        
+
                         _isHandlingTabChange = false;
                     }
                     else
                     {
                         _isHandlingTabChange = true;
-                        
-                        // Always reset disclaimer flag when leaving Advanced tab
+
                         _disclaimerAcknowledged = false;
-                        
-                        // Change badge back to LAB MODE when leaving Advanced Settings tab
+
                         UpdateLabModeBadge(false);
-                        
-                        // Sync from advanced to basic tab
+
                         TargetIpTextBox.Text = AdvTargetIpTextBox.Text;
                         TargetMacTextBox.Text = AdvTargetMacTextBox.Text;
                         SourceIpTextBox.Text = AdvSourceIpTextBox.Text;
                         SourceMacTextBox.Text = AdvSourceMacTextBox.Text;
                         GatewayIpTextBox.Text = AdvGatewayIpTextBox.Text;
-                        
-                        // Sync network interface selection
+
                         if (AdvNetworkInterfaceComboBox.SelectedItem != null)
                         {
                             NetworkInterfaceComboBox.SelectedItem = AdvNetworkInterfaceComboBox.SelectedItem;
                         }
-                        
-                        // Basic Settings doesn't require password - but keep validation token for Advanced tab
-                        // Don't clear validation token - it should persist across tab switches
+
                         ValidatePasswordAndUpdateUI();
-                        
+
                         _isHandlingTabChange = false;
                     }
                 }
-                
+
                 UpdateProfileSummary();
-                // Update Mbps validation when switching tabs
+
                 UpdateMbpsValidation();
             }
             catch (Exception ex)
@@ -4189,19 +4482,18 @@ namespace Dorothy.Views
                 _isHandlingTabChange = false;
             }
         }
-        
+
         private void PasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
         {
-            // Don't auto-validate on password change - user must click Validate button
-            // This ensures explicit validation is required
+
             if (MainTabControl.SelectedItem == AdvancedTab)
             {
-                // Clear validation token when password changes (forces re-validation)
+
                 _validationToken = null;
                 ValidatePasswordAndUpdateUI();
             }
         }
-        
+
         private void PasswordBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
@@ -4210,40 +4502,35 @@ namespace Dorothy.Views
                 ValidatePasswordAndShowFeedback(sender);
             }
         }
-        
+
         private void ValidatePasswordButton_Click(object sender, RoutedEventArgs e)
         {
-            // Only validate password for Advanced Settings tab
+
             if (MainTabControl.SelectedItem == AdvancedTab && AdvPasswordBox != null)
             {
                 ValidatePasswordAndShowFeedback(AdvPasswordBox);
             }
         }
-        
+
         private void ValidatePasswordAndShowFeedback(object sender)
         {
             var passwordBox = sender as PasswordBox;
-            
-            // Get password and validate it FIRST (before checking token)
+
             string password = AdvPasswordBox?.Password ?? string.Empty;
             bool passwordCorrect = !string.IsNullOrEmpty(password) && ValidatePassword(password);
-            
+
             if (passwordCorrect)
             {
-                // Password is correct - generate and store validation token
+
                 _validationToken = GenerateValidationToken();
-                
-                // Save token to file (encrypted) so it persists across sessions
+
                 SaveValidationToken();
-                
-                // Log validation success
+
                 _isAdvancedMode = true;
                 _attackLogger.LogInfo("🔓 Password validated - Attack controls enabled");
-                
-                // Update UI to enable buttons (must be after token is set)
+
                 ValidatePasswordAndUpdateUI();
-                
-                // Force UI update on UI thread to ensure buttons are enabled and Validate button is disabled
+
                 Application.Current.Dispatcher.Invoke(() =>
                 {
                     if (StartAdvancedAttackButton != null)
@@ -4251,50 +4538,44 @@ namespace Dorothy.Views
                         bool tokenValid = !string.IsNullOrEmpty(_validationToken) && IsValidationTokenValid(_validationToken);
                         StartAdvancedAttackButton.IsEnabled = tokenValid;
                     }
-                    
-                    // Disable Validate button after successful validation
+
                     if (AdvValidatePasswordButton != null)
                     {
                         AdvValidatePasswordButton.IsEnabled = false;
                     }
                 }, System.Windows.Threading.DispatcherPriority.Normal);
-                
-                // Show success feedback - inline message and toast
+
                 if (passwordBox != null)
                 {
-                    passwordBox.BorderBrush = new SolidColorBrush(Colors.Green);
+                    passwordBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80));
                     var timer = new System.Windows.Threading.DispatcherTimer();
                     timer.Interval = TimeSpan.FromSeconds(2);
                     timer.Tick += (s, args) =>
                     {
-                        passwordBox.BorderBrush = SystemColors.ControlDarkBrush;
+                        passwordBox.ClearValue(System.Windows.Controls.Control.BorderBrushProperty);
                         timer.Stop();
                     };
                     timer.Start();
                 }
-                
-                // Hide error message if visible
+
                 if (PasswordFeedbackText != null)
                 {
                     PasswordFeedbackText.Visibility = Visibility.Collapsed;
                 }
-                
-                // Show success toast instead of modal
+
                 _toastService?.ShowSuccess("Authentication successful. Advanced controls enabled.", 3000);
             }
             else
             {
-                // Password incorrect - clear any existing token
+
                 _validationToken = null;
                 ValidatePasswordAndUpdateUI();
-                
-                // Show inline error feedback
+
                 if (passwordBox != null)
                 {
-                    passwordBox.BorderBrush = new SolidColorBrush(Colors.Red);
+                    passwordBox.BorderBrush = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
                 }
-                
-                // Show inline error message
+
                 if (PasswordFeedbackText != null)
                 {
                     PasswordFeedbackText.Text = "Incorrect password. Please try again.";
@@ -4302,77 +4583,65 @@ namespace Dorothy.Views
                 }
             }
         }
-        
+
         private void ValidatePasswordAndUpdateUI()
         {
-            // Basic Settings doesn't require password - always enabled
-            // Advanced Settings requires explicit password validation via Validate button
+
             bool isValid = true;
-            
+
             if (MainTabControl.SelectedItem == AdvancedTab)
             {
-                // Check if we have a valid session token (one-time validation per session)
-                // Buttons are ONLY enabled if token exists and is valid
-                // No auto-validation - user MUST click Validate button
+
                 isValid = !string.IsNullOrEmpty(_validationToken) && IsValidationTokenValid(_validationToken);
             }
             else
             {
-                // Basic Settings - no password required
+
                 isValid = true;
             }
-            
-            // Badge is now controlled by tab selection, not password validation
-            // Badge shows ATTACK MODE when in Advanced Settings tab, LAB MODE otherwise
-            // Password validation only controls button enable/disable state
-            
-            // Don't log validation here - only log when Validate button is actually clicked
-            
-            // Enable/disable attack buttons
+
             if (StartButton != null)
             {
                 StartButton.IsEnabled = isValid;
             }
             if (StopButton != null)
             {
-                StopButton.IsEnabled = isValid && StopButton.IsEnabled; // Keep existing enabled state if already running
+                StopButton.IsEnabled = isValid && StopButton.IsEnabled;
             }
             if (StartAdvancedAttackButton != null)
             {
-                // Check if attack is currently running (Stop button enabled = attack running)
+
                 bool attackRunning = StopAdvancedAttackButton?.IsEnabled == true;
-                
+
                 if (!isValid)
                 {
-                    // Validation invalid - disable Start button
+
                     StartAdvancedAttackButton.IsEnabled = false;
                 }
                 else if (attackRunning)
                 {
-                    // Attack is running - keep Start button disabled
+
                     StartAdvancedAttackButton.IsEnabled = false;
                 }
                 else
                 {
-                    // No attack running and validation is valid - enable Start button
+
                     StartAdvancedAttackButton.IsEnabled = true;
                 }
             }
             if (StopAdvancedAttackButton != null)
             {
-                // Stop button state is managed by attack start/stop logic
-                // Only disable if validation is invalid
+
                 if (!isValid)
                 {
                     StopAdvancedAttackButton.IsEnabled = false;
                 }
-                // If isValid, keep current state (will be enabled when attack starts)
+
             }
-            
-            // Disable Validate button if validation is already successful (prevent accidental re-validation)
+
             if (AdvValidatePasswordButton != null && MainTabControl.SelectedItem == AdvancedTab)
             {
-                // Disable Validate button if token is valid (already validated)
+
                 AdvValidatePasswordButton.IsEnabled = !isValid;
             }
         }
@@ -4383,7 +4652,7 @@ namespace Dorothy.Views
             if (textBox.Text == NOTE_PLACEHOLDER)
             {
                 textBox.Text = string.Empty;
-                textBox.Foreground = SystemColors.WindowTextBrush;
+                textBox.ClearValue(TextBox.ForegroundProperty);
             }
         }
 
@@ -4393,16 +4662,16 @@ namespace Dorothy.Views
             if (string.IsNullOrWhiteSpace(textBox.Text))
             {
                 textBox.Text = NOTE_PLACEHOLDER;
-                textBox.Foreground = SystemColors.GrayTextBrush;
+                textBox.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x99, 0xAA));
             }
         }
 
         protected override void OnSourceInitialized(EventArgs e)
         {
             base.OnSourceInitialized(e);
-            // Initialize placeholder text
+
             NoteTextBox.Text = NOTE_PLACEHOLDER;
-            NoteTextBox.Foreground = SystemColors.GrayTextBrush;
+            NoteTextBox.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x99, 0xAA));
         }
 
         private void AddNoteButton_Click(object sender, RoutedEventArgs e)
@@ -4417,7 +4686,7 @@ namespace Dorothy.Views
 
                 var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                 var note = NoteTextBox.Text.Trim();
-                
+
                 var formattedNote = $"\n📝 USER NOTE ════════════════════════════════════════════════════════\n" +
                                    $"Time: {timestamp}\n" +
                                    $"Note: {note}\n" +
@@ -4425,7 +4694,7 @@ namespace Dorothy.Views
 
                 _attackLogger.LogNote(formattedNote);
                 NoteTextBox.Text = NOTE_PLACEHOLDER;
-                NoteTextBox.Foreground = SystemColors.GrayTextBrush;
+                NoteTextBox.Foreground = new SolidColorBrush(Color.FromRgb(0x88, 0x99, 0xAA));
             }
             catch (Exception ex)
             {
@@ -4434,11 +4703,10 @@ namespace Dorothy.Views
             }
         }
 
-        // Add keyboard shortcut for adding notes
         protected override void OnKeyDown(KeyEventArgs e)
         {
             base.OnKeyDown(e);
-            
+
             if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
             {
                 if (NoteTextBox.IsFocused)
@@ -4475,18 +4743,16 @@ namespace Dorothy.Views
                     return;
                 }
 
-                // Disable the button while trace route is running
                 var button = sender as Button;
                 if (button != null)
                 {
                     button.IsEnabled = false;
                 }
 
-                UpdateStatusBadge("Running Trace Route", "running");
+                UpdateRunStatus(Dorothy.Services.FloodRunStatus.Running);
                 await _traceRoute.ExecuteTraceRouteAsync(targetIp);
-                UpdateStatusBadge("Ready", "ready");
+                UpdateRunStatus(Dorothy.Services.FloodRunStatus.Idle);
 
-                // Re-enable the button
                 if (button != null)
                 {
                     button.IsEnabled = true;
@@ -4496,7 +4762,7 @@ namespace Dorothy.Views
             {
                 MessageBox.Show($"Error executing trace route: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 _attackLogger.LogError($"Trace route failed: {ex}");
-                UpdateStatusBadge("Error", "error");
+                UpdateRunStatus(Dorothy.Services.FloodRunStatus.Error);
             }
         }
 
@@ -4505,12 +4771,12 @@ namespace Dorothy.Views
             var button = sender as Button;
             var progressBar = button == ScanButton ? ScanProgressBar : AdvScanProgressBar;
             var portTextBox = MainTabControl.SelectedItem == AdvancedTab ? AdvTargetPortTextBox : TargetPortTextBox;
-            
+
             try
             {
-                // Get target IP based on which tab is active
-                string targetIp = MainTabControl.SelectedItem == AdvancedTab ? 
-                    AdvTargetIpTextBox.Text.Trim() : 
+
+                string targetIp = MainTabControl.SelectedItem == AdvancedTab ?
+                    AdvTargetIpTextBox.Text.Trim() :
                     TargetIpTextBox.Text.Trim();
 
                 if (string.IsNullOrWhiteSpace(targetIp))
@@ -4525,7 +4791,6 @@ namespace Dorothy.Views
                     return;
                 }
 
-                // Get selected attack type to determine protocol
                 string attackType = MainTabControl.SelectedItem == AdvancedTab ?
                     (AdvancedAttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() :
                     (AttackTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
@@ -4536,106 +4801,105 @@ namespace Dorothy.Views
                     return;
                 }
 
-                // Determine protocol and common ports based on attack type
                 ProtocolType protocol;
                 int[] portsToScan;
 
                 if (attackType.Contains("TCP") || attackType == "TCP SYN Flood" || attackType == "TcpRoutedFlood")
                 {
                     protocol = ProtocolType.Tcp;
-                    // Expanded TCP ports - common services and well-known ports
-                    portsToScan = new int[] { 
-                        // Web servers
+
+                    portsToScan = new int[] {
+
                         80, 443, 8080, 8443, 8000, 8888, 9000,
-                        // SSH/Telnet
+
                         22, 23, 2222,
-                        // Email
+
                         25, 110, 143, 993, 995, 587, 465,
-                        // DNS
+
                         53,
-                        // FTP
+
                         21, 20, 2121,
-                        // Database
+
                         3306, 5432, 1433, 1521, 27017, 6379,
-                        // Remote Desktop
+
                         3389, 5900, 5901,
-                        // HTTP/HTTPS alternatives
+
                         8001, 8002, 8081, 8444, 9001,
-                        // SMB/File sharing
+
                         139, 445,
-                        // RPC
+
                         135, 139, 445,
-                        // Other common services
+
                         161, 162, 514, 636, 873, 2049, 3300, 5000, 5001, 5060, 5433, 5902, 5985, 5986, 7001, 7002, 8009, 8010, 8181, 8443, 8880, 9090, 9200, 9300, 10000
                     };
                 }
                 else if (attackType.Contains("UDP") || attackType == "UDP Flood")
                 {
                     protocol = ProtocolType.Udp;
-                    // Expanded UDP ports - common services
-                    portsToScan = new int[] { 
-                        // DNS
+
+                    portsToScan = new int[] {
+
                         53,
-                        // DHCP
+
                         67, 68,
-                        // TFTP
+
                         69,
-                        // NTP
+
                         123,
-                        // SNMP
+
                         161, 162,
-                        // VPN/IPSec
+
                         500, 4500,
-                        // Syslog
+
                         514,
-                        // RIP
+
                         520,
-                        // NetBIOS
+
                         137, 138,
-                        // UPnP/SSDP
+
                         1900, 5353,
-                        // Other common UDP services
+
                         111, 1194, 1812, 1813, 2049, 5060, 5061, 10000
                     };
                 }
                 else if (attackType.Contains("ICMP") || attackType == "ICMP Flood")
                 {
-                    // ICMP doesn't use ports
+
                     MessageBox.Show("ICMP Flood does not use ports. Port scanning is not applicable.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 else if (attackType.Contains("Ethernet") || attackType == "ARP Spoofing" || attackType == "Broadcast")
                 {
-                    // These don't use ports
+
                     MessageBox.Show($"{attackType} does not use ports. Port scanning is not applicable.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
                 else
                 {
-                    // Default to TCP with expanded port list
+
                     protocol = ProtocolType.Tcp;
-                    portsToScan = new int[] { 
-                        // Web servers
+                    portsToScan = new int[] {
+
                         80, 443, 8080, 8443, 8000, 8888, 9000,
-                        // SSH/Telnet
+
                         22, 23, 2222,
-                        // Email
+
                         25, 110, 143, 993, 995, 587, 465,
-                        // DNS
+
                         53,
-                        // FTP
+
                         21, 20, 2121,
-                        // Database
+
                         3306, 5432, 1433, 1521, 27017, 6379,
-                        // Remote Desktop
+
                         3389, 5900, 5901,
-                        // HTTP/HTTPS alternatives
+
                         8001, 8002, 8081, 8444, 9001,
-                        // SMB/File sharing
+
                         139, 445,
-                        // RPC
+
                         135, 139, 445,
-                        // Other common services
+
                         161, 162, 514, 636, 873, 2049, 3300, 5000, 5001, 5060, 5433, 5902, 5985, 5986, 7001, 7002, 8009, 8010, 8181, 8443, 8880, 9090, 9200, 9300, 10000
                     };
                 }
@@ -4646,7 +4910,6 @@ namespace Dorothy.Views
                     button.Content = "Scanning...";
                 }
 
-                // Show progress bar
                 if (progressBar != null)
                 {
                     progressBar.Value = 0;
@@ -4658,14 +4921,13 @@ namespace Dorothy.Views
                 _attackLogger.LogInfo($"🔍 Quick {protocol} port scan on {targetIp}...");
                 _attackLogger.LogInfo($"Scanning {portsToScan.Length} common {protocol} ports...");
 
-                // Quick port scan
                 int? foundPort = null;
                 await Task.Run(async () =>
                 {
                     try
                     {
-                        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30)); // 30 second timeout
-                        
+                        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
                         foreach (var port in portsToScan)
                         {
                             if (cts.Token.IsCancellationRequested)
@@ -4674,16 +4936,16 @@ namespace Dorothy.Views
                             try
                             {
                                 bool isOpen = false;
-                                
+
                                 if (protocol == ProtocolType.Tcp)
                                 {
-                                    // TCP port check
+
                                     using (var client = new TcpClient())
                                     {
                                         var connectTask = client.ConnectAsync(targetIp, port);
-                                        var timeoutTask = Task.Delay(500, cts.Token); // 500ms timeout per port
+                                        var timeoutTask = Task.Delay(500, cts.Token);
                                         var completedTask = await Task.WhenAny(connectTask, timeoutTask);
-                                        
+
                                         if (completedTask == connectTask && connectTask.IsCompletedSuccessfully)
                                         {
                                             isOpen = client.Connected;
@@ -4692,7 +4954,7 @@ namespace Dorothy.Views
                                 }
                                 else if (protocol == ProtocolType.Udp)
                                 {
-                                    // UDP port check - try to send and check for ICMP unreachable
+
                                     using (var client = new UdpClient())
                                     {
                                         try
@@ -4701,14 +4963,12 @@ namespace Dorothy.Views
                                             client.Client.SendTimeout = 500;
                                             await client.SendAsync(new byte[] { 0 }, 1, targetIp, port);
                                             await Task.Delay(200, cts.Token);
-                                            
-                                            // If we can send without immediate error, port might be open
-                                            // UDP is connectionless so we can't definitively know, but this is a quick scan
+
                                             isOpen = true;
                                         }
                                         catch (SocketException)
                                         {
-                                            // ICMP unreachable or other error - port likely closed/filtered
+
                                             isOpen = false;
                                         }
                                         catch
@@ -4717,7 +4977,7 @@ namespace Dorothy.Views
                                         }
                                     }
                                 }
-                                
+
                                 Application.Current.Dispatcher.Invoke(() =>
                                 {
                                     if (progressBar != null)
@@ -4730,13 +4990,13 @@ namespace Dorothy.Views
                                 {
                                     foundPort = port;
                                     _attackLogger.LogSuccess($"✅ Found open {protocol} port: {port}");
-                                    cts.Cancel(); // Stop scanning once we find one
+                                    cts.Cancel();
                                     break;
                                 }
                             }
                             catch (Exception ex)
                             {
-                                // Port is likely closed or filtered, continue
+
                                 Application.Current.Dispatcher.Invoke(() =>
                                 {
                                     if (progressBar != null)
@@ -4776,7 +5036,7 @@ namespace Dorothy.Views
             {
                 _attackLogger.LogError($"Port scan failed: {ex.Message}");
                 MessageBox.Show($"Error during port scan: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                
+
                 Application.Current.Dispatcher.Invoke(() =>
                 {
                     if (progressBar != null)
@@ -4793,7 +5053,7 @@ namespace Dorothy.Views
                     button.IsEnabled = true;
                     button.Content = "Scan";
                 }
-                
+
                                 Application.Current.Dispatcher.Invoke(() =>
                                 {
                                     if (progressBar != null)
@@ -4809,9 +5069,9 @@ namespace Dorothy.Views
         {
             try
             {
-                // Get source IP to determine network
-                string sourceIp = MainTabControl.SelectedItem == AdvancedTab ? 
-                    AdvSourceIpTextBox.Text.Trim() : 
+
+                string sourceIp = MainTabControl.SelectedItem == AdvancedTab ?
+                    AdvSourceIpTextBox.Text.Trim() :
                     SourceIpTextBox.Text.Trim();
 
                 if (string.IsNullOrWhiteSpace(sourceIp))
@@ -4826,14 +5086,13 @@ namespace Dorothy.Views
                     return;
                 }
 
-                // Get subnet mask from selected network interface
-                byte[] subnetMask = new byte[] { 255, 255, 255, 0 }; // Default
+                byte[] subnetMask = new byte[] { 255, 255, 255, 0 };
                 NetworkInterface? selectedNic = null;
-                
-                var selectedInterface = MainTabControl.SelectedItem == AdvancedTab ? 
-                    AdvNetworkInterfaceComboBox.SelectedItem as dynamic : 
+
+                var selectedInterface = MainTabControl.SelectedItem == AdvancedTab ?
+                    AdvNetworkInterfaceComboBox.SelectedItem as dynamic :
                     NetworkInterfaceComboBox.SelectedItem as dynamic;
-                
+
                 if (selectedInterface?.Interface is NetworkInterface nic)
                 {
                     selectedNic = nic;
@@ -4847,8 +5106,7 @@ namespace Dorothy.Views
                 }
 
                 string subnetMaskString = string.Join(".", subnetMask);
-                
-                // Calculate network address
+
                 var sourceBytes = sourceIpObj.GetAddressBytes();
                 var networkBytes = new byte[4];
                 for (int i = 0; i < 4; i++)
@@ -4857,12 +5115,11 @@ namespace Dorothy.Views
                 }
                 string networkAddress = string.Join(".", networkBytes);
 
-                // Open network scan window
                 var networkScan = new NetworkScan(_attackLogger);
                 var scanWindow = new NetworkScanWindow(
-                    networkScan, 
-                    _attackLogger, 
-                    _databaseService, 
+                    networkScan,
+                    _attackLogger,
+                    _databaseService,
                     _supabaseSyncService,
                     _hardwareId,
                     _machineName,
@@ -4870,7 +5127,6 @@ namespace Dorothy.Views
                 scanWindow.Owner = this;
                 scanWindow.Show();
 
-                // Start scan in background
                 await scanWindow.StartScanAsync(networkAddress, subnetMaskString);
                     }
                     catch (Exception ex)
@@ -4928,50 +5184,46 @@ namespace Dorothy.Views
         {
             try
             {
-                // Determine which tab we're on
+
                 var isAdvancedTab = MainTabControl.SelectedItem == AdvancedTab;
                 var comboBox = isAdvancedTab ? AdvNetworkInterfaceComboBox : NetworkInterfaceComboBox;
-                
+
                 if (comboBox?.SelectedItem is { } selectedItem)
                 {
                     var selectedInterface = (dynamic)selectedItem;
-                    
+
                     if (selectedInterface.Interface is NetworkInterface nic)
                     {
-                        // Refresh IP address from the selected NIC
+
                         var ipProps = nic.GetIPProperties();
                         var unicastInfo = ipProps.UnicastAddresses
                             .FirstOrDefault(x => x.Address.AddressFamily == AddressFamily.InterNetwork);
-                        
+
                         if (unicastInfo?.Address != null)
                         {
                             var ipAddress = unicastInfo.Address.ToString();
                             var macBytes = nic.GetPhysicalAddress().GetAddressBytes();
                             var macAddress = BitConverter.ToString(macBytes).Replace("-", ":");
-                            
-                            // Get subnet mask
+
                             byte[] subnetMask = new byte[] { 255, 255, 255, 0 };
                             if (unicastInfo.IPv4Mask != null)
                             {
                                 subnetMask = unicastInfo.IPv4Mask.GetAddressBytes();
                             }
-                            
-                            // Update source IP and MAC in both tabs
+
                             SourceIpTextBox.Text = ipAddress;
                             SourceMacTextBox.Text = macAddress;
                             AdvSourceIpTextBox.Text = ipAddress;
                             AdvSourceMacTextBox.Text = macAddress;
-                            
-                            // Update NetworkStorm
+
                             _networkStorm.SetSourceInfo(ipAddress, macBytes, subnetMask);
-                            
-                            // Update gateway for this NIC
+
                             var gatewayIp = _mainController.GetGatewayForInterface(nic);
                             if (gatewayIp == null)
                             {
                                 gatewayIp = _mainController.CalculateDefaultGateway(ipAddress);
                             }
-                            
+
                             if (gatewayIp != null)
                             {
                                 GatewayIpTextBox.Text = gatewayIp.ToString();
@@ -4986,12 +5238,10 @@ namespace Dorothy.Views
                                 _networkStorm.SetGatewayIp(string.Empty);
                                 _attackLogger.LogInfo($"Refreshed - Source IP: {ipAddress} (no gateway found)");
                             }
-                            
-                            // Refresh network interface list to get latest info
+
                             var currentIndex = comboBox.SelectedIndex;
                             PopulateNetworkInterfaces();
-                            
-                            // Restore selection by index
+
                             if (currentIndex >= 0 && currentIndex < comboBox.Items.Count)
                             {
                                 if (isAdvancedTab)
@@ -5003,14 +5253,13 @@ namespace Dorothy.Views
                                     NetworkInterfaceComboBox.SelectedIndex = currentIndex;
                                 }
                             }
-                            
-                            // Check subnet
+
                             CheckSubnetAndUpdateGatewayField();
                         }
                         else
                         {
                             _attackLogger.LogWarning("Selected network interface does not have an IPv4 address");
-                            MessageBox.Show("Selected network interface does not have an IPv4 address.", 
+                            MessageBox.Show("Selected network interface does not have an IPv4 address.",
                                 "No IPv4 Address", MessageBoxButton.OK, MessageBoxImage.Warning);
                         }
                     }
@@ -5018,37 +5267,30 @@ namespace Dorothy.Views
                 else
                 {
                     _attackLogger.LogWarning("No network interface selected");
-                    MessageBox.Show("Please select a network interface first.", 
+                    MessageBox.Show("Please select a network interface first.",
                         "No Interface Selected", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
             catch (Exception ex)
             {
                 _attackLogger.LogError($"Error refreshing source IP: {ex.Message}");
-                MessageBox.Show($"Error refreshing source IP: {ex.Message}", 
+                MessageBox.Show($"Error refreshing source IP: {ex.Message}",
                     "Refresh Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
         #region Firewall Reachability Discovery
 
-
-        /// <summary>
-        /// Open Reachability & Path Analysis Wizard
-        /// </summary>
         private void ReachabilityPathAnalysisButton_Click(object sender, RoutedEventArgs e)
         {
             ReachabilityWizardWindow? wizard = null;
             try
             {
-                // Try to create the window
+
                 wizard = new ReachabilityWizardWindow();
                 wizard.Owner = this;
                 wizard.ShowDialog();
-                
-                // Check if wizard completed successfully (user finished all steps)
-                // For now, we'll consider it passed if the wizard was closed normally
-                // In the future, we could check the actual results
+
                 _reachabilityTestPassed = true;
                 UpdateSecurityAssessmentStatus();
             }
@@ -5104,10 +5346,29 @@ namespace Dorothy.Views
             }
         }
 
+        private BoundedTcpScanWindow? _boundedTcpScanWindow;
 
-        /// <summary>
-        /// Validate numeric input for text boxes
-        /// </summary>
+        private void BoundedTcpScanButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_boundedTcpScanWindow != null && _boundedTcpScanWindow.IsLoaded)
+                {
+                    _boundedTcpScanWindow.Activate();
+                    return;
+                }
+                _boundedTcpScanWindow = new BoundedTcpScanWindow { Owner = this };
+                _boundedTcpScanWindow.Closed += (_, _) => _boundedTcpScanWindow = null;
+                _boundedTcpScanWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Error opening Bounded TCP Scan window");
+                MessageBox.Show($"Error opening scan window: {ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private void NumericTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
         {
             if (sender is TextBox textBox)
@@ -5126,7 +5387,6 @@ namespace Dorothy.Views
                     return;
                 }
 
-                // Validate inputs
                 if (string.IsNullOrWhiteSpace(SnmpWalkTargetIpTextBox.Text))
                 {
                     MessageBox.Show("Please enter a target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -5147,15 +5407,12 @@ namespace Dorothy.Views
 
                 var targetIp = SnmpWalkTargetIpTextBox.Text.Trim();
 
-                // Disable start button, enable stop button
                 StartSnmpWalkButton.IsEnabled = false;
                 StopSnmpWalkButton.IsEnabled = true;
 
-                // Create cancellation token
                 _snmpWalkCancellationTokenSource = new CancellationTokenSource();
                 var token = _snmpWalkCancellationTokenSource.Token;
 
-                // Create progress reporter
                 var progress = new Progress<(string message, int percent)>(update =>
                 {
                     Dispatcher.Invoke(() =>
@@ -5165,7 +5422,6 @@ namespace Dorothy.Views
                     });
                 });
 
-                // Start SNMP walk in background
                 _ = Task.Run(async () =>
                 {
                     try
@@ -5179,11 +5435,9 @@ namespace Dorothy.Views
                             SnmpWalkProgressBar.Visibility = Visibility.Collapsed;
                             SnmpWalkProgressBar.Value = 0;
 
-                            // Update security assessment: SNMP is not vulnerable if no successful authentication
                             _snmpWalkNotVulnerable = !result.Success;
                             UpdateSecurityAssessmentStatus();
 
-                            // Save SNMP walk result to database
                             try
                             {
                                 await _databaseService.SaveSnmpWalkResultAsync(result, null);
@@ -5191,10 +5445,9 @@ namespace Dorothy.Views
                             catch (Exception ex)
                             {
                                 _logger.Error(ex, "Failed to save SNMP walk result");
-                                // Don't show error to user, just log it
+
                             }
 
-                            // Show custom results window instead of MessageBox
                             var resultsWindow = new SnmpWalkResultsWindow(result)
                             {
                                 Owner = this
@@ -5242,7 +5495,7 @@ namespace Dorothy.Views
             {
                 _snmpWalkCancellationTokenSource?.Cancel();
                 _attackLogger.LogInfo("[SNMP Walk] Stop requested by user");
-                // Reset SNMP status when stopped
+
                 _snmpWalkNotVulnerable = false;
                 UpdateSecurityAssessmentStatus();
             }
@@ -5265,7 +5518,7 @@ namespace Dorothy.Views
                     SecurityAssessmentStatusBorder.Visibility = Visibility.Visible;
                     SecurityAssessmentStatusTextBlock.Text = "✓ Pass - The network is secure";
                     SecurityAssessmentStatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(
-                        System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green #059669
+                        System.Windows.Media.Color.FromRgb(5, 150, 105));
                 }
                 else
                 {
@@ -5282,6 +5535,5 @@ namespace Dorothy.Views
 
     }
 
-} 
-                            
-                            // Switch to the target tab
+}
+

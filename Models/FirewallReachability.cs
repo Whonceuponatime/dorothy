@@ -4,18 +4,13 @@ using System.Linq;
 
 namespace Dorothy.Models
 {
-    /// <summary>
-    /// Configuration for a firewall
-    /// </summary>
+
     public class FirewallConfig
     {
         public string FirewallIp { get; set; } = string.Empty;
         public List<string> InterfaceIps { get; set; } = new List<string>();
     }
 
-    /// <summary>
-    /// Represents a target host to test
-    /// </summary>
     public class TargetHost
     {
         public string IpAddress { get; set; } = string.Empty;
@@ -24,9 +19,6 @@ namespace Dorothy.Models
         public string? Role { get; set; }
     }
 
-    /// <summary>
-    /// Reachability state of a host
-    /// </summary>
     public enum ReachabilityState
     {
         Unknown,
@@ -36,9 +28,6 @@ namespace Dorothy.Models
         UnknownError
     }
 
-    /// <summary>
-    /// Result of reachability testing for a host
-    /// </summary>
     public class HostReachabilityResult
     {
         public string IpAddress { get; set; } = string.Empty;
@@ -50,20 +39,14 @@ namespace Dorothy.Models
         public string? ErrorMessage { get; set; }
     }
 
-    /// <summary>
-    /// Action type for a firewall rule
-    /// </summary>
     public enum FirewallRuleAction
     {
-        AllowedOpen,        // Connection success → port open and allowed
-        ClosedNoFirewall,   // Connection refused → host reachable, port closed, no firewall drop
-        FilteredTimeout,    // No response within timeout → probably silently filtered
-        UnknownError        // Local or unexpected error
+        AllowedOpen,
+        ClosedNoFirewall,
+        FilteredTimeout,
+        UnknownError
     }
 
-    /// <summary>
-    /// Alias for FirewallRuleAction to match MVP spec naming
-    /// </summary>
     public enum FirewallAction
     {
         AllowedOpen = FirewallRuleAction.AllowedOpen,
@@ -72,9 +55,6 @@ namespace Dorothy.Models
         UnknownError = FirewallRuleAction.UnknownError
     }
 
-    /// <summary>
-    /// Result of a firewall rule test for a specific port
-    /// </summary>
     public class FirewallRuleResult
     {
         public int Port { get; set; }
@@ -84,9 +64,6 @@ namespace Dorothy.Models
         public string? ErrorMessage { get; set; }
     }
 
-    /// <summary>
-    /// Complete firewall analysis for a single host
-    /// </summary>
     public class HostFirewallAnalysis
     {
         public string IpAddress { get; set; } = string.Empty;
@@ -94,25 +71,22 @@ namespace Dorothy.Models
         public ReachabilityState Reachability { get; set; }
         public HostReachabilityResult? ReachabilityResult { get; set; }
         public List<FirewallRuleResult> RuleResults { get; set; } = new List<FirewallRuleResult>();
-        
-        public List<FirewallRuleResult> AllowedOpenPorts => 
+
+        public List<FirewallRuleResult> AllowedOpenPorts =>
             RuleResults.Where(r => r.Action == FirewallRuleAction.AllowedOpen).ToList();
-        
-        public List<FirewallRuleResult> ClosedPorts => 
+
+        public List<FirewallRuleResult> ClosedPorts =>
             RuleResults.Where(r => r.Action == FirewallRuleAction.ClosedNoFirewall).ToList();
-        
-        public List<FirewallRuleResult> FilteredPorts => 
+
+        public List<FirewallRuleResult> FilteredPorts =>
             RuleResults.Where(r => r.Action == FirewallRuleAction.FilteredTimeout).ToList();
-        
-        public string OpenPortsSummary => 
-            AllowedOpenPorts.Count > 0 
+
+        public string OpenPortsSummary =>
+            AllowedOpenPorts.Count > 0
                 ? string.Join(", ", AllowedOpenPorts.Select(p => p.Port.ToString()))
                 : "None";
     }
 
-    /// <summary>
-    /// Progress information for firewall analysis
-    /// </summary>
     public class FirewallAnalysisProgress
     {
         public int CurrentHost { get; set; }
@@ -121,8 +95,4 @@ namespace Dorothy.Models
         public string CurrentStep { get; set; } = string.Empty;
     }
 }
-
-
-
-
 

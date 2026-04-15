@@ -6,9 +6,7 @@ using Dorothy.Models;
 
 namespace Dorothy.Views
 {
-    /// <summary>
-    /// Interaction logic for ReachabilityResultsWindow.xaml
-    /// </summary>
+
     public partial class ReachabilityResultsWindow : Window
     {
         private readonly ObservableCollection<FirewallDiscoveryHostReachabilityResult> _reachabilityResults;
@@ -31,8 +29,8 @@ namespace Dorothy.Views
         private void UpdateSummary()
         {
             int totalHosts = _reachabilityResults.Count;
-            int reachableHosts = _reachabilityResults.Count(r => 
-                r.State == ReachabilityState.ReachableIcmp || 
+            int reachableHosts = _reachabilityResults.Count(r =>
+                r.State == ReachabilityState.ReachableIcmp ||
                 r.State == ReachabilityState.ReachableTcpOnly);
             int unreachableHosts = _reachabilityResults.Count(r => r.State == ReachabilityState.Unreachable);
             int totalRules = _inferredRules.Count;
@@ -45,7 +43,7 @@ namespace Dorothy.Views
 
         private void ReachabilityResultsDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            // Filter inferred rules by selected host
+
             if (ReachabilityResultsDataGrid.SelectedItem is FirewallDiscoveryHostReachabilityResult selectedResult)
             {
                 var filteredRules = _inferredRules
@@ -56,7 +54,7 @@ namespace Dorothy.Views
             }
             else
             {
-                // Show all rules if no host is selected
+
                 InferredRulesDataGrid.ItemsSource = _inferredRules;
             }
         }

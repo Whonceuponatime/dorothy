@@ -12,15 +12,12 @@ using Dorothy.Models;
 
 namespace Dorothy.Services
 {
-    /// <summary>
-    /// Service for performing SNMP walk operations with common community strings
-    /// </summary>
+
     public class SnmpWalkService
     {
         private readonly AttackLogger _logger;
         private CancellationTokenSource? _cancellationTokenSource;
 
-        // Common SNMP community strings (100 most common)
         private static readonly string[] CommonCommunityStrings = new string[]
         {
             "public", "private", "community", "admin", "administrator",
@@ -51,9 +48,6 @@ namespace Dorothy.Services
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
-        /// <summary>
-        /// Perform SNMP walk with common community strings
-        /// </summary>
         public async Task<SnmpWalkResult> WalkAsync(
             string targetIp,
             int port,
@@ -76,7 +70,7 @@ namespace Dorothy.Services
             progress?.Report(($"[SNMP Walk] Starting walk with {totalCommunities} community strings...", 0));
 
             var tasks = new List<Task>();
-            var semaphore = new SemaphoreSlim(10); // Limit concurrent attempts
+            var semaphore = new SemaphoreSlim(10);
 
             foreach (var community in CommonCommunityStrings)
             {
@@ -90,7 +84,7 @@ namespace Dorothy.Services
                     try
                     {
                         var communityResult = await TryCommunityStringAsync(targetIp, port, community, cancellationToken);
-                        
+
                         lock (result)
                         {
                             result.Attempts++;
@@ -106,7 +100,7 @@ namespace Dorothy.Services
                         {
                             completedAttempts++;
                             int percent = totalCommunities > 0 ? (completedAttempts * 100) / totalCommunities : 0;
-                            
+
                             if (communityResult.Success)
                             {
                                 progress?.Report(($"[SNMP Walk] ✓ Success with community: {community} (found {communityResult.Oids.Count} OIDs) ({completedAttempts}/{totalCommunities})", percent));
@@ -139,9 +133,9 @@ namespace Dorothy.Services
             }
 
             await Task.WhenAll(tasks);
-            
+
             progress?.Report(("SNMP walk completed.", 100));
-            
+
             result.EndTime = DateTime.Now;
             result.Duration = result.EndTime - result.StartTime;
 
@@ -172,9 +166,8 @@ namespace Dorothy.Services
                 var endpoint = new IPEndPoint(ip, port);
                 var communityObject = new OctetString(community);
 
-                // Start with system.sysDescr (1.3.6.1.2.1.1.1.0)
                 var startOid = new ObjectIdentifier("1.3.6.1.2.1.1");
-                
+
                 await Task.Run(() =>
                 {
                     try
@@ -186,7 +179,7 @@ namespace Dorothy.Services
                             communityObject,
                             startOid,
                             variables,
-                            5000, // 5 second timeout per request
+                            5000,
                             WalkMode.WithinSubtree);
 
                         foreach (var variable in variables)
@@ -202,7 +195,7 @@ namespace Dorothy.Services
                             }
                             catch
                             {
-                                // Ignore individual OID errors
+
                             }
                         }
 
@@ -211,17 +204,17 @@ namespace Dorothy.Services
                     }
                     catch (SocketException)
                     {
-                        // Connection refused or timeout
+
                         result.Success = false;
                     }
                     catch (Lextm.SharpSnmpLib.Messaging.TimeoutException)
                     {
-                        // Request timeout
+
                         result.Success = false;
                     }
                     catch (Exception)
                     {
-                        // Other errors (authentication failed, etc.)
+
                         result.Success = false;
                     }
                 }, cancellationToken);

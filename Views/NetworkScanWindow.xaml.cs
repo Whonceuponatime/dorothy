@@ -26,21 +26,20 @@ namespace Dorothy.Views
         private CancellationTokenSource? _cancellationTokenSource;
         private readonly List<NetworkAsset> _foundAssets = new List<NetworkAsset>();
         private bool _scanCompleted = false;
-        private HashSet<int> _discoveredPorts = new HashSet<int>(); // Track ports discovered in previous scans
-        private PortScanMode _currentPortScanMode = PortScanMode.None; // Track current port scan mode for UI visibility
+        private HashSet<int> _discoveredPorts = new HashSet<int>();
+        private PortScanMode _currentPortScanMode = PortScanMode.None;
 
         private string _networkAddress = string.Empty;
         private string _subnetMask = string.Empty;
 
-        // Metadata for asset tracking
         private readonly string _hardwareId;
         private readonly string _machineName;
         private readonly string _username;
 
         public NetworkScanWindow(
-            NetworkScan networkScan, 
-            AttackLogger attackLogger, 
-            DatabaseService? databaseService = null, 
+            NetworkScan networkScan,
+            AttackLogger attackLogger,
+            DatabaseService? databaseService = null,
             SupabaseSyncService? supabaseSyncService = null,
             string? hardwareId = null,
             string? machineName = null,
@@ -54,16 +53,14 @@ namespace Dorothy.Views
             _hardwareId = hardwareId ?? string.Empty;
             _machineName = machineName ?? Environment.MachineName;
             _username = username ?? Environment.UserName;
-            
-            // Wire up port scan mode radio button events (check for null in case XAML hasn't loaded yet)
+
             if (AllPortsRadioButton != null)
                 AllPortsRadioButton.Checked += PortScanMode_Changed;
             if (RangePortsRadioButton != null)
                 RangePortsRadioButton.Checked += PortScanMode_Changed;
             if (SelectedPortsRadioButton != null)
                 SelectedPortsRadioButton.Checked += PortScanMode_Changed;
-            
-            // Show/hide sync button based on availability
+
             if (_databaseService == null || _supabaseSyncService == null)
             {
                 SyncAssetsButton.Visibility = Visibility.Collapsed;
@@ -73,16 +70,16 @@ namespace Dorothy.Views
                 _ = Task.Run(async () => await UpdateAssetsSyncStatus());
             }
         }
-        
+
         private void ScanMode_Changed(object sender, RoutedEventArgs e)
         {
-            // Show/hide port scan mode panel based on scan mode
+
             if (PortScanModePanel != null)
             {
                 if (IntenseScanRadioButton?.IsChecked == true)
                 {
                     PortScanModePanel.Visibility = Visibility.Visible;
-                    // Determine current port scan mode from radio buttons
+
                     if (AllPortsRadioButton?.IsChecked == true)
                         _currentPortScanMode = PortScanMode.All;
                     else if (RangePortsRadioButton?.IsChecked == true)
@@ -93,17 +90,16 @@ namespace Dorothy.Views
                 else
                 {
                     PortScanModePanel.Visibility = Visibility.Collapsed;
-                    _currentPortScanMode = PortScanMode.None; // Simple scan - no ports
+                    _currentPortScanMode = PortScanMode.None;
                 }
             }
-            
-            // Update port details UI visibility
+
             UpdatePortDetailsVisibility();
         }
-        
+
         private void PortScanMode_Changed(object sender, RoutedEventArgs e)
         {
-            // Show/hide port range and selected ports panels based on selection
+
             if (PortRangePanel != null && SelectedPortsPanel != null)
             {
                 if (RangePortsRadioButton?.IsChecked == true)
@@ -111,8 +107,7 @@ namespace Dorothy.Views
                     PortRangePanel.Visibility = Visibility.Visible;
                     SelectedPortsPanel.Visibility = Visibility.Collapsed;
                     _currentPortScanMode = PortScanMode.Range;
-                    
-                    // Set default range to 1-65535 if text boxes are empty
+
                     if (PortRangeStartTextBox != null && string.IsNullOrWhiteSpace(PortRangeStartTextBox.Text))
                     {
                         PortRangeStartTextBox.Text = "1";
@@ -127,12 +122,11 @@ namespace Dorothy.Views
                     PortRangePanel.Visibility = Visibility.Collapsed;
                     SelectedPortsPanel.Visibility = Visibility.Visible;
                     _currentPortScanMode = PortScanMode.Selected;
-                    
-                    // Show "Use Discovered Ports" button if we have discovered ports
+
                     if (PopulateFromScanButton != null)
                     {
-                        PopulateFromScanButton.Visibility = _discoveredPorts.Count > 0 
-                            ? Visibility.Visible 
+                        PopulateFromScanButton.Visibility = _discoveredPorts.Count > 0
+                            ? Visibility.Visible
                             : Visibility.Collapsed;
                     }
                 }
@@ -143,36 +137,32 @@ namespace Dorothy.Views
                     _currentPortScanMode = PortScanMode.All;
                 }
             }
-            
-            // Update port details UI visibility
+
             UpdatePortDetailsVisibility();
         }
-        
+
         private void UpdatePortDetailsVisibility()
         {
-            // Show port details UI for All, Range, and Banner Grabbing modes
-            // Hide for: Simple scan (None) only
-            bool shouldShowPorts = _currentPortScanMode == PortScanMode.All || 
+
+            bool shouldShowPorts = _currentPortScanMode == PortScanMode.All ||
                                    _currentPortScanMode == PortScanMode.Range ||
                                    _currentPortScanMode == PortScanMode.Selected;
-            
-            // Hide/show the entire Port Details section (Border containing the DataGrid)
+
             var portsDetailsBorder = this.FindName("PortsDetailsBorder") as Border;
             if (portsDetailsBorder != null)
             {
                 portsDetailsBorder.Visibility = shouldShowPorts ? Visibility.Visible : Visibility.Collapsed;
             }
-            
-            // Also hide the DataGrid itself if needed
+
             if (PortsDataGrid != null)
             {
                 PortsDataGrid.Visibility = shouldShowPorts ? Visibility.Visible : Visibility.Collapsed;
             }
         }
-        
+
         private void PopulateFromScanButton_Click(object sender, RoutedEventArgs e)
         {
-            // Populate SelectedPortsTextBox with discovered ports from previous scans
+
             if (SelectedPortsTextBox != null && _discoveredPorts.Count > 0)
             {
                 var sortedPorts = _discoveredPorts.OrderBy(p => p).ToList();
@@ -186,17 +176,16 @@ namespace Dorothy.Views
 
             if (ResultsDataGrid.SelectedItem is NetworkAsset selectedAsset)
             {
-                // Populate ports DataGrid with ports from selected asset
+
                 if (selectedAsset.OpenPorts != null && selectedAsset.OpenPorts.Count > 0)
                 {
                     PortsDataGrid.ItemsSource = selectedAsset.OpenPorts.OrderBy(p => p.Port).ToList();
-                    
-                    // Update ports count text
+
                     if (PortsCountText != null)
                     {
                         PortsCountText.Text = $"({selectedAsset.OpenPorts.Count} port{(selectedAsset.OpenPorts.Count == 1 ? "" : "s")} from {selectedAsset.IpAddress})";
                         PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                            System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green color
+                            System.Windows.Media.Color.FromRgb(5, 150, 105));
                     }
                 }
                 else
@@ -206,19 +195,19 @@ namespace Dorothy.Views
                     {
                         PortsCountText.Text = $"(No ports found for {selectedAsset.IpAddress})";
                         PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                            System.Windows.Media.Color.FromRgb(107, 114, 128)); // Gray color
+                            System.Windows.Media.Color.FromRgb(107, 114, 128));
                     }
                 }
             }
             else
             {
-                // When no asset is selected, show all ports from all assets
+
                 var allPorts = _foundAssets
                     .Where(a => a.OpenPorts != null && a.OpenPorts.Count > 0)
                     .SelectMany(a => a.OpenPorts)
                     .OrderBy(p => p.Port)
                     .ToList();
-                
+
                 if (allPorts.Count > 0)
                 {
                     PortsDataGrid.ItemsSource = allPorts;
@@ -227,7 +216,7 @@ namespace Dorothy.Views
                         var deviceCount = _foundAssets.Count(a => a.OpenPorts != null && a.OpenPorts.Count > 0);
                         PortsCountText.Text = $"({allPorts.Count} port{(allPorts.Count == 1 ? "" : "s")} from {deviceCount} device{(deviceCount == 1 ? "" : "s")})";
                         PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                            System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green color
+                            System.Windows.Media.Color.FromRgb(5, 150, 105));
                     }
                 }
                 else
@@ -237,18 +226,18 @@ namespace Dorothy.Views
                     {
                         PortsCountText.Text = "(No ports found)";
                         PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                            System.Windows.Media.Color.FromRgb(107, 114, 128)); // Gray color
+                            System.Windows.Media.Color.FromRgb(107, 114, 128));
                     }
                 }
             }
         }
-        
+
         private List<int> ParseSelectedPorts(string text)
         {
             var ports = new List<int>();
             if (string.IsNullOrWhiteSpace(text))
                 return ports;
-                
+
             var parts = text.Split(',', StringSplitOptions.RemoveEmptyEntries);
             foreach (var part in parts)
             {
@@ -265,11 +254,9 @@ namespace Dorothy.Views
         {
             _networkAddress = networkAddress;
             _subnetMask = subnetMask;
-            
-            // Pre-fill the range based on network and subnet mask
+
             CalculateAndSetDefaultRange(networkAddress, subnetMask);
-            
-            // Set default scan mode (simple)
+
             _networkScan.SetScanMode(false);
         }
 
@@ -282,38 +269,34 @@ namespace Dorothy.Views
                 {
                     var networkBytes = networkIp.GetAddressBytes();
                     var maskBytes = maskIp.GetAddressBytes();
-                    
-                    // Calculate network start
+
                     var networkStart = new byte[4];
                     for (int i = 0; i < 4; i++)
                     {
                         networkStart[i] = (byte)(networkBytes[i] & maskBytes[i]);
                     }
-                    
-                    // Calculate broadcast (end)
+
                     var broadcast = new byte[4];
                     for (int i = 0; i < 4; i++)
                     {
                         broadcast[i] = (byte)(networkStart[i] | ~maskBytes[i]);
                     }
-                    
-                    // Start IP (network + 1)
+
                     var startIp = new byte[4];
                     Array.Copy(networkStart, startIp, 4);
                     startIp[3] = (byte)(startIp[3] + 1);
-                    
-                    // End IP (broadcast - 1)
+
                     var endIp = new byte[4];
                     Array.Copy(broadcast, endIp, 4);
                     endIp[3] = (byte)(endIp[3] - 1);
-                    
+
                     StartIpTextBox.Text = string.Join(".", startIp);
                     EndIpTextBox.Text = string.Join(".", endIp);
                 }
             }
             catch
             {
-                // If calculation fails, leave empty
+
             }
         }
 
@@ -324,7 +307,7 @@ namespace Dorothy.Views
                 switch (tag)
                 {
                     case "full":
-                        // Use the calculated default range
+
                         CalculateAndSetDefaultRange(_networkAddress, _subnetMask);
                         break;
                     case "192.168.1":
@@ -347,33 +330,31 @@ namespace Dorothy.Views
         {
             var startIp = StartIpTextBox.Text.Trim();
             var endIp = EndIpTextBox.Text.Trim();
-            
+
             if (string.IsNullOrWhiteSpace(startIp) || string.IsNullOrWhiteSpace(endIp))
             {
                 MessageBox.Show("Please enter both start and end IP addresses.", "Invalid Range", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            
+
             if (!System.Net.IPAddress.TryParse(startIp, out _) || !System.Net.IPAddress.TryParse(endIp, out _))
             {
                 MessageBox.Show("Please enter valid IP addresses.", "Invalid IP", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-            
-            // Set scan mode
+
             bool intenseScan = IntenseScanRadioButton?.IsChecked == true;
             if (_networkScan != null)
             {
                 _networkScan.SetScanMode(intenseScan);
-                
-                // Set port scan mode if intense scan is enabled
+
                 if (intenseScan)
                 {
                     PortScanMode portMode = PortScanMode.All;
                     int? rangeStart = null;
                     int? rangeEnd = null;
                     List<int>? selectedPorts = null;
-                    
+
                     if (AllPortsRadioButton?.IsChecked == true)
                     {
                         portMode = PortScanMode.All;
@@ -383,7 +364,7 @@ namespace Dorothy.Views
                     {
                         portMode = PortScanMode.Range;
                         _currentPortScanMode = PortScanMode.Range;
-                        // Default to full range (1-65535) if not specified
+
                         if (PortRangeStartTextBox != null && PortRangeEndTextBox != null)
                         {
                             if (int.TryParse(PortRangeStartTextBox.Text, out int start) &&
@@ -394,14 +375,14 @@ namespace Dorothy.Views
                             }
                             else
                             {
-                                // Default to full range if text boxes are empty or invalid
+
                                 rangeStart = 1;
                                 rangeEnd = 65535;
                             }
                         }
                         else
                         {
-                            // Default to full range if text boxes don't exist
+
                             rangeStart = 1;
                             rangeEnd = 65535;
                         }
@@ -415,7 +396,7 @@ namespace Dorothy.Views
                             selectedPorts = ParseSelectedPorts(SelectedPortsTextBox.Text);
                         }
                     }
-                    
+
                     _networkScan.SetPortScanMode(portMode, rangeStart, rangeEnd, selectedPorts);
                 }
                 else
@@ -423,22 +404,19 @@ namespace Dorothy.Views
                     _networkScan.SetPortScanMode(PortScanMode.None);
                     _currentPortScanMode = PortScanMode.None;
                 }
-                
-                // Update port details UI visibility based on scan mode
+
                 UpdatePortDetailsVisibility();
             }
-            
-            // Hide range config panel and show progress section
+
             RangeConfigPanel.Visibility = Visibility.Collapsed;
             StartScanButton.IsEnabled = false;
-            
-            // Ensure progress section is visible
+
             var progressSection = FindName("ProgressSection") as FrameworkElement;
             if (progressSection != null)
             {
                 progressSection.Visibility = Visibility.Visible;
             }
-            
+
             await StartCustomRangeScanAsync(startIp, endIp);
         }
 
@@ -451,16 +429,15 @@ namespace Dorothy.Views
                     MessageBox.Show("Start IP and End IP are required.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                
+
                 if (_networkScan == null)
                 {
                     MessageBox.Show("Network scan instance is not initialized.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
-                
+
                 _cancellationTokenSource = new CancellationTokenSource();
-                
-                // Show loading UI immediately and ensure visibility
+
                 Dispatcher.Invoke(() =>
                 {
                     try
@@ -475,8 +452,7 @@ namespace Dorothy.Views
                             CloseButton.IsEnabled = false;
                         if (ExportExcelButton != null)
                             ExportExcelButton.IsEnabled = false;
-                        
-                        // Ensure progress section is visible
+
                         if (StatusTextBlock != null)
                         {
                             StatusTextBlock.Visibility = Visibility.Visible;
@@ -505,7 +481,7 @@ namespace Dorothy.Views
                             FoundCountTextBlock.Visibility = Visibility.Visible;
                             FoundCountTextBlock.Text = "0";
                         }
-                        
+
                         _foundAssets.Clear();
                         if (ResultsDataGrid != null)
                             ResultsDataGrid.ItemsSource = _foundAssets;
@@ -515,25 +491,19 @@ namespace Dorothy.Views
                         System.Diagnostics.Debug.WriteLine($"Error updating UI: {ex.Message}");
                     }
                 }, System.Windows.Threading.DispatcherPriority.Send);
-                
-                // Small delay to ensure UI is updated before starting scan
+
                 await Task.Delay(150);
-                
-                // Reset scan completed flag
+
                 _scanCompleted = false;
-                
-                // Create progress reporter that updates the DataGrid in real-time
+
                 var progress = new Progress<ScanProgress>(UpdateProgress);
-                
+
                 _assets = await _networkScan.ScanNetworkByRangeAsync(startIp, endIp, _cancellationTokenSource.Token, progress);
-                
-                // Mark scan as completed before updating UI
+
                 _scanCompleted = true;
-                
-                // Wait a moment to ensure all pending progress updates are processed
+
                 await Task.Delay(100);
-                
-                // Collect all discovered ports from all assets for Banner Grabbing mode auto-population
+
                 foreach (var asset in _assets)
                 {
                     if (asset.OpenPorts != null && asset.OpenPorts.Count > 0)
@@ -544,47 +514,41 @@ namespace Dorothy.Views
                         }
                     }
                 }
-                
-                // Save assets to database
+
                 if (_databaseService != null && _assets.Count > 0)
                 {
                     await SaveAssetsToDatabaseAsync();
                 }
-                
-                // Final refresh to ensure all items are displayed
+
                 Dispatcher.Invoke(() =>
                 {
                     try
                     {
-                        // Copy all assets to _foundAssets for display
+
                         if (_assets != null && _assets.Count > 0)
                         {
                             _foundAssets.Clear();
                             var allPorts = new List<Models.OpenPort>();
-                            
+
                             foreach (var asset in _assets)
                             {
                                 _foundAssets.Add(asset);
-                                
-                                // Collect all ports from all assets for auto-display
+
                                 if (asset.OpenPorts != null && asset.OpenPorts.Count > 0)
                                 {
                                     allPorts.AddRange(asset.OpenPorts);
                                 }
                             }
-                            
-                            // Auto-display all ports from all assets in the ports table
-                            // Show ports if we're in All, Range, or Banner Grabbing mode
+
                             if ((_currentPortScanMode == PortScanMode.All || _currentPortScanMode == PortScanMode.Range || _currentPortScanMode == PortScanMode.Selected) && PortsDataGrid != null && allPorts.Count > 0)
                             {
                                 PortsDataGrid.ItemsSource = allPorts.OrderBy(p => p.Port).ToList();
-                                
-                                // Update ports count text
+
                                 if (PortsCountText != null)
                                 {
                                     PortsCountText.Text = $"({allPorts.Count} port{(allPorts.Count == 1 ? "" : "s")} from {_assets.Count(a => a.OpenPorts != null && a.OpenPorts.Count > 0)} device{(allPorts.Count == 1 ? "" : "s")})";
                                     PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                                        System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green color
+                                        System.Windows.Media.Color.FromRgb(5, 150, 105));
                                 }
                             }
                             else if (PortsDataGrid != null)
@@ -594,14 +558,12 @@ namespace Dorothy.Views
                                 {
                                     PortsCountText.Text = "(No ports found)";
                                     PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                                        System.Windows.Media.Color.FromRgb(107, 114, 128)); // Gray color
+                                        System.Windows.Media.Color.FromRgb(107, 114, 128));
                                 }
                             }
-                            
-                            // Update port details UI visibility after scan completes
+
                             UpdatePortDetailsVisibility();
-                            
-                            // Auto-select first asset with ports
+
                             var firstAssetWithPorts = _foundAssets.FirstOrDefault(a => a.OpenPorts != null && a.OpenPorts.Count > 0);
                             if (firstAssetWithPorts != null && ResultsDataGrid != null)
                             {
@@ -609,24 +571,21 @@ namespace Dorothy.Views
                                 ResultsDataGrid.ScrollIntoView(firstAssetWithPorts);
                             }
                         }
-                        
-                        // Update the "Use Discovered Ports" button visibility if Banner Grabbing mode is active
+
                         if (PopulateFromScanButton != null && SelectedPortsRadioButton?.IsChecked == true)
                         {
-                            PopulateFromScanButton.Visibility = _discoveredPorts.Count > 0 
-                                ? Visibility.Visible 
+                            PopulateFromScanButton.Visibility = _discoveredPorts.Count > 0
+                                ? Visibility.Visible
                                 : Visibility.Collapsed;
                         }
-                        
-                        // Update the DataGrid items source to ensure it's bound correctly
+
                         if (ResultsDataGrid != null)
                         {
-                            ResultsDataGrid.ItemsSource = null; // Clear first
-                            ResultsDataGrid.ItemsSource = _foundAssets; // Rebind
+                            ResultsDataGrid.ItemsSource = null;
+                            ResultsDataGrid.ItemsSource = _foundAssets;
                             ResultsDataGrid.Items.Refresh();
                         }
-                        
-                        // Clear progress indicators and show completion message
+
                         if (StatusTextBlock != null)
                         {
                             StatusTextBlock.Text = $"✅ Scan Complete! Found {(_assets?.Count ?? 0)} active device(s).";
@@ -641,17 +600,15 @@ namespace Dorothy.Views
                             CurrentIpTextBlock.Text = "Scan finished successfully.";
                             CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(5, 150, 105));
                         }
-                        
-                        // Update found count display
+
                         if (FoundCountTextBlock != null)
                         {
                             FoundCountTextBlock.Text = (_assets?.Count ?? 0).ToString();
                         }
-                        
+
                         if (ExportExcelButton != null)
                             ExportExcelButton.IsEnabled = _assets != null && _assets.Count > 0;
-                        
-                        // Hide loading UI and show back button
+
                         if (LoadingIndicator != null)
                             LoadingIndicator.Visibility = Visibility.Collapsed;
                         if (CancelScanButton != null)
@@ -660,8 +617,7 @@ namespace Dorothy.Views
                             BackButton.Visibility = Visibility.Visible;
                         if (CloseButton != null)
                             CloseButton.IsEnabled = true;
-                        
-                        // Update sync status
+
                         if (_supabaseSyncService != null)
                         {
                             _ = Task.Run(async () => await UpdateAssetsSyncStatus());
@@ -676,7 +632,7 @@ namespace Dorothy.Views
             catch (OperationCanceledException)
             {
                 _scanCompleted = true;
-                await Task.Delay(100); // Wait for pending progress updates
+                await Task.Delay(100);
                 Dispatcher.Invoke(() =>
                 {
                     try
@@ -711,7 +667,7 @@ namespace Dorothy.Views
             catch (Exception ex)
             {
                 _scanCompleted = true;
-                await Task.Delay(100); // Wait for pending progress updates
+                await Task.Delay(100);
                 Dispatcher.Invoke(() =>
                 {
                     try
@@ -719,14 +675,14 @@ namespace Dorothy.Views
                         if (StatusTextBlock != null)
                         {
                             StatusTextBlock.Text = $"❌ Scan Failed: {ex.Message}";
-                            StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
+                            StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF8, 0x71, 0x71));
                         }
                         if (ProgressTextBlock != null)
                             ProgressTextBlock.Text = "Failed";
                         if (CurrentIpTextBlock != null)
                         {
                             CurrentIpTextBlock.Text = $"Error: {ex.Message}";
-                            CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68));
+                            CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF8, 0x71, 0x71));
                         }
                         if (LoadingIndicator != null)
                             LoadingIndicator.Visibility = Visibility.Collapsed;
@@ -753,37 +709,32 @@ namespace Dorothy.Views
             {
                 if (progress == null)
                     return;
-                    
-                // Don't update if scan is already completed
+
                 if (_scanCompleted)
                     return;
 
-                // Use BeginInvoke for better performance and responsiveness
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
                     try
                     {
-                        // Don't update if scan completed while this was queued
+
                         if (_scanCompleted)
                             return;
 
-                        // Handle port scanning progress first (takes priority)
                         if (progress.IsPortScanning && !string.IsNullOrEmpty(progress.PortScanIp))
                         {
-                            // Show port scanning indicator
+
                             if (LoadingIndicator != null)
                             {
                                 LoadingIndicator.Visibility = Visibility.Visible;
                             }
-                            
-                            // Update status to show port scanning
+
                             if (StatusTextBlock != null)
                             {
                                 StatusTextBlock.Text = $"Scanning ports on {progress.PortScanIp}...";
-                                StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(37, 99, 235)); // Blue
+                                StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(37, 99, 235));
                             }
-                            
-                            // Update current IP text to show port scanning progress
+
                             if (CurrentIpTextBlock != null)
                             {
                                 if (progress.TotalPorts > 0)
@@ -794,62 +745,56 @@ namespace Dorothy.Views
                                 {
                                     CurrentIpTextBlock.Text = $"Port scanning: {progress.PortScanIp}...";
                                 }
-                                CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(37, 99, 235)); // Blue
+                                CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(37, 99, 235));
                             }
-                            
-                            // Update progress bar for port scanning
+
                             if (ScanProgressBar != null && progress.TotalPorts > 0)
                             {
                                 ScanProgressBar.Maximum = progress.TotalPorts;
                                 ScanProgressBar.Value = progress.PortsScanned;
                             }
-                            
-                            // Add newly found port to DataGrid in real-time
+
                             if (progress.NewPort != null)
                             {
-                                // Find the asset for this IP and add the port
+
                                 var asset = _foundAssets.FirstOrDefault(a => a.IpAddress == progress.PortScanIp);
                                 if (asset != null)
                                 {
-                                    // Add port to asset if not already present
+
                                     if (asset.OpenPorts == null)
                                         asset.OpenPorts = new List<Models.OpenPort>();
-                                    
+
                                     if (!asset.OpenPorts.Any(p => p.Port == progress.NewPort.Port && p.Protocol == progress.NewPort.Protocol))
                                     {
                                         asset.OpenPorts.Add(progress.NewPort);
                                         asset.OpenPorts = asset.OpenPorts.OrderBy(p => p.Port).ToList();
-                                        
-                                        // Track discovered ports for Banner Grabbing mode auto-population
+
                                         _discoveredPorts.Add(progress.NewPort.Port);
-                                        
-                                        // Update the asset in the list
+
                                         ResultsDataGrid.Items.Refresh();
-                                        
-                                        // Update ports DataGrid if this asset is selected or if we're showing all ports
-                                        if (PortsDataGrid != null && 
-                                            (_currentPortScanMode == PortScanMode.Common || 
-                                             _currentPortScanMode == PortScanMode.All || 
-                                             _currentPortScanMode == PortScanMode.Range || 
+
+                                        if (PortsDataGrid != null &&
+                                            (_currentPortScanMode == PortScanMode.Common ||
+                                             _currentPortScanMode == PortScanMode.All ||
+                                             _currentPortScanMode == PortScanMode.Range ||
                                              _currentPortScanMode == PortScanMode.Selected))
                                         {
-                                            // Refresh ports DataGrid with all ports from all assets
+
                                             var allPorts = _foundAssets
                                                 .Where(a => a.OpenPorts != null && a.OpenPorts.Count > 0)
                                                 .SelectMany(a => a.OpenPorts)
                                                 .OrderBy(p => p.Port)
                                                 .ToList();
-                                            
+
                                             PortsDataGrid.ItemsSource = allPorts;
                                             PortsDataGrid.Items.Refresh();
-                                            
-                                            // Update ports count text
+
                                             if (PortsCountText != null)
                                             {
                                                 var deviceCount = _foundAssets.Count(a => a.OpenPorts != null && a.OpenPorts.Count > 0);
                                                 PortsCountText.Text = $"({allPorts.Count} port{(allPorts.Count == 1 ? "" : "s")} from {deviceCount} device{(deviceCount == 1 ? "" : "s")})";
                                                 PortsCountText.Foreground = new System.Windows.Media.SolidColorBrush(
-                                                    System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green color
+                                                    System.Windows.Media.Color.FromRgb(5, 150, 105));
                                             }
                                         }
                                     }
@@ -858,38 +803,35 @@ namespace Dorothy.Views
                         }
                         else
                         {
-                            // Normal host scanning (not port scanning)
-                            // Reset status text color to default during scanning
+
                             if (StatusTextBlock != null)
                             {
-                                StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 24, 39)); // Default dark gray
+                                StatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 24, 39));
                                 StatusTextBlock.Text = $"Scanning network...";
                             }
-                            
+
                             if (CurrentIpTextBlock != null)
                             {
                                 CurrentIpTextBlock.Text = $"Scanning: {progress.CurrentIp ?? "..."}";
-                                CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175)); // Default light gray
+                                CurrentIpTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(156, 163, 175));
                             }
-                            
+
                             if (ProgressTextBlock != null)
                                 ProgressTextBlock.Text = $"{progress.Scanned} / {progress.Total}";
-                            
+
                             if (ScanProgressBar != null && progress.Total > 0)
                             {
                                 ScanProgressBar.Maximum = progress.Total;
                                 ScanProgressBar.Value = progress.Scanned;
                             }
-                            
+
                             if (FoundCountTextBlock != null)
                                 FoundCountTextBlock.Text = progress.Found.ToString();
-                            
-                            // Add newly found asset to DataGrid in real-time
+
                             if (progress.NewAsset != null && ResultsDataGrid != null)
                             {
                                 _foundAssets.Add(progress.NewAsset);
-                                
-                                // Track discovered ports for Selected mode auto-population
+
                                 if (progress.NewAsset.OpenPorts != null && progress.NewAsset.OpenPorts.Count > 0)
                                 {
                                     foreach (var openPort in progress.NewAsset.OpenPorts)
@@ -897,10 +839,9 @@ namespace Dorothy.Views
                                         _discoveredPorts.Add(openPort.Port);
                                     }
                                 }
-                                
+
                                 ResultsDataGrid.Items.Refresh();
-                                
-                                // Auto-scroll to the newest item
+
                                 if (ResultsDataGrid.Items.Count > 0)
                                 {
                                     ResultsDataGrid.ScrollIntoView(ResultsDataGrid.Items[ResultsDataGrid.Items.Count - 1]);
@@ -916,7 +857,7 @@ namespace Dorothy.Views
             }
             catch
             {
-                // Ignore UI update errors
+
             }
         }
 
@@ -935,7 +876,7 @@ namespace Dorothy.Views
             {
                 foreach (var asset in _assets)
                 {
-                    // Generate ports display string from OpenPorts
+
                     string portsDisplay = null;
                     if (asset.OpenPorts != null && asset.OpenPorts.Count > 0)
                     {
@@ -948,7 +889,7 @@ namespace Dorothy.Views
                     var assetEntry = new Models.Database.AssetEntry
                     {
                         HostIp = asset.IpAddress,
-                        // Keep "Unknown" as string for display purposes (don't convert to null)
+
                         HostName = string.IsNullOrEmpty(asset.Name) ? null : (asset.Name == "Unknown" ? "Unknown" : asset.Name),
                         MacAddress = string.IsNullOrEmpty(asset.MacAddress) ? null : (asset.MacAddress == "Unknown" ? "Unknown" : asset.MacAddress),
                         Vendor = string.IsNullOrEmpty(asset.Vendor) ? null : (asset.Vendor == "Unknown" ? "Unknown" : asset.Vendor),
@@ -957,18 +898,16 @@ namespace Dorothy.Views
                         ScanTime = DateTime.UtcNow,
                         CreatedAt = DateTime.UtcNow,
                         Synced = false,
-                        Ports = portsDisplay, // Store ports display string in assets table
-                        // Metadata for audit tracking
+                        Ports = portsDisplay,
+
                         HardwareId = _hardwareId,
                         MachineName = _machineName,
                         Username = _username,
-                        UserId = null // Can be set if user authentication is implemented
+                        UserId = null
                     };
 
                     var assetId = await _databaseService.SaveAssetAsync(assetEntry);
 
-                    // Save ports separately - ensure ALL port data is saved including banners
-                    // When ports are added/updated, the asset is automatically marked as unsynced
                     if (asset.OpenPorts != null && asset.OpenPorts.Count > 0)
                     {
                         foreach (var openPort in asset.OpenPorts)
@@ -978,13 +917,13 @@ namespace Dorothy.Views
                                 AssetId = assetId,
                                 HostIp = asset.IpAddress,
                                 Port = openPort.Port,
-                                Protocol = openPort.Protocol ?? "TCP", // Default to TCP if null
+                                Protocol = openPort.Protocol ?? "TCP",
                                 Service = string.IsNullOrWhiteSpace(openPort.Service) ? null : openPort.Service.Trim(),
-                                Banner = string.IsNullOrWhiteSpace(openPort.Banner) ? null : openPort.Banner.Trim(), // Save banner if it exists
+                                Banner = string.IsNullOrWhiteSpace(openPort.Banner) ? null : openPort.Banner.Trim(),
                                 ScanTime = DateTime.UtcNow,
                                 CreatedAt = DateTime.UtcNow,
                                 Synced = false,
-                                // Metadata for audit tracking
+
                                 HardwareId = _hardwareId,
                                 MachineName = _machineName,
                                 Username = _username,
@@ -993,16 +932,16 @@ namespace Dorothy.Views
 
                             try
                             {
-                                // SavePortAsync will automatically mark the asset as unsynced when ports are added/updated
+
                                 await _databaseService.SavePortAsync(portEntry, markAssetUnsynced: true);
                             }
                             catch (Exception portEx)
                             {
                                 _attackLogger.LogError($"Failed to save port {openPort.Port} for {asset.IpAddress}: {portEx.Message}");
-                                // Continue saving other ports even if one fails
+
                             }
                         }
-                        
+
                         _attackLogger.LogInfo($"Saved/updated {asset.OpenPorts.Count} port(s) for {asset.IpAddress} to database. Asset marked as unsynced for cloud sync.");
                     }
                 }
@@ -1020,7 +959,7 @@ namespace Dorothy.Views
             try
             {
                 var pendingCount = await _supabaseSyncService.GetPendingAssetsCountAsync();
-                
+
                 Dispatcher.Invoke(() =>
                 {
                     if (pendingCount > 0)
@@ -1038,7 +977,7 @@ namespace Dorothy.Views
             }
             catch (Exception ex)
             {
-                // Ignore errors
+
             }
         }
 
@@ -1065,7 +1004,6 @@ namespace Dorothy.Views
                     return;
                 }
 
-                // Create sync window for assets
                 var syncWindow = new AssetSyncWindow(unsyncedAssets)
                 {
                     Owner = this
@@ -1073,14 +1011,13 @@ namespace Dorothy.Views
 
                 if (syncWindow.ShowDialog() == true && syncWindow.ShouldSync)
                 {
-                    // Delete selected assets if any
+
                     if (syncWindow.DeletedIds.Count > 0)
                     {
                         await _databaseService.DeleteAssetsAsync(syncWindow.DeletedIds);
                         _attackLogger.LogInfo($"Deleted {syncWindow.DeletedIds.Count} asset(s).");
                     }
 
-                    // Sync selected assets
                     if (syncWindow.SelectedIds.Count > 0)
                     {
                         SyncAssetsButton.IsEnabled = false;
@@ -1107,7 +1044,6 @@ namespace Dorothy.Views
                         SyncAssetsButton.ToolTip = originalTooltip;
                     }
 
-                    // Update sync status
                     _ = Task.Run(async () => await UpdateAssetsSyncStatus());
                 }
             }
@@ -1146,7 +1082,6 @@ namespace Dorothy.Views
             using var workbook = new XLWorkbook();
             var worksheet = workbook.Worksheets.Add("Network Assets");
 
-            // Add headers
             worksheet.Cell(1, 1).Value = "IP Address";
             worksheet.Cell(1, 2).Value = "MAC Address";
             worksheet.Cell(1, 3).Value = "Name";
@@ -1156,13 +1091,11 @@ namespace Dorothy.Views
             worksheet.Cell(1, 7).Value = "Open Ports";
             worksheet.Cell(1, 8).Value = "Port Details";
 
-            // Style headers
             var headerRange = worksheet.Range(1, 1, 1, 8);
             headerRange.Style.Font.Bold = true;
             headerRange.Style.Fill.BackgroundColor = XLColor.LightGray;
             headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
 
-            // Add data
             int row = 2;
             foreach (var asset in _assets)
             {
@@ -1173,8 +1106,7 @@ namespace Dorothy.Views
                 worksheet.Cell(row, 5).Value = asset.Status;
                 worksheet.Cell(row, 6).Value = asset.RoundTripTime?.ToString() ?? "N/A";
                 worksheet.Cell(row, 7).Value = asset.OpenPorts.Count > 0 ? asset.OpenPorts.Count.ToString() : "0";
-                
-                // Port details (one port per line)
+
                 var portDetails = new System.Text.StringBuilder();
                 foreach (var port in asset.OpenPorts)
                 {
@@ -1189,20 +1121,18 @@ namespace Dorothy.Views
                 row++;
             }
 
-            // Auto-fit columns
             worksheet.Columns().AdjustToContents();
 
-            // Add summary sheet
             var summarySheet = workbook.Worksheets.Add("Summary");
             summarySheet.Cell(1, 1).Value = "Network Scan Summary";
             summarySheet.Cell(1, 1).Style.Font.Bold = true;
             summarySheet.Cell(1, 1).Style.Font.FontSize = 14;
-            
+
             summarySheet.Cell(3, 1).Value = "Total Devices Found:";
             summarySheet.Cell(3, 2).Value = _assets.Count;
             summarySheet.Cell(4, 1).Value = "Scan Date:";
             summarySheet.Cell(4, 2).Value = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            
+
             summarySheet.Columns().AdjustToContents();
 
             workbook.SaveAs(filePath);
@@ -1211,25 +1141,21 @@ namespace Dorothy.Views
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
             _cancellationTokenSource?.Cancel();
-            
-            // Restore the initial state - show configuration panel, hide results
+
             Dispatcher.Invoke(() =>
             {
                 try
                 {
-                    // Show the scan configuration panel
+
                     if (RangeConfigPanel != null)
                         RangeConfigPanel.Visibility = Visibility.Visible;
-                    
-                    // Re-enable the start scan button
+
                     if (StartScanButton != null)
                         StartScanButton.IsEnabled = true;
-                    
-                    // Hide the back button (only show after scan completes)
+
                     if (BackButton != null)
                         BackButton.Visibility = Visibility.Collapsed;
-                    
-                    // Reset progress indicators
+
                     if (StatusTextBlock != null)
                     {
                         StatusTextBlock.Text = "Ready to scan";
@@ -1250,22 +1176,19 @@ namespace Dorothy.Views
                         LoadingIndicator.Visibility = Visibility.Collapsed;
                     if (CancelScanButton != null)
                         CancelScanButton.Visibility = Visibility.Collapsed;
-                    
-                    // Clear the results
+
                     _foundAssets.Clear();
                     if (ResultsDataGrid != null)
                     {
                         ResultsDataGrid.ItemsSource = null;
                         ResultsDataGrid.ItemsSource = _foundAssets;
                     }
-                    
-                    // Clear ports DataGrid
+
                     if (PortsDataGrid != null)
                     {
                         PortsDataGrid.ItemsSource = null;
                     }
-                    
-                    // Disable export button
+
                     if (ExportExcelButton != null)
                         ExportExcelButton.IsEnabled = false;
                 }

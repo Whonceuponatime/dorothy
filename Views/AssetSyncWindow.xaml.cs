@@ -20,8 +20,7 @@ namespace Dorothy.Views
         public AssetSyncWindow(List<AssetEntry> assets)
         {
             InitializeComponent();
-            
-            // Convert to AssetItem for binding
+
             _assetItems = assets.Select(asset => new AssetItem
             {
                 Id = asset.Id,
@@ -33,8 +32,8 @@ namespace Dorothy.Views
                 PingTime = asset.PingTime,
                 ScanTime = asset.ScanTime,
                 ProjectName = asset.ProjectName ?? "None",
-                OpenPortsDisplay = string.IsNullOrWhiteSpace(asset.Ports) ? "N/A" : asset.Ports, // Use Ports column from database
-                IsSelected = true // Default to selected
+                OpenPortsDisplay = string.IsNullOrWhiteSpace(asset.Ports) ? "N/A" : asset.Ports,
+                IsSelected = true
             }).ToList();
 
             AssetsDataGrid.ItemsSource = _assetItems;
@@ -120,7 +119,7 @@ namespace Dorothy.Views
         private void SyncButton_Click(object sender, RoutedEventArgs e)
         {
             SelectedIds = _assetItems.Where(item => item.IsSelected).Select(item => item.Id).ToList();
-            
+
             if (SelectedIds.Count == 0)
             {
                 MessageBox.Show("Please select at least one asset to sync.", "No Selection", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -153,7 +152,7 @@ namespace Dorothy.Views
         public int? PingTime { get; set; }
         public DateTime ScanTime { get; set; }
         public string ProjectName { get; set; } = string.Empty;
-        public string OpenPortsDisplay { get; set; } = "N/A"; // Ports not stored in database
+        public string OpenPortsDisplay { get; set; } = "N/A";
 
         public bool IsSelected
         {

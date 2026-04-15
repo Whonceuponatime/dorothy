@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows;
 using Dorothy.Services;
 
@@ -12,12 +12,10 @@ namespace Dorothy.Views
         {
             InitializeComponent();
             _scalingService = UIScalingService.Instance;
-            
-            // Initialize slider with current scale
+
             ScaleSlider.Value = _scalingService.CurrentScaleFactor;
             UpdateScaleText();
-            
-            // Subscribe to scale changes
+
             _scalingService.ScaleChanged += ScalingService_ScaleChanged;
         }
 
@@ -74,10 +72,4 @@ namespace Dorothy.Views
         }
     }
 }
-
-
-
-
-
-
 

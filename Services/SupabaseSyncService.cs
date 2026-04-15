@@ -93,14 +93,12 @@ namespace Dorothy.Services
                 {
                     try
                     {
-                        // Calculate duration in seconds
+
                         var duration = (log.StopTime - log.StartTime).TotalSeconds;
 
-                        // Create a new entry for Supabase (without the local SQLite Id)
-                        // Important: Do NOT set Id (Supabase auto-generates it) or IsSynced/Note/LogContent/SyncedAt (not in schema)
                         var supabaseEntry = new AttackLogEntry
                         {
-                            // Id is not set - Supabase will auto-generate it
+
                             ProjectName = projectName ?? log.ProjectName,
                             AttackType = log.AttackType,
                             Protocol = log.Protocol,
@@ -114,16 +112,15 @@ namespace Dorothy.Services
                             DurationSeconds = log.DurationSeconds > 0 ? log.DurationSeconds : (int)duration,
                             StartTime = log.StartTime,
                             StopTime = log.StopTime,
-                            Synced = true, // This maps to the 'synced' column in Supabase (NOT IsSynced)
+                            Synced = true,
                             CreatedAt = log.CreatedAt,
                             HardwareId = log.HardwareId?.ToUpperInvariant(),
                             MachineName = log.MachineName,
                             Username = log.Username,
                             UserId = log.UserId
-                            // Note: IsSynced, Note, LogContent, and SyncedAt are NOT set - they don't exist in Supabase schema
+
                         };
 
-                        // Explicitly clear any local-only properties to prevent serialization
                         supabaseEntry.Note = null;
                         supabaseEntry.LogContent = string.Empty;
                         supabaseEntry.SyncedAt = null;
@@ -142,29 +139,26 @@ namespace Dorothy.Services
                     catch (Exception ex)
                     {
                         Logger.Error(ex, $"Failed to sync log {log.Id}");
-                        
-                        // Check for RLS policy violation
+
                         string errorMessage = ex.Message;
                         if (ex.Message.Contains("row-level security policy", StringComparison.OrdinalIgnoreCase) ||
                             ex.Message.Contains("42501", StringComparison.OrdinalIgnoreCase))
                         {
                             errorMessage = "RLS policy violation - Check Supabase RLS policies allow inserts with anon key, or configure authentication";
                         }
-                        
+
                         errors.Add($"Log {log.Id}: {errorMessage}");
                     }
                 }
 
-                // Mark all successfully synced logs
                 if (syncedIds.Count > 0)
                 {
                     await _databaseService.MarkAsSyncedAsync(syncedIds, DateTime.UtcNow);
                 }
 
-                // Build detailed error message for RLS policy violations
                 var rlsErrors = errors.Where(e => e.Contains("RLS policy violation", StringComparison.OrdinalIgnoreCase)).ToList();
                 var otherErrors = errors.Where(e => !e.Contains("RLS policy violation", StringComparison.OrdinalIgnoreCase)).ToList();
-                
+
                 string message;
                 if (syncedCount == unsyncedLogs.Count)
                 {
@@ -238,12 +232,10 @@ namespace Dorothy.Services
                 var errors = new List<string>();
                 var syncedIds = new List<long>();
 
-                // Step 1: Enhance data in parallel batches (if enabled)
                 if (enhanceData)
                 {
                     ReportProgress($"Enhancing {unsyncedAssets.Count} asset(s) in parallel...");
-                    
-                    // Process enhancements in parallel batches (max 10 concurrent to avoid overwhelming APIs)
+
                     int batchSize = 10;
                     var semaphore = new System.Threading.SemaphoreSlim(batchSize);
                     var enhancementTasks = unsyncedAssets.Select(async (asset, index) =>
@@ -251,36 +243,32 @@ namespace Dorothy.Services
                         await semaphore.WaitAsync();
                         try
                         {
-                            // Enhance hostname and vendor in parallel for this asset
+
                             var hostnameTask = Task.FromResult(asset.HostName);
                             var vendorTask = Task.FromResult(asset.Vendor);
-                            
-                            // Do NetBIOS lookup ONLY if hostname is unknown (gets machine name, not DNS name)
+
                             if (string.IsNullOrEmpty(asset.HostName) || asset.HostName == "Unknown")
                             {
                                 hostnameTask = ResolveHostnameAsync(asset.HostIp);
                             }
 
-                            // For vendor: Use local OUI database only (offline)
-                            if ((string.IsNullOrEmpty(asset.Vendor) || asset.Vendor == "Unknown") && 
-                                !string.IsNullOrEmpty(asset.MacAddress) && 
+                            if ((string.IsNullOrEmpty(asset.Vendor) || asset.Vendor == "Unknown") &&
+                                !string.IsNullOrEmpty(asset.MacAddress) &&
                                 asset.MacAddress != "Unknown")
                             {
-                                // Use local OUI database only (offline, instant)
+
                                 var localVendor = GetVendorFromLocalDatabase(asset.MacAddress);
                                 vendorTask = Task.FromResult(localVendor);
                             }
                             else
                             {
                             }
-                            
-                            // Wait for both lookups to complete
+
                             await Task.WhenAll(hostnameTask, vendorTask);
-                            
-                            // Store enhanced values back to asset (we'll use these when syncing)
+
                             asset.HostName = await hostnameTask;
                             asset.Vendor = await vendorTask;
-                            
+
                             if ((index + 1) % 10 == 0)
                             {
                                 ReportProgress($"Enhanced {index + 1}/{unsyncedAssets.Count} asset(s)...");
@@ -288,19 +276,18 @@ namespace Dorothy.Services
                         }
                         catch
                         {
-                            // Continue with original values if enhancement fails
+
                         }
                         finally
                         {
                             semaphore.Release();
                         }
                     });
-                    
+
                     await Task.WhenAll(enhancementTasks);
-                    
-                    // Save enhanced data back to local database so it persists
+
                     ReportProgress($"Saving enhanced data to local database...");
-                    var updateTasks = unsyncedAssets.Where(asset => 
+                    var updateTasks = unsyncedAssets.Where(asset =>
                         (!string.IsNullOrEmpty(asset.Vendor) && asset.Vendor != "Unknown") ||
                         (!string.IsNullOrEmpty(asset.HostName) && asset.HostName != "Unknown"))
                         .Select(async asset =>
@@ -308,27 +295,26 @@ namespace Dorothy.Services
                             try
                             {
                                 await _databaseService.UpdateAssetVendorAndHostnameAsync(
-                                    asset.Id, 
-                                    asset.Vendor, 
+                                    asset.Id,
+                                    asset.Vendor,
                                     asset.HostName);
                             }
                             catch
                             {
-                                // Continue even if update fails
+
                             }
                         });
                     await Task.WhenAll(updateTasks);
-                    
+
                     ReportProgress($"Enhancement complete. Syncing to cloud...");
                 }
 
-                // Step 2: Sync to Supabase in parallel batches (now with enhanced data)
                 ReportProgress($"Syncing {unsyncedAssets.Count} asset(s) to cloud...");
-                
-                int syncBatchSize = 5; // Limit concurrent Supabase inserts to avoid rate limiting
+
+                int syncBatchSize = 5;
                 var syncSemaphore = new System.Threading.SemaphoreSlim(syncBatchSize);
                 var syncLock = new object();
-                
+
                 var syncTasks = unsyncedAssets.Select(async (asset, index) =>
                 {
                     await syncSemaphore.WaitAsync();
@@ -339,26 +325,24 @@ namespace Dorothy.Services
                             ReportProgress($"Syncing {index + 1}/{unsyncedAssets.Count} asset(s)...");
                         }
 
-                        // Convert "Unknown" strings to null for proper database storage
                         var hostName = asset.HostName;
                         if (string.IsNullOrWhiteSpace(hostName) || hostName == "Unknown")
                         {
                             hostName = null;
                         }
-                        
+
                         var vendor = asset.Vendor;
                         if (string.IsNullOrWhiteSpace(vendor) || vendor == "Unknown")
                         {
                             vendor = null;
                         }
-                        
+
                         var macAddress = asset.MacAddress;
                         if (string.IsNullOrWhiteSpace(macAddress) || macAddress == "Unknown")
                         {
                             macAddress = null;
                         }
 
-                        // Check if asset already exists in Supabase
                         long supabaseAssetId = 0;
                         try
                         {
@@ -371,11 +355,9 @@ namespace Dorothy.Services
 
                             if (existingAsset != null && existingAsset.Models != null && existingAsset.Models.Count > 0)
                             {
-                                // Asset exists, use existing ID
+
                                 supabaseAssetId = existingAsset.Models[0].Id;
-                                
-                                // Update the existing asset
-                                // Note: Ports column will be updated after ports are synced (with port numbers only, no banners)
+
                                 await _supabaseClient
                                     .From<AssetEntry>()
                                     .Where(x => x.Id == supabaseAssetId)
@@ -391,23 +373,23 @@ namespace Dorothy.Services
                         }
                         catch
                         {
-                            // Asset doesn't exist or query failed, will insert new one
+
                         }
 
                         if (supabaseAssetId == 0)
                         {
-                            // Asset doesn't exist, insert new one
+
                         var supabaseAsset = new AssetEntry
                         {
                             HostIp = asset.HostIp,
-                                HostName = hostName, // Convert "Unknown" to null
-                                MacAddress = macAddress, // Convert "Unknown" to null
-                                Vendor = vendor, // Convert "Unknown" to null
+                                HostName = hostName,
+                                MacAddress = macAddress,
+                                Vendor = vendor,
                             IsOnline = asset.IsOnline,
                             PingTime = asset.PingTime,
                             ScanTime = asset.ScanTime,
                             ProjectName = projectName ?? asset.ProjectName,
-                                // Ports column will be updated after ports are synced (with port numbers only, no banners)
+
                             Synced = true,
                             CreatedAt = asset.CreatedAt,
                             HardwareId = asset.HardwareId?.ToUpperInvariant(),
@@ -416,7 +398,6 @@ namespace Dorothy.Services
                             UserId = asset.UserId
                         };
 
-                        // Explicitly clear local-only property to prevent serialization
                         supabaseAsset.SyncedAt = null;
 
                         var response = await _supabaseClient
@@ -431,10 +412,7 @@ namespace Dorothy.Services
 
                         if (supabaseAssetId > 0)
                         {
-                            // Sync ALL ports for this asset to Supabase ports table SEPARATELY
-                            // Ports are stored ONLY in the ports table with host_id foreign key
-                            // The assets.ports column is automatically updated by database trigger when ports are inserted/updated
-                            // This ensures complete separation: ports table = detailed port data, assets.ports = summary (auto-updated)
+
                             try
                             {
                                 var allPorts = await _databaseService.GetPortsByHostIpAsync(asset.HostIp);
@@ -447,12 +425,12 @@ namespace Dorothy.Services
                                         {
                                             var supabasePort = new PortEntry
                                             {
-                                                HostId = supabaseAssetId, // Link to the asset via host_id foreign key (maps to assets.id)
+                                                HostId = supabaseAssetId,
                                                 Port = port.Port,
                                                 Protocol = port.Protocol,
                                                 Service = port.Service,
-                                                Banner = port.Banner, // Banner information stored separately in ports table
-                                                Severity = "INFO", // Default - will be automatically calculated by database trigger based on port, protocol, service, and banner
+                                                Banner = port.Banner,
+                                                Severity = "INFO",
                                                 ScanTime = port.ScanTime,
                                                 ProjectName = projectName ?? port.ProjectName,
                                                 Synced = true,
@@ -463,10 +441,8 @@ namespace Dorothy.Services
                                                 UserId = port.UserId
                                             };
 
-                                            // Explicitly clear local-only property
                                             supabasePort.SyncedAt = null;
 
-                                            // Check if port already exists (using unique constraint: host_id, port, protocol)
                                             try
                                             {
                                                 var existingPort = await _supabaseClient
@@ -478,27 +454,22 @@ namespace Dorothy.Services
 
                                                 if (existingPort != null && existingPort.Models != null && existingPort.Models.Count > 0)
                                                 {
-                                                    // Port exists, update it (including HostId to ensure proper linking)
-                                                    // Severity will be automatically recalculated by database trigger
-                                                    // Database trigger will also automatically update assets.ports column
+
                                                     await _supabaseClient
                                                         .From<PortEntry>()
                                                         .Where(x => x.Id == existingPort.Models[0].Id)
-                                                        .Set(x => x.HostId, supabaseAssetId) // Update HostId to link to current asset
+                                                        .Set(x => x.HostId, supabaseAssetId)
                                                         .Set(x => x.Service, port.Service)
-                                                        .Set(x => x.Banner, port.Banner) // Banner stored separately in ports table
+                                                        .Set(x => x.Banner, port.Banner)
                                                         .Set(x => x.ScanTime, port.ScanTime)
                                                         .Set(x => x.ProjectName, projectName ?? port.ProjectName)
                                                         .Update();
-                                                    
+
                                                     portSyncedIds.Add(port.Id);
                                                 }
                                                 else
                                                 {
-                                                    // Port doesn't exist, insert new one
-                                                    // Database trigger will automatically:
-                                                    // 1. Calculate severity based on port, protocol, service, banner
-                                                    // 2. Update assets.ports column with summary
+
                                                     var portResponse = await _supabaseClient
                                                         .From<PortEntry>()
                                                         .Insert(supabasePort);
@@ -511,7 +482,7 @@ namespace Dorothy.Services
                                             }
                                             catch
                                             {
-                                                // If check fails, try to insert (might be a new port)
+
                                                 try
                                                 {
                                                     var portResponse = await _supabaseClient
@@ -525,7 +496,7 @@ namespace Dorothy.Services
                                                 }
                                                 catch
                                                 {
-                                                    // Port might already exist, skip it
+
                                                     Logger.Warn($"Port {port.Port}/{port.Protocol} for {port.HostIp} might already exist in Supabase");
                                                 }
                                             }
@@ -533,20 +504,16 @@ namespace Dorothy.Services
                                         catch (Exception portEx)
                                         {
                                             Logger.Error(portEx, $"Failed to sync port {port.Port} for asset {asset.HostIp}");
-                                            // Continue with other ports
+
                                         }
                                     }
 
-                                    // Mark successfully synced ports (mark all ports as synced)
-                                    // This ensures all ports are marked as synced, even if they were already in Supabase
                                     if (portSyncedIds.Count > 0)
                                     {
                                         await _databaseService.MarkPortsAsSyncedAsync(portSyncedIds, DateTime.UtcNow);
                                         Logger.Info($"Synced {portSyncedIds.Count} port(s) for asset {asset.HostIp} to Supabase ports table (separate from assets table)");
                                     }
-                                    
-                                    // Also mark any ports that were already synced but might not be in the list
-                                    // This handles the case where ports exist but weren't in the sync list
+
                                     var allPortIds = allPorts.Select(p => p.Id).ToList();
                                     if (allPortIds.Count > portSyncedIds.Count)
                                     {
@@ -557,33 +524,30 @@ namespace Dorothy.Services
                                             Logger.Info($"Marked {alreadySyncedIds.Count} existing port(s) as synced for asset {asset.HostIp}");
                                         }
                                     }
-                                    
-                                    // Manually update assets.ports column with ONLY port numbers (NO BANNERS)
-                                    // Format: "80/TCP, 443/TCP, 22/TCP"
-                                    // Banners are stored separately in the ports table
+
                                     try
                                     {
                                         var portsOnly = string.Join(", ", allPorts.OrderBy(p => p.Port).Select(p => $"{p.Port}/{p.Protocol}"));
-                                        
+
                                         await _supabaseClient
                                             .From<AssetEntry>()
                                             .Where(x => x.Id == supabaseAssetId)
                                             .Set(x => x.Ports, portsOnly)
                                             .Update();
-                                        
+
                                         Logger.Info($"Updated assets.ports column for {asset.HostIp} with port numbers only (no banners): {portsOnly}");
                                     }
                                     catch (Exception portsUpdateEx)
                                     {
                                         Logger.Error(portsUpdateEx, $"Failed to update assets.ports column for {asset.HostIp}");
-                                        // Don't fail the entire sync if ports column update fails
+
                                     }
                                 }
                             }
                             catch (Exception portSyncEx)
                             {
                                 Logger.Error(portSyncEx, $"Failed to sync ports for asset {asset.HostIp}");
-                                // Continue - asset is still synced even if ports fail
+
                             }
 
                             lock (syncLock)
@@ -596,15 +560,14 @@ namespace Dorothy.Services
                     catch (Exception ex)
                     {
                         Logger.Error(ex, $"Failed to sync asset {asset.Id}");
-                        
-                        // Check for RLS policy violation
+
                         string errorMessage = ex.Message;
                         if (ex.Message.Contains("row-level security policy", StringComparison.OrdinalIgnoreCase) ||
                             ex.Message.Contains("42501", StringComparison.OrdinalIgnoreCase))
                         {
                             errorMessage = "RLS policy violation - Check Supabase RLS policies allow inserts with anon key, or configure authentication";
                         }
-                        
+
                         lock (syncLock)
                         {
                             errors.Add($"Asset {asset.Id}: {errorMessage}");
@@ -615,19 +578,17 @@ namespace Dorothy.Services
                         syncSemaphore.Release();
                     }
                 });
-                
+
                 await Task.WhenAll(syncTasks);
 
-                // Mark all successfully synced assets
                 if (syncedIds.Count > 0)
                 {
                     await _databaseService.MarkAssetsAsSyncedAsync(syncedIds, DateTime.UtcNow);
                 }
 
-                // Build detailed error message for RLS policy violations
                 var rlsErrors = errors.Where(e => e.Contains("RLS policy violation", StringComparison.OrdinalIgnoreCase)).ToList();
                 var otherErrors = errors.Where(e => !e.Contains("RLS policy violation", StringComparison.OrdinalIgnoreCase)).ToList();
-                
+
                 string message;
                 if (syncedCount == unsyncedAssets.Count)
                 {
@@ -677,13 +638,9 @@ namespace Dorothy.Services
             return await _databaseService.GetUnsyncedReachabilityTestsCountAsync();
         }
 
-        /// <summary>
-        /// Resolves hostname from IP address using DNS lookup (online).
-        /// Returns original value or "Unknown" if lookup fails.
-        /// </summary>
         private async Task<string> ResolveHostnameAsync(string ipAddress)
         {
-            // Use NetBIOS to get machine name (not DNS)
+
             try
             {
                 using var process = new System.Diagnostics.Process
@@ -701,7 +658,7 @@ namespace Dorothy.Services
 
                 process.Start();
                 var outputTask = process.StandardOutput.ReadToEndAsync();
-                var timeoutTask = Task.Delay(3000); // 3 second timeout
+                var timeoutTask = Task.Delay(3000);
                 var completed = await Task.WhenAny(outputTask, timeoutTask);
 
                 if (completed == outputTask)
@@ -709,36 +666,34 @@ namespace Dorothy.Services
                     var output = await outputTask;
                     await process.WaitForExitAsync();
 
-                    // Parse NetBIOS name from output - try multiple suffixes
-                    // <00> = Workstation Service, <20> = File Server Service, <03> = Messenger Service
                     var lines = output.Split('\n');
                     string? bestName = null;
-                    
+
                     foreach (var line in lines)
                     {
-                        // Try to find workstation name first (<00>), then file server (<20>), then messenger (<03>)
+
                         if (line.Contains("<00>") || line.Contains("<20>") || line.Contains("<03>"))
                         {
                             var parts = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
                             if (parts.Length >= 1)
                             {
                                 var name = parts[0].Trim();
-                                if (!string.IsNullOrWhiteSpace(name) && 
+                                if (!string.IsNullOrWhiteSpace(name) &&
                                     !name.Equals("Name", StringComparison.OrdinalIgnoreCase) &&
                                     !name.Equals("---", StringComparison.OrdinalIgnoreCase) &&
-                                    !name.StartsWith("_", StringComparison.OrdinalIgnoreCase)) // Skip service names
+                                    !name.StartsWith("_", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    // Prefer workstation service name
+
                                     if (line.Contains("<00>") && bestName == null)
                                     {
                                         bestName = name;
                                     }
-                                    // Fallback to file server name
+
                                     else if (line.Contains("<20>") && bestName == null)
                                     {
                                         bestName = name;
                                     }
-                                    // Last resort: messenger service
+
                                     else if (line.Contains("<03>") && bestName == null)
                                     {
                                         bestName = name;
@@ -747,13 +702,13 @@ namespace Dorothy.Services
                             }
                         }
                     }
-                    
+
                     if (!string.IsNullOrWhiteSpace(bestName))
                     {
-                        // Clean up the name
+
                         bestName = bestName.Trim();
-                        // Remove any trailing spaces or special characters
-                        while (bestName.Length > 0 && (bestName[bestName.Length - 1] == ' ' || 
+
+                        while (bestName.Length > 0 && (bestName[bestName.Length - 1] == ' ' ||
                                bestName[bestName.Length - 1] < 32))
                         {
                             bestName = bestName.Substring(0, bestName.Length - 1);
@@ -771,18 +726,15 @@ namespace Dorothy.Services
             }
             catch
             {
-                // NetBIOS lookup failed, stay as unknown
+
             }
 
             return "Unknown";
         }
 
-        /// <summary>
-        /// Gets vendor from local OUI database (offline only).
-        /// </summary>
         private string GetVendorFromLocalDatabase(string macAddress)
         {
-            // Clean MAC address and extract OUI (first 6 characters)
+
             string cleanMac = macAddress.Replace(":", "").Replace("-", "").ToUpper();
             if (cleanMac.Length < 6)
             {
@@ -791,10 +743,9 @@ namespace Dorothy.Services
 
             string oui = cleanMac.Substring(0, 6);
 
-            // Comprehensive offline OUI database with verified IEEE assignments
             var ouiDatabase = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                // Virtual/Hypervisors
+
                 { "005056", "VMware" },
                 { "000C29", "VMware" },
                 { "000569", "VMware" },
@@ -803,20 +754,18 @@ namespace Dorothy.Services
                 { "00155D", "Hyper-V" },
                 { "001DD8", "Microsoft" },
 
-                // Common network equipment and devices
                 { "0010F3", "Nexans" },
-                { "F8A2CF", "Unknown" }, // No IEEE record - keep as Unknown
+                { "F8A2CF", "Unknown" },
                 { "98E7F4", "Wistron Neweb" },
                 { "04D9F5", "MSI" },
                 { "3C7C3F", "LG Electronics" },
-                { "F8E43B", "Hon Hai Precision" }, // Foxconn
+                { "F8E43B", "Hon Hai Precision" },
                 { "305A3A", "AzureWave Technology" },
                 { "50EBF6", "Lite-On Technology" },
                 { "B0383B", "Hon Hai Precision" },
                 { "C8B223", "D-Link" },
                 { "E86A64", "TP-Link" },
 
-                // Apple
                 { "A4C361", "Apple" },
                 { "BC9FEF", "Apple" },
                 { "64B9E8", "Apple" },
@@ -836,7 +785,6 @@ namespace Dorothy.Services
                 { "DC2B2A", "Apple" },
                 { "3451C9", "Apple" },
 
-                // Samsung
                 { "1CBDB9", "Samsung" },
                 { "E4121D", "Samsung" },
                 { "DC7144", "Samsung" },
@@ -858,7 +806,6 @@ namespace Dorothy.Services
                 { "30CDA7", "Samsung" },
                 { "988389", "Samsung" },
 
-                // Intel
                 { "00AA00", "Intel" },
                 { "00AA01", "Intel" },
                 { "00AA02", "Intel" },
@@ -875,7 +822,6 @@ namespace Dorothy.Services
                 { "685D43", "Intel" },
                 { "B4FCC4", "Intel" },
 
-                // Realtek
                 { "00E04C", "Realtek" },
                 { "525400", "Realtek" },
                 { "74DA38", "Realtek" },
@@ -885,7 +831,6 @@ namespace Dorothy.Services
                 { "801F02", "Realtek" },
                 { "30F9ED", "Realtek" },
 
-                // Dell
                 { "001C23", "Dell" },
                 { "002170", "Dell" },
                 { "00215D", "Dell" },
@@ -900,7 +845,6 @@ namespace Dorothy.Services
                 { "4CD717", "Dell" },
                 { "B07B25", "Dell" },
 
-                // HP / HPE
                 { "001438", "HP" },
                 { "002324", "HP" },
                 { "C08995", "HP" },
@@ -914,7 +858,6 @@ namespace Dorothy.Services
                 { "5C60BA", "HP" },
                 { "E4E749", "HP" },
 
-                // Lenovo
                 { "60F677", "Lenovo" },
                 { "5065F3", "Lenovo" },
                 { "1C69A5", "Lenovo" },
@@ -925,7 +868,6 @@ namespace Dorothy.Services
                 { "9CBC36", "Lenovo" },
                 { "A01D48", "Lenovo" },
 
-                // TP-Link
                 { "F4EC38", "TP-Link" },
                 { "D82686", "TP-Link" },
                 { "C46E1F", "TP-Link" },
@@ -937,7 +879,6 @@ namespace Dorothy.Services
                 { "A04606", "TP-Link" },
                 { "1C3BF3", "TP-Link" },
 
-                // ASUS
                 { "2CF05D", "ASUS" },
                 { "1C87EC", "ASUS" },
                 { "AC220B", "ASUS" },
@@ -956,7 +897,6 @@ namespace Dorothy.Services
                 { "B06EBF", "ASUS" },
                 { "A85E45", "ASUS" },
 
-                // Cisco
                 { "00000C", "Cisco" },
                 { "00000D", "Cisco" },
                 { "00000E", "Cisco" },
@@ -969,7 +909,6 @@ namespace Dorothy.Services
                 { "001D71", "Cisco" },
                 { "0021A0", "Cisco" },
 
-                // Netgear
                 { "0024B2", "Netgear" },
                 { "000FB5", "Netgear" },
                 { "001B2F", "Netgear" },
@@ -980,7 +919,6 @@ namespace Dorothy.Services
                 { "3490EA", "Netgear" },
                 { "288088", "Netgear" },
 
-                // D-Link
                 { "000D88", "D-Link" },
                 { "001195", "D-Link" },
                 { "001346", "D-Link" },
@@ -991,7 +929,6 @@ namespace Dorothy.Services
                 { "1C7EE5", "D-Link" },
                 { "CCB255", "D-Link" },
 
-                // Huawei
                 { "00E00C", "Huawei" },
                 { "0018E7", "Huawei" },
                 { "00259E", "Huawei" },
@@ -1002,7 +939,6 @@ namespace Dorothy.Services
                 { "30D1DC", "Huawei" },
                 { "786EB8", "Huawei" },
 
-                // Xiaomi
                 { "64B473", "Xiaomi" },
                 { "F8A45F", "Xiaomi" },
                 { "783A84", "Xiaomi" },
@@ -1013,7 +949,6 @@ namespace Dorothy.Services
                 { "B0E235", "Xiaomi" },
                 { "5C63BF", "Xiaomi" },
 
-                // Google / Nest
                 { "54C0EB", "Google" },
                 { "54EAA8", "Google" },
                 { "3C5AB4", "Google" },
@@ -1021,7 +956,6 @@ namespace Dorothy.Services
                 { "C058EC", "Google" },
                 { "F4F5D8", "Google" },
 
-                // Amazon / Ring
                 { "74C246", "Amazon" },
                 { "ACF85C", "Amazon" },
                 { "84D6D0", "Amazon" },
@@ -1029,7 +963,6 @@ namespace Dorothy.Services
                 { "6854FD", "Amazon" },
                 { "0C47C9", "Amazon" },
 
-                // Broadcom
                 { "001018", "Broadcom" },
                 { "002618", "Broadcom" },
                 { "00D0C0", "Broadcom" },
@@ -1037,7 +970,6 @@ namespace Dorothy.Services
                 { "B49691", "Broadcom" },
                 { "E8B2AC", "Broadcom" },
 
-                // Qualcomm
                 { "009065", "Qualcomm" },
                 { "B0702D", "Qualcomm" },
                 { "C47C8D", "Qualcomm" },
@@ -1045,7 +977,6 @@ namespace Dorothy.Services
                 { "8C15C7", "Qualcomm" },
                 { "001DA2", "Qualcomm" },
 
-                // Sony
                 { "001D0D", "Sony" },
                 { "002076", "Sony" },
                 { "00247E", "Sony" },
@@ -1053,7 +984,6 @@ namespace Dorothy.Services
                 { "18F46A", "Sony" },
                 { "F8321A", "Sony" },
 
-                // LG
                 { "001C62", "LG" },
                 { "001E75", "LG" },
                 { "B4B3CF", "LG" },
@@ -1061,44 +991,36 @@ namespace Dorothy.Services
                 { "789ED0", "LG" },
                 { "50685D", "LG" },
 
-                // Motorola
                 { "00139D", "Motorola" },
                 { "001ADB", "Motorola" },
                 { "9C5CF9", "Motorola" },
                 { "0060A1", "Motorola" },
                 { "0004E2", "Motorola" },
 
-                // Linksys / Belkin
                 { "002129", "Linksys" },
                 { "00131A", "Linksys" },
                 { "001217", "Linksys" },
                 { "000625", "Linksys" },
                 { "002275", "Linksys" },
 
-                // Ubiquiti
                 { "04185A", "Ubiquiti" },
                 { "18E829", "Ubiquiti" },
                 { "687251", "Ubiquiti" },
                 { "24A43C", "Ubiquiti" },
                 { "FC0CAB", "Ubiquiti" },
 
-                // Raspberry Pi Foundation
                 { "B827EB", "Raspberry Pi" },
                 { "DCA632", "Raspberry Pi" },
                 { "E45F01", "Raspberry Pi" },
 
-                // ASRock
                 { "70856F", "ASRock" },
 
-                // GIGABYTE
                 { "1C697A", "GIGABYTE" },
                 { "9C6B00", "GIGABYTE" },
 
-                // MSI
                 { "00241D", "MSI" },
                 { "448A5B", "MSI" },
 
-                // Extra OUIs from scans
                 { "705DCC", "EFM Networks" },
                 { "6C2408", "LCFC(Hefei) Electronics" },
                 { "84BA3B", "Canon" },
@@ -1109,7 +1031,6 @@ namespace Dorothy.Services
                 { "D4CA6D", "MikroTik" },
                 { "1853E0", "Hanyang Digitech" },
 
-                // Still unresolved or rare OUIs
                 { "0009E5", "Unknown" },
                 { "A0CEC8", "Unknown" },
                 { "245EBE", "Unknown" },
@@ -1156,7 +1077,7 @@ namespace Dorothy.Services
                 {
                     try
                     {
-                        // Insert main test record
+
                         var supabaseTest = new ReachabilityTestEntry
                         {
                             ProjectName = projectName ?? test.ProjectName,
@@ -1188,16 +1109,15 @@ namespace Dorothy.Services
                         {
                             var supabaseTestId = testResponse.Models[0].Id;
 
-                            // Get child records from local database and sync them
                             try
                             {
-                                // Sync ICMP results
+
                                 var icmpResults = await _databaseService.GetReachabilityIcmpResultsAsync(test.Id);
                                 if (icmpResults.Count > 0)
                                 {
                                     var supabaseIcmpResults = icmpResults.Select(r => new ReachabilityIcmpResultEntry
                                     {
-                                        TestId = supabaseTestId, // Use Supabase test ID
+                                        TestId = supabaseTestId,
                                         TargetIp = r.TargetIp,
                                         Role = r.Role,
                                         Reachable = r.Reachable,
@@ -1212,7 +1132,6 @@ namespace Dorothy.Services
                                         .Insert(supabaseIcmpResults);
                                 }
 
-                                // Sync TCP results
                                 var tcpResults = await _databaseService.GetReachabilityTcpResultsAsync(test.Id);
                                 if (tcpResults.Count > 0)
                                 {
@@ -1232,7 +1151,6 @@ namespace Dorothy.Services
                                         .Insert(supabaseTcpResults);
                                 }
 
-                                // Sync path hops
                                 var pathHops = await _databaseService.GetReachabilityPathHopsAsync(test.Id);
                                 if (pathHops.Count > 0)
                                 {
@@ -1252,7 +1170,6 @@ namespace Dorothy.Services
                                         .Insert(supabasePathHops);
                                 }
 
-                                // Sync deeper scans
                                 var deeperScans = await _databaseService.GetReachabilityDeeperScansAsync(test.Id);
                                 if (deeperScans.Count > 0)
                                 {
@@ -1270,7 +1187,6 @@ namespace Dorothy.Services
                                         .Insert(supabaseDeeperScans);
                                 }
 
-                                // Sync SNMP walks
                                 var snmpWalks = await _databaseService.GetReachabilitySnmpWalksAsync(test.Id);
                                 if (snmpWalks.Count > 0)
                                 {
@@ -1297,7 +1213,7 @@ namespace Dorothy.Services
                             catch (Exception childEx)
                             {
                                 Logger.Error(childEx, $"Failed to sync child records for test {test.Id}");
-                                // Continue - we still mark the main test as synced
+
                             }
 
                             syncedIds.Add(test.Id);
@@ -1307,19 +1223,18 @@ namespace Dorothy.Services
                     catch (Exception ex)
                     {
                         Logger.Error(ex, $"Failed to sync reachability test {test.Id}");
-                        
+
                         string errorMessage = ex.Message;
                         if (ex.Message.Contains("row-level security policy", StringComparison.OrdinalIgnoreCase) ||
                             ex.Message.Contains("42501", StringComparison.OrdinalIgnoreCase))
                         {
                             errorMessage = "RLS policy violation - Check Supabase RLS policies allow inserts with anon key";
                         }
-                        
+
                         errors.Add($"Test {test.Id}: {errorMessage}");
                     }
                 }
 
-                // Mark all successfully synced tests
                 if (syncedIds.Count > 0)
                 {
                     await _databaseService.MarkReachabilityTestsAsSyncedAsync(syncedIds, DateTime.UtcNow);
@@ -1327,7 +1242,7 @@ namespace Dorothy.Services
 
                 var rlsErrors = errors.Where(e => e.Contains("RLS policy violation", StringComparison.OrdinalIgnoreCase)).ToList();
                 var otherErrors = errors.Where(e => !e.Contains("RLS policy violation", StringComparison.OrdinalIgnoreCase)).ToList();
-                
+
                 string message;
                 if (syncedCount == unsyncedTests.Count)
                 {

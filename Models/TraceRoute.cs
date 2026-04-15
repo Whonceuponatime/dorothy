@@ -30,7 +30,7 @@ namespace Dorothy.Models
                 for (int ttl = 1; ttl <= MaxHops; ttl++)
                 {
                     var (address, roundTripTime) = await SendPingAsync(targetIp, ttl);
-                    
+
                     if (address == null)
                     {
                         _logger.LogWarning($"{ttl,2} *  Request timed out.");
@@ -56,7 +56,6 @@ namespace Dorothy.Models
                         _logger.LogNote("━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
                         _logger.LogSuccess("✅ Trace complete.");
 
-                        // Generate and log summary
                         var summary = GenerateTraceSummary(targetIp, hops);
                         _logger.LogNote("\n📊 Trace Route Summary:\n");
                         _logger.LogNote("━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
@@ -82,7 +81,7 @@ namespace Dorothy.Models
             try
             {
                 var reply = await ping.SendPingAsync(targetIp, Timeout, buffer, options);
-                
+
                 if (reply.Status == IPStatus.TtlExpired || reply.Status == IPStatus.Success)
                 {
                     return (reply.Address, reply.RoundtripTime);
@@ -90,7 +89,7 @@ namespace Dorothy.Models
             }
             catch (PingException)
             {
-                // Ignore ping exceptions and treat as timeout
+
             }
 
             return (null, 0);
@@ -99,38 +98,33 @@ namespace Dorothy.Models
         private string GenerateTraceSummary(string targetIp, List<(int Hop, long RoundTripTime, string Address, string? HostName)> hops)
         {
             var summary = new StringBuilder();
-            
-            // Add target information
+
             summary.AppendLine($"Target: {targetIp}");
             summary.AppendLine($"Total Hops: {hops.Count}");
-            
-            // Calculate statistics
+
             var totalTime = hops.Sum(h => h.RoundTripTime);
             var avgTime = hops.Count > 0 ? totalTime / hops.Count : 0;
             var maxTime = hops.Max(h => h.RoundTripTime);
             var minTime = hops.Min(h => h.RoundTripTime);
-            
+
             summary.AppendLine($"Average Response Time: {avgTime} ms");
             summary.AppendLine($"Fastest Response: {minTime} ms");
             summary.AppendLine($"Slowest Response: {maxTime} ms");
 
-            // Identify key points in the route
             if (hops.Count > 0)
             {
                 summary.AppendLine("\nKey Points:");
-                // First hop (usually local gateway)
+
                 var firstHop = hops[0];
                 summary.AppendLine($"Gateway: {firstHop.Address}" + (firstHop.HostName != null ? $" [{firstHop.HostName}]" : ""));
-                
-                // Last hop (destination)
+
                 var lastHop = hops[^1];
                 summary.AppendLine($"Destination: {lastHop.Address}" + (lastHop.HostName != null ? $" [{lastHop.HostName}]" : ""));
 
-                // Identify any significant latency jumps
                 for (int i = 1; i < hops.Count; i++)
                 {
                     var latencyJump = hops[i].RoundTripTime - hops[i - 1].RoundTripTime;
-                    if (latencyJump > 20) // Significant jump threshold
+                    if (latencyJump > 20)
                     {
                         summary.AppendLine($"Significant Latency Jump at Hop {hops[i].Hop}: +{latencyJump}ms");
                     }

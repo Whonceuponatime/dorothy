@@ -15,84 +15,70 @@ namespace Dorothy.Views
         {
             InitializeComponent();
             _updateCheckService = updateCheckService;
-            
-            // Set version from assembly
+
             var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
             if (version != null)
             {
                 ProductVersionText.Text = $"SEACURE(TOOL) - Version {version.Major}.{version.Minor}.{version.Build}";
             }
-            
-            // Check for updates asynchronously
+
             _ = CheckForUpdatesAsync();
+        }
+
+        private void SetBadge(string text, byte bgR, byte bgG, byte bgB, byte fgR, byte fgG, byte fgB)
+        {
+            VersionStatusText.Text = text;
+            VersionStatusBadge.Background = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(bgR, bgG, bgB));
+            VersionStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(fgR, fgG, fgB));
+            VersionStatusBadge.Visibility = Visibility.Visible;
         }
 
         private async Task CheckForUpdatesAsync()
         {
             if (_updateCheckService == null)
             {
-                // No update service available - show current version
                 var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
                 string currentVersion = version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "Unknown";
-                VersionStatusText.Text = $"Cloud (v{currentVersion})";
-                VersionStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromRgb(107, 114, 128)); // Gray
-                VersionStatusText.Visibility = Visibility.Visible;
+                SetBadge($"Cloud (v{currentVersion})", 0x1A, 0x3A, 0x2A, 0x4A, 0xDE, 0x80);
                 return;
             }
 
             try
             {
                 var result = await _updateCheckService.CheckForUpdatesAsync();
-                
+
                 Dispatcher.Invoke(() =>
                 {
                     if (result.IsOnline)
                     {
                         if (result.IsUpdateAvailable)
                         {
-                            // Update available
-                            VersionStatusText.Text = $"Not Latest (v{result.LatestVersion})";
-                            VersionStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-                                System.Windows.Media.Color.FromRgb(239, 68, 68)); // Red
-                            VersionStatusText.Visibility = Visibility.Visible;
-                            
-                            // Show update message
+                            SetBadge($"Not Latest (v{result.LatestVersion})", 0x3A, 0x15, 0x19, 0xF8, 0x71, 0x71);
                             UpdateMessageText.Text = $"Update available! Latest version: {result.LatestVersion}\nCurrent version: {result.CurrentVersion}";
                             UpdateAvailableBorder.Visibility = Visibility.Visible;
                         }
                         else
                         {
-                            // Latest version
-                            VersionStatusText.Text = $"Latest (v{result.CurrentVersion})";
-                            VersionStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-                                System.Windows.Media.Color.FromRgb(5, 150, 105)); // Green
-                            VersionStatusText.Visibility = Visibility.Visible;
+                            SetBadge($"Latest (v{result.CurrentVersion})", 0x1A, 0x3A, 0x2A, 0x4A, 0xDE, 0x80);
                             UpdateAvailableBorder.Visibility = Visibility.Collapsed;
                         }
                     }
                     else
                     {
-                        // Offline - show current version
-                        VersionStatusText.Text = $"Cloud (v{result.CurrentVersion})";
-                        VersionStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-                            System.Windows.Media.Color.FromRgb(107, 114, 128)); // Gray
-                        VersionStatusText.Visibility = Visibility.Visible;
+                        SetBadge($"Cloud (v{result.CurrentVersion})", 0x2A, 0x34, 0x44, 0x88, 0x99, 0xAA);
                         UpdateAvailableBorder.Visibility = Visibility.Collapsed;
                     }
                 });
             }
-            catch (Exception ex)
+            catch
             {
-                // Error checking updates - show as offline with current version
                 Dispatcher.Invoke(() =>
                 {
                     var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
                     string currentVersion = version != null ? $"{version.Major}.{version.Minor}.{version.Build}" : "Unknown";
-                    VersionStatusText.Text = $"Cloud (v{currentVersion})";
-                    VersionStatusText.Foreground = new System.Windows.Media.SolidColorBrush(
-                        System.Windows.Media.Color.FromRgb(107, 114, 128)); // Gray
-                    VersionStatusText.Visibility = Visibility.Visible;
+                    SetBadge($"Cloud (v{currentVersion})", 0x2A, 0x34, 0x44, 0x88, 0x99, 0xAA);
                 });
             }
         }
@@ -124,7 +110,7 @@ namespace Dorothy.Views
         {
             try
             {
-                // Redirect to releases page
+
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "https://seacuredb.vercel.app/network-data?tab=releases",
