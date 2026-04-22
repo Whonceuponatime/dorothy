@@ -26,7 +26,9 @@
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
   <ItemGroup>
-    <Resource Include="Resources\**\*.*" />
+    <!-- Resources\**\*.* catches topology.html, oui.txt, logo.png, etc.
+         .xaml is excluded because WPF SDK auto-includes them as Page items. -->
+    <Resource Include="Resources\**\*.*" Exclude="Resources\**\*.xaml" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Lextm.SharpSnmpLib" Version="12.2.0" />
@@ -36,6 +38,7 @@
     <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
     <PackageReference Include="ClosedXML" Version="0.102.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2792.45" />
     <PackageReference Include="Supabase" Version="1.1.1" />
 
     <PackageReference Include="System.IO.Packaging" Version="8.0.1" />
@@ -52,6 +55,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
 
   <Target Name="CreateDistributionAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <PropertyGroup>

@@ -6,12 +6,12 @@
         Icon="pack://application:,,,/Resources/icon.ico"
         Height="600" Width="900"
         WindowStartupLocation="CenterOwner"
-        Background="#1A2332">
+        Background="{DynamicResource PrimaryBg}">
     <Window.Resources>
         <Style x:Key="DefaultButton" TargetType="Button">
-            <Setter Property="Background" Value="#3A4555"/>
-            <Setter Property="Foreground" Value="#E8ECF1"/>
-            <Setter Property="BorderBrush" Value="#4A5565"/>
+            <Setter Property="Background" Value="{DynamicResource BorderDefault}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderHover}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="12,8"/>
             <Setter Property="FontSize" Value="13"/>
@@ -31,20 +31,20 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4A5565"/>
+                    <Setter Property="Background" Value="{DynamicResource BorderHover}"/>
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Foreground" Value="#6A7A8A"/>
+                    <Setter Property="Foreground" Value="{DynamicResource DisabledFg}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource DefaultButton}">
-            <Setter Property="Background" Value="#5B8AF5"/>
+            <Setter Property="Background" Value="{DynamicResource AccentBlue}"/>
             <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#5B8AF5"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4A79E4"/>
+                    <Setter Property="Background" Value="{DynamicResource AccentBlueHover}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -60,36 +60,36 @@
             <TextBlock Text="Sync Assets to Cloud"
                        FontSize="18"
                        FontWeight="Bold"
-                       Foreground="#E8ECF1"
+                       Foreground="{DynamicResource TextPrimary}"
                        Margin="0,0,0,8"/>
             <TextBlock Text="Select assets to sync to Supabase or delete from local database."
                        FontSize="12"
-                       Foreground="#8899AA"/>
+                       Foreground="{DynamicResource TextMuted}"/>
         </StackPanel>
 
         <StackPanel Grid.Row="0" Margin="0,60,0,12" Orientation="Horizontal">
             <TextBlock Text="Project Name:"
                        FontSize="13"
                        FontWeight="SemiBold"
-                       Foreground="#C8D1DC"
+                       Foreground="{DynamicResource TextSecondary}"
                        VerticalAlignment="Center"
                        Margin="0,0,8,0"/>
             <TextBox x:Name="ProjectNameTextBox"
                      Width="300"
                      Height="32"
                      Padding="8,6"
-                     BorderBrush="#3A4555"
+                     BorderBrush="{DynamicResource BorderDefault}"
                      BorderThickness="1"
-                     Background="#232F3E"
+                     Background="{DynamicResource SecondaryBg}"
                      FontSize="12"
                      TextChanged="ProjectNameTextBox_TextChanged"/>
         </StackPanel>
 
         <Border Grid.Row="1"
-                BorderBrush="#3A4555"
+                BorderBrush="{DynamicResource BorderDefault}"
                 BorderThickness="1"
                 CornerRadius="8"
-                Background="#232F3E"
+                Background="{DynamicResource SecondaryBg}"
                 Margin="0,0,0,16">
             <Grid>
                 <Grid.RowDefinitions>
@@ -146,7 +146,7 @@
             <TextBlock x:Name="SelectedCountText"
                        Text="0 of 0 selected"
                        FontSize="12"
-                       Foreground="#8899AA"
+                       Foreground="{DynamicResource TextMuted}"
                        VerticalAlignment="Center"
                        Margin="0,0,16,0"/>
             <Button x:Name="DeleteSelectedButton"

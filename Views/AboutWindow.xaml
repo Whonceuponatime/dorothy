@@ -9,7 +9,8 @@
         MinHeight="420"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanResize"
-        Background="#1A2332"
+        Background="{DynamicResource PrimaryBg}"
+        Foreground="{DynamicResource TextPrimary}"
         ShowInTaskbar="False">
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -22,17 +23,17 @@
             <TextBlock Text="About SEACURE(TOOL)"
                        FontSize="20"
                        FontWeight="Bold"
-                       Foreground="#E8ECF1"
+                       Foreground="{DynamicResource TextPrimary}"
                        Margin="0,0,0,4"/>
             <TextBlock Text="Application Info"
                        FontSize="12"
-                       Foreground="#8899AA"
+                       Foreground="{DynamicResource TextMuted}"
                        Margin="0,0,0,0"/>
         </StackPanel>
 
         <Border Grid.Row="1"
-                Background="#232F3E"
-                BorderBrush="#3A4555"
+                Background="{DynamicResource SecondaryBg}"
+                BorderBrush="{DynamicResource BorderDefault}"
                 BorderThickness="1"
                 CornerRadius="8"
                 Padding="20">
@@ -44,10 +45,10 @@
                                    Text="SEACURE(TOOL) - Version 2.5.0"
                                    FontSize="16"
                                    FontWeight="Bold"
-                                   Foreground="#E8ECF1"
+                                   Foreground="{DynamicResource TextPrimary}"
                                    VerticalAlignment="Center"/>
                         <Border x:Name="VersionStatusBadge"
-                                Background="#1A3A2A"
+                                Background="{DynamicResource SuccessBgSubtle}"
                                 CornerRadius="4"
                                 Padding="6,2"
                                 Margin="10,0,0,0"
@@ -57,13 +58,13 @@
                                        Text=""
                                        FontSize="11"
                                        FontWeight="Medium"
-                                       Foreground="#4ADE80"/>
+                                       Foreground="{DynamicResource SuccessGreen}"/>
                         </Border>
                     </StackPanel>
 
                     <Border x:Name="UpdateAvailableBorder"
-                            Background="#1E2E4D"
-                            BorderBrush="#3A4E7A"
+                            Background="{DynamicResource AccentBlueSubtle}"
+                            BorderBrush="{DynamicResource LabModeBorder}"
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="12"
@@ -73,7 +74,7 @@
                             <TextBlock x:Name="UpdateMessageText"
                                        FontSize="12"
                                        FontWeight="SemiBold"
-                                       Foreground="#7BA5F8"
+                                       Foreground="{DynamicResource InfoBlue}"
                                        TextWrapping="Wrap"
                                        Margin="0,0,0,8"/>
                             <Button x:Name="DownloadUpdateButton"
@@ -81,8 +82,8 @@
                                     Width="150"
                                     Height="32"
                                     FontSize="12"
-                                    Background="#5B8AF5"
-                                    Foreground="White"
+                                    Background="{DynamicResource AccentBlue}"
+                                    Foreground="{DynamicResource ButtonPrimaryFg}"
                                     BorderThickness="0"
                                     Cursor="Hand"
                                     Click="DownloadUpdateButton_Click"
@@ -103,7 +104,7 @@
                                         </Setter>
                                         <Style.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#4A79E4"/>
+                                                <Setter Property="Background" Value="{DynamicResource AccentBlueHover}"/>
                                             </Trigger>
                                         </Style.Triggers>
                                     </Style>
@@ -114,7 +115,7 @@
 
                     <TextBlock Text="SEACURE(TOOL) is a professional network security testing tool designed for authorized penetration testing and security assessment."
                                FontSize="12"
-                               Foreground="#A0AEBB"
+                               Foreground="{DynamicResource TextSecondary}"
                                TextWrapping="Wrap"
                                Margin="0,0,0,20"
                                LineHeight="20"/>
@@ -122,11 +123,11 @@
                     <TextBlock Text="Attack Types"
                                FontSize="13"
                                FontWeight="SemiBold"
-                               Foreground="#E8ECF1"
+                               Foreground="{DynamicResource TextPrimary}"
                                Margin="0,0,0,6"/>
                     <TextBlock Text="• TCP SYN Flood, UDP Flood, ICMP Flood&#x0a;• ARP Spoofing&#x0a;• Ethernet-level attacks (Unicast, Multicast, Broadcast)&#x0a;• NMEA 0183 UDP attacks (Unicast, Multicast)"
                                FontSize="12"
-                               Foreground="#8899AA"
+                               Foreground="{DynamicResource TextMuted}"
                                TextWrapping="Wrap"
                                Margin="0,0,0,16"
                                LineHeight="20"/>
@@ -134,11 +135,11 @@
                     <TextBlock Text="Capabilities"
                                FontSize="13"
                                FontWeight="SemiBold"
-                               Foreground="#E8ECF1"
+                               Foreground="{DynamicResource TextPrimary}"
                                Margin="0,0,0,6"/>
                     <TextBlock Text="• Configurable attack rates and parameters&#x0a;• Real-time statistics and logging&#x0a;• Network interface selection and gateway routing&#x0a;• Network scanning and asset inventory"
                                FontSize="12"
-                               Foreground="#8899AA"
+                               Foreground="{DynamicResource TextMuted}"
                                TextWrapping="Wrap"
                                Margin="0,0,0,16"
                                LineHeight="20"/>
@@ -146,24 +147,24 @@
                     <TextBlock Text="Integration"
                                FontSize="13"
                                FontWeight="SemiBold"
-                               Foreground="#E8ECF1"
+                               Foreground="{DynamicResource TextPrimary}"
                                Margin="0,0,0,6"/>
-                    <TextBlock Text="• Cloud sync with Supabase&#x0a;• Security logs with export capabilities"
+                    <TextBlock Text="• Cloud sync with the Seacure licensing server&#x0a;• Security logs with export capabilities"
                                FontSize="12"
-                               Foreground="#8899AA"
+                               Foreground="{DynamicResource TextMuted}"
                                TextWrapping="Wrap"
                                Margin="0,0,0,20"
                                LineHeight="20"/>
 
-                    <Border Background="#3A2A10"
-                            BorderBrush="#5A4420"
+                    <Border Background="{DynamicResource FieldWarningBg}"
+                            BorderBrush="{DynamicResource FieldWarningBorder}"
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="12"
                             Margin="0,8,0,0">
                         <TextBlock Text="⚠ Authorized Use Only&#x0a;This tool is for AUTHORIZED TESTING ONLY. Use only in controlled lab/test environments. Unauthorized use may be illegal and result in disciplinary or legal action."
                                    FontSize="11"
-                                   Foreground="#FBBF24"
+                                   Foreground="{DynamicResource WarningAmber}"
                                    TextWrapping="Wrap"
                                    LineHeight="18"/>
                     </Border>
@@ -171,17 +172,17 @@
                     <TextBlock Margin="0,20,0,0">
                         <Run Text="For more information, visit: "
                              FontSize="12"
-                             Foreground="#8899AA"/>
+                             Foreground="{DynamicResource TextMuted}"/>
                         <Hyperlink x:Name="WebsiteLink"
                                    NavigateUri="https://www.sea-net.co.kr/seacure"
                                    FontSize="12"
-                                   Foreground="#5B8AF5"
+                                   Foreground="{DynamicResource AccentBlue}"
                                    RequestNavigate="WebsiteLink_RequestNavigate">
                             <Run Text="https://www.sea-net.co.kr/seacure"/>
                         </Hyperlink>
                     </TextBlock>
 
-                    <Border BorderBrush="#3A4555"
+                    <Border BorderBrush="{DynamicResource BorderDefault}"
                             BorderThickness="0,1,0,0"
                             Margin="0,20,0,12"/>
 
@@ -190,11 +191,11 @@
                                Margin="0,0,0,0">
                         <Run Text="Copyright(C) SeaNet Co., Ltd. All right reserved"
                              FontSize="10"
-                             Foreground="#6B7A8C"/>
+                             Foreground="{DynamicResource DisabledFg}"/>
                         <LineBreak/>
                         <Hyperlink NavigateUri="https://www.sea-net.co.kr/seacure"
                                    FontSize="10"
-                                   Foreground="#5B8AF5"
+                                   Foreground="{DynamicResource AccentBlue}"
                                    RequestNavigate="WebsiteLink_RequestNavigate">
                             <Run Text="www.sea-net.co.kr/seacure"/>
                         </Hyperlink>
@@ -211,8 +212,8 @@
                         MinWidth="100"
                         Height="36"
                         Click="CloseButton_Click"
-                        Background="#5B8AF5"
-                        Foreground="White"
+                        Background="{DynamicResource AccentBlue}"
+                        Foreground="{DynamicResource ButtonPrimaryFg}"
                         BorderThickness="0"
                         Cursor="Hand">
                     <Button.Style>
@@ -231,10 +232,10 @@
                             </Setter>
                             <Style.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#4A79E4"/>
+                                    <Setter Property="Background" Value="{DynamicResource AccentBlueHover}"/>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter Property="Background" Value="#3A68D3"/>
+                                    <Setter Property="Background" Value="{DynamicResource AccentBlueHover}"/>
                                 </Trigger>
                             </Style.Triggers>
                         </Style>

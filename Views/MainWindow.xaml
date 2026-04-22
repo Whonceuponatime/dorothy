@@ -1,6 +1,7 @@
 <Window x:Class="Dorothy.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:Dorothy.Views"
         Title="SEACURE(TOOL) - Network Attack Simulator"
         Icon="pack://application:,,,/Resources/icon.ico"
         WindowState="Maximized"
@@ -11,8 +12,8 @@
         FontSize="12"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
-        Background="{StaticResource PrimaryBg}"
-        Foreground="{StaticResource TextPrimary}"
+        Background="{DynamicResource PrimaryBg}"
+        Foreground="{DynamicResource TextPrimary}"
         Closing="Window_Closing"
         KeyDown="Window_KeyDown"
         SizeChanged="Window_SizeChanged"
@@ -31,8 +32,8 @@
 
             <Border Grid.Row="0"
                     x:Name="HeaderBar"
-                    Background="{StaticResource SecondaryBg}"
-                    BorderBrush="{StaticResource BorderDefault}"
+                    Background="{DynamicResource SecondaryBg}"
+                    BorderBrush="{DynamicResource BorderDefault}"
                     BorderThickness="0,0,0,1"
                     Padding="16,10">
                 <Grid>
@@ -41,22 +42,23 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <Border Grid.Column="0"
-                            Background="#F0F2F5"
-                            BorderBrush="#D8DEE4"
+                            Background="{DynamicResource LogoBg}"
+                            BorderBrush="{DynamicResource LogoBorder}"
                             BorderThickness="0.5"
                             CornerRadius="6"
-                            Padding="3"
-                            Margin="0,0,14,0"
+                            Padding="8"
+                            Margin="8,8"
+                            Height="72"
                             VerticalAlignment="Center">
                         <Image x:Name="LogoImage"
                                Source="/Resources/logo.png"
-                               Height="32"
-                               Width="32"
+                               MaxHeight="56"
                                Stretch="Uniform"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                     </Border>
 
@@ -67,17 +69,17 @@
                         <TextBlock Text="Network Attack Simulator"
                                    FontSize="16"
                                    FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimary}"
+                                   Foreground="{DynamicResource TextPrimary}"
                                    Margin="0,0,0,1"/>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="Cyber Security Solution by SEANET"
                                        FontSize="11"
-                                       Foreground="{StaticResource TextMuted}"
+                                       Foreground="{DynamicResource TextMuted}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,8,0"/>
                             <Border x:Name="LabModeBadge"
-                                    Background="#1e3a5f"
-                                    BorderBrush="#2563eb"
+                                    Background="{DynamicResource LabModeBg}"
+                                    BorderBrush="{DynamicResource LabModeBorder}"
                                     BorderThickness="1"
                                     CornerRadius="10"
                                     Padding="7,1"
@@ -93,7 +95,7 @@
                                             <TextBlock TextWrapping="Wrap" FontSize="12"
                                                        Text="Raw packet generation (flood attacks, Layer-2 injection via Npcap/SharpPcap) requires elevated access to open packet capture devices. The application is therefore always launched as Administrator."
                                                        Margin="0,0,0,6"/>
-                                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#9CA3AF"
+                                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource DisabledFg}"
                                                        Text="TCP Connect Scan and Reachability Test features do not inherently require Administrator, but the application runs elevated because raw packet generation is the primary workflow."/>
                                         </StackPanel>
                                     </ToolTip>
@@ -102,7 +104,7 @@
                                            Text="LAB MODE  🔒"
                                            FontSize="10"
                                            FontWeight="SemiBold"
-                                           Foreground="#60a5fa"/>
+                                           Foreground="{DynamicResource LabModeFg}"/>
                             </Border>
                         </StackPanel>
                     </StackPanel>
@@ -115,29 +117,29 @@
                         <StackPanel Orientation="Vertical" Margin="0,0,18,0">
                             <TextBlock Text="Packets Sent"
                                        FontSize="10"
-                                       Foreground="{StaticResource TextMuted}"
+                                       Foreground="{DynamicResource TextMuted}"
                                        Margin="0,0,0,2"/>
                             <TextBlock x:Name="PacketsSentText"
                                        Text="0"
                                        FontSize="14"
                                        FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimary}"/>
+                                       Foreground="{DynamicResource TextPrimary}"/>
                         </StackPanel>
                         <StackPanel Orientation="Vertical" Margin="0,0,18,0">
                             <TextBlock Text="Elapsed Time"
                                        FontSize="10"
-                                       Foreground="{StaticResource TextMuted}"
+                                       Foreground="{DynamicResource TextMuted}"
                                        Margin="0,0,0,2"/>
                             <TextBlock x:Name="ElapsedTimeText"
                                        Text="00:00:00"
                                        FontSize="14"
                                        FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimary}"/>
+                                       Foreground="{DynamicResource TextPrimary}"/>
                         </StackPanel>
                         <StackPanel Orientation="Vertical" Margin="0,0,18,0">
                             <TextBlock Text="Actual Rate"
                                        FontSize="10"
-                                       Foreground="{StaticResource TextMuted}"
+                                       Foreground="{DynamicResource TextMuted}"
                                        Margin="0,0,0,2">
                                 <TextBlock.ToolTip>
                                     <ToolTip>
@@ -152,41 +154,41 @@
                                        Text="—"
                                        FontSize="14"
                                        FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimary}"/>
+                                       Foreground="{DynamicResource TextPrimary}"/>
                         </StackPanel>
                         <StackPanel Orientation="Vertical" Margin="0,0,18,0">
                             <TextBlock Text="Target Rate"
                                        FontSize="10"
-                                       Foreground="{StaticResource TextMuted}"
+                                       Foreground="{DynamicResource TextMuted}"
                                        Margin="0,0,0,2"/>
                             <TextBlock x:Name="TargetRateText"
                                        Text="—"
                                        FontSize="14"
                                        FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimary}"/>
+                                       Foreground="{DynamicResource TextPrimary}"/>
                         </StackPanel>
                         <StackPanel Orientation="Vertical" Margin="0,0,18,0">
                             <TextBlock Text="vs Target"
                                        FontSize="10"
-                                       Foreground="{StaticResource TextMuted}"
+                                       Foreground="{DynamicResource TextMuted}"
                                        Margin="0,0,0,2"/>
                             <TextBlock x:Name="RateDeltaText"
                                        Text="—"
                                        FontSize="13"
                                        FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextSecondary}"/>
+                                       Foreground="{DynamicResource TextSecondary}"/>
                         </StackPanel>
                         <StackPanel Orientation="Vertical" MaxWidth="220" Margin="0,0,0,0">
                             <TextBlock FontSize="10"
-                                       Foreground="{StaticResource TextMuted}"
+                                       Foreground="{DynamicResource TextMuted}"
                                        Margin="0,0,0,2">
                                 <Run Text="Likely cause"/>
-                                <Run Text=" (heuristic)" Foreground="{StaticResource TextMuted}" FontStyle="Italic"/>
+                                <Run Text=" (heuristic)" Foreground="{DynamicResource TextMuted}" FontStyle="Italic"/>
                             </TextBlock>
                             <TextBlock x:Name="DiagnosticReasonText"
                                        Text="—"
                                        FontSize="11"
-                                       Foreground="{StaticResource TextSecondary}"
+                                       Foreground="{DynamicResource TextSecondary}"
                                        TextWrapping="NoWrap"
                                        TextTrimming="CharacterEllipsis">
                                 <TextBlock.ToolTip>
@@ -198,7 +200,7 @@
                                             <TextBlock x:Name="DiagnosticReasonTooltipText"
                                                        TextWrapping="Wrap" FontSize="12"
                                                        Text="No diagnostic information yet."/>
-                                            <TextBlock Foreground="#9CA3AF" FontSize="10"
+                                            <TextBlock Foreground="{DynamicResource DisabledFg}" FontSize="10"
                                                        TextWrapping="Wrap" Margin="0,6,0,0"
                                                        Text="All causes are inferred from scheduler counters, not directly measured. Confidence shows the evidential strength of the inference."/>
                                         </StackPanel>
@@ -208,7 +210,7 @@
                             <TextBlock x:Name="ConfidenceText"
                                        Text="—"
                                        FontSize="9"
-                                       Foreground="{StaticResource TextMuted}"
+                                       Foreground="{DynamicResource TextMuted}"
                                        FontStyle="Italic"
                                        Margin="0,2,0,0"
                                        TextTrimming="CharacterEllipsis">
@@ -222,33 +224,32 @@
                         </StackPanel>
                         <Border Width="1"
                                 Height="28"
-                                Background="{StaticResource BorderDefault}"
+                                Background="{DynamicResource BorderDefault}"
                                 Margin="10,0,14,0"
                                 VerticalAlignment="Center"/>
                         <StackPanel Orientation="Vertical">
                             <TextBlock Text="Profile"
                                        FontSize="10"
-                                       Foreground="{StaticResource TextMuted}"
+                                       Foreground="{DynamicResource TextMuted}"
                                        Margin="0,0,0,2"/>
                             <TextBlock x:Name="ProfileSummaryText"
                                        Text=""
                                        FontSize="11"
                                        FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimary}"/>
+                                       Foreground="{DynamicResource TextPrimary}"/>
                         </StackPanel>
                     </StackPanel>
 
                     <StackPanel Grid.Column="3"
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center"
-                                MinWidth="140"
+                                HorizontalAlignment="Right"
                                 ClipToBounds="False"
-                                Margin="8,0,20,0">
+                                Margin="0,0,16,0">
                         <Button x:Name="CloudSyncButton"
-                                MinWidth="36"
-                                MinHeight="36"
                                 Width="36"
                                 Height="36"
+                                Padding="0"
                                 Background="Transparent"
                                 BorderThickness="0"
                                 Cursor="Hand"
@@ -258,12 +259,12 @@
                                 Margin="0,0,8,0">
                             <Grid ClipToBounds="False">
                                 <TextBlock Text="☁"
-                                           FontSize="18"
-                                           Foreground="{StaticResource TextSecondary}"
+                                           FontSize="16"
+                                           Foreground="{DynamicResource TextPrimary}"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"/>
                                 <Border x:Name="CloudSyncNotificationBadge"
-                                        Background="{StaticResource ErrorRed}"
+                                        Background="{DynamicResource ErrorRed}"
                                         CornerRadius="9"
                                         MinWidth="16"
                                         Height="16"
@@ -283,44 +284,60 @@
                             </Grid>
                         </Button>
                         <Button x:Name="SettingsButton"
-                                MinWidth="36"
-                                MinHeight="36"
                                 Width="36"
                                 Height="36"
+                                Padding="0"
                                 Background="Transparent"
                                 BorderThickness="0"
                                 Cursor="Hand"
                                 ClipToBounds="False"
                                 ToolTip="Settings"
-                                Margin="0,0,4,0"
+                                Margin="0,0,8,0"
                                 Click="SettingsButton_Click">
                             <Viewbox Width="18" Height="18">
                                 <Canvas Width="24" Height="24">
-                                    <Path Fill="#94a3b8" Data="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
+                                    <Path Fill="{DynamicResource TextPrimary}" Data="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z"/>
                                 </Canvas>
                             </Viewbox>
                         </Button>
-                        <Button x:Name="HelpButton"
-                                MinWidth="36"
-                                MinHeight="36"
+                        <Button x:Name="ThemeToggleButton"
                                 Width="36"
                                 Height="36"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Cursor="Hand"
+                                ClipToBounds="False"
+                                ToolTip="Toggle theme"
+                                Margin="0,0,8,0"
+                                Click="ThemeToggleButton_Click">
+                            <TextBlock x:Name="ThemeToggleIcon"
+                                       Text="☀"
+                                       FontSize="16"
+                                       Foreground="{DynamicResource TextPrimary}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Button>
+                        <Button x:Name="HelpButton"
+                                Width="36"
+                                Height="36"
+                                Padding="0"
                                 Background="Transparent"
                                 BorderThickness="0"
                                 Cursor="Hand"
                                 ClipToBounds="False"
                                 ToolTip="Help / About"
-                                Margin="0,0,0,0"
+                                Margin="0,0,12,0"
                                 Click="HelpButton_Click">
                             <Grid ClipToBounds="False">
                                 <TextBlock Text="ⓘ"
-                                           FontSize="18"
-                                           Foreground="{StaticResource TextSecondary}"
+                                           FontSize="16"
+                                           Foreground="{DynamicResource TextPrimary}"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"/>
                                 <Border x:Name="UpdateAvailableBadge"
-                                        Background="{StaticResource ErrorRed}"
-                                        BorderBrush="{StaticResource SecondaryBg}"
+                                        Background="{DynamicResource ErrorRed}"
+                                        BorderBrush="{DynamicResource SecondaryBg}"
                                         BorderThickness="2"
                                         CornerRadius="6"
                                         Width="10"
@@ -331,32 +348,29 @@
                                         Visibility="Collapsed"/>
                             </Grid>
                         </Button>
+                        <Border x:Name="StatusBadge"
+                                Background="{DynamicResource SuccessBgSubtle}"
+                                BorderBrush="{DynamicResource SuccessBorder}"
+                                BorderThickness="1"
+                                CornerRadius="999"
+                                Padding="10,4"
+                                VerticalAlignment="Center"
+                                Height="28">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Ellipse x:Name="StatusDot"
+                                         Width="8"
+                                         Height="8"
+                                         Fill="{DynamicResource SuccessGreen}"
+                                         Margin="0,0,6,0"/>
+                                <TextBlock x:Name="StatusBadgeText"
+                                           Text="Ready"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SuccessGreen}"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-
-                    <Border x:Name="StatusBadge"
-                            Grid.Column="4"
-                            Background="{StaticResource SuccessBgSubtle}"
-                            BorderBrush="{StaticResource SuccessBorder}"
-                            BorderThickness="1"
-                            CornerRadius="999"
-                            Padding="10,4"
-                            VerticalAlignment="Center"
-                            HorizontalAlignment="Right"
-                            Height="28">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse x:Name="StatusDot"
-                                     Width="8"
-                                     Height="8"
-                                     Fill="{StaticResource SuccessGreen}"
-                                     Margin="0,0,6,0"/>
-                            <TextBlock x:Name="StatusBadgeText"
-                                       Text="Ready"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"
-                                       VerticalAlignment="Center"
-                                       Foreground="{StaticResource SuccessGreen}"/>
-                        </StackPanel>
-                    </Border>
                 </Grid>
             </Border>
 
@@ -366,7 +380,7 @@
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1*" MinWidth="420"/>
-                    <ColumnDefinition Width="1*" MinWidth="400"/>
+                    <ColumnDefinition x:Name="LogColumnDefinition" Width="1*" MinWidth="400"/>
                 </Grid.ColumnDefinitions>
 
                 <TabControl x:Name="MainTabControl"
@@ -379,7 +393,7 @@
                             VerticalAlignment="Stretch"
                             Background="Transparent">
 
-                    <TabItem Header="Basic Settings">
+                    <TabItem x:Name="BasicSettingsTab" Header="Basic Settings">
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,16,0,0" HorizontalAlignment="Stretch">
                             <StackPanel Grid.IsSharedSizeScope="True" HorizontalAlignment="Stretch">
 
@@ -448,8 +462,8 @@
                                                     </ToolTip>
                                                 </Label.ToolTip>
                                                 <StackPanel Orientation="Vertical">
-                                                    <TextBlock Text="Gateway IP:" FontSize="13" Foreground="{StaticResource TextPrimary}"/>
-                                                    <TextBlock Text="cross-subnet" FontSize="9" Foreground="{StaticResource TextMuted}" Margin="0,1,0,0"/>
+                                                    <TextBlock Text="Gateway IP:" FontSize="13" Foreground="{DynamicResource TextPrimary}"/>
+                                                    <TextBlock Text="cross-subnet" FontSize="9" Foreground="{DynamicResource TextMuted}" Margin="0,1,0,0"/>
                                                 </StackPanel>
                                             </Label>
                                             <TextBox x:Name="GatewayIpTextBox"
@@ -465,7 +479,7 @@
                                     <StackPanel>
                                         <TextBlock Text="Target" Style="{StaticResource CardHeaderStyle}"/>
                                         <TextBlock Text="Destination host and port for the test."
-                                                   FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,-10,0,12"/>
+                                                   FontSize="12" Foreground="{DynamicResource TextMuted}" Margin="0,-10,0,12"/>
                                         <Grid>
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto"/>
@@ -530,7 +544,7 @@
                                                        Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3"
                                                        TextWrapping="Wrap"
                                                        FontSize="11"
-                                                       Foreground="{StaticResource TextMuted}"
+                                                       Foreground="{DynamicResource TextMuted}"
                                                        Margin="0,0,0,8"
                                                        Visibility="Collapsed"/>
 
@@ -610,38 +624,38 @@
                                         <UniformGrid x:Name="ProtocolCardsPanel" Columns="2" Margin="0,0,0,8">
                                             <Border Tag="0" Style="{StaticResource ProtocolCardStyle}" MouseLeftButtonUp="ProtocolCard_Click">
                                                 <StackPanel>
-                                                    <TextBlock Text="TCP SYN" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
-                                                    <TextBlock Text="Half-open flood" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                                    <TextBlock Text="TCP SYN" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                                    <TextBlock Text="Half-open flood" FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"/>
                                                 </StackPanel>
                                             </Border>
                                             <Border Tag="1" Style="{StaticResource ProtocolCardStyle}" MouseLeftButtonUp="ProtocolCard_Click">
                                                 <StackPanel>
-                                                    <TextBlock Text="UDP" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
-                                                    <TextBlock Text="Datagram flood" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                                    <TextBlock Text="UDP" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                                    <TextBlock Text="Datagram flood" FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"/>
                                                 </StackPanel>
                                             </Border>
                                             <Border Tag="2" Style="{StaticResource ProtocolCardStyle}" MouseLeftButtonUp="ProtocolCard_Click">
                                                 <StackPanel>
-                                                    <TextBlock Text="ICMP" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
-                                                    <TextBlock Text="Echo-request flood" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                                    <TextBlock Text="ICMP" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                                    <TextBlock Text="Echo-request flood" FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"/>
                                                 </StackPanel>
                                             </Border>
                                             <Border Tag="3" Style="{StaticResource ProtocolCardStyle}" MouseLeftButtonUp="ProtocolCard_Click">
                                                 <StackPanel>
-                                                    <TextBlock Text="Ethernet Unicast" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
-                                                    <TextBlock Text="L2 IPv4 storm" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                                    <TextBlock Text="Ethernet Unicast" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                                    <TextBlock Text="L2 IPv4 storm" FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"/>
                                                 </StackPanel>
                                             </Border>
                                             <Border Tag="5" Style="{StaticResource ProtocolCardStyle}" MouseLeftButtonUp="ProtocolCard_Click">
                                                 <StackPanel>
-                                                    <TextBlock Text="Ethernet Multicast" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
-                                                    <TextBlock Text="L2 IPv4 multicast" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                                    <TextBlock Text="Ethernet Multicast" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                                    <TextBlock Text="L2 IPv4 multicast" FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"/>
                                                 </StackPanel>
                                             </Border>
                                             <Border Tag="7" Style="{StaticResource ProtocolCardStyle}" MouseLeftButtonUp="ProtocolCard_Click">
                                                 <StackPanel>
-                                                    <TextBlock Text="Ethernet Broadcast" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}"/>
-                                                    <TextBlock Text="L2 IPv4 broadcast" FontSize="11" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                                    <TextBlock Text="Ethernet Broadcast" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                                                    <TextBlock Text="L2 IPv4 broadcast" FontSize="11" Foreground="{DynamicResource TextMuted}" Margin="0,2,0,0"/>
                                                 </StackPanel>
                                             </Border>
                                         </UniformGrid>
@@ -652,7 +666,7 @@
 
                                         <TextBlock x:Name="AttackTypeDescText"
                                                    FontSize="11"
-                                                   Foreground="{StaticResource TextMuted}"
+                                                   Foreground="{DynamicResource TextMuted}"
                                                    TextWrapping="Wrap"
                                                    Margin="0,0,0,10"
                                                    Text="Select a protocol to see a description."/>
@@ -720,7 +734,7 @@
                                             <TextBlock Text="Attack Mode"
                                                        FontSize="11"
                                                        FontWeight="SemiBold"
-                                                       Foreground="{StaticResource TextSecondary}"
+                                                       Foreground="{DynamicResource TextSecondary}"
                                                        Margin="0,0,0,6"/>
                                             <UniformGrid x:Name="TcpSynModeGrid" Columns="2">
                                                 <Border x:Name="BasicModeCard"
@@ -731,10 +745,10 @@
                                                         <TextBlock Text="Basic"
                                                                    FontSize="13"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="{StaticResource TextPrimary}"/>
+                                                                   Foreground="{DynamicResource TextPrimary}"/>
                                                         <TextBlock Text="Standard SYN — max throughput"
                                                                    FontSize="11"
-                                                                   Foreground="{StaticResource TextMuted}"
+                                                                   Foreground="{DynamicResource TextMuted}"
                                                                    Margin="0,2,0,0"
                                                                    TextWrapping="Wrap"/>
                                                     </StackPanel>
@@ -747,10 +761,10 @@
                                                         <TextBlock Text="Evasion"
                                                                    FontSize="13"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="{StaticResource TextPrimary}"/>
+                                                                   Foreground="{DynamicResource TextPrimary}"/>
                                                         <TextBlock Text="Firewall bypass — randomised headers"
                                                                    FontSize="11"
-                                                                   Foreground="{StaticResource TextMuted}"
+                                                                   Foreground="{DynamicResource TextMuted}"
                                                                    Margin="0,2,0,0"
                                                                    TextWrapping="Wrap"/>
                                                     </StackPanel>
@@ -758,7 +772,7 @@
                                             </UniformGrid>
                                             <TextBlock x:Name="TcpSynModeDescText"
                                                        FontSize="11"
-                                                       Foreground="{StaticResource TextMuted}"
+                                                       Foreground="{DynamicResource TextMuted}"
                                                        TextWrapping="Wrap"
                                                        Margin="4,8,0,0"
                                                        Text="Standard TCP SYN packets. Best for raw throughput tests against session tables."/>
@@ -769,9 +783,9 @@
                                 <Border Margin="0,4,0,0"
                                         Padding="16,14"
                                         CornerRadius="8"
-                                        BorderBrush="{StaticResource BorderDefault}"
+                                        BorderBrush="{DynamicResource BorderDefault}"
                                         BorderThickness="1"
-                                        Background="{StaticResource SecondaryBg}">
+                                        Background="{DynamicResource SecondaryBg}">
                                     <StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                             <Button x:Name="StartButton"
@@ -794,31 +808,397 @@
                                         <Grid>
                                             <TextBlock VerticalAlignment="Center"
                                                        FontSize="11"
-                                                       Foreground="{StaticResource TextMuted}"
+                                                       Foreground="{DynamicResource TextMuted}"
                                                        TextWrapping="Wrap">
-                                                <Run Text="⚠" Foreground="{StaticResource WarningAmber}"/>
+                                                <Run Text="⚠" Foreground="{DynamicResource WarningAmber}"/>
                                                 <Run Text=" Apply only to networks and systems you are authorized to test."/>
                                             </TextBlock>
-                                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                                                <Button x:Name="TraceRouteButton"
-                                                        Content="Trace Route"
-                                                        Width="110"
-                                                        Height="30"
-                                                        Click="TraceRouteButton_Click"
-                                                        ToolTip="Run a traceroute to the configured target IP"/>
-                                                <Button x:Name="NetworkScanButton"
-                                                        Content="Network Scan"
-                                                        Width="115"
-                                                        Height="30"
-                                                        Margin="6,0,0,0"
-                                                        Click="NetworkScanButton_Click"
-                                                        ToolTip="Scan for active hosts on the local network"/>
-                                            </StackPanel>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
                         </ScrollViewer>
+                    </TabItem>
+
+                    <TabItem x:Name="FirewallNetworksTab" Header="Network Intelligence">
+                        <Grid Margin="0,8,0,0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Border Grid.Row="0"
+                                    Style="{StaticResource CardStyle}"
+                                    Margin="0,0,0,8">
+                                <WrapPanel Orientation="Horizontal">
+                                    <Button x:Name="NiStartDiscoveryButton"
+                                            Content="▶  Start discovery"
+                                            Style="{StaticResource PrimaryButton}"
+                                            MinWidth="140"
+                                            Margin="0,0,8,0"
+                                            Click="NiStartDiscoveryButton_Click"/>
+                                    <Button x:Name="NiStopDiscoveryButton"
+                                            Content="■  Stop"
+                                            MinWidth="80"
+                                            IsEnabled="False"
+                                            Margin="0,0,8,0"
+                                            Click="NiStopDiscoveryButton_Click"/>
+
+                                    <TextBlock x:Name="NiCurrentScanLabel"
+                                               VerticalAlignment="Center"
+                                               Margin="4,0,8,0"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource AccentBlue}"
+                                               Text=""/>
+
+                                    <Border Width="1"
+                                            Height="20"
+                                            Background="{DynamicResource BorderDefault}"
+                                            Margin="0,4,8,4"/>
+
+                                    <TextBlock Text="Subnet:"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,6,0"/>
+                                    <TextBox x:Name="NiSubnetOverride"
+                                             Width="140"
+                                             FontFamily="Consolas"
+                                             Tag="auto-detect"
+                                             ToolTip="Override local subnet CIDR e.g. 192.168.1.0/24"
+                                             Background="{DynamicResource InputBg}"
+                                             Foreground="{DynamicResource TextPrimary}"
+                                             BorderBrush="{DynamicResource BorderDefault}"
+                                             Padding="6,4"
+                                             Margin="0,0,8,0"/>
+
+                                    <TextBlock Text="SNMP community:"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,6,0"/>
+                                    <TextBox x:Name="NiSnmpCommunity"
+                                             Width="80"
+                                             Text="public"
+                                             FontFamily="Consolas"
+                                             Background="{DynamicResource InputBg}"
+                                             Foreground="{DynamicResource TextPrimary}"
+                                             BorderBrush="{DynamicResource BorderDefault}"
+                                             Padding="6,4"
+                                             Margin="0,0,8,0"/>
+
+                                    <Border Width="1"
+                                            Height="20"
+                                            Background="{DynamicResource BorderDefault}"
+                                            Margin="0,4,8,4"/>
+
+                                    <TextBlock Text="Add subnet:"
+                                               VerticalAlignment="Center"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               Margin="0,0,6,0"/>
+                                    <TextBox x:Name="NiManualSubnetInput"
+                                             Width="160"
+                                             FontFamily="Consolas"
+                                             Background="{DynamicResource InputBg}"
+                                             Foreground="{DynamicResource TextPrimary}"
+                                             BorderBrush="{DynamicResource BorderDefault}"
+                                             Padding="6,4"
+                                             Margin="0,0,6,0"
+                                             ToolTip="CIDR or comma-separated CIDRs&#10;e.g. 192.168.10.0/24, 10.0.0.0/24"
+                                             KeyDown="NiManualSubnetInput_KeyDown"/>
+                                    <Button x:Name="NiAddSubnetButton"
+                                            Content="Add"
+                                            MinWidth="60"
+                                            Margin="0,0,8,0"
+                                            ToolTip="Add manually to topology — no probing yet.&#10;Right-click the new cloud node to expand."
+                                            Click="NiAddSubnetButton_Click"/>
+
+                                    <Border Width="1"
+                                            Height="20"
+                                            Background="{DynamicResource BorderDefault}"
+                                            Margin="0,4,8,4"/>
+
+                                    <Button x:Name="NiHistoryButton"
+                                            Content="History"
+                                            MinWidth="80"
+                                            Margin="0,0,8,0"
+                                            Click="NiHistoryButton_Click"/>
+                                    <Button x:Name="NiExportButton"
+                                            Content="Export"
+                                            MinWidth="80"
+                                            Margin="0,0,8,0"
+                                            IsEnabled="False"
+                                            Click="NiExportButton_Click"/>
+
+                                    <Border Width="1"
+                                            Height="20"
+                                            Background="{DynamicResource BorderDefault}"
+                                            Margin="0,4,8,4"/>
+
+                                    <Button x:Name="NiClearTopologyButton"
+                                            Content="Clear topology"
+                                            MinWidth="110"
+                                            ToolTip="Wipe all discovered nodes and edges from the canvas. Cannot be undone."
+                                            Click="NiClearTopologyButton_Click"/>
+                                </WrapPanel>
+                            </Border>
+
+                            <Grid Grid.Row="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="400"/>
+                                </Grid.ColumnDefinitions>
+
+                                <views:TopologyCanvasControl x:Name="NiTopologyCanvas"
+                                                             Grid.Column="0"/>
+
+                                <Border Grid.Column="1"
+                                        Background="{DynamicResource PrimaryBg}"
+                                        BorderBrush="{DynamicResource BorderDefault}"
+                                        BorderThickness="1,0,0,0">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
+                                        <StackPanel x:Name="NiDetailPanel" Visibility="Collapsed">
+
+                                            <TextBlock x:Name="NiDetailIp"
+                                                       FontSize="15"
+                                                       FontWeight="Medium"
+                                                       Foreground="{DynamicResource TextPrimary}"/>
+                                            <TextBlock x:Name="NiDetailStatus"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondary}"
+                                                       Margin="0,2,0,0"/>
+                                            <TextBlock x:Name="NiDetailSummary"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextSecondary}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,4,0,4"/>
+                                            <TextBlock x:Name="NiDetailLastSeen"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource TextMuted}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,12"/>
+
+                                            <StackPanel>
+                                                <TextBlock Text="VENDOR / HOST"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           Margin="0,8,0,4"/>
+                                                <TextBlock x:Name="NiDetailVendor"
+                                                           FontFamily="Consolas"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextPrimary}"
+                                                           TextWrapping="Wrap"/>
+                                                <TextBlock x:Name="NiDetailHostname"
+                                                           FontFamily="Consolas"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextSecondary}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+
+                                            <StackPanel>
+                                                <TextBlock Text="DEVICE TYPE"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           Margin="0,12,0,4"/>
+                                                <TextBlock x:Name="NiDetailDeviceType"
+                                                           FontFamily="Consolas"
+                                                           FontSize="12"
+                                                           Foreground="{DynamicResource TextPrimary}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+
+                                            <StackPanel>
+                                                <TextBlock Text="ROUTE"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           Margin="0,12,0,4"/>
+                                                <TextBlock x:Name="NiDetailRoute"
+                                                           FontFamily="Consolas"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource TextPrimary}"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+
+                                            <StackPanel>
+                                                <TextBlock Text="ICMP"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           Margin="0,12,0,4"/>
+                                                <TextBlock x:Name="NiDetailIcmp"
+                                                           FontSize="11"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+
+                                            <StackPanel>
+                                                <TextBlock Text="PATH"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           Margin="0,12,0,4"/>
+                                                <ItemsControl x:Name="NiDetailTrace">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Display}"
+                                                                       FontFamily="Consolas"
+                                                                       FontSize="12"
+                                                                       Margin="0,1"
+                                                                       TextWrapping="Wrap"
+                                                                       Foreground="{DynamicResource TextPrimary}"/>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+
+                                            <StackPanel>
+                                                <TextBlock Text="TCP PORTS"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           Margin="0,12,0,4"/>
+                                                <ItemsControl x:Name="NiDetailTcp">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,1">
+                                                                <TextBlock Text="{Binding Port}"
+                                                                           FontFamily="Consolas"
+                                                                           FontSize="11"
+                                                                           MinWidth="50"
+                                                                           Foreground="{DynamicResource TextPrimary}"/>
+                                                                <TextBlock Text="{Binding Status}"
+                                                                           FontSize="11"
+                                                                           MinWidth="70"
+                                                                           Margin="8,0">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Open">
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessGreen}"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Closed">
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource DisabledFg}"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Filtered">
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource WarningAmber}"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Error">
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource ErrorRed}"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <TextBlock Text="{Binding Service}"
+                                                                           FontSize="11"
+                                                                           MinWidth="90"
+                                                                           Margin="8,0,0,0"
+                                                                           Foreground="{DynamicResource TextPrimary}"/>
+                                                                <TextBlock Text="{Binding Version}"
+                                                                           FontSize="10"
+                                                                           FontStyle="Italic"
+                                                                           Foreground="{DynamicResource TextMuted}"
+                                                                           TextWrapping="Wrap"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+
+                                            <StackPanel x:Name="NiSnmpSection" Visibility="Collapsed">
+                                                <TextBlock Text="SNMP"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           Margin="0,12,0,4"/>
+                                                <ItemsControl x:Name="NiDetailSnmp" Visibility="Collapsed">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,1">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="110"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Grid.Column="0"
+                                                                           Text="{Binding Key}"
+                                                                           FontSize="10"
+                                                                           Foreground="{DynamicResource TextMuted}"/>
+                                                                <TextBlock Grid.Column="1"
+                                                                           Text="{Binding Value}"
+                                                                           FontFamily="Consolas"
+                                                                           FontSize="10"
+                                                                           Foreground="{DynamicResource TextSecondary}"
+                                                                           TextWrapping="Wrap"/>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+
+                                            <Border x:Name="VantagePointBorder"
+                                                    Background="{DynamicResource AccentBlueSubtle}"
+                                                    BorderBrush="{DynamicResource LabModeBorder}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6"
+                                                    Padding="10"
+                                                    Margin="0,12,0,0"
+                                                    Visibility="Collapsed">
+                                                <TextBlock x:Name="VantagePointText"
+                                                           FontSize="11"
+                                                           Foreground="{DynamicResource InfoBlue}"
+                                                           TextWrapping="Wrap"/>
+                                            </Border>
+
+                                            <Button x:Name="NiDetailProbeButton"
+                                                    Content="Full probe"
+                                                    Margin="0,12,0,0"
+                                                    Visibility="Collapsed"
+                                                    Click="NiDetailProbeButton_Click"/>
+                                            <Button x:Name="NiDetailSetTargetButton"
+                                                    Content="Set as attack target"
+                                                    Margin="0,6,0,0"
+                                                    Visibility="Collapsed"
+                                                    Click="NiDetailSetTargetButton_Click"/>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </Border>
+                            </Grid>
+
+                            <Border Grid.Row="2"
+                                    Background="{DynamicResource SecondaryBg}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
+                                    BorderThickness="0,1,0,0"
+                                    Height="32">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                                        <ProgressBar x:Name="NiProgressBar"
+                                                     Width="160"
+                                                     Height="8"
+                                                     Minimum="0"
+                                                     Maximum="100"
+                                                     Value="0"
+                                                     Visibility="Collapsed"/>
+                                        <TextBlock x:Name="NiStatusText"
+                                                   Text="Ready — click Start discovery"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource TextMuted}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="8,0,0,0"/>
+                                    </StackPanel>
+
+                                    <TextBlock x:Name="NiNodeCountText"
+                                               Grid.Column="1"
+                                               Text="0 nodes  0 edges  0 flows"
+                                               FontSize="10"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               VerticalAlignment="Center"
+                                               Margin="8,0"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
                     </TabItem>
 
                     <TabItem x:Name="AdvancedTab" Header="Advanced Settings" PreviewMouseDown="AdvancedTab_PreviewMouseDown">
@@ -951,7 +1331,7 @@
                                                        Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3"
                                                        TextWrapping="Wrap"
                                                        FontSize="11"
-                                                       Foreground="{StaticResource TextMuted}"
+                                                       Foreground="{DynamicResource TextMuted}"
                                                        Margin="0,0,0,8"
                                                        Visibility="Collapsed"/>
 
@@ -1084,7 +1464,7 @@
                                         <StackPanel Margin="0,8,0,0">
                                             <TextBlock Text="Override the selected Attack Mode. Checkboxes are OR-ed on top of the mode's defaults."
                                                        FontSize="11"
-                                                       Foreground="{StaticResource TextMuted}"
+                                                       Foreground="{DynamicResource TextMuted}"
                                                        TextWrapping="Wrap"
                                                        Margin="0,0,0,8"/>
                                             <CheckBox x:Name="FirewallBypassModeCheckBox"
@@ -1117,14 +1497,14 @@
                                 <Border Margin="0,4,0,0"
                                         Padding="16,14"
                                         CornerRadius="8"
-                                        BorderBrush="{StaticResource BorderDefault}"
+                                        BorderBrush="{DynamicResource BorderDefault}"
                                         BorderThickness="1"
-                                        Background="{StaticResource SecondaryBg}">
+                                        Background="{DynamicResource SecondaryBg}">
                                     <StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                             <Label Content="Password:"
                                                    FontSize="13"
-                                                   Foreground="{StaticResource TextSecondary}"
+                                                   Foreground="{DynamicResource TextSecondary}"
                                                    Margin="0,0,8,0"
                                                    Padding="0"
                                                    VerticalAlignment="Center"/>
@@ -1149,7 +1529,7 @@
                                         </StackPanel>
                                         <TextBlock x:Name="PasswordFeedbackText"
                                                    FontSize="11"
-                                                   Foreground="{StaticResource ErrorRed}"
+                                                   Foreground="{DynamicResource ErrorRed}"
                                                    Margin="0,0,0,10"
                                                    Visibility="Collapsed"
                                                    TextWrapping="Wrap"/>
@@ -1189,125 +1569,9 @@
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
-
-                    <TabItem x:Name="FirewallNetworksTab" Header="Reachability Tests">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <Border Grid.Row="0"
-                                    HorizontalAlignment="Stretch"
-                                    Margin="0,16,0,12"
-                                    Background="#2a1f05"
-                                    BorderBrush="{StaticResource WarningAmber}"
-                                    BorderThickness="1"
-                                    CornerRadius="6"
-                                    Padding="16,12">
-                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource WarningAmber}">
-                                    <Run Text="⚠  " FontWeight="Bold"/>
-                                    <Run Text="Use only on networks and systems you are explicitly authorized to test. This feature performs active scanning."/>
-                                </TextBlock>
-                            </Border>
-
-                            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,0,0" HorizontalAlignment="Stretch">
-                                <StackPanel Grid.IsSharedSizeScope="True" HorizontalAlignment="Stretch">
-                                    <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch">
-                                        <StackPanel>
-                                            <TextBlock Text="Simple Reachability Test" Style="{StaticResource CardHeaderStyle}"/>
-                                            <TextBlock Text="Test reachability to a single host: ICMP ping, TCP port check, and path analysis. Best for quick targeted checks."
-                                                       FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,0,0,12" TextWrapping="Wrap"/>
-                                            <Button x:Name="ReachabilityPathAnalysisButton"
-                                                    Content="Simple Reachability Test…"
-                                                    MinWidth="220"
-                                                    MinHeight="36"
-                                                    Style="{StaticResource PrimaryButton}"
-                                                    Click="ReachabilityPathAnalysisButton_Click"
-                                                    HorizontalAlignment="Left"/>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch">
-                                        <StackPanel>
-                                            <TextBlock Text="Bounded TCP Connect Scan" Style="{StaticResource CardHeaderStyle}"/>
-                                            <TextBlock Text="Scan a single IP, IP range, CIDR, or imported list using standard TCP connect probing. Concurrency-limited and cancelable. Authorized use only."
-                                                       FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,0,0,12" TextWrapping="Wrap"/>
-                                            <Button x:Name="BoundedTcpScanButton"
-                                                    Content="Bounded TCP Connect Scan…"
-                                                    MinWidth="240"
-                                                    MinHeight="36"
-                                                    Style="{StaticResource PrimaryButton}"
-                                                    Click="BoundedTcpScanButton_Click"
-                                                    HorizontalAlignment="Left"/>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Style="{StaticResource CardStyle}" HorizontalAlignment="Stretch">
-                                        <StackPanel>
-                                            <TextBlock Text="SNMP Walk Attack" Style="{StaticResource CardHeaderStyle}"/>
-                                            <TextBlock Text="Performs SNMP walk operations using 100 common community strings to test SNMP access."
-                                                       FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,0,0,12" TextWrapping="Wrap"/>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" SharedSizeGroup="LabelColumn"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto"/>
-                                                    <RowDefinition Height="Auto"/>
-                                                </Grid.RowDefinitions>
-                                                <Label Grid.Row="0" Grid.Column="0" Content="Target IP:" VerticalAlignment="Center" Margin="0,0,16,10"/>
-                                                <TextBox x:Name="SnmpWalkTargetIpTextBox" Grid.Row="0" Grid.Column="1" Height="30" Margin="0,0,0,10"
-                                                         Background="{DynamicResource InputBg}"
-                                                         Foreground="{DynamicResource TextPrimary}"
-                                                         BorderBrush="{DynamicResource BorderDefault}"/>
-                                                <Label Grid.Row="1" Grid.Column="0" Content="SNMP Port:" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                                                <TextBox x:Name="SnmpWalkPortTextBox" Grid.Row="1" Grid.Column="1" Height="30" Text="161"
-                                                         Background="{DynamicResource InputBg}"
-                                                         Foreground="{DynamicResource TextPrimary}"
-                                                         BorderBrush="{DynamicResource BorderDefault}"/>
-                                            </Grid>
-                                            <StackPanel Orientation="Horizontal" Margin="0,16,0,0" HorizontalAlignment="Left">
-                                                <Button x:Name="StartSnmpWalkButton"
-                                                        Content="Start SNMP Walk"
-                                                        Width="150" Height="34"
-                                                        Style="{StaticResource PrimaryButton}"
-                                                        Click="StartSnmpWalkButton_Click"
-                                                        Margin="0,0,12,0"/>
-                                                <Button x:Name="StopSnmpWalkButton"
-                                                        Content="Stop"
-                                                        Width="100" Height="34"
-                                                        Click="StopSnmpWalkButton_Click"
-                                                        IsEnabled="False"/>
-                                            </StackPanel>
-                                            <ProgressBar x:Name="SnmpWalkProgressBar" Height="6" Margin="0,12,0,0" Visibility="Collapsed" Maximum="100" Value="0"/>
-                                        </StackPanel>
-                                    </Border>
-                                </StackPanel>
-                            </ScrollViewer>
-
-                            <Border Grid.Row="2"
-                                    Style="{StaticResource CardStyle}"
-                                    HorizontalAlignment="Stretch"
-                                    Margin="0,12,0,0"
-                                    x:Name="SecurityAssessmentStatusBorder"
-                                    Visibility="Collapsed">
-                                <StackPanel>
-                                    <TextBlock Text="Security Assessment" Style="{StaticResource CardHeaderStyle}"/>
-                                    <TextBlock x:Name="SecurityAssessmentStatusTextBlock"
-                                               FontSize="13"
-                                               Foreground="{StaticResource SuccessGreen}"
-                                               TextWrapping="Wrap"
-                                               Margin="0,8,0,0"/>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                    </TabItem>
                 </TabControl>
 
-                <Grid Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                <Grid x:Name="SecurityLogPanel" Grid.Row="0" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -1322,7 +1586,7 @@
                                    FontSize="16"
                                    Margin="0,0,16,0"
                                    VerticalAlignment="Center"
-                                   Foreground="{StaticResource TextPrimary}"/>
+                                   Foreground="{DynamicResource TextPrimary}"/>
                         <Button x:Name="TaskManagerButton"
                                 Content="Task Manager"
                                 Width="120"
@@ -1367,10 +1631,10 @@
                             </Grid>
 
                             <Border Grid.Row="1"
-                                    BorderBrush="{StaticResource BorderDefault}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
                                     BorderThickness="1"
                                     CornerRadius="6"
-                                    Background="{StaticResource PrimaryBg}"
+                                    Background="{DynamicResource PrimaryBg}"
                                     Margin="0,0,0,16">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">
                                     <TextBox x:Name="LogTextBox"
@@ -1378,7 +1642,7 @@
                                              TextWrapping="Wrap"
                                              BorderThickness="0"
                                              Background="Transparent"
-                                             Foreground="{StaticResource TextCode}"
+                                             Foreground="{DynamicResource TextCode}"
                                              FontFamily="Consolas"
                                              FontSize="12"
                                              VerticalScrollBarVisibility="Disabled"/>
@@ -1418,8 +1682,8 @@
                 Background="#B0000000"
                 Visibility="Collapsed"
                 Panel.ZIndex="10000">
-            <Border Background="{StaticResource SecondaryBg}"
-                    BorderBrush="{StaticResource BorderDefault}"
+            <Border Background="{DynamicResource SecondaryBg}"
+                    BorderBrush="{DynamicResource BorderDefault}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="24"
@@ -1430,7 +1694,7 @@
                     <TextBlock Text="Syncing to Cloud..."
                                FontSize="16"
                                FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimary}"
+                               Foreground="{DynamicResource TextPrimary}"
                                Margin="0,0,0,12"
                                HorizontalAlignment="Center"/>
                     <ProgressBar x:Name="SyncProgressBar"
@@ -1440,7 +1704,7 @@
                     <TextBlock x:Name="SyncProgressText"
                                Text="Preparing sync..."
                                FontSize="12"
-                               Foreground="{StaticResource TextMuted}"
+                               Foreground="{DynamicResource TextMuted}"
                                TextWrapping="Wrap"
                                HorizontalAlignment="Center"
                                TextAlignment="Center"/>

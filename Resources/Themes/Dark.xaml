@@ -1,0 +1,84 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/Dorothy;component/Resources/Themes/Base.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- Core surfaces -->
+    <SolidColorBrush x:Key="PrimaryBg"       Color="#1A2332"/>
+    <SolidColorBrush x:Key="SecondaryBg"     Color="#232F3E"/>
+    <SolidColorBrush x:Key="TertiaryBg"      Color="#2A3444"/>
+
+    <!-- Borders -->
+    <SolidColorBrush x:Key="BorderDefault"   Color="#3A4555"/>
+    <SolidColorBrush x:Key="BorderHover"     Color="#6A7A8C"/>
+    <SolidColorBrush x:Key="CardBorder"      Color="#3A4555"/>
+
+    <!-- Text -->
+    <SolidColorBrush x:Key="TextPrimary"     Color="#F1F5FA"/>
+    <SolidColorBrush x:Key="TextSecondary"   Color="#B0BECC"/>
+    <SolidColorBrush x:Key="TextMuted"       Color="#8899AA"/>
+    <SolidColorBrush x:Key="TextCode"        Color="#D4DCE5"/>
+
+    <!-- Accents -->
+    <SolidColorBrush x:Key="AccentBlue"       Color="#5B8AF5"/>
+    <SolidColorBrush x:Key="AccentBlueHover"  Color="#4A79E4"/>
+    <SolidColorBrush x:Key="AccentBlueSubtle" Color="#0C1A2E"/>
+    <SolidColorBrush x:Key="InfoBlue"         Color="#7BA5F8"/>
+    <SolidColorBrush x:Key="SuccessGreen"    Color="#4ADE80"/>
+    <SolidColorBrush x:Key="WarningAmber"    Color="#FBBF24"/>
+    <SolidColorBrush x:Key="ErrorRed"        Color="#F87171"/>
+
+    <!-- Inputs / buttons -->
+    <SolidColorBrush x:Key="InputBg"         Color="#2A3444"/>
+    <SolidColorBrush x:Key="InputHoverBg"    Color="#32404F"/>
+    <SolidColorBrush x:Key="ButtonHoverBg"   Color="#3A4F6A"/>
+    <SolidColorBrush x:Key="ButtonPrimaryFg" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="DisabledFg"      Color="#6B7A8C"/>
+
+    <!-- Status subtle backgrounds -->
+    <SolidColorBrush x:Key="SuccessBgSubtle" Color="#0F2A1C"/>
+    <SolidColorBrush x:Key="SuccessBorder"   Color="#2E8A50"/>
+    <SolidColorBrush x:Key="ErrorBgSubtle"   Color="#3A1519"/>
+
+    <!-- Resolved (IsReadOnly TextBox) — green-on-dark -->
+    <SolidColorBrush x:Key="ResolvedFg"      Color="#4ADE80"/>
+    <SolidColorBrush x:Key="ResolvedBg"      Color="#1A3A2A"/>
+    <SolidColorBrush x:Key="ResolvedBorder"  Color="#2A5A3A"/>
+
+    <!-- Logo surround (keep light so PNG reads well) -->
+    <SolidColorBrush x:Key="LogoBg"          Color="#F0F2F5"/>
+    <SolidColorBrush x:Key="LogoBorder"      Color="#D8DEE4"/>
+    <SolidColorBrush x:Key="LogoFg"          Color="#1A2332"/>
+
+    <!-- LAB MODE badge -->
+    <SolidColorBrush x:Key="LabModeBg"       Color="#1E3A5F"/>
+    <SolidColorBrush x:Key="LabModeFg"       Color="#93C5FD"/>
+    <SolidColorBrush x:Key="LabModeBorder"   Color="#2563EB"/>
+
+    <!-- Semantic field states -->
+    <SolidColorBrush x:Key="FieldNormalBg"      Color="#2A3444"/>
+    <SolidColorBrush x:Key="FieldNormalFg"      Color="#F1F5FA"/>
+    <SolidColorBrush x:Key="FieldNormalBorder"  Color="#3A4555"/>
+
+    <SolidColorBrush x:Key="FieldWarningBg"     Color="#3A3520"/>
+    <SolidColorBrush x:Key="FieldWarningFg"     Color="#FCD34D"/>
+    <SolidColorBrush x:Key="FieldWarningBorder" Color="#B45309"/>
+
+    <SolidColorBrush x:Key="FieldErrorBg"       Color="#3A2020"/>
+    <SolidColorBrush x:Key="FieldErrorFg"       Color="#FCA5A5"/>
+    <SolidColorBrush x:Key="FieldErrorBorder"   Color="#991B1B"/>
+
+    <SolidColorBrush x:Key="FieldSuccessBg"     Color="#1A3A2A"/>
+    <SolidColorBrush x:Key="FieldSuccessFg"     Color="#86EFAC"/>
+    <SolidColorBrush x:Key="FieldSuccessBorder" Color="#2E8A50"/>
+
+    <SolidColorBrush x:Key="FieldInfoBg"        Color="#1A2A3A"/>
+    <SolidColorBrush x:Key="FieldInfoFg"        Color="#93C5FD"/>
+    <SolidColorBrush x:Key="FieldInfoBorder"    Color="#2A4A6A"/>
+
+    <SolidColorBrush x:Key="FieldDisabledBg"    Color="#232F3E"/>
+    <SolidColorBrush x:Key="FieldDisabledFg"    Color="#8899AA"/>
+
+</ResourceDictionary>

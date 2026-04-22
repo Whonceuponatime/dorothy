@@ -251,50 +251,20 @@ namespace Dorothy.Services
 
                 try
                 {
-                    var checkReachabilityTable = connection.CreateCommand();
-                    checkReachabilityTable.CommandText = @"
-                        SELECT name FROM sqlite_master
-                        WHERE type='table' AND name='ReachabilityTests';
+                    var dropReachabilityTables = connection.CreateCommand();
+                    dropReachabilityTables.CommandText = @"
+                        DROP TABLE IF EXISTS ReachabilityIcmpResults;
+                        DROP TABLE IF EXISTS ReachabilityTcpResults;
+                        DROP TABLE IF EXISTS ReachabilityPathHops;
+                        DROP TABLE IF EXISTS ReachabilityDeeperScans;
+                        DROP TABLE IF EXISTS ReachabilitySnmpWalks;
+                        DROP TABLE IF EXISTS ReachabilityTests;
                     ";
-                    var reachabilityTableExists = checkReachabilityTable.ExecuteScalar() != null;
-
-                    if (reachabilityTableExists)
-                    {
-
-                        var checkColumns = connection.CreateCommand();
-                        checkColumns.CommandText = "PRAGMA table_info(ReachabilityTests)";
-                        var columns = new HashSet<string>();
-                        using (var reader = checkColumns.ExecuteReader())
-                        {
-                            while (reader.Read())
-                            {
-                                columns.Add(reader.GetString(1));
-                            }
-                        }
-
-                        if (columns.Contains("Synced") && !columns.Contains("IsSynced"))
-                        {
-                            var addColumn = connection.CreateCommand();
-                            addColumn.CommandText = @"
-                                ALTER TABLE ReachabilityTests ADD COLUMN IsSynced INTEGER NOT NULL DEFAULT 0;
-                                UPDATE ReachabilityTests SET IsSynced = Synced WHERE Synced IS NOT NULL;
-                            ";
-                            addColumn.ExecuteNonQuery();
-                            Logger.Info("Migrated ReachabilityTests: Added IsSynced column and copied data from Synced");
-                        }
-
-                        else if (!columns.Contains("IsSynced") && !columns.Contains("Synced"))
-                        {
-                            var addColumn = connection.CreateCommand();
-                            addColumn.CommandText = "ALTER TABLE ReachabilityTests ADD COLUMN IsSynced INTEGER NOT NULL DEFAULT 0";
-                            addColumn.ExecuteNonQuery();
-                            Logger.Info("Added IsSynced column to ReachabilityTests table");
-                        }
-                    }
+                    dropReachabilityTables.ExecuteNonQuery();
                 }
                 catch (Exception ex)
                 {
-                    Logger.Warn(ex, "Failed to migrate ReachabilityTests table - continuing");
+                    Logger.Warn(ex, "Failed to drop legacy reachability tables - continuing");
                 }
 
                 var checkTableExists = connection.CreateCommand();
@@ -559,86 +529,20 @@ namespace Dorothy.Services
                         FOREIGN KEY (AssetId) REFERENCES Assets(Id) ON DELETE CASCADE
                     );
 
-                    CREATE TABLE IF NOT EXISTS ReachabilityTests (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        ProjectName TEXT,
-                        AnalysisMode TEXT NOT NULL,
-                        VantagePointName TEXT NOT NULL,
-                        SourceNicId TEXT NOT NULL,
-                        SourceIp TEXT NOT NULL,
-                        TargetNetworkName TEXT,
-                        TargetCidr TEXT,
-                        BoundaryGatewayIp TEXT,
-                        BoundaryVendor TEXT,
-                        ExternalTestIp TEXT,
-                        IsSynced INTEGER NOT NULL DEFAULT 0,
-                        CreatedAt TEXT NOT NULL,
-                        SyncedAt TEXT,
-                        HardwareId TEXT,
-                        MachineName TEXT,
-                        Username TEXT,
-                        UserId TEXT
-                    );
-
-                    CREATE TABLE IF NOT EXISTS ReachabilityIcmpResults (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        TestId INTEGER NOT NULL,
-                        TargetIp TEXT NOT NULL,
-                        Role TEXT NOT NULL,
-                        Reachable INTEGER NOT NULL DEFAULT 0,
-                        Sent INTEGER NOT NULL DEFAULT 0,
-                        Received INTEGER NOT NULL DEFAULT 0,
-                        AvgRttMs INTEGER,
-                        CreatedAt TEXT NOT NULL,
-                        FOREIGN KEY (TestId) REFERENCES ReachabilityTests(Id) ON DELETE CASCADE
-                    );
-
-                    CREATE TABLE IF NOT EXISTS ReachabilityTcpResults (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        TestId INTEGER NOT NULL,
-                        TargetIp TEXT NOT NULL,
-                        Port INTEGER NOT NULL,
-                        State TEXT NOT NULL,
-                        RttMs INTEGER NOT NULL DEFAULT 0,
-                        ErrorMessage TEXT,
-                        CreatedAt TEXT NOT NULL,
-                        FOREIGN KEY (TestId) REFERENCES ReachabilityTests(Id) ON DELETE CASCADE
-                    );
-
-                    CREATE TABLE IF NOT EXISTS ReachabilityPathHops (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        TestId INTEGER NOT NULL,
-                        TargetIp TEXT NOT NULL,
-                        HopNumber INTEGER NOT NULL,
-                        HopIp TEXT,
-                        RttMs INTEGER,
-                        Hostname TEXT,
-                        CreatedAt TEXT NOT NULL,
-                        FOREIGN KEY (TestId) REFERENCES ReachabilityTests(Id) ON DELETE CASCADE
-                    );
-
-                    CREATE TABLE IF NOT EXISTS ReachabilityDeeperScans (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        TestId INTEGER NOT NULL,
-                        TargetIp TEXT NOT NULL,
-                        PortStates TEXT NOT NULL,
-                        Summary TEXT,
-                        CreatedAt TEXT NOT NULL,
-                        FOREIGN KEY (TestId) REFERENCES ReachabilityTests(Id) ON DELETE CASCADE
-                    );
-
-                    CREATE TABLE IF NOT EXISTS ReachabilitySnmpWalks (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        TestId INTEGER NOT NULL,
-                        TargetIp TEXT NOT NULL,
-                        Port INTEGER NOT NULL,
-                        Success INTEGER NOT NULL DEFAULT 0,
-                        SuccessfulCommunity TEXT,
-                        SuccessfulOids TEXT NOT NULL,
-                        Attempts INTEGER NOT NULL DEFAULT 0,
-                        DurationMs INTEGER NOT NULL DEFAULT 0,
-                        CreatedAt TEXT NOT NULL,
-                        FOREIGN KEY (TestId) REFERENCES ReachabilityTests(Id) ON DELETE CASCADE
+                    CREATE TABLE IF NOT EXISTS reachability_runs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        started_at TEXT NOT NULL,
+                        completed_at TEXT,
+                        label TEXT,
+                        source_ip TEXT,
+                        source_nic TEXT,
+                        target_raw TEXT,
+                        results_json TEXT,
+                        hosts_tested INTEGER DEFAULT 0,
+                        hosts_reachable INTEGER DEFAULT 0,
+                        hosts_partial INTEGER DEFAULT 0,
+                        hosts_unreachable INTEGER DEFAULT 0,
+                        hosts_no_route INTEGER DEFAULT 0
                     );
                 ";
                 command.ExecuteNonQuery();
@@ -1625,361 +1529,7 @@ namespace Dorothy.Services
             };
         }
 
-        public async Task<long> SaveReachabilityTestAsync(
-            Models.ReachabilityWizardResult result,
-            string? projectName = null,
-            string? hardwareId = null,
-            string? machineName = null,
-            string? username = null,
-            Guid? userId = null)
-        {
-            try
-            {
-                using var connection = new SqliteConnection(_connectionString);
-                await connection.OpenAsync();
-
-                await EnsureMigrationsAsync(connection);
-
-                using var transaction = connection.BeginTransaction();
-
-                try
-                {
-
-                    var testCommand = connection.CreateCommand();
-                    testCommand.Transaction = transaction;
-                    testCommand.CommandText = @"
-                        INSERT INTO ReachabilityTests
-                        (ProjectName, AnalysisMode, VantagePointName, SourceNicId, SourceIp,
-                         TargetNetworkName, TargetCidr, BoundaryGatewayIp, BoundaryVendor, ExternalTestIp,
-                         CreatedAt, IsSynced, HardwareId, MachineName, Username, UserId)
-                        VALUES
-                        (@ProjectName, @AnalysisMode, @VantagePointName, @SourceNicId, @SourceIp,
-                         @TargetNetworkName, @TargetCidr, @BoundaryGatewayIp, @BoundaryVendor, @ExternalTestIp,
-                         @CreatedAt, 0, @HardwareId, @MachineName, @Username, @UserId);
-                        SELECT last_insert_rowid();
-                    ";
-
-                    var context = result.Context;
-                    testCommand.Parameters.AddWithValue("@ProjectName", projectName ?? (object)DBNull.Value);
-                    testCommand.Parameters.AddWithValue("@AnalysisMode", context.Mode.ToString());
-                    testCommand.Parameters.AddWithValue("@VantagePointName", context.VantagePointName);
-                    testCommand.Parameters.AddWithValue("@SourceNicId", context.SourceNicId);
-                    testCommand.Parameters.AddWithValue("@SourceIp", context.SourceIp.ToString());
-                    testCommand.Parameters.AddWithValue("@TargetNetworkName", context.TargetNetworkName ?? (object)DBNull.Value);
-                    testCommand.Parameters.AddWithValue("@TargetCidr", context.TargetCidr ?? (object)DBNull.Value);
-                    testCommand.Parameters.AddWithValue("@BoundaryGatewayIp", result.BoundaryGatewayIp?.ToString() ?? (object)DBNull.Value);
-                    testCommand.Parameters.AddWithValue("@BoundaryVendor", result.BoundaryVendor ?? (object)DBNull.Value);
-                    testCommand.Parameters.AddWithValue("@ExternalTestIp", context.ExternalTestIp?.ToString() ?? (object)DBNull.Value);
-                    testCommand.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow.ToString("O"));
-                    testCommand.Parameters.AddWithValue("@HardwareId", hardwareId ?? (object)DBNull.Value);
-                    testCommand.Parameters.AddWithValue("@MachineName", machineName ?? (object)DBNull.Value);
-                    testCommand.Parameters.AddWithValue("@Username", username ?? (object)DBNull.Value);
-                    testCommand.Parameters.AddWithValue("@UserId", userId?.ToString() ?? (object)DBNull.Value);
-
-                    var testId = (long)(await testCommand.ExecuteScalarAsync())!;
-
-                    var createdAt = DateTime.UtcNow.ToString("O");
-
-                    foreach (var icmp in result.IcmpResults)
-                    {
-                        var icmpCommand = connection.CreateCommand();
-                        icmpCommand.Transaction = transaction;
-                        icmpCommand.CommandText = @"
-                            INSERT INTO ReachabilityIcmpResults
-                            (TestId, TargetIp, Role, Reachable, Sent, Received, AvgRttMs, CreatedAt)
-                            VALUES
-                            (@TestId, @TargetIp, @Role, @Reachable, @Sent, @Received, @AvgRttMs, @CreatedAt);
-                        ";
-                        icmpCommand.Parameters.AddWithValue("@TestId", testId);
-                        icmpCommand.Parameters.AddWithValue("@TargetIp", icmp.TargetIp.ToString());
-                        icmpCommand.Parameters.AddWithValue("@Role", icmp.Role);
-                        icmpCommand.Parameters.AddWithValue("@Reachable", icmp.Reachable ? 1 : 0);
-                        icmpCommand.Parameters.AddWithValue("@Sent", icmp.Sent);
-                        icmpCommand.Parameters.AddWithValue("@Received", icmp.Received);
-                        icmpCommand.Parameters.AddWithValue("@AvgRttMs", icmp.AvgRttMs ?? (object)DBNull.Value);
-                        icmpCommand.Parameters.AddWithValue("@CreatedAt", createdAt);
-                        await icmpCommand.ExecuteNonQueryAsync();
-                    }
-
-                    foreach (var tcp in result.TcpResults)
-                    {
-                        var tcpCommand = connection.CreateCommand();
-                        tcpCommand.Transaction = transaction;
-                        tcpCommand.CommandText = @"
-                            INSERT INTO ReachabilityTcpResults
-                            (TestId, TargetIp, Port, State, RttMs, ErrorMessage, CreatedAt)
-                            VALUES
-                            (@TestId, @TargetIp, @Port, @State, @RttMs, @ErrorMessage, @CreatedAt);
-                        ";
-                        tcpCommand.Parameters.AddWithValue("@TestId", testId);
-                        tcpCommand.Parameters.AddWithValue("@TargetIp", tcp.TargetIp.ToString());
-                        tcpCommand.Parameters.AddWithValue("@Port", tcp.Port);
-                        tcpCommand.Parameters.AddWithValue("@State", tcp.State.ToString());
-                        tcpCommand.Parameters.AddWithValue("@RttMs", tcp.RttMs);
-                        tcpCommand.Parameters.AddWithValue("@ErrorMessage", tcp.ErrorMessage ?? (object)DBNull.Value);
-                        tcpCommand.Parameters.AddWithValue("@CreatedAt", createdAt);
-                        await tcpCommand.ExecuteNonQueryAsync();
-                    }
-
-                    if (result.PathResult != null)
-                    {
-                        foreach (var hop in result.PathResult.Hops)
-                        {
-                            var hopCommand = connection.CreateCommand();
-                            hopCommand.Transaction = transaction;
-                            hopCommand.CommandText = @"
-                                INSERT INTO ReachabilityPathHops
-                                (TestId, TargetIp, HopNumber, HopIp, RttMs, Hostname, CreatedAt)
-                                VALUES
-                                (@TestId, @TargetIp, @HopNumber, @HopIp, @RttMs, @Hostname, @CreatedAt);
-                            ";
-                            hopCommand.Parameters.AddWithValue("@TestId", testId);
-                            hopCommand.Parameters.AddWithValue("@TargetIp", result.PathResult.TargetIp.ToString());
-                            hopCommand.Parameters.AddWithValue("@HopNumber", hop.HopNumber);
-                            hopCommand.Parameters.AddWithValue("@HopIp", hop.HopIp?.ToString() ?? (object)DBNull.Value);
-                            hopCommand.Parameters.AddWithValue("@RttMs", hop.RttMs ?? (object)DBNull.Value);
-                            hopCommand.Parameters.AddWithValue("@Hostname", hop.Hostname ?? (object)DBNull.Value);
-                            hopCommand.Parameters.AddWithValue("@CreatedAt", createdAt);
-                            await hopCommand.ExecuteNonQueryAsync();
-                        }
-                    }
-
-                    foreach (var scan in result.DeeperScanResults)
-                    {
-
-                        var portStatesJson = System.Text.Json.JsonSerializer.Serialize(scan.PortStates);
-
-                        var scanCommand = connection.CreateCommand();
-                        scanCommand.Transaction = transaction;
-                        scanCommand.CommandText = @"
-                            INSERT INTO ReachabilityDeeperScans
-                            (TestId, TargetIp, PortStates, Summary, CreatedAt)
-                            VALUES
-                            (@TestId, @TargetIp, @PortStates, @Summary, @CreatedAt);
-                        ";
-                        scanCommand.Parameters.AddWithValue("@TestId", testId);
-                        scanCommand.Parameters.AddWithValue("@TargetIp", scan.TargetIp.ToString());
-                        scanCommand.Parameters.AddWithValue("@PortStates", portStatesJson);
-                        scanCommand.Parameters.AddWithValue("@Summary", scan.Summary ?? (object)DBNull.Value);
-                        scanCommand.Parameters.AddWithValue("@CreatedAt", createdAt);
-                        await scanCommand.ExecuteNonQueryAsync();
-                    }
-
-                    transaction.Commit();
-                    Logger.Info($"Saved reachability test {testId} with {result.IcmpResults.Count} ICMP, {result.TcpResults.Count} TCP, {result.PathResult?.Hops.Count ?? 0} path hops, {result.DeeperScanResults.Count} deeper scans");
-                    return testId;
-                }
-                catch
-                {
-                    transaction.Rollback();
-                    throw;
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "Failed to save reachability test");
-                throw;
-            }
-        }
-
-        public async Task<long> SaveSnmpWalkResultAsync(
-            Services.SnmpWalkResult snmpResult,
-            long? existingTestId = null,
-            string? projectName = null,
-            string? hardwareId = null,
-            string? machineName = null,
-            string? username = null,
-            Guid? userId = null)
-        {
-            try
-            {
-                using var connection = new SqliteConnection(_connectionString);
-                await connection.OpenAsync();
-
-                await EnsureMigrationsAsync(connection);
-
-                using var transaction = connection.BeginTransaction();
-
-                try
-                {
-                    long testId;
-                    var createdAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
-
-                    if (existingTestId.HasValue)
-                    {
-
-                        testId = existingTestId.Value;
-                    }
-                    else
-                    {
-
-                        var testCommand = connection.CreateCommand();
-                        testCommand.Transaction = transaction;
-                        testCommand.CommandText = @"
-                            INSERT INTO ReachabilityTests
-                            (ProjectName, AnalysisMode, VantagePointName, SourceNicId, SourceIp,
-                             TargetNetworkName, TargetCidr, BoundaryGatewayIp, BoundaryVendor, ExternalTestIp,
-                             CreatedAt, IsSynced, HardwareId, MachineName, Username, UserId)
-                            VALUES
-                            (@ProjectName, @AnalysisMode, @VantagePointName, @SourceNicId, @SourceIp,
-                             @TargetNetworkName, @TargetCidr, @BoundaryGatewayIp, @BoundaryVendor, @ExternalTestIp,
-                             @CreatedAt, 0, @HardwareId, @MachineName, @Username, @UserId);
-                            SELECT last_insert_rowid();
-                        ";
-
-                        testCommand.Parameters.AddWithValue("@ProjectName", projectName ?? (object)DBNull.Value);
-                        testCommand.Parameters.AddWithValue("@AnalysisMode", "BoundaryOnly");
-                        testCommand.Parameters.AddWithValue("@VantagePointName", "SNMP Walk");
-                        testCommand.Parameters.AddWithValue("@SourceNicId", "");
-                        testCommand.Parameters.AddWithValue("@SourceIp", "");
-                        testCommand.Parameters.AddWithValue("@TargetNetworkName", (object)DBNull.Value);
-                        testCommand.Parameters.AddWithValue("@TargetCidr", (object)DBNull.Value);
-                        testCommand.Parameters.AddWithValue("@BoundaryGatewayIp", snmpResult.TargetIp);
-                        testCommand.Parameters.AddWithValue("@BoundaryVendor", (object)DBNull.Value);
-                        testCommand.Parameters.AddWithValue("@ExternalTestIp", (object)DBNull.Value);
-                        testCommand.Parameters.AddWithValue("@CreatedAt", createdAt);
-                        testCommand.Parameters.AddWithValue("@HardwareId", hardwareId ?? (object)DBNull.Value);
-                        testCommand.Parameters.AddWithValue("@MachineName", machineName ?? (object)DBNull.Value);
-                        testCommand.Parameters.AddWithValue("@Username", username ?? (object)DBNull.Value);
-                        testCommand.Parameters.AddWithValue("@UserId", userId?.ToString() ?? (object)DBNull.Value);
-
-                        var testIdObj = await testCommand.ExecuteScalarAsync();
-                        testId = Convert.ToInt64(testIdObj);
-                    }
-
-                    var oidsJson = System.Text.Json.JsonSerializer.Serialize(snmpResult.SuccessfulOids);
-
-                    var snmpCommand = connection.CreateCommand();
-                    snmpCommand.Transaction = transaction;
-                    snmpCommand.CommandText = @"
-                        INSERT INTO ReachabilitySnmpWalks
-                        (TestId, TargetIp, Port, Success, SuccessfulCommunity, SuccessfulOids, Attempts, DurationMs, CreatedAt)
-                        VALUES
-                        (@TestId, @TargetIp, @Port, @Success, @SuccessfulCommunity, @SuccessfulOids, @Attempts, @DurationMs, @CreatedAt);
-                    ";
-
-                    snmpCommand.Parameters.AddWithValue("@TestId", testId);
-                    snmpCommand.Parameters.AddWithValue("@TargetIp", snmpResult.TargetIp);
-                    snmpCommand.Parameters.AddWithValue("@Port", snmpResult.Port);
-                    snmpCommand.Parameters.AddWithValue("@Success", snmpResult.Success ? 1 : 0);
-                    snmpCommand.Parameters.AddWithValue("@SuccessfulCommunity", snmpResult.SuccessfulCommunity ?? (object)DBNull.Value);
-                    snmpCommand.Parameters.AddWithValue("@SuccessfulOids", oidsJson);
-                    snmpCommand.Parameters.AddWithValue("@Attempts", snmpResult.Attempts);
-                    snmpCommand.Parameters.AddWithValue("@DurationMs", (long)snmpResult.Duration.TotalMilliseconds);
-                    snmpCommand.Parameters.AddWithValue("@CreatedAt", createdAt);
-
-                    await snmpCommand.ExecuteNonQueryAsync();
-
-                    transaction.Commit();
-                    Logger.Info($"Saved SNMP walk result for test {testId} on {snmpResult.TargetIp}:{snmpResult.Port}");
-                    return testId;
-                }
-                catch
-                {
-                    transaction.Rollback();
-                    throw;
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "Failed to save SNMP walk result");
-                throw;
-            }
-        }
-
-        public async Task<List<ReachabilityTestEntry>> GetUnsyncedReachabilityTestsAsync(List<long>? selectedIds = null)
-        {
-            try
-            {
-                using var connection = new SqliteConnection(_connectionString);
-                await connection.OpenAsync();
-
-                await EnsureMigrationsAsync(connection);
-
-                var command = connection.CreateCommand();
-                string query = @"
-                    SELECT Id, ProjectName, AnalysisMode, VantagePointName, SourceNicId, SourceIp,
-                           TargetNetworkName, TargetCidr, BoundaryGatewayIp, BoundaryVendor, ExternalTestIp,
-                           CreatedAt, IsSynced, HardwareId, MachineName, Username, UserId
-                    FROM ReachabilityTests
-                    WHERE IsSynced = 0
-                ";
-
-                if (selectedIds != null && selectedIds.Count > 0)
-                {
-                    var placeholders = string.Join(",", selectedIds.Select((_, i) => $"@Id{i}"));
-                    query += $" AND Id IN ({placeholders})";
-                }
-
-                query += " ORDER BY CreatedAt ASC";
-
-                command.CommandText = query;
-
-                if (selectedIds != null && selectedIds.Count > 0)
-                {
-                    for (int i = 0; i < selectedIds.Count; i++)
-                    {
-                        command.Parameters.AddWithValue($"@Id{i}", selectedIds[i]);
-                    }
-                }
-
-                var tests = new List<ReachabilityTestEntry>();
-                using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    tests.Add(new ReachabilityTestEntry
-                    {
-                        Id = reader.GetInt64(0),
-                        ProjectName = reader.IsDBNull(1) ? null : reader.GetString(1),
-                        AnalysisMode = reader.GetString(2),
-                        VantagePointName = reader.GetString(3),
-                        SourceNicId = reader.GetString(4),
-                        SourceIp = reader.GetString(5),
-                        TargetNetworkName = reader.IsDBNull(6) ? null : reader.GetString(6),
-                        TargetCidr = reader.IsDBNull(7) ? null : reader.GetString(7),
-                        BoundaryGatewayIp = reader.IsDBNull(8) ? null : reader.GetString(8),
-                        BoundaryVendor = reader.IsDBNull(9) ? null : reader.GetString(9),
-                        ExternalTestIp = reader.IsDBNull(10) ? null : reader.GetString(10),
-                        CreatedAt = DateTime.Parse(reader.GetString(11)),
-                        IsSynced = reader.GetInt32(12) == 1,
-                        Synced = reader.GetInt32(12) == 1,
-                        HardwareId = reader.IsDBNull(13) ? null : reader.GetString(13),
-                        MachineName = reader.IsDBNull(14) ? null : reader.GetString(14),
-                        Username = reader.IsDBNull(15) ? null : reader.GetString(15),
-                        UserId = reader.IsDBNull(16) ? null : (Guid.TryParse(reader.GetString(16), out var userId) ? userId : (Guid?)null)
-                    });
-                }
-
-                return tests;
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "Failed to get unsynced reachability tests");
-                throw;
-            }
-        }
-
-        public async Task<int> GetUnsyncedReachabilityTestsCountAsync()
-        {
-            try
-            {
-                using var connection = new SqliteConnection(_connectionString);
-                await connection.OpenAsync();
-
-                var command = connection.CreateCommand();
-                command.CommandText = "SELECT COUNT(*) FROM ReachabilityTests WHERE IsSynced = 0";
-
-                var result = await command.ExecuteScalarAsync();
-                return Convert.ToInt32(result);
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "Failed to get unsynced reachability tests count");
-                return 0;
-            }
-        }
-
-        public async Task<List<ReachabilityIcmpResultEntry>> GetReachabilityIcmpResultsAsync(long testId)
+        public async Task<long> SaveReachabilityRunAsync(Models.ReachabilityRun run)
         {
             try
             {
@@ -1988,41 +1538,39 @@ namespace Dorothy.Services
 
                 var command = connection.CreateCommand();
                 command.CommandText = @"
-                    SELECT Id, TestId, TargetIp, Role, Reachable, Sent, Received, AvgRttMs, CreatedAt
-                    FROM ReachabilityIcmpResults
-                    WHERE TestId = @TestId
-                    ORDER BY CreatedAt ASC
+                    INSERT INTO reachability_runs
+                    (started_at, completed_at, label, source_ip, source_nic, target_raw, results_json,
+                     hosts_tested, hosts_reachable, hosts_partial, hosts_unreachable, hosts_no_route)
+                    VALUES
+                    (@started_at, @completed_at, @label, @source_ip, @source_nic, @target_raw, @results_json,
+                     @hosts_tested, @hosts_reachable, @hosts_partial, @hosts_unreachable, @hosts_no_route);
+                    SELECT last_insert_rowid();
                 ";
-                command.Parameters.AddWithValue("@TestId", testId);
+                command.Parameters.AddWithValue("@started_at", run.StartedAt.ToString("O"));
+                command.Parameters.AddWithValue("@completed_at", run.CompletedAt?.ToString("O") ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@label", (object?)run.Label ?? DBNull.Value);
+                command.Parameters.AddWithValue("@source_ip", (object?)run.SourceIp ?? DBNull.Value);
+                command.Parameters.AddWithValue("@source_nic", (object?)run.SourceNic ?? DBNull.Value);
+                command.Parameters.AddWithValue("@target_raw", (object?)run.TargetRaw ?? DBNull.Value);
+                command.Parameters.AddWithValue("@results_json", (object?)run.ResultsJson ?? DBNull.Value);
+                command.Parameters.AddWithValue("@hosts_tested", run.HostsTested);
+                command.Parameters.AddWithValue("@hosts_reachable", run.HostsReachable);
+                command.Parameters.AddWithValue("@hosts_partial", run.HostsPartial);
+                command.Parameters.AddWithValue("@hosts_unreachable", run.HostsUnreachable);
+                command.Parameters.AddWithValue("@hosts_no_route", run.HostsNoRoute);
 
-                var results = new List<ReachabilityIcmpResultEntry>();
-                using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    results.Add(new ReachabilityIcmpResultEntry
-                    {
-                        Id = reader.GetInt64(0),
-                        TestId = reader.GetInt64(1),
-                        TargetIp = reader.GetString(2),
-                        Role = reader.GetString(3),
-                        Reachable = reader.GetInt32(4) == 1,
-                        Sent = reader.GetInt32(5),
-                        Received = reader.GetInt32(6),
-                        AvgRttMs = reader.IsDBNull(7) ? null : (long?)reader.GetInt64(7),
-                        CreatedAt = DateTime.Parse(reader.GetString(8))
-                    });
-                }
-
-                return results;
+                var id = Convert.ToInt64(await command.ExecuteScalarAsync());
+                run.Id = id;
+                return id;
             }
             catch (Exception ex)
             {
-                Logger.Error(ex, $"Failed to get ICMP results for test {testId}");
+                Logger.Error(ex, "Failed to save reachability run");
                 throw;
             }
         }
 
-        public async Task<List<ReachabilityTcpResultEntry>> GetReachabilityTcpResultsAsync(long testId)
+        public async Task UpdateReachabilityRunAsync(Models.ReachabilityRun run)
         {
             try
             {
@@ -2031,228 +1579,143 @@ namespace Dorothy.Services
 
                 var command = connection.CreateCommand();
                 command.CommandText = @"
-                    SELECT Id, TestId, TargetIp, Port, State, RttMs, ErrorMessage, CreatedAt
-                    FROM ReachabilityTcpResults
-                    WHERE TestId = @TestId
-                    ORDER BY CreatedAt ASC
+                    UPDATE reachability_runs
+                    SET started_at = @started_at,
+                        completed_at = @completed_at,
+                        label = @label,
+                        source_ip = @source_ip,
+                        source_nic = @source_nic,
+                        target_raw = @target_raw,
+                        results_json = @results_json,
+                        hosts_tested = @hosts_tested,
+                        hosts_reachable = @hosts_reachable,
+                        hosts_partial = @hosts_partial,
+                        hosts_unreachable = @hosts_unreachable,
+                        hosts_no_route = @hosts_no_route
+                    WHERE id = @id
                 ";
-                command.Parameters.AddWithValue("@TestId", testId);
-
-                var results = new List<ReachabilityTcpResultEntry>();
-                using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    results.Add(new ReachabilityTcpResultEntry
-                    {
-                        Id = reader.GetInt64(0),
-                        TestId = reader.GetInt64(1),
-                        TargetIp = reader.GetString(2),
-                        Port = reader.GetInt32(3),
-                        State = reader.GetString(4),
-                        RttMs = reader.GetInt64(5),
-                        ErrorMessage = reader.IsDBNull(6) ? null : reader.GetString(6),
-                        CreatedAt = DateTime.Parse(reader.GetString(7))
-                    });
-                }
-
-                return results;
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, $"Failed to get TCP results for test {testId}");
-                throw;
-            }
-        }
-
-        public async Task<List<ReachabilityPathHopEntry>> GetReachabilityPathHopsAsync(long testId)
-        {
-            try
-            {
-                using var connection = new SqliteConnection(_connectionString);
-                await connection.OpenAsync();
-
-                var command = connection.CreateCommand();
-                command.CommandText = @"
-                    SELECT Id, TestId, TargetIp, HopNumber, HopIp, RttMs, Hostname, CreatedAt
-                    FROM ReachabilityPathHops
-                    WHERE TestId = @TestId
-                    ORDER BY HopNumber ASC
-                ";
-                command.Parameters.AddWithValue("@TestId", testId);
-
-                var results = new List<ReachabilityPathHopEntry>();
-                using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    results.Add(new ReachabilityPathHopEntry
-                    {
-                        Id = reader.GetInt64(0),
-                        TestId = reader.GetInt64(1),
-                        TargetIp = reader.GetString(2),
-                        HopNumber = reader.GetInt32(3),
-                        HopIp = reader.IsDBNull(4) ? null : reader.GetString(4),
-                        RttMs = reader.IsDBNull(5) ? null : (long?)reader.GetInt64(5),
-                        Hostname = reader.IsDBNull(6) ? null : reader.GetString(6),
-                        CreatedAt = DateTime.Parse(reader.GetString(7))
-                    });
-                }
-
-                return results;
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, $"Failed to get path hops for test {testId}");
-                throw;
-            }
-        }
-
-        public async Task<List<ReachabilityDeeperScanEntry>> GetReachabilityDeeperScansAsync(long testId)
-        {
-            try
-            {
-                using var connection = new SqliteConnection(_connectionString);
-                await connection.OpenAsync();
-
-                var command = connection.CreateCommand();
-                command.CommandText = @"
-                    SELECT Id, TestId, TargetIp, PortStates, Summary, CreatedAt
-                    FROM ReachabilityDeeperScans
-                    WHERE TestId = @TestId
-                    ORDER BY CreatedAt ASC
-                ";
-                command.Parameters.AddWithValue("@TestId", testId);
-
-                var results = new List<ReachabilityDeeperScanEntry>();
-                using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    results.Add(new ReachabilityDeeperScanEntry
-                    {
-                        Id = reader.GetInt64(0),
-                        TestId = reader.GetInt64(1),
-                        TargetIp = reader.GetString(2),
-                        PortStates = reader.GetString(3),
-                        Summary = reader.IsDBNull(4) ? null : reader.GetString(4),
-                        CreatedAt = DateTime.Parse(reader.GetString(5))
-                    });
-                }
-
-                return results;
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, $"Failed to get deeper scans for test {testId}");
-                throw;
-            }
-        }
-
-        public async Task<List<ReachabilitySnmpWalkEntry>> GetReachabilitySnmpWalksAsync(long testId)
-        {
-            try
-            {
-                using var connection = new SqliteConnection(_connectionString);
-                await connection.OpenAsync();
-
-                var command = connection.CreateCommand();
-                command.CommandText = @"
-                    SELECT Id, TestId, TargetIp, Port, Success, SuccessfulCommunity, SuccessfulOids, Attempts, DurationMs, CreatedAt
-                    FROM ReachabilitySnmpWalks
-                    WHERE TestId = @TestId
-                    ORDER BY CreatedAt ASC
-                ";
-                command.Parameters.AddWithValue("@TestId", testId);
-
-                var results = new List<ReachabilitySnmpWalkEntry>();
-                using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    results.Add(new ReachabilitySnmpWalkEntry
-                    {
-                        Id = reader.GetInt64(0),
-                        TestId = reader.GetInt64(1),
-                        TargetIp = reader.GetString(2),
-                        Port = reader.GetInt32(3),
-                        Success = reader.GetInt32(4) == 1,
-                        SuccessfulCommunity = reader.IsDBNull(5) ? null : reader.GetString(5),
-                        SuccessfulOids = reader.GetString(6),
-                        Attempts = reader.GetInt32(7),
-                        DurationMs = reader.GetInt64(8),
-                        CreatedAt = DateTime.Parse(reader.GetString(9))
-                    });
-                }
-
-                return results;
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, $"Failed to get SNMP walks for test {testId}");
-                throw;
-            }
-        }
-
-        public async Task DeleteReachabilityTestsAsync(IEnumerable<long> ids)
-        {
-            try
-            {
-                using var connection = new SqliteConnection(_connectionString);
-                await connection.OpenAsync();
-
-                var idsList = ids.ToList();
-                if (idsList.Count == 0) return;
-
-                var placeholders = string.Join(",", idsList.Select((_, i) => $"@Id{i}"));
-                var command = connection.CreateCommand();
-                command.CommandText = $@"
-                    DELETE FROM ReachabilityTests
-                    WHERE Id IN ({placeholders})
-                ";
-
-                for (int i = 0; i < idsList.Count; i++)
-                {
-                    command.Parameters.AddWithValue($"@Id{i}", idsList[i]);
-                }
-
-                await command.ExecuteNonQueryAsync();
-                Logger.Info($"Deleted {idsList.Count} reachability test(s)");
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "Failed to delete reachability tests");
-                throw;
-            }
-        }
-
-        public async Task MarkReachabilityTestsAsSyncedAsync(IEnumerable<long> ids, DateTime syncedAt)
-        {
-            try
-            {
-                using var connection = new SqliteConnection(_connectionString);
-                await connection.OpenAsync();
-
-                var idsList = ids.ToList();
-                if (idsList.Count == 0) return;
-
-                var placeholders = string.Join(",", idsList.Select((_, i) => $"@Id{i}"));
-                var command = connection.CreateCommand();
-                command.CommandText = $@"
-                    UPDATE ReachabilityTests
-                    SET IsSynced = 1, SyncedAt = @SyncedAt
-                    WHERE Id IN ({placeholders})
-                ";
-
-                command.Parameters.AddWithValue("@SyncedAt", syncedAt.ToString("O"));
-                for (int i = 0; i < idsList.Count; i++)
-                {
-                    command.Parameters.AddWithValue($"@Id{i}", idsList[i]);
-                }
+                command.Parameters.AddWithValue("@id", run.Id);
+                command.Parameters.AddWithValue("@started_at", run.StartedAt.ToString("O"));
+                command.Parameters.AddWithValue("@completed_at", run.CompletedAt?.ToString("O") ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@label", (object?)run.Label ?? DBNull.Value);
+                command.Parameters.AddWithValue("@source_ip", (object?)run.SourceIp ?? DBNull.Value);
+                command.Parameters.AddWithValue("@source_nic", (object?)run.SourceNic ?? DBNull.Value);
+                command.Parameters.AddWithValue("@target_raw", (object?)run.TargetRaw ?? DBNull.Value);
+                command.Parameters.AddWithValue("@results_json", (object?)run.ResultsJson ?? DBNull.Value);
+                command.Parameters.AddWithValue("@hosts_tested", run.HostsTested);
+                command.Parameters.AddWithValue("@hosts_reachable", run.HostsReachable);
+                command.Parameters.AddWithValue("@hosts_partial", run.HostsPartial);
+                command.Parameters.AddWithValue("@hosts_unreachable", run.HostsUnreachable);
+                command.Parameters.AddWithValue("@hosts_no_route", run.HostsNoRoute);
 
                 await command.ExecuteNonQueryAsync();
             }
             catch (Exception ex)
             {
-                Logger.Error(ex, "Failed to mark reachability tests as synced");
+                Logger.Error(ex, "Failed to update reachability run");
                 throw;
             }
+        }
+
+        public async Task<List<Models.ReachabilityRun>> GetReachabilityRunsAsync(int? limit = null)
+        {
+            var runs = new List<Models.ReachabilityRun>();
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT id, started_at, completed_at, label, source_ip, source_nic, target_raw, results_json,
+                           hosts_tested, hosts_reachable, hosts_partial, hosts_unreachable, hosts_no_route
+                    FROM reachability_runs
+                    ORDER BY started_at DESC
+                " + (limit.HasValue ? " LIMIT @limit" : string.Empty);
+                if (limit.HasValue)
+                {
+                    command.Parameters.AddWithValue("@limit", limit.Value);
+                }
+
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    runs.Add(MapReaderToRun(reader));
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to get reachability runs");
+            }
+            return runs;
+        }
+
+        public async Task<Models.ReachabilityRun?> GetReachabilityRunAsync(long id)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT id, started_at, completed_at, label, source_ip, source_nic, target_raw, results_json,
+                           hosts_tested, hosts_reachable, hosts_partial, hosts_unreachable, hosts_no_route
+                    FROM reachability_runs
+                    WHERE id = @id
+                ";
+                command.Parameters.AddWithValue("@id", id);
+
+                using var reader = await command.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    return MapReaderToRun(reader);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, $"Failed to get reachability run {id}");
+            }
+            return null;
+        }
+
+        public async Task DeleteReachabilityRunAsync(long id)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = "DELETE FROM reachability_runs WHERE id = @id";
+                command.Parameters.AddWithValue("@id", id);
+                await command.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, $"Failed to delete reachability run {id}");
+                throw;
+            }
+        }
+
+        private static Models.ReachabilityRun MapReaderToRun(DbDataReader reader)
+        {
+            return new Models.ReachabilityRun
+            {
+                Id = reader.GetInt64(0),
+                StartedAt = DateTime.Parse(reader.GetString(1)),
+                CompletedAt = reader.IsDBNull(2) ? null : DateTime.Parse(reader.GetString(2)),
+                Label = reader.IsDBNull(3) ? null : reader.GetString(3),
+                SourceIp = reader.IsDBNull(4) ? null : reader.GetString(4),
+                SourceNic = reader.IsDBNull(5) ? null : reader.GetString(5),
+                TargetRaw = reader.IsDBNull(6) ? null : reader.GetString(6),
+                ResultsJson = reader.IsDBNull(7) ? null : reader.GetString(7),
+                HostsTested = reader.IsDBNull(8) ? 0 : reader.GetInt32(8),
+                HostsReachable = reader.IsDBNull(9) ? 0 : reader.GetInt32(9),
+                HostsPartial = reader.IsDBNull(10) ? 0 : reader.GetInt32(10),
+                HostsUnreachable = reader.IsDBNull(11) ? 0 : reader.GetInt32(11),
+                HostsNoRoute = reader.IsDBNull(12) ? 0 : reader.GetInt32(12)
+            };
         }
 
         private AttackLogEntry MapReaderToEntry(DbDataReader reader)

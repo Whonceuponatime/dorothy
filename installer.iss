@@ -23,8 +23,8 @@ WizardSmallImageFile=Resources\installer-icon.bmp
 AllowNoIcons=yes
 PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=commandline dialog
-ArchitecturesAllowed=x64
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName=SEACURE(TOOL)
 CreateUninstallRegKey=yes
 Uninstallable=yes
@@ -46,6 +46,10 @@ Name: "uninstallshortcut"; Description: "Create uninstall shortcut in installati
 [Files]
 Source: "dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "Run-Dorothy.ps1"; DestDir: "{app}"; Flags: ignoreversion
+; WebView2 standalone (offline) runtime installer. Bundled so installs work
+; on air-gapped / Windows 10 LTSC machines. Skipped at runtime if WebView2
+; is already present (see [Run] Check: ShouldInstallWebView2).
+Source: "installer\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Icons]
 Name: "{group}\SEACURE(TOOL)"; Filename: "{app}\Dorothy.exe"
@@ -54,6 +58,13 @@ Name: "{autodesktop}\SEACURE(TOOL)"; Filename: "{app}\Dorothy.exe"; Tasks: deskt
 Name: "{app}\Uninstall SEACURE(TOOL)"; Filename: "{uninstallexe}"; IconFilename: "{uninstallexe}"; Tasks: uninstallshortcut
 
 [Run]
+Filename: "{tmp}\MicrosoftEdgeWebView2RuntimeInstallerX64.exe"; \
+  Parameters: "/silent /install"; \
+  StatusMsg: "Installing WebView2 runtime (offline installer)..."; \
+  Check: ShouldInstallWebView2; \
+  BeforeInstall: PrepareWebView2Install; \
+  AfterInstall: AfterWebView2Install; \
+  Flags: waituntilterminated
 Filename: "{app}\Dorothy.exe"; \
   Description: "Launch SEACURE(TOOL)"; \
   Flags: shellexec nowait postinstall skipifsilent
@@ -61,6 +72,71 @@ Filename: "{app}\Dorothy.exe"; \
 [Code]
 var
   UpgradePage: TOutputProgressWizardPage;
+
+function IsWebView2Installed(): Boolean;
+var
+  Version: String;
+begin
+  Result := False;
+
+  // System-wide 64-bit registration (most common on x64 Windows)
+  if RegQueryStringValue(HKLM,
+      'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+      'pv', Version) then
+  begin
+    if (Version <> '') and (Version <> '0.0.0.0') then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  // System-wide 32-bit registration (x86 Windows / some WebView2 deployments)
+  if RegQueryStringValue(HKLM,
+      'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+      'pv', Version) then
+  begin
+    if (Version <> '') and (Version <> '0.0.0.0') then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end;
+
+  // Per-user registration (evergreen fallback)
+  if RegQueryStringValue(HKCU,
+      'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+      'pv', Version) then
+  begin
+    if (Version <> '') and (Version <> '0.0.0.0') then
+    begin
+      Result := True;
+      Exit;
+    end;
+  end;
+end;
+
+function ShouldInstallWebView2(): Boolean;
+begin
+  Result := not IsWebView2Installed();
+end;
+
+procedure PrepareWebView2Install();
+begin
+  if ShouldInstallWebView2() then
+  begin
+    WizardForm.ProgressGauge.Style := npbstMarquee;
+    WizardForm.StatusLabel.Caption :=
+      'Installing WebView2 Runtime (offline, bundled). ' +
+      'This may take 30-60 seconds...';
+    WizardForm.Update;
+  end;
+end;
+
+procedure AfterWebView2Install();
+begin
+  WizardForm.ProgressGauge.Style := npbstNormal;
+end;
 
 function GetMajorMinorVersion(Version: String): String;
 var

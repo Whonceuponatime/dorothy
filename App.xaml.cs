@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -97,6 +98,32 @@ namespace Dorothy
             var message = $"Unhandled Exception: {e.Exception.Message}\n\n{e.Exception.StackTrace}";
             MessageBox.Show(message, "Application Error", MessageBoxButton.OK, MessageBoxImage.Error);
             e.Handled = true;
+        }
+
+        public static void SetTheme(string theme)
+        {
+            if (Current == null) return;
+
+            var themeName = string.Equals(theme, "Light", StringComparison.OrdinalIgnoreCase) ? "Light" : "Dark";
+            var newUri = new Uri($"/Dorothy;component/Resources/Themes/{themeName}.xaml", UriKind.Relative);
+
+            var merged = Current.Resources.MergedDictionaries;
+            var existing = merged.FirstOrDefault(d =>
+                d.Source != null &&
+                d.Source.OriginalString.IndexOf("/Resources/Themes/", StringComparison.OrdinalIgnoreCase) >= 0);
+
+            var replacement = new ResourceDictionary { Source = newUri };
+
+            if (existing != null)
+            {
+                var index = merged.IndexOf(existing);
+                merged.RemoveAt(index);
+                merged.Insert(index, replacement);
+            }
+            else
+            {
+                merged.Add(replacement);
+            }
         }
 
     }

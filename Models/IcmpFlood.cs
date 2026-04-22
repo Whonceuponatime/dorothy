@@ -119,6 +119,8 @@ namespace Dorothy.Models
 
                 int  wireSize  = pool[0].Length + 4;
                 long targetBps = _params.BytesPerSecond;
+                if (!DryRunMode)
+                    targetBps = FloodScheduler.ClampTargetToNicSpeed(_params.SourceIp?.ToString(), targetBps);
                 double tgtMbps = targetBps * 8.0 / 1_000_000;
 
                 Logger.Info($"[ICMP] frame={pool[0].Length}B  wire={wireSize}B  " +
@@ -145,17 +147,14 @@ namespace Dorothy.Models
             }
         }
 
+        private const int SendQueueCapacityBytes = 16 * 1024 * 1024;
+        private const int FlushThresholdBytes = 1_000_000;
+        private const int FlushThresholdPackets = 1000;
+
         private async Task RunParallelSendLoopAsync(
             byte[][] pool, int wireSize, long targetBps, double tgtMbps)
         {
-            int workerCount = Math.Min(Environment.ProcessorCount, 4);
-            if (workerCount < 1) workerCount = 1;
-
-            long perWorkerBps = Math.Max(1, targetBps / workerCount);
-            int sliceLen = pool.Length / workerCount;
-            if (sliceLen < 1) { workerCount = 1; sliceLen = pool.Length; }
-
-            int drainMax = tgtMbps > 500 ? 200 : tgtMbps > 100 ? 100 : tgtMbps > 10 ? 40 : 10;
+            int drainMax = tgtMbps > 500 ? 2000 : tgtMbps > 100 ? 1000 : tgtMbps > 10 ? 400 : 100;
 
             long sharedBytes   = 0;
             long sharedPackets = 0;
@@ -163,71 +162,100 @@ namespace Dorothy.Models
             long sharedSpin    = 0;
             long sharedSleep   = 0;
 
-            var schedulers = new FloodScheduler[workerCount];
-            var workerTasks = new Task[workerCount];
+            var scheduler = new FloodScheduler(targetBps);
+            var schedulers = new[] { scheduler };
 
-            Logger.Info($"[ICMP] Launching {workerCount} worker(s) at {perWorkerBps * 8.0 / 1_000_000:F2} Mbps each.");
+            Logger.Info($"[ICMP] Single-threaded SendQueue loop: target={tgtMbps:F2} Mbps, " +
+                        $"queue_capacity={SendQueueCapacityBytes} bytes, drain_max={drainMax}");
 
-            for (int w = 0; w < workerCount; w++)
+            var sendTask = Task.Run(() =>
             {
-                int workerId = w;
-                int startIdx = workerId * sliceLen;
-                int endIdx   = (workerId == workerCount - 1) ? pool.Length : startIdx + sliceLen;
+                int idx = 0;
+                long localSent = 0;
+                var workerSw = Stopwatch.StartNew();
+                Logger.Info($"Flood worker started: id=0 of 1 targetBps={targetBps} pool_size={pool.Length}");
 
-                schedulers[workerId] = new FloodScheduler(perWorkerBps);
-                var localScheduler = schedulers[workerId];
+                var sender = new DoubleBufferedSender(
+                    _device!, SendQueueCapacityBytes, FlushThresholdBytes, FlushThresholdPackets, "ICMP");
 
-                workerTasks[w] = Task.Run(() =>
+                long winPkts = 0, winBytes = 0, winEnqueueUs = 0, winWaitUs = 0, winWaitCount = 0;
+                var winSw = Stopwatch.StartNew();
+
+                void EmitWorkerWindowIfDue()
                 {
-                    int idx = startIdx;
+                    if (winSw.ElapsedMilliseconds < 1000) return;
+                    double avgEnq  = winPkts > 0 ? (double)winEnqueueUs / winPkts : 0.0;
+                    double avgWait = winWaitCount > 0 ? (double)winWaitUs / winWaitCount : 0.0;
+                    double lastSendUs = sender.LastFlushTransmittedBytes > 0 && sender.LastFlushMicros > 0 && wireSize > 0
+                        ? sender.LastFlushMicros / (double)Math.Max(1, sender.LastFlushTransmittedBytes / wireSize)
+                        : 0.0;
+                    Logger.Info($"[ICMP-W0] pkts={winPkts} bytes={winBytes} " +
+                                $"send_us_avg={lastSendUs:F1} enqueue_us_avg={avgEnq:F1} " +
+                                $"bucket_wait_us_avg={avgWait:F1} waits={winWaitCount}");
+                    winPkts = 0; winBytes = 0; winEnqueueUs = 0; winWaitUs = 0; winWaitCount = 0;
+                    winSw.Restart();
+                }
+
+                try
+                {
                     while (!_cancellationToken.IsCancellationRequested)
                     {
-                        int count = localScheduler.Drain(wireSize, drainMax);
+                        EmitWorkerWindowIfDue();
+                        int count = scheduler.Drain(wireSize, drainMax);
 
                         if (count == 0)
                         {
+                            long waitStart = Stopwatch.GetTimestamp();
                             if (tgtMbps < 5.0)
                             {
                                 Thread.Sleep(1);
-                                localScheduler.RecordSleep();
+                                scheduler.RecordSleep();
                                 Interlocked.Increment(ref sharedSleep);
                             }
                             else
                             {
                                 Thread.SpinWait(200);
-                                localScheduler.RecordSpin();
+                                scheduler.RecordSpin();
                                 Interlocked.Increment(ref sharedSpin);
                             }
+                            long waitTicks = Stopwatch.GetTimestamp() - waitStart;
+                            winWaitUs += waitTicks * 1_000_000L / Stopwatch.Frequency;
+                            winWaitCount++;
+                            scheduler.LogTelemetry(0, 1, targetBps,
+                                tgtMbps < 5.0 ? "Sleep" : "SpinWait", 0);
                             continue;
                         }
 
+                        long enqStart = Stopwatch.GetTimestamp();
                         for (int i = 0; i < count; i++)
                         {
-                            try
-                            {
-                                _device!.SendPacket(pool[idx]);
-                                localScheduler.RecordSent(wireSize);
-                                Interlocked.Add(ref sharedBytes, wireSize);
-                                Interlocked.Increment(ref sharedPackets);
-
-                                if ((Interlocked.Read(ref sharedPackets) & 1023) == 0)
-                                    OnPacketSent(pool[idx],
-                                        _params.SourceIp, _params.DestinationIp, 0);
-                            }
-                            catch (Exception ex)
-                            {
-                                localScheduler.RecordFailed();
-                                Interlocked.Increment(ref sharedFailed);
-                                if ((Interlocked.Read(ref sharedFailed) & 63) == 0)
-                                    Logger.Warn($"[ICMP] SendPacket failed: {ex.Message}");
-                            }
-
+                            sender.AddPacket(pool[idx].ToArray());
                             idx++;
-                            if (idx >= endIdx) idx = startIdx;
+                            if (idx >= pool.Length) idx = 0;
                         }
+                        long enqTicks = Stopwatch.GetTimestamp() - enqStart;
+                        winEnqueueUs += enqTicks * 1_000_000L / Stopwatch.Frequency;
+
+                        for (int i = 0; i < count; i++) scheduler.RecordSent(wireSize);
+                        Interlocked.Add(ref sharedBytes, (long)wireSize * count);
+                        long running = Interlocked.Add(ref sharedPackets, count);
+                        localSent += count;
+                        winPkts += count;
+                        winBytes += (long)wireSize * count;
+
+                        if (count > 0 && ((running >> 10) != ((running - count) >> 10)))
+                            OnPacketSent(pool[idx], _params.SourceIp, _params.DestinationIp, 0);
                     }
-                }, _cancellationToken);
-            }
+                }
+                finally
+                {
+                    try { sender.Dispose(); }
+                    catch (Exception ex) { Logger.Debug(ex, "[ICMP] sender dispose failed"); }
+                }
+
+                workerSw.Stop();
+                Logger.Info($"Flood worker finished: id=0 sent={localSent} elapsed={workerSw.ElapsedMilliseconds}ms");
+            }, _cancellationToken);
 
             await PublishStatsLoopAsync(
                 "ICMP", targetBps, tgtMbps, schedulers,
@@ -237,7 +265,7 @@ namespace Dorothy.Models
                 () => Interlocked.Read(ref sharedSpin),
                 () => Interlocked.Read(ref sharedSleep));
 
-            try { await Task.WhenAll(workerTasks); } catch (OperationCanceledException) { }
+            try { await sendTask; } catch (OperationCanceledException) { }
 
             Logger.Info($"[ICMP] Stopped. bytes={Interlocked.Read(ref sharedBytes):N0} " +
                         $"packets={Interlocked.Read(ref sharedPackets):N0} " +

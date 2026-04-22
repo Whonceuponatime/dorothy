@@ -7,7 +7,7 @@
         MinWidth="520"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
-        Background="#1A2332"
+        Background="{DynamicResource PrimaryBg}"
         ShowInTaskbar="False">
     <Grid Margin="24">
         <Grid.RowDefinitions>
@@ -20,15 +20,15 @@
             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                 <TextBlock Text="⚠"
                            FontSize="24"
-                           Foreground="#FBBF24"
+                           Foreground="{DynamicResource WarningAmber}"
                            Margin="0,0,12,0"
                            VerticalAlignment="Center"/>
                 <StackPanel>
                     <TextBlock Text="Authorized Use Only"
                                FontSize="22"
                                FontWeight="Bold"
-                               Foreground="#E8ECF1"/>
-                    <Border Background="#3A1A1A"
+                               Foreground="{DynamicResource TextPrimary}"/>
+                    <Border Background="{DynamicResource FieldErrorBg}"
                             CornerRadius="4"
                             Padding="6,2"
                             HorizontalAlignment="Left"
@@ -36,15 +36,15 @@
                         <TextBlock Text="Legal Notice"
                                    FontSize="10"
                                    FontWeight="SemiBold"
-                                   Foreground="#F87171"/>
+                                   Foreground="{DynamicResource ErrorRed}"/>
                     </Border>
                 </StackPanel>
             </StackPanel>
         </StackPanel>
 
         <Border Grid.Row="1"
-                Background="#232F3E"
-                BorderBrush="#3A4555"
+                Background="{DynamicResource SecondaryBg}"
+                BorderBrush="{DynamicResource BorderDefault}"
                 BorderThickness="1"
                 CornerRadius="8"
                 Padding="20">
@@ -53,17 +53,17 @@
                     <TextBlock Text="This is a DoS (Denial of Service) Testing Program"
                                FontSize="14"
                                FontWeight="Bold"
-                               Foreground="#E8ECF1"
+                               Foreground="{DynamicResource TextPrimary}"
                                Margin="0,0,0,12"/>
 
                     <TextBlock Text="Purpose"
                                FontSize="12"
                                FontWeight="SemiBold"
-                               Foreground="#E8ECF1"
+                               Foreground="{DynamicResource TextPrimary}"
                                Margin="0,0,0,6"/>
                     <TextBlock Text="This tool is designed for authorized network testing in controlled laboratory environments with explicit permission."
                                FontSize="12"
-                               Foreground="#A0AEBB"
+                               Foreground="{DynamicResource TextSecondary}"
                                TextWrapping="Wrap"
                                Margin="0,0,0,20"
                                LineHeight="24"/>
@@ -71,11 +71,11 @@
                     <TextBlock Text="Authorized Use"
                                FontSize="12"
                                FontWeight="SemiBold"
-                               Foreground="#E8ECF1"
+                               Foreground="{DynamicResource TextPrimary}"
                                Margin="0,0,0,6"/>
                     <TextBlock Text="• Controlled testing environments only&#x0a;• With explicit written permission from network owners&#x0a;• For legitimate security assessment purposes"
                                FontSize="12"
-                               Foreground="#A0AEBB"
+                               Foreground="{DynamicResource TextSecondary}"
                                TextWrapping="Wrap"
                                Margin="0,0,0,20"
                                LineHeight="24"/>
@@ -83,11 +83,11 @@
                     <TextBlock Text="Responsibility"
                                FontSize="12"
                                FontWeight="SemiBold"
-                               Foreground="#E8ECF1"
+                               Foreground="{DynamicResource TextPrimary}"
                                Margin="0,0,0,6"/>
                     <TextBlock Text="By using this program, you acknowledge that you have the necessary authorization and accept full responsibility for your actions."
                                FontSize="12"
-                               Foreground="#A0AEBB"
+                               Foreground="{DynamicResource TextSecondary}"
                                TextWrapping="Wrap"
                                Margin="0,0,0,20"
                                LineHeight="24"/>
@@ -95,20 +95,20 @@
                     <TextBlock Text="Unauthorized use may be illegal and result in disciplinary or legal action."
                                FontSize="12"
                                FontWeight="Bold"
-                               Foreground="#F87171"
+                               Foreground="{DynamicResource ErrorRed}"
                                TextWrapping="Wrap"
                                Margin="0,8,0,16"
                                LineHeight="24"/>
 
-                    <Border Background="#3A1519"
-                            BorderBrush="#5A2525"
+                    <Border Background="{DynamicResource ErrorBgSubtle}"
+                            BorderBrush="{DynamicResource FieldErrorBorder}"
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="12"
                             Margin="0,8,0,0">
                         <TextBlock Text="SeaNet and its affiliates assume no responsibility for any misuse, unauthorized access, or damages resulting from the use of this program."
                                    FontSize="11"
-                                   Foreground="#F87171"
+                                   Foreground="{DynamicResource ErrorRed}"
                                    TextWrapping="Wrap"
                                    LineHeight="18"/>
                     </Border>
@@ -120,7 +120,7 @@
             <CheckBox x:Name="DontShowAgainCheckBox"
                       Content="Don't show this again on this machine"
                       FontSize="11"
-                      Foreground="#8899AA"
+                      Foreground="{DynamicResource TextMuted}"
                       Margin="0,0,0,16"
                       IsChecked="False"/>
 
@@ -132,9 +132,9 @@
                         Height="36"
                         Margin="0,0,8,0"
                         Click="ExitButton_Click"
-                        Background="#3A4555"
-                        Foreground="#E8ECF1"
-                        BorderBrush="#4A5565"
+                        Background="{DynamicResource BorderDefault}"
+                        Foreground="{DynamicResource TextPrimary}"
+                        BorderBrush="{DynamicResource BorderHover}"
                         BorderThickness="1"
                         Cursor="Hand">
                     <Button.Style>
@@ -155,7 +155,7 @@
                             </Setter>
                             <Style.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#4A5565"/>
+                                    <Setter Property="Background" Value="{DynamicResource BorderHover}"/>
                                 </Trigger>
                             </Style.Triggers>
                         </Style>
@@ -166,7 +166,7 @@
                         Width="120"
                         Height="36"
                         Click="AcceptButton_Click"
-                        Background="#5B8AF5"
+                        Background="{DynamicResource AccentBlue}"
                         Foreground="White"
                         BorderThickness="0"
                         Cursor="Hand">
@@ -186,7 +186,7 @@
                             </Setter>
                             <Style.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#4A79E4"/>
+                                    <Setter Property="Background" Value="{DynamicResource AccentBlueHover}"/>
                                 </Trigger>
                             </Style.Triggers>
                         </Style>

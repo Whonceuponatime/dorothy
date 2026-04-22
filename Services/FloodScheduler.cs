@@ -1,12 +1,16 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
+using System.Net.NetworkInformation;
 using System.Threading;
+using NLog;
 
 namespace Dorothy.Services
 {
 
     public sealed class FloodScheduler
     {
+        private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
 
         private double _tokens;
         private readonly double _ratePerTick;
@@ -22,6 +26,20 @@ namespace Dorothy.Services
         private long _totalWireBytesSent;
         private long _sleepCycles;
         private long _spinCycles;
+
+        private long _telemetryLastTick;
+        private long _telemetryWindowStartBytes;
+        private long _telemetryWindowStartPackets;
+        private long _telemetryWindowStartDrained;
+        private long _telemetryWindowDrained;
+        private long _telemetryCarriedBytes;
+
+        private long _drainCalls;
+        private long _drainGrantedBytes;
+        private long _drainDeniedCount;
+        private long _drainLastSchedLogAtCalls;
+        private long _drainLastSchedLogAtTick;
+        private long _drainLastSchedLogAtGrantedBytes;
 
         public long ScheduledPackets  => Interlocked.Read(ref _scheduledPackets);
         public long SentPackets       => Interlocked.Read(ref _sentPackets);
@@ -48,6 +66,7 @@ namespace Dorothy.Services
             _tokens        = 0;
             _sw            = Stopwatch.StartNew();
             _lastTick      = _sw.ElapsedTicks;
+            _telemetryLastTick = _lastTick;
         }
 
         public static long ConvertToBytes(double value, RateUnit unit)
@@ -61,13 +80,120 @@ namespace Dorothy.Services
 
             if (_tokens > _burstCapBytes) _tokens = _burstCapBytes;
 
-            if (_tokens < wirePacketSize) return 0;
+            long calls = Interlocked.Increment(ref _drainCalls);
+
+            if (_tokens < wirePacketSize)
+            {
+                Interlocked.Increment(ref _drainDeniedCount);
+                MaybeLogSched(calls, now);
+                return 0;
+            }
 
             int count = (int)(_tokens / wirePacketSize);
             if (count > maxPerCall) count = maxPerCall;
             _tokens -= count * wirePacketSize;
+            Interlocked.Add(ref _drainGrantedBytes, (long)count * wirePacketSize);
             Interlocked.Add(ref _scheduledPackets, count);
+            Interlocked.Add(ref _telemetryWindowDrained, count);
+            MaybeLogSched(calls, now);
             return count;
+        }
+
+        private void MaybeLogSched(long calls, long nowTick)
+        {
+            if (calls - _drainLastSchedLogAtCalls < 1000) return;
+
+            long winCalls = calls - _drainLastSchedLogAtCalls;
+            long grantedNow = Interlocked.Read(ref _drainGrantedBytes);
+            long winGranted = grantedNow - _drainLastSchedLogAtGrantedBytes;
+            long winTicks = _drainLastSchedLogAtTick == 0 ? 0 : nowTick - _drainLastSchedLogAtTick;
+            double winSec = _freq > 0 ? winTicks / (double)_freq : 0.0;
+            long winDenied = Interlocked.Read(ref _drainDeniedCount);
+            long avgWaitUs = winCalls > 0 && winSec > 0 ? (long)(winSec * 1_000_000.0 / winCalls) : 0;
+
+            Logger.Info(
+                $"[SCHED] waits={calls} win_calls={winCalls} win_sec={winSec:F3} " +
+                $"granted_bytes={winGranted} total_granted={grantedNow} " +
+                $"avg_wait_us={avgWaitUs} tokens_requested={calls} tokens_denied={winDenied}");
+
+            _drainLastSchedLogAtCalls = calls;
+            _drainLastSchedLogAtTick = nowTick;
+            _drainLastSchedLogAtGrantedBytes = grantedNow;
+        }
+
+        public static long ClampTargetToNicSpeed(string? sourceIp, long targetWireBytesPerSec)
+        {
+            if (targetWireBytesPerSec <= 0 || string.IsNullOrWhiteSpace(sourceIp))
+                return targetWireBytesPerSec;
+
+            try
+            {
+                NetworkInterface? match = null;
+                foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+                {
+                    if (nic.OperationalStatus != OperationalStatus.Up) continue;
+                    var props = nic.GetIPProperties();
+                    if (props.UnicastAddresses.Any(a => a.Address.ToString() == sourceIp))
+                    {
+                        match = nic;
+                        break;
+                    }
+                }
+                if (match == null || match.Speed <= 0) return targetWireBytesPerSec;
+
+                long nicBps = match.Speed / 8;
+                long capBps = (long)(nicBps * 0.95);
+                if (targetWireBytesPerSec > capBps)
+                {
+                    double targetMbps = targetWireBytesPerSec * 8.0 / 1_000_000.0;
+                    double nicMbps = match.Speed / 1_000_000.0;
+                    double capMbps = capBps * 8.0 / 1_000_000.0;
+                    Logger.Warn(
+                        $"Target {targetMbps:F2} Mbps exceeds 95% of NIC link speed {nicMbps:F2} Mbps. " +
+                        $"Clamping to {capMbps:F2} Mbps.");
+                    return capBps;
+                }
+            }
+            catch (Exception ex) { Logger.Debug(ex, "NIC speed probe failed"); }
+            return targetWireBytesPerSec;
+        }
+
+        public void Refund(int wireBytes)
+        {
+            if (wireBytes <= 0) return;
+            _tokens += wireBytes;
+            if (_tokens > _burstCapBytes) _tokens = _burstCapBytes;
+            Interlocked.Add(ref _telemetryCarriedBytes, wireBytes);
+        }
+
+        public void LogTelemetry(int workerId, int workerCount, long targetBps, string reason)
+            => LogTelemetry(workerId, workerCount, targetBps, reason, queueDepthBytes: -1);
+
+        public void LogTelemetry(int workerId, int workerCount, long targetBps, string reason, long queueDepthBytes)
+        {
+            long now = _sw.ElapsedTicks;
+            double windowSec = (now - _telemetryLastTick) / (double)_freq;
+            if (windowSec < 1.0) return;
+
+            long bytesNow   = Interlocked.Read(ref _totalWireBytesSent);
+            long packetsNow = Interlocked.Read(ref _sentPackets);
+            long drainedNow = Interlocked.Read(ref _telemetryWindowDrained);
+            long carryNow   = Interlocked.Read(ref _telemetryCarriedBytes);
+
+            long wBytes   = bytesNow   - _telemetryWindowStartBytes;
+            long wPackets = packetsNow - _telemetryWindowStartPackets;
+            long wDrained = drainedNow - _telemetryWindowStartDrained;
+            long actualBps = (long)(wBytes / windowSec);
+
+            string qd = queueDepthBytes >= 0 ? $" queue_depth={queueDepthBytes}" : string.Empty;
+            Logger.Info(
+                $"FloodScheduler[{workerId}/{workerCount}] target={targetBps}B/s actual={actualBps}B/s " +
+                $"tokens_drained={wDrained} packets_sent={wPackets} deficit_carried={carryNow}{qd} reason={reason}");
+
+            _telemetryLastTick            = now;
+            _telemetryWindowStartBytes    = bytesNow;
+            _telemetryWindowStartPackets  = packetsNow;
+            _telemetryWindowStartDrained  = drainedNow;
         }
 
         public void RecordSent(int wireBytes)

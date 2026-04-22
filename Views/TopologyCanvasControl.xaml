@@ -1,0 +1,61 @@
+<UserControl x:Class="Dorothy.Views.TopologyCanvasControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+             Background="{DynamicResource PrimaryBg}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <wv2:WebView2 x:Name="WebView"
+                      NavigationCompleted="WebView_NavigationCompleted"
+                      WebMessageReceived="WebView_WebMessageReceived"
+                      KeyDown="WebView_KeyDown"/>
+
+        <Popup x:Name="NodeContextMenu"
+               StaysOpen="False"
+               AllowsTransparency="True"
+               PlacementTarget="{Binding ElementName=WebView}"
+               Placement="MousePoint">
+            <Border Background="{DynamicResource SecondaryBg}"
+                    BorderBrush="{DynamicResource BorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="4">
+                <StackPanel MinWidth="180">
+                    <Button x:Name="CtxExpandSubnet"
+                            Content="Expand subnet"
+                            Margin="0,0,0,2"
+                            HorizontalContentAlignment="Left"
+                            Padding="8,4"
+                            Visibility="Collapsed"
+                            Click="CtxExpandSubnet_Click"/>
+                    <Button x:Name="CtxDeepProbe"
+                            Content="Full probe"
+                            Margin="0,0,0,2"
+                            HorizontalContentAlignment="Left"
+                            Padding="8,4"
+                            Click="CtxDeepProbe_Click"/>
+                    <Button x:Name="CtxTraceroute"
+                            Content="Traceroute"
+                            Margin="0,0,0,2"
+                            HorizontalContentAlignment="Left"
+                            Padding="8,4"
+                            Click="CtxTraceroute_Click"/>
+                    <Button x:Name="CtxSnmp"
+                            Content="SNMP walk"
+                            Margin="0,0,0,2"
+                            HorizontalContentAlignment="Left"
+                            Padding="8,4"
+                            Click="CtxSnmp_Click"/>
+                    <Button x:Name="CtxSetAsTarget"
+                            Content="Set as attack target"
+                            HorizontalContentAlignment="Left"
+                            Padding="8,4"
+                            Click="CtxSetAsTarget_Click"/>
+                </StackPanel>
+            </Border>
+        </Popup>
+    </Grid>
+</UserControl>

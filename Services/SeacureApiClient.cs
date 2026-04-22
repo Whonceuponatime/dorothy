@@ -228,6 +228,20 @@ namespace Dorothy.Services
                 : "unknown";
         }
 
+        public async Task<HttpResponseMessage> PostJsonAsync(string path, object payload)
+        {
+            var json = JsonSerializer.Serialize(payload);
+            return await SendWithAuthAsync(
+                HttpMethod.Post,
+                path,
+                () => new StringContent(json, Encoding.UTF8, "application/json")).ConfigureAwait(false);
+        }
+
+        public async Task<HttpResponseMessage> GetAsync(string path)
+        {
+            return await SendWithAuthAsync(HttpMethod.Get, path).ConfigureAwait(false);
+        }
+
         public void Dispose()
         {
             _authLock.Dispose();

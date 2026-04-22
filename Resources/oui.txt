@@ -1,0 +1,650 @@
+# IEEE OUI to vendor name (format: <hex prefix>\t<vendor>)
+# Curated subset used for quick MAC-to-vendor hints in Network Intelligence.
+000569	VMware, Inc.
+000C29	VMware, Inc.
+001C14	VMware, Inc.
+005056	VMware, Inc.
+0050F2	Microsoft
+000D3A	Microsoft
+00125A	Microsoft
+001DD8	Microsoft
+7C1E52	Microsoft
+B4AE2B	Microsoft
+28185F	Microsoft
+6C71D9	Microsoft
+C83A35	Microsoft
+F0D4E8	Microsoft
+001E4F	Dell Inc.
+0014F7	Dell Inc.
+0018F3	Dell Inc.
+001A4B	Dell Inc.
+002170	Dell Inc.
+5CF9DD	Dell Inc.
+B083FE	Dell Inc.
+F8BC12	Dell Inc.
+782BCB	Dell Inc.
+D481D7	Dell Inc.
+001517	Hewlett-Packard
+001B78	Hewlett-Packard
+0012C8	Hewlett-Packard
+3C4A92	Hewlett Packard Enterprise
+006073	HP Inc.
+EC9A74	HP Inc.
+94F128	Hewlett Packard Enterprise
+D89D67	Hewlett Packard Enterprise
+ACE2D3	HP Inc.
+000F20	Hewlett-Packard
+001A1E	Hewlett-Packard
+00145E	Hewlett-Packard
+00235A	Hewlett-Packard
+2C4138	Hewlett-Packard
+2C2677	Hewlett Packard Enterprise
+6C3BE5	Hewlett-Packard
+9457A5	Hewlett-Packard
+000D28	Cisco Systems, Inc
+001007	Cisco Systems, Inc
+00100B	Cisco Systems, Inc
+00100D	Cisco Systems, Inc
+00101F	Cisco Systems, Inc
+001029	Cisco Systems, Inc
+00102F	Cisco Systems, Inc
+001054	Cisco Systems, Inc
+001079	Cisco Systems, Inc
+00107B	Cisco Systems, Inc
+0010A6	Cisco Systems, Inc
+0010F6	Cisco Systems, Inc
+0010FF	Cisco Systems, Inc
+001101	Cisco Systems, Inc
+00112B	Cisco Systems, Inc
+001154	Cisco Systems, Inc
+00115C	Cisco Systems, Inc
+001192	Cisco Systems, Inc
+0011BB	Cisco Systems, Inc
+001220	Cisco Systems, Inc
+00124F	Cisco Systems, Inc
+001280	Cisco Systems, Inc
+0012D9	Cisco Systems, Inc
+0012DA	Cisco Systems, Inc
+00130C	Cisco Systems, Inc
+001319	Cisco Systems, Inc
+00137F	Cisco Systems, Inc
+0013A6	Cisco Systems, Inc
+001486	Cisco Systems, Inc
+0014A8	Cisco Systems, Inc
+0014A9	Cisco Systems, Inc
+0014BF	Cisco Systems, Inc
+0014F2	Cisco Systems, Inc
+001548	Cisco Systems, Inc
+0015F9	Cisco Systems, Inc
+001604	Cisco Systems, Inc
+00164A	Cisco Systems, Inc
+001678	Cisco Systems, Inc
+001697	Cisco Systems, Inc
+0016B6	Cisco Systems, Inc
+0016C7	Cisco Systems, Inc
+0016C8	Cisco Systems, Inc
+001717	Cisco Systems, Inc
+00175A	Cisco Systems, Inc
+0017DF	Cisco Systems, Inc
+00178A	Cisco Systems, Inc
+00178B	Cisco Systems, Inc
+0018EF	Cisco Systems, Inc
+00184D	Cisco Systems, Inc
+0018B9	Cisco Systems, Inc
+0019E8	Cisco Systems, Inc
+001946	Cisco Systems, Inc
+00197E	Cisco Systems, Inc
+0019A9	Cisco Systems, Inc
+001A2F	Cisco Systems, Inc
+001A6C	Cisco Systems, Inc
+001ACC	Cisco Systems, Inc
+001AE2	Cisco Systems, Inc
+001BD7	Cisco Systems, Inc
+001C0E	Cisco Systems, Inc
+001C58	Cisco Systems, Inc
+001D70	Cisco Systems, Inc
+001DA1	Cisco Systems, Inc
+001EBD	Cisco Systems, Inc
+001F27	Cisco Systems, Inc
+001F6C	Cisco Systems, Inc
+001F9E	Cisco Systems, Inc
+00215A	Cisco Systems, Inc
+0021A0	Cisco Systems, Inc
+0021BE	Cisco Systems, Inc
+0021D7	Cisco Systems, Inc
+002290	Cisco Systems, Inc
+0022BD	Cisco Systems, Inc
+0023AB	Cisco Systems, Inc
+0024F7	Cisco Systems, Inc
+002655	Cisco Systems, Inc
+0026CA	Cisco Systems, Inc
+002A10	Cisco Systems, Inc
+002BFB	Cisco Systems, Inc
+00506C	Cisco Systems, Inc
+005080	Cisco Systems, Inc
+006009	Cisco Systems, Inc
+00602F	Cisco Systems, Inc
+006047	Cisco Systems, Inc
+00605C	Cisco Systems, Inc
+006070	Cisco Systems, Inc
+00D058	Cisco Systems, Inc
+00D063	Cisco Systems, Inc
+00D0BA	Cisco Systems, Inc
+00E014	Cisco Systems, Inc
+00E01E	Cisco Systems, Inc
+00E04F	Cisco Systems, Inc
+00E0A3	Cisco Systems, Inc
+00E0B0	Cisco Systems, Inc
+00E0F7	Cisco Systems, Inc
+00E0F9	Cisco Systems, Inc
+00F28E	Cisco Systems, Inc
+043094	Cisco Systems, Inc
+081196	Cisco Systems, Inc
+0CD996	Cisco Systems, Inc
+0CF5A4	Cisco Systems, Inc
+101F74	Cisco Systems, Inc
+10D166	Cisco Systems, Inc
+184E8B	Cisco Systems, Inc
+1C1D67	Cisco Systems, Inc
+1CDF0F	Cisco Systems, Inc
+205B2A	Cisco Systems, Inc
+20D781	Cisco Systems, Inc
+240192	Cisco Systems, Inc
+246AAB	Cisco Systems, Inc
+24B8D5	Cisco Systems, Inc
+2897FF	Cisco Systems, Inc
+28D0EA	Cisco Systems, Inc
+2C3124	Cisco Systems, Inc
+2C3639	Cisco Systems, Inc
+3037A6	Cisco Systems, Inc
+3036F7	Cisco Systems, Inc
+30E4DB	Cisco Systems, Inc
+34A84E	Cisco Systems, Inc
+34BDC8	Cisco Systems, Inc
+3C0E23	Cisco Systems, Inc
+3CCE73	Cisco Systems, Inc
+3CD92B	Cisco Systems, Inc
+4055391	Cisco Systems, Inc
+408B07	Cisco Systems, Inc
+44582A	Cisco Systems, Inc
+44AD38	Cisco Systems, Inc
+48D539	Cisco Systems, Inc
+4C4E35	Cisco Systems, Inc
+506313	Cisco Systems, Inc
+508789	Cisco Systems, Inc
+5057A8	Cisco Systems, Inc
+54A2AD	Cisco Systems, Inc
+5475D0	Cisco Systems, Inc
+58AC78	Cisco Systems, Inc
+58F39C	Cisco Systems, Inc
+5C83BA	Cisco Systems, Inc
+5CA481	Cisco Systems, Inc
+5CFC66	Cisco Systems, Inc
+64D154	Cisco Systems, Inc
+687F74	Cisco Systems, Inc
+6CFA89	Cisco Systems, Inc
+7079B3	Cisco Systems, Inc
+708BCD	Cisco Systems, Inc
+7426AC	Cisco Systems, Inc
+74A02F	Cisco Systems, Inc
+78DA6E	Cisco Systems, Inc
+7CAD74	Cisco Systems, Inc
+80E01D	Cisco Systems, Inc
+80E8EC	Cisco Systems, Inc
+842B2B	Cisco Systems, Inc
+8478AC	Cisco Systems, Inc
+88F031	Cisco Systems, Inc
+8C604F	Cisco Systems, Inc
+90E0F0	Cisco Systems, Inc
+9065F3	Cisco Systems, Inc
+942144	Cisco Systems, Inc
+A0CF5B	Cisco Systems, Inc
+A489C4	Cisco Systems, Inc
+A8B1D4	Cisco Systems, Inc
+AC7E8A	Cisco Systems, Inc
+ACA016	Cisco Systems, Inc
+B000B4	Cisco Systems, Inc
+B07D47	Cisco Systems, Inc
+B4A4E3	Cisco Systems, Inc
+B83861	Cisco Systems, Inc
+BC1685	Cisco Systems, Inc
+BCEA2B	Cisco Systems, Inc
+C0626B	Cisco Systems, Inc
+C067AF	Cisco Systems, Inc
+C08C60	Cisco Systems, Inc
+C47D4F	Cisco Systems, Inc
+C89C1D	Cisco Systems, Inc
+CC0F79	Cisco Systems, Inc
+CC4E24	Cisco Systems, Inc
+D0D0FD	Cisco Systems, Inc
+D458B3	Cisco Systems, Inc
+D4A02A	Cisco Systems, Inc
+D8B190	Cisco Systems, Inc
+DCCE41	Cisco Systems, Inc
+E0D173	Cisco Systems, Inc
+E42734	Cisco Systems, Inc
+E4C722	Cisco Systems, Inc
+E8BA70	Cisco Systems, Inc
+E8ED05	Cisco Systems, Inc
+EC4476	Cisco Systems, Inc
+ECE1A9	Cisco Systems, Inc
+F04DA2	Cisco Systems, Inc
+F07F06	Cisco Systems, Inc
+F0F755	Cisco Systems, Inc
+F4EA67	Cisco Systems, Inc
+F872EA	Cisco Systems, Inc
+F8C288	Cisco Systems, Inc
+FC5B39	Cisco Systems, Inc
+FCFBFB	Cisco Systems, Inc
+0021CC	Flextronics
+001B21	Intel Corporate
+001E67	Intel Corporate
+001F3B	Intel Corporate
+001FF3	Intel Corporate
+002186	Intel Corporate
+00215D	Intel Corporate
+002314	Intel Corporate
+00249D	Intel Corporate
+0027E3	Intel Corporate
+0030BD	Belkin International Inc
+001FE2	Hewlett-Packard Company
+7085C2	ASRock Incorporation
+38DE60	Mohlenhoff GmbH
+A4B1E9	Technicolor CH USA Inc.
+C0B883	Amazon Technologies Inc.
+50DC50	Amazon Technologies Inc.
+A002DC	Amazon Technologies Inc.
+889E68	Amazon Technologies Inc.
+0CF346	Amazon Technologies Inc.
+F8E43B	Amazon Technologies Inc.
+A0D0DC	Amazon Technologies Inc.
+F0D2F1	Amazon Technologies Inc.
+F0F005	Amazon Technologies Inc.
+44650D	Amazon Technologies Inc.
+68DBF5	Amazon Technologies Inc.
+74C246	Amazon Technologies Inc.
+747548	Amazon Technologies Inc.
+78E103	Amazon Technologies Inc.
+A4E731	Nokia
+0021E9	Apple, Inc.
+002241	Apple, Inc.
+0023DF	Apple, Inc.
+002500	Apple, Inc.
+002608	Apple, Inc.
+002436	Apple, Inc.
+002332	Apple, Inc.
+00264A	Apple, Inc.
+002608	Apple, Inc.
+0C3021	Apple, Inc.
+0CBC9F	Apple, Inc.
+0CD746	Apple, Inc.
+10417F	Apple, Inc.
+109ADD	Apple, Inc.
+14109F	Apple, Inc.
+14BD61	Apple, Inc.
+1C1AC0	Apple, Inc.
+1CE62B	Apple, Inc.
+24A2E1	Apple, Inc.
+24AB81	Apple, Inc.
+28A02B	Apple, Inc.
+28CFDA	Apple, Inc.
+2C1F23	Apple, Inc.
+3C0754	Apple, Inc.
+3C2EFF	Apple, Inc.
+40331A	Apple, Inc.
+40A6D9	Apple, Inc.
+40B395	Apple, Inc.
+44D884	Apple, Inc.
+4860BC	Apple, Inc.
+48437C	Apple, Inc.
+4C7C5F	Apple, Inc.
+4C8D79	Apple, Inc.
+5CF7E6	Apple, Inc.
+5CF938	Apple, Inc.
+60334B	Apple, Inc.
+60FACD	Apple, Inc.
+60FEC5	Apple, Inc.
+68967B	Apple, Inc.
+6C3E6D	Apple, Inc.
+702EBD	Apple, Inc.
+7073CB	Apple, Inc.
+709F2D	Apple, Inc.
+784F43	Apple, Inc.
+8863DF	Apple, Inc.
+8CFABA	Apple, Inc.
+98010C	Apple, Inc.
+98B8E3	Apple, Inc.
+98CA33	Apple, Inc.
+9C04EB	Apple, Inc.
+A01828	Apple, Inc.
+A4B197	Apple, Inc.
+A4C361	Apple, Inc.
+A886DD	Apple, Inc.
+A8667F	Apple, Inc.
+AC1F74	Apple, Inc.
+AC293A	Apple, Inc.
+AC3C0B	Apple, Inc.
+AC6123	Apple, Inc.
+B065BD	Apple, Inc.
+B4F0AB	Apple, Inc.
+C06394	Apple, Inc.
+C82A14	Apple, Inc.
+C869CD	Apple, Inc.
+D0E140	Apple, Inc.
+D49A20	Apple, Inc.
+DC2B2A	Apple, Inc.
+DC37E0	Apple, Inc.
+DCA904	Apple, Inc.
+E0F847	Apple, Inc.
+E4E4AB	Apple, Inc.
+F07960	Apple, Inc.
+F0B479	Apple, Inc.
+F0C1F1	Apple, Inc.
+F81EDF	Apple, Inc.
+F8E94E	Apple, Inc.
+FC253F	Apple, Inc.
+FCE998	Apple, Inc.
+003065	Apple, Inc.
+0050E4	Apple, Inc.
+0003BA	Sun Microsystems
+080020	Sun Microsystems
+002098	PC Partner Ltd.
+001B11	Dell Inc.
+001C23	Dell Inc.
+0024E8	Dell Inc.
+001CF0	D-Link Corporation
+002191	D-Link Corporation
+00265A	D-Link Corporation
+001E58	D-Link Corporation
+001743	D-Link Corporation
+0022B0	D-Link Corporation
+001195	D-Link Corporation
+00055D	D-Link Corporation
+000D88	D-Link Corporation
+00179A	D-Link Corporation
+001CF0	D-Link Corporation
+001F16	Wistron Corp.
+0026B9	Dell Inc.
+0014BF	Linksys
+001217	Linksys
+000C41	Linksys
+000F66	Linksys
+0018F8	Linksys
+0016B6	Linksys
+00179A	D-Link Systems Inc.
+00408C	Axis Communications AB
+ACCC8E	Axis Communications AB
+0040C7	Axis Communications AB
+B8A44F	Axis Communications AB
+001075	Siemens AG
+00056B	SIEMENS AG
+0001E3	Siemens AG
+000EE2	Asustek Computer
+001F6C	Asustek Computer
+60A44C	Asustek Computer
+00259C	Asustek Computer
+AC220B	Asustek Computer
+001CEB	Juniper Networks
+0026887	Juniper Networks
+30B64F	Juniper Networks
+AC4BC8	Juniper Networks
+B0A86E	Juniper Networks
+001540	Juniper Networks
+001049	MIKROTIK
+4C5E0C	MikroTik
+48A98A	MikroTik
+6C3B6B	MikroTik
+CC2DE0	MikroTik
+D4CA6D	MikroTik
+E48D8C	MikroTik
+74D02B	ASUSTek COMPUTER INC.
+D850E6	ASUSTek COMPUTER INC.
+B06EBF	ASUSTek COMPUTER INC.
+AC9E17	ASUSTek COMPUTER INC.
+AC220B	ASUSTek COMPUTER INC.
+C86000	ASUSTek COMPUTER INC.
+54A050	ASUSTek COMPUTER INC.
+001FF8	ASUSTek COMPUTER INC.
+001BFC	ASUSTek COMPUTER INC.
+0015F2	ASUSTek COMPUTER INC.
+000C6E	ASUSTek COMPUTER INC.
+B4D5BD	ASUSTek COMPUTER INC.
+AC9CE4	Lenovo
+E4B318	Lenovo
+8CA982	Lenovo
+40F02F	Lenovo
+F07959	Lenovo
+7071BC	Lenovo
+8C164500	Lenovo
+2C337A	LG Electronics
+0025E5	LG Electronics (Mobile Communications)
+00E091	LG Electronics Inc.
+001F6B	LG Electronics Inc.
+001E75	LG Electronics Inc.
+001C62	LG Electronics Inc.
+0019A1	LG Electronics Inc.
+00182F	LG Electronics Inc.
+0005C9	LG Electronics
+04B167	LG Innotek
+5CFF35	Wistron InfoComm
+0022FB	Intel Corporate
+E095CE	Intel Corporate
+3CFDFE	Intel Corporate
+B4B686	Intel Corporate
+C01A50	Intel Corporate
+F875A4	Intel Corporate
+001500	Intel Corporate
+0016EB	Intel Corporate
+00166F	Intel Corporate
+0016CE	Intel Corporate
+001302	Intel Corporate
+0013E8	Intel Corporate
+001320	Intel Corporate
+000E35	Intel Corporate
+00076A	Nimble Microsystems
+000F54	Ingenico
+000108	Global Sun Technology
+0010A4	Xircom
+0013EF	Kingjim
+0015FC	Imstek
+0019E3	Apple
+0006AE	Himachi
+00076C	Daxten
+00062B	InfraNet Corp
+000CDB	3Com
+000C76	3Com
+000AB3	3Com
+0009CC	3Com
+0008C7	HP Inc.
+00E0B6	Packet Engines
+0008C7	Compaq
+000423	Intel Corporate
+0004E2	SMC Networks Inc.
+00064F	PRO-NETS Technology
+00063B	Huawei Technologies
+001E10	Huawei Technologies
+001F74	Huawei Technologies
+001882	Huawei Technologies
+001E9C	Huawei Technologies
+0022A1	Huawei Technologies
+0025680	Huawei Technologies
+0025689	Huawei Technologies
+00259E	Huawei Technologies
+001F7E	Huawei Technologies
+088E8F	Huawei Technologies
+10C61F	Huawei Technologies
+1CB72C	Huawei Technologies
+200BC7	Huawei Technologies
+20F3A3	Huawei Technologies
+244427	Huawei Technologies
+28312C	Huawei Technologies
+28352C	Huawei Technologies
+2C55D3	Huawei Technologies
+302A5B	Huawei Technologies
+30875D	Huawei Technologies
+4CB16F	Huawei Technologies
+54895E	Huawei Technologies
+548998	Huawei Technologies
+5C7D5E	Huawei Technologies
+64A651	Huawei Technologies
+70723C	Huawei Technologies
+70A8E3	Huawei Technologies
+781DBA	Huawei Technologies
+804E81	Huawei Technologies
+8421F1	Huawei Technologies
+8499DD	Huawei Technologies
+8C0D76	Huawei Technologies
+9C37F4	Huawei Technologies
+A4BE2B	Huawei Technologies
+A8C83A	Huawei Technologies
+ACE215	Huawei Technologies
+B01CD1	Huawei Technologies
+B08900	Huawei Technologies
+B4B362	Huawei Technologies
+BC25E0	Huawei Technologies
+C40415	Huawei Technologies
+C4073E	Huawei Technologies
+C81FBE	Huawei Technologies
+CC96A0	Huawei Technologies
+CCA223	Huawei Technologies
+D03E5C	Huawei Technologies
+DC6DCD	Huawei Technologies
+DCD87C	Huawei Technologies
+E0CEC3	Huawei Technologies
+E41F13	Huawei Technologies
+EC233D	Huawei Technologies
+EC388F	Huawei Technologies
+F0A135	Huawei Technologies
+F4559C	Huawei Technologies
+F4AF11	Huawei Technologies
+F83DFF	Huawei Technologies
+F898B9	Huawei Technologies
+F8DFA8	Huawei Technologies
+FCB4E6	Huawei Technologies
+FCD2B6	Huawei Technologies
+001FAF	Fortinet, Inc.
+0009B1	Fortinet, Inc.
+001322	Fortinet, Inc.
+00199B	Fortinet, Inc.
+90172F	Fortinet, Inc.
+04D590	Fortinet, Inc.
+088DC8	Fortinet, Inc.
+089F97	Fortinet, Inc.
+0C54A5	Fortinet, Inc.
+24CBCF	Fortinet, Inc.
+2C5A05	Fortinet, Inc.
+4C0EC0	Fortinet, Inc.
+5CF974	Fortinet, Inc.
+70F7D0	Fortinet, Inc.
+90170B	Fortinet, Inc.
+A0F3E4	Fortinet, Inc.
+B4F5E8	Fortinet, Inc.
+E8AD65	Fortinet, Inc.
+F04347	Fortinet, Inc.
+F09FC2	Fortinet, Inc.
+FC76C9	Fortinet, Inc.
+001CC3	Palo Alto Networks
+000716	Palo Alto Networks
+000F4B	Palo Alto Networks
+000FFE	G-Pro Computer
+00500D	Satel sp. z o.o.
+00508D	Abit Computer Corp.
+006097	3Com Corporation
+080009	Hewlett-Packard
+000625	Linksys
+000102	3Com Corporation
+001122	CimSys Inc
+000A95	Apple, Inc.
+002312	Apple, Inc.
+0024D7	Intel Corporate
+00248D	Intel Corporate
+9CEBE8	Intel Corporate
+58A809	Intel Corporate
+001F16	Intel Corporate
+00215A	Hewlett-Packard
+001B24	Ubiquiti Networks Inc.
+00156D	Ubiquiti Networks Inc.
+24A43C	Ubiquiti Networks Inc.
+4418FD	Ubiquiti Networks Inc.
+44D9E7	Ubiquiti Networks Inc.
+68725C	Ubiquiti Networks Inc.
+68D79A	Ubiquiti Networks Inc.
+687251	Ubiquiti Networks Inc.
+6F327A	Ubiquiti Networks Inc.
+784558	Ubiquiti Networks Inc.
+802AA8	Ubiquiti Networks Inc.
+B4FBE4	Ubiquiti Networks Inc.
+DC9FDB	Ubiquiti Networks Inc.
+E063DA	Ubiquiti Networks Inc.
+F09FC2	Ubiquiti Networks Inc.
+FCECDA	Ubiquiti Networks Inc.
+001A11	Google, Inc.
+549C9C	Google Inc.
+D85D4C	Google Inc.
+F4F5E8	Google Inc.
+0004F2	Polycom
+00E0DB	Polycom
+001CFF	Miranda Technologies Ltd.
+0025FF	CreNova Electronic (Shanghai)
+0017A0	Arris Group Inc.
+00248C	Arris Group Inc.
+24B6FD	Arris Group Inc.
+D4057A	Arris Group Inc.
+74441B	ARRIS Group, Inc.
+001B54	Cisco Systems, Inc (Linksys)
+0016B6	Cisco-Linksys, LLC
+E4F4C6	NETGEAR
+20E52A	NETGEAR
+446D57	NETGEAR
+84C9B2	NETGEAR
+A00460	NETGEAR
+204E7F	NETGEAR
+9C3DCF	NETGEAR
+9CC9EB	NETGEAR
+B0B98A	NETGEAR
+94CE2C	SAMSUNG ELECTRO MECHANICS
+6037B9	SAMSUNG ELECTRO MECHANICS
+18E2C2	SAMSUNG ELECTRO MECHANICS
+2C19B0	SAMSUNG ELECTRO MECHANICS
+AC36131	SAMSUNG ELECTRO MECHANICS
+A0B7F6	SAMSUNG ELECTRO MECHANICS
+08D42B	SAMSUNG ELECTRO MECHANICS
+000DFD	SAMSUNG ELECTRO MECHANICS
+24F094	SAMSUNG ELECTRO MECHANICS
+2845BE	SAMSUNG ELECTRO MECHANICS
+34BE00	SAMSUNG ELECTRO MECHANICS
+04E676	Raspberry Pi Foundation
+B827EB	Raspberry Pi Foundation
+DCA632	Raspberry Pi Foundation
+E45F01	Raspberry Pi Foundation
+D83ADD	Raspberry Pi Foundation
+28CDC1	Raspberry Pi Foundation
+001FD0	GuangZhou Escene Science
+0024E3	Ciudad Real Communications
+001C6F	GIGA-BYTE TECHNOLOGY
+002215	GIGA-BYTE TECHNOLOGY
+6CF049	GIGA-BYTE TECHNOLOGY
+001F66	GIGA-BYTE TECHNOLOGY
+001A4D	GIGA-BYTE TECHNOLOGY
+001731	GIGA-BYTE TECHNOLOGY
+1C6F65	GIGA-BYTE TECHNOLOGY
+3085A9	ASUSTek COMPUTER INC.
+70D923	ASUSTek COMPUTER INC.
+40167E	ASUSTek COMPUTER INC.
+9C5C8E	ASUSTek COMPUTER INC.
+30C37F	Synology Incorporated
+0011322	Synology Incorporated
+001132	Synology Incorporated
+0005CD	DENON, Ltd.
+0030BE	City-Net Technology
+000BCD	Compaq (HP)
+001560	Hewlett-Packard
+0014C2	Hewlett-Packard
+0025B3	Hewlett-Packard
+001438	Hewlett-Packard
+001F29	Hewlett-Packard
+2C4138	Hewlett-Packard
+F4CE46	Hewlett-Packard
+38EAA7	Hewlett Packard Enterprise
+3CD92B	Hewlett Packard Enterprise
+1CC1DE	Hewlett Packard Enterprise

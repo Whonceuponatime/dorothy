@@ -7,7 +7,7 @@
         Height="900" Width="1600"
         MinHeight="700" MinWidth="1200"
         WindowStartupLocation="CenterOwner"
-        Background="#1A2332">
+        Background="{DynamicResource PrimaryBg}">
     <Window.Resources>
         <local:NullableLongConverter x:Key="NullableLongConverter"/>
         <local:EmptyBannerConverter x:Key="EmptyBannerConverter"/>
@@ -25,7 +25,7 @@
                 <TextBlock Text="Network Scan Results"
                            FontSize="20"
                            FontWeight="Bold"
-                           Foreground="#E8ECF1"
+                           Foreground="{DynamicResource TextPrimary}"
                            VerticalAlignment="Center"
                            Margin="0,0,12,0"/>
 
@@ -36,7 +36,7 @@
                     <Border.RenderTransform>
                         <RotateTransform/>
                     </Border.RenderTransform>
-                    <Ellipse Fill="#2563EB" Opacity="0.6">
+                    <Ellipse Fill="{DynamicResource AccentBlue}" Opacity="0.6">
                         <Ellipse.Triggers>
                             <EventTrigger RoutedEvent="FrameworkElement.Loaded">
                                 <BeginStoryboard>
@@ -51,8 +51,8 @@
                 </Border>
             </StackPanel>
 
-            <Border Background="#232F3E"
-                    BorderBrush="#3A4555"
+            <Border Background="{DynamicResource SecondaryBg}"
+                    BorderBrush="{DynamicResource BorderDefault}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="16"
@@ -67,7 +67,7 @@
                         <TextBlock Text="Scan Range Configuration"
                                    FontSize="14"
                                    FontWeight="SemiBold"
-                                   Foreground="#E8ECF1"
+                                   Foreground="{DynamicResource TextPrimary}"
                                    Grid.Column="0"/>
 
                         <StackPanel Orientation="Horizontal"
@@ -76,7 +76,7 @@
                             <TextBlock Text="Scan Mode:"
                                        FontSize="14"
                                        FontWeight="SemiBold"
-                                       Foreground="#E8ECF1"
+                                       Foreground="{DynamicResource TextPrimary}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,12,0"/>
                             <RadioButton x:Name="SimpleScanRadioButton"
@@ -85,7 +85,7 @@
                                          GroupName="ScanMode"
                                          FontSize="14"
                                          FontWeight="Medium"
-                                         Foreground="#E8ECF1"
+                                         Foreground="{DynamicResource TextPrimary}"
                                          Margin="0,0,16,0"
                                          Padding="8,6"
                                          VerticalAlignment="Center"
@@ -97,8 +97,8 @@
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="RadioButton">
                                                     <Border x:Name="RadioBorder"
-                                                            Background="#232F3E"
-                                                            BorderBrush="#3A4555"
+                                                            Background="{DynamicResource SecondaryBg}"
+                                                            BorderBrush="{DynamicResource BorderDefault}"
                                                             BorderThickness="2"
                                                             CornerRadius="6"
                                                             Padding="{TemplateBinding Padding}">
@@ -112,7 +112,7 @@
                                                                      Width="18"
                                                                      Height="18"
                                                                      Margin="0,0,8,0"
-                                                                     Stroke="#6B7280"
+                                                                     Stroke="{DynamicResource DisabledFg}"
                                                                      StrokeThickness="2"
                                                                      Fill="White"/>
                                                             <Ellipse x:Name="RadioCircleInner"
@@ -120,7 +120,7 @@
                                                                      Width="10"
                                                                      Height="10"
                                                                      Margin="4,0,12,0"
-                                                                     Fill="#2563EB"
+                                                                     Fill="{DynamicResource AccentBlue}"
                                                                      Visibility="Collapsed"/>
                                                             <ContentPresenter Grid.Column="1"
                                                                               VerticalAlignment="Center"
@@ -129,16 +129,16 @@
                                                     </Border>
                                                     <ControlTemplate.Triggers>
                                                         <Trigger Property="IsChecked" Value="True">
-                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="#2563EB"/>
+                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="{DynamicResource AccentBlue}"/>
                                                             <Setter TargetName="RadioCircle" Property="StrokeThickness" Value="3"/>
                                                             <Setter TargetName="RadioCircleInner" Property="Visibility" Value="Visible"/>
-                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#2563EB"/>
+                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
                                                             <Setter TargetName="RadioBorder" Property="BorderThickness" Value="2"/>
                                                         </Trigger>
                                                         <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="#2563EB"/>
-                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#93C5FD"/>
-                                                            <Setter TargetName="RadioBorder" Property="Background" Value="#EFF6FF"/>
+                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="{DynamicResource AccentBlue}"/>
+                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="{DynamicResource LabModeBorder}"/>
+                                                            <Setter TargetName="RadioBorder" Property="Background" Value="{DynamicResource AccentBlueSubtle}"/>
                                                         </Trigger>
                                                     </ControlTemplate.Triggers>
                                                 </ControlTemplate>
@@ -152,7 +152,7 @@
                                          GroupName="ScanMode"
                                          FontSize="14"
                                          FontWeight="Medium"
-                                         Foreground="#E8ECF1"
+                                         Foreground="{DynamicResource TextPrimary}"
                                          Padding="8,6"
                                          VerticalAlignment="Center"
                                          Height="36"
@@ -164,8 +164,8 @@
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="RadioButton">
                                                     <Border x:Name="RadioBorder"
-                                                            Background="#232F3E"
-                                                            BorderBrush="#3A4555"
+                                                            Background="{DynamicResource SecondaryBg}"
+                                                            BorderBrush="{DynamicResource BorderDefault}"
                                                             BorderThickness="2"
                                                             CornerRadius="6"
                                                             Padding="{TemplateBinding Padding}">
@@ -179,7 +179,7 @@
                                                                      Width="18"
                                                                      Height="18"
                                                                      Margin="0,0,8,0"
-                                                                     Stroke="#6B7280"
+                                                                     Stroke="{DynamicResource DisabledFg}"
                                                                      StrokeThickness="2"
                                                                      Fill="White"/>
                                                             <Ellipse x:Name="RadioCircleInner"
@@ -187,7 +187,7 @@
                                                                      Width="10"
                                                                      Height="10"
                                                                      Margin="4,0,12,0"
-                                                                     Fill="#2563EB"
+                                                                     Fill="{DynamicResource AccentBlue}"
                                                                      Visibility="Collapsed"/>
                                                             <ContentPresenter Grid.Column="1"
                                                                               VerticalAlignment="Center"
@@ -196,16 +196,16 @@
                                                     </Border>
                                                     <ControlTemplate.Triggers>
                                                         <Trigger Property="IsChecked" Value="True">
-                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="#2563EB"/>
+                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="{DynamicResource AccentBlue}"/>
                                                             <Setter TargetName="RadioCircle" Property="StrokeThickness" Value="3"/>
                                                             <Setter TargetName="RadioCircleInner" Property="Visibility" Value="Visible"/>
-                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#2563EB"/>
+                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
                                                             <Setter TargetName="RadioBorder" Property="BorderThickness" Value="2"/>
                                                         </Trigger>
                                                         <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="#2563EB"/>
-                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="#93C5FD"/>
-                                                            <Setter TargetName="RadioBorder" Property="Background" Value="#EFF6FF"/>
+                                                            <Setter TargetName="RadioCircle" Property="Stroke" Value="{DynamicResource AccentBlue}"/>
+                                                            <Setter TargetName="RadioBorder" Property="BorderBrush" Value="{DynamicResource LabModeBorder}"/>
+                                                            <Setter TargetName="RadioBorder" Property="Background" Value="{DynamicResource AccentBlueSubtle}"/>
                                                         </Trigger>
                                                     </ControlTemplate.Triggers>
                                                 </ControlTemplate>
@@ -218,8 +218,8 @@
                     </Grid>
 
                     <Border x:Name="PortScanModePanel"
-                            Background="#232F3E"
-                            BorderBrush="#3A4555"
+                            Background="{DynamicResource SecondaryBg}"
+                            BorderBrush="{DynamicResource BorderDefault}"
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="12"
@@ -229,7 +229,7 @@
                             <TextBlock Text="Port Scan Mode:"
                                        FontSize="12"
                                        FontWeight="SemiBold"
-                                       Foreground="#C8D1DC"
+                                       Foreground="{DynamicResource TextSecondary}"
                                        Margin="0,0,0,8"/>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <RadioButton x:Name="AllPortsRadioButton"
@@ -237,7 +237,7 @@
                                              IsChecked="True"
                                              GroupName="PortScanMode"
                                              FontSize="11"
-                                             Foreground="#C8D1DC"
+                                             Foreground="{DynamicResource TextSecondary}"
                                              Margin="0,0,12,0"
                                              VerticalAlignment="Center"
                                              ToolTip="Scan 50+ common ports"/>
@@ -245,7 +245,7 @@
                                              Content="Range"
                                              GroupName="PortScanMode"
                                              FontSize="11"
-                                             Foreground="#C8D1DC"
+                                             Foreground="{DynamicResource TextSecondary}"
                                              Margin="0,0,12,0"
                                              VerticalAlignment="Center"
                                              ToolTip="Scan a range of ports"/>
@@ -253,7 +253,7 @@
                                              Content="Banner Grabbing"
                                              GroupName="PortScanMode"
                                              FontSize="11"
-                                             Foreground="#C8D1DC"
+                                             Foreground="{DynamicResource TextSecondary}"
                                              VerticalAlignment="Center"
                                              ToolTip="Very intense scanning with banner grabbing on selected ports. Ports are auto-populated from previous scans."/>
                             </StackPanel>
@@ -264,32 +264,32 @@
                                         Margin="0,0,0,8">
                                 <TextBlock Text="Port Range:"
                                            FontSize="11"
-                                           Foreground="#8899AA"
+                                           Foreground="{DynamicResource TextMuted}"
                                            VerticalAlignment="Center"
                                            Margin="0,0,8,0"/>
                                 <TextBox x:Name="PortRangeStartTextBox"
                                          Width="80"
                                          Height="28"
                                          Padding="6,4"
-                                         BorderBrush="#3A4555"
+                                         BorderBrush="{DynamicResource BorderDefault}"
                                          BorderThickness="1"
-                                         Background="#232F3E"
+                                         Background="{DynamicResource SecondaryBg}"
                                          FontSize="11"
                                          Margin="0,0,4,0"
                                          Text="1"
                                          ToolTip="Start port (1-65535)"/>
                                 <TextBlock Text="-"
                                            FontSize="11"
-                                           Foreground="#8899AA"
+                                           Foreground="{DynamicResource TextMuted}"
                                            VerticalAlignment="Center"
                                            Margin="4,0"/>
                                 <TextBox x:Name="PortRangeEndTextBox"
                                          Width="80"
                                          Height="28"
                                          Padding="6,4"
-                                         BorderBrush="#3A4555"
+                                         BorderBrush="{DynamicResource BorderDefault}"
                                          BorderThickness="1"
-                                         Background="#232F3E"
+                                         Background="{DynamicResource SecondaryBg}"
                                          FontSize="11"
                                          Margin="4,0,0,0"
                                          Text="65535"
@@ -303,7 +303,7 @@
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                     <TextBlock Text="Banner Grabbing Ports (comma-separated):"
                                                FontSize="11"
-                                               Foreground="#8899AA"
+                                               Foreground="{DynamicResource TextMuted}"
                                                VerticalAlignment="Center"
                                                Margin="0,0,8,0"/>
                                     <Button x:Name="PopulateFromScanButton"
@@ -312,7 +312,7 @@
                                             Padding="6,2"
                                             FontSize="10"
                                             Click="PopulateFromScanButton_Click"
-                                            Background="#2563EB"
+                                            Background="{DynamicResource AccentBlue}"
                                             Foreground="White"
                                             BorderThickness="0"
                                             Cursor="Hand"
@@ -339,15 +339,15 @@
                                 <TextBox x:Name="SelectedPortsTextBox"
                                          Height="28"
                                          Padding="6,4"
-                                         BorderBrush="#3A4555"
+                                         BorderBrush="{DynamicResource BorderDefault}"
                                          BorderThickness="1"
-                                         Background="#232F3E"
+                                         Background="{DynamicResource SecondaryBg}"
                                          FontSize="11"
                                          Text="80,443,22,21,25"
                                          ToolTip="Enter port numbers separated by commas (e.g., 80,443,22). Ports will be scanned with intense banner grabbing."/>
                                 <TextBlock Text="⚠️ Banner Grabbing mode performs very intense scanning with banner grabbing on all specified ports."
                                            FontSize="10"
-                                           Foreground="#DC2626"
+                                           Foreground="{DynamicResource ErrorRed}"
                                            FontStyle="Italic"
                                            Margin="0,4,0,0"
                                            TextWrapping="Wrap"/>
@@ -370,7 +370,7 @@
 
                         <TextBlock Text="Start IP:"
                                    FontSize="12"
-                                   Foreground="#C8D1DC"
+                                   Foreground="{DynamicResource TextSecondary}"
                                    VerticalAlignment="Center"
                                    Margin="0,0,8,0"
                                    Grid.Row="0" Grid.Column="0"/>
@@ -378,15 +378,15 @@
                                  Grid.Row="0" Grid.Column="1"
                                  Height="32"
                                  Padding="8,6"
-                                 BorderBrush="#3A4555"
+                                 BorderBrush="{DynamicResource BorderDefault}"
                                  BorderThickness="1"
-                                 Background="#232F3E"
+                                 Background="{DynamicResource SecondaryBg}"
                                  FontSize="12"
                                  Margin="0,0,12,0"/>
 
                         <TextBlock Text="End IP:"
                                    FontSize="12"
-                                   Foreground="#C8D1DC"
+                                   Foreground="{DynamicResource TextSecondary}"
                                    VerticalAlignment="Center"
                                    Margin="0,0,8,0"
                                    Grid.Row="0" Grid.Column="2"/>
@@ -394,9 +394,9 @@
                                  Grid.Row="0" Grid.Column="3"
                                  Height="32"
                                  Padding="8,6"
-                                 BorderBrush="#3A4555"
+                                 BorderBrush="{DynamicResource BorderDefault}"
                                  BorderThickness="1"
-                                 Background="#232F3E"
+                                 Background="{DynamicResource SecondaryBg}"
                                  FontSize="12"
                                  Margin="0,0,12,0"/>
 
@@ -406,7 +406,7 @@
                                 Width="100"
                                 Height="32"
                                 Click="StartScanButton_Click"
-                                Background="#111827"
+                                Background="{DynamicResource PrimaryBg}"
                                 Foreground="White"
                                 BorderThickness="0"
                                 Cursor="Hand">
@@ -433,7 +433,7 @@
                                     Margin="0,8,0,0">
                             <TextBlock Text="Quick ranges:"
                                        FontSize="11"
-                                       Foreground="#8899AA"
+                                       Foreground="{DynamicResource TextMuted}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,8,0"/>
                             <Button Content="Full Network"
@@ -443,10 +443,10 @@
                                     Click="QuickRangeButton_Click"
                                     Tag="full"
                                     Margin="0,0,4,0"
-                                    Background="#232F3E"
-                                    BorderBrush="#3A4555"
+                                    Background="{DynamicResource SecondaryBg}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
                                     BorderThickness="1"
-                                    Foreground="#C8D1DC"
+                                    Foreground="{DynamicResource TextSecondary}"
                                     Cursor="Hand"/>
                             <Button Content="192.168.1.1-254"
                                     Height="24"
@@ -455,10 +455,10 @@
                                     Click="QuickRangeButton_Click"
                                     Tag="192.168.1"
                                     Margin="0,0,4,0"
-                                    Background="#232F3E"
-                                    BorderBrush="#3A4555"
+                                    Background="{DynamicResource SecondaryBg}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
                                     BorderThickness="1"
-                                    Foreground="#C8D1DC"
+                                    Foreground="{DynamicResource TextSecondary}"
                                     Cursor="Hand"/>
                             <Button Content="192.168.0.1-254"
                                     Height="24"
@@ -467,10 +467,10 @@
                                     Click="QuickRangeButton_Click"
                                     Tag="192.168.0"
                                     Margin="0,0,4,0"
-                                    Background="#232F3E"
-                                    BorderBrush="#3A4555"
+                                    Background="{DynamicResource SecondaryBg}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
                                     BorderThickness="1"
-                                    Foreground="#C8D1DC"
+                                    Foreground="{DynamicResource TextSecondary}"
                                     Cursor="Hand"/>
                             <Button Content="10.0.0.1-254"
                                     Height="24"
@@ -479,18 +479,18 @@
                                     Click="QuickRangeButton_Click"
                                     Tag="10.0.0"
                                     Margin="0,0,4,0"
-                                    Background="#232F3E"
-                                    BorderBrush="#3A4555"
+                                    Background="{DynamicResource SecondaryBg}"
+                                    BorderBrush="{DynamicResource BorderDefault}"
                                     BorderThickness="1"
-                                    Foreground="#C8D1DC"
+                                    Foreground="{DynamicResource TextSecondary}"
                                     Cursor="Hand"/>
                         </StackPanel>
                     </Grid>
                 </StackPanel>
             </Border>
 
-            <Border Background="#232F3E"
-                    BorderBrush="#3A4555"
+            <Border Background="{DynamicResource SecondaryBg}"
+                    BorderBrush="{DynamicResource BorderDefault}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="16"
@@ -505,12 +505,12 @@
                                    Text="Initializing scan..."
                                    FontSize="13"
                                    FontWeight="SemiBold"
-                                   Foreground="#E8ECF1"
+                                   Foreground="{DynamicResource TextPrimary}"
                                    Grid.Column="0"/>
                         <TextBlock x:Name="ProgressTextBlock"
                                    Text="0 / 0"
                                    FontSize="12"
-                                   Foreground="#8899AA"
+                                   Foreground="{DynamicResource TextMuted}"
                                    Grid.Column="1"
                                    Margin="12,0,0,0"/>
                     </Grid>
@@ -520,31 +520,31 @@
                                  Minimum="0"
                                  Maximum="100"
                                  Value="0"
-                                 Foreground="#2563EB"
-                                 Background="#E5E7EB"
+                                 Foreground="{DynamicResource AccentBlue}"
+                                 Background="{DynamicResource BorderDefault}"
                                  BorderThickness="0"
                                  Margin="0,0,0,4"/>
 
                     <TextBlock x:Name="CurrentIpTextBlock"
                                Text=""
                                FontSize="11"
-                               Foreground="#8899AA"
+                               Foreground="{DynamicResource TextMuted}"
                                FontStyle="Italic"
                                Margin="0,4,0,0"/>
 
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                         <TextBlock Text="Found: "
                                    FontSize="12"
-                                   Foreground="#8899AA"/>
+                                   Foreground="{DynamicResource TextMuted}"/>
                         <TextBlock x:Name="FoundCountTextBlock"
                                    Text="0"
                                    FontSize="12"
                                    FontWeight="SemiBold"
-                                   Foreground="#059669"
+                                   Foreground="{DynamicResource SuccessGreen}"
                                    Margin="4,0,0,0"/>
                         <TextBlock Text=" devices"
                                    FontSize="12"
-                                   Foreground="#8899AA"
+                                   Foreground="{DynamicResource TextMuted}"
                                    Margin="4,0,0,0"/>
                     </StackPanel>
                 </StackPanel>
@@ -552,10 +552,10 @@
         </StackPanel>
 
         <Border Grid.Row="1"
-                BorderBrush="#3A4555"
+                BorderBrush="{DynamicResource BorderDefault}"
                 BorderThickness="1"
                 CornerRadius="8"
-                Background="#232F3E"
+                Background="{DynamicResource SecondaryBg}"
                 Margin="0,0,0,8">
             <DataGrid x:Name="ResultsDataGrid"
                       AutoGenerateColumns="False"
@@ -580,10 +580,10 @@
 
         <Border x:Name="PortsDetailsBorder"
                 Grid.Row="2"
-                BorderBrush="#3A4555"
+                BorderBrush="{DynamicResource BorderDefault}"
                 BorderThickness="1"
                 CornerRadius="8"
-                Background="#232F3E"
+                Background="{DynamicResource SecondaryBg}"
                 Margin="0,8,0,0"
                 MaxHeight="350">
             <Grid>
@@ -598,13 +598,13 @@
                     <TextBlock Text="Port Details"
                                FontSize="16"
                                FontWeight="SemiBold"
-                               Foreground="#E8ECF1"
+                               Foreground="{DynamicResource TextPrimary}"
                                VerticalAlignment="Center"
                                Margin="0,0,8,0"/>
                     <TextBlock x:Name="PortsCountText"
                                Text="(Select an asset to view ports)"
                                FontSize="12"
-                               Foreground="#8899AA"
+                               Foreground="{DynamicResource TextMuted}"
                                FontStyle="Italic"
                                VerticalAlignment="Center"/>
                 </StackPanel>
@@ -617,7 +617,7 @@
                           SelectionMode="Single"
                           CanUserAddRows="False"
                           CanUserDeleteRows="False"
-                          AlternatingRowBackground="#232F3E"
+                          AlternatingRowBackground="{DynamicResource SecondaryBg}"
                           RowHeight="32"
                           FontSize="12"
                           VerticalScrollBarVisibility="Auto"
@@ -675,7 +675,7 @@
                     Margin="0,0,12,0"
                     Click="CancelScanButton_Click"
                     Visibility="Collapsed"
-                    Background="#DC2626"
+                    Background="{DynamicResource ErrorRed}"
                     Foreground="White"
                     BorderThickness="0">
                 <Button.Style>
@@ -711,7 +711,7 @@
                         <TextBlock Text="Sync Assets"
                                    VerticalAlignment="Center"/>
                         <Border x:Name="AssetsSyncBadge"
-                                Background="#EF4444"
+                                Background="{DynamicResource ErrorRed}"
                                 CornerRadius="10"
                                 MinWidth="18"
                                 Height="18"
@@ -744,7 +744,7 @@
                     Margin="0,0,12,0"
                     Click="BackButton_Click"
                     Visibility="Collapsed"
-                    Background="#6B7280"
+                    Background="{DynamicResource DisabledFg}"
                     Foreground="White"
                     BorderThickness="0">
                 <Button.Style>

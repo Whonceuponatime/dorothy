@@ -9,7 +9,7 @@
         ResizeMode="CanResize"
         MinHeight="400"
         MinWidth="500"
-        Background="#1A2332">
+        Background="{DynamicResource PrimaryBg}">
     <Window.Resources>
         <Style x:Key="DialogButtonBase" TargetType="Button">
             <Setter Property="Template">
@@ -29,25 +29,25 @@
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
         <Style x:Key="SecondaryBtn" TargetType="Button" BasedOn="{StaticResource DialogButtonBase}">
-            <Setter Property="Background"      Value="#3A4555"/>
-            <Setter Property="Foreground"      Value="#E8ECF1"/>
-            <Setter Property="BorderBrush"     Value="#4A5565"/>
+            <Setter Property="Background"      Value="{DynamicResource BorderDefault}"/>
+            <Setter Property="Foreground"      Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush"     Value="{DynamicResource BorderHover}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding"         Value="12,8"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4A5565"/>
+                    <Setter Property="Background" Value="{DynamicResource BorderHover}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="PrimaryBtn" TargetType="Button" BasedOn="{StaticResource DialogButtonBase}">
-            <Setter Property="Background"      Value="#5B8AF5"/>
+            <Setter Property="Background"      Value="{DynamicResource AccentBlue}"/>
             <Setter Property="Foreground"      Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding"         Value="12,8"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4A79E4"/>
+                    <Setter Property="Background" Value="{DynamicResource AccentBlueHover}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -63,7 +63,7 @@
                    Text="Settings"
                    FontSize="20"
                    FontWeight="Bold"
-                   Foreground="#E8ECF1"
+                   Foreground="{DynamicResource TextPrimary}"
                    Margin="0,0,0,20"/>
 
         <ScrollViewer Grid.Row="1"
@@ -71,8 +71,8 @@
                       Margin="0,0,0,20">
             <StackPanel>
 
-            <Border Background="#232F3E"
-                    BorderBrush="#3A4555"
+            <Border Background="{DynamicResource SecondaryBg}"
+                    BorderBrush="{DynamicResource BorderDefault}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="16"
@@ -81,7 +81,7 @@
                     <TextBlock Text="Log File Location"
                                FontSize="14"
                                FontWeight="SemiBold"
-                               Foreground="#E8ECF1"
+                               Foreground="{DynamicResource TextPrimary}"
                                Margin="0,0,0,8"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -92,9 +92,9 @@
                                  Grid.Column="0"
                                  Height="32"
                                  Padding="8,6"
-                                 Background="#2A3444"
-                                 Foreground="#E8ECF1"
-                                 BorderBrush="#3A4555"
+                                 Background="{DynamicResource TertiaryBg}"
+                                 Foreground="{DynamicResource TextPrimary}"
+                                 BorderBrush="{DynamicResource BorderDefault}"
                                  BorderThickness="1"
                                  Margin="0,0,8,0"
                                  IsReadOnly="True"/>
@@ -108,13 +108,13 @@
                     </Grid>
                     <TextBlock Text="Default: Application installation directory"
                                FontSize="10"
-                               Foreground="#6A7A8A"
+                               Foreground="{DynamicResource DisabledFg}"
                                Margin="0,4,0,0"/>
                 </StackPanel>
             </Border>
 
-            <Border Background="#232F3E"
-                    BorderBrush="#3A4555"
+            <Border Background="{DynamicResource SecondaryBg}"
+                    BorderBrush="{DynamicResource BorderDefault}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="16">
@@ -122,13 +122,13 @@
                     <TextBlock Text="UI Preferences"
                                FontSize="14"
                                FontWeight="SemiBold"
-                               Foreground="#E8ECF1"
+                               Foreground="{DynamicResource TextPrimary}"
                                Margin="0,0,0,12"/>
 
                     <StackPanel Margin="0,0,0,12">
                         <TextBlock Text="Font Size (8-24px)"
                                    FontSize="12"
-                                   Foreground="#C8D1DC"
+                                   Foreground="{DynamicResource TextSecondary}"
                                    Margin="0,0,0,4"/>
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -139,9 +139,9 @@
                                      Grid.Column="0"
                                      Height="32"
                                      Padding="8,6"
-                                     Background="#2A3444"
-                                     Foreground="#E8ECF1"
-                                     BorderBrush="#3A4555"
+                                     Background="{DynamicResource TertiaryBg}"
+                                     Foreground="{DynamicResource TextPrimary}"
+                                     BorderBrush="{DynamicResource BorderDefault}"
                                      BorderThickness="1"
                                      Margin="0,0,8,0"
                                      PreviewTextInput="FontSizeTextBox_PreviewTextInput"
@@ -149,139 +149,87 @@
                             <TextBlock Grid.Column="1"
                                        Text="px"
                                        FontSize="12"
-                                       Foreground="#8899AA"
+                                       Foreground="{DynamicResource TextMuted}"
                                        VerticalAlignment="Center"
                                        Margin="0,0,0,0"/>
                         </Grid>
                         <TextBlock Text="Enter a custom font size between 8 and 24 pixels"
                                    FontSize="10"
-                                   Foreground="#6A7A8A"
+                                   Foreground="{DynamicResource DisabledFg}"
                                    Margin="0,4,0,0"/>
                     </StackPanel>
 
                     <StackPanel>
                         <TextBlock Text="Theme"
                                    FontSize="12"
-                                   Foreground="#C8D1DC"
+                                   Foreground="{DynamicResource TextSecondary}"
                                    Margin="0,0,0,4"/>
                         <ComboBox x:Name="ThemeComboBox"
                                   Height="32"
-                                  Background="#2A3444"
-                                  Foreground="#E8ECF1"
-                                  BorderBrush="#3A4555"
+                                  Background="{DynamicResource TertiaryBg}"
+                                  Foreground="{DynamicResource TextPrimary}"
+                                  BorderBrush="{DynamicResource BorderDefault}"
                                   SelectedIndex="0">
                             <ComboBoxItem Content="Dark (Default)"/>
                             <ComboBoxItem Content="Light (Coming Soon)"/>
                         </ComboBox>
                         <TextBlock Text="Light theme is not yet available. All dialogs currently use the dark palette."
                                    FontSize="10"
-                                   Foreground="#6A7A8A"
+                                   Foreground="{DynamicResource DisabledFg}"
                                    TextWrapping="Wrap"
                                    Margin="0,4,0,0"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <Border Background="#232F3E"
-                    BorderBrush="#3A4555"
+            <Border Background="{DynamicResource SecondaryBg}"
+                    BorderBrush="{DynamicResource BorderDefault}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="16"
                     Margin="0,12,0,0">
                 <StackPanel>
-                    <TextBlock Text="Cloud Sync (Supabase)"
+                    <TextBlock Text="Cloud Sync"
                                FontSize="14"
                                FontWeight="SemiBold"
-                               Foreground="#E8ECF1"
+                               Foreground="{DynamicResource TextPrimary}"
                                Margin="0,0,0,8"/>
-                    <TextBlock Text="Supabase cloud sync is pre-configured. All attack logs and assets are automatically synced to the cloud database."
+                    <TextBlock Text="Attack logs and assets are synced to your licensed Seacure server."
                                FontSize="11"
-                               Foreground="#A0AEBB"
-                               Margin="0,0,0,8"
+                               Foreground="{DynamicResource TextSecondary}"
+                               Margin="0,0,0,12"
                                TextWrapping="Wrap"/>
-                    <Border Background="#0F2A1C"
-                            BorderBrush="#1F6B3F"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="10"
-                            Margin="0,0,0,16">
-                        <StackPanel>
-                            <TextBlock Text="✓ Pre-Configured"
-                                       FontSize="11"
-                                       FontWeight="SemiBold"
-                                       Foreground="#4ADE80"
-                                       Margin="0,0,0,4"/>
-                            <TextBlock Text="Supabase credentials are built-in and secured. The anon key is obfuscated and protected by Row Level Security (RLS) policies on the server. Your data is protected by hardware-based licensing."
-                                       FontSize="10"
-                                       Foreground="#8EC9A8"
-                                       TextWrapping="Wrap"
-                                       LineHeight="16"/>
-                        </StackPanel>
-                    </Border>
 
-                    <StackPanel Margin="0,0,0,16">
+                    <StackPanel Margin="0,0,0,8">
                         <TextBlock Text="Connection Status"
                                    FontSize="12"
-                                   Foreground="#C8D1DC"
+                                   Foreground="{DynamicResource TextSecondary}"
                                    Margin="0,0,0,4"/>
-                        <Border Background="#2A3444"
-                                BorderBrush="#3A4555"
+                        <Border Background="{DynamicResource TertiaryBg}"
+                                BorderBrush="{DynamicResource BorderDefault}"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Padding="12,8">
                             <StackPanel>
                                 <TextBlock x:Name="SupabaseUrlTextBlock"
-                                           Text="Supabase URL: Loading..."
+                                           Text="API endpoint: Loading..."
                                            FontFamily="Consolas"
                                            FontSize="10"
-                                           Foreground="#A0AEBB"
+                                           Foreground="{DynamicResource TextSecondary}"
+                                           TextWrapping="Wrap"
                                            Margin="0,0,0,4"/>
-                                <TextBlock Text="Status: Pre-configured ✓"
+                                <TextBlock x:Name="ApiConnectionStatusTextBlock"
+                                           Text="Checking connection..."
                                            FontSize="10"
-                                           Foreground="#4ADE80"/>
+                                           Foreground="{DynamicResource TextSecondary}"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
-
-                    <TextBlock Text="Note: Supabase credentials are hardcoded for security and ease of distribution. Connection is automatically verified on application startup."
-                               FontSize="10"
-                               Foreground="#8899AA"
-                               FontStyle="Italic"
-                               TextWrapping="Wrap"
-                               Margin="0,0,0,8"/>
-                    <Border Background="#3A2A10"
-                            BorderBrush="#5A4420"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="10"
-                            Margin="0,8,0,0">
-                        <StackPanel>
-                            <TextBlock Text="[i] Security Information"
-                                       FontSize="11"
-                                       FontWeight="SemiBold"
-                                       Foreground="#FBBF24"
-                                       Margin="0,0,0,4"/>
-                            <TextBlock FontSize="10"
-                                       Foreground="#D6B070"
-                                       TextWrapping="Wrap"
-                                       LineHeight="16">
-                                <Run Text="The Supabase anon key is obfuscated within the application code. While it can be extracted through reverse engineering, this is safe by design:"/>
-                                <LineBreak/><LineBreak/>
-                                <Run Text="• Supabase anon keys are meant to be public (used in web/mobile apps)"/>
-                                <LineBreak/>
-                                <Run Text="• Security relies on Row Level Security (RLS) policies (server-side)"/>
-                                <LineBreak/>
-                                <Run Text="• Hardware licensing prevents unauthorized application use"/>
-                                <LineBreak/><LineBreak/>
-                                <Run Text="See SECURITY.md for detailed information."/>
-                            </TextBlock>
-                        </StackPanel>
-                    </Border>
                 </StackPanel>
             </Border>
 
-            <Border Background="#232F3E"
-                    BorderBrush="#3A4555"
+            <Border Background="{DynamicResource SecondaryBg}"
+                    BorderBrush="{DynamicResource BorderDefault}"
                     BorderThickness="1"
                     CornerRadius="8"
                     Padding="16"
@@ -290,22 +238,22 @@
                     <TextBlock Text="License Status"
                                FontSize="14"
                                FontWeight="SemiBold"
-                               Foreground="#E8ECF1"
+                               Foreground="{DynamicResource TextPrimary}"
                                Margin="0,0,0,8"/>
-                    <TextBlock Text="Licenses are centrally managed by the administrator through Supabase."
+                    <TextBlock Text="Licenses are issued by the Seacure licensing server (api.seacuredb.com)."
                                FontSize="11"
-                               Foreground="#A0AEBB"
+                               Foreground="{DynamicResource TextSecondary}"
                                Margin="0,0,0,16"
                                TextWrapping="Wrap"/>
 
                     <StackPanel Margin="0,0,0,16">
                         <TextBlock Text="Your Hardware ID"
                                    FontSize="12"
-                                   Foreground="#C8D1DC"
+                                   Foreground="{DynamicResource TextSecondary}"
                                    FontWeight="SemiBold"
                                    Margin="0,0,0,4"/>
-                        <Border Background="#2A3444"
-                                BorderBrush="#3A4555"
+                        <Border Background="{DynamicResource TertiaryBg}"
+                                BorderBrush="{DynamicResource BorderDefault}"
                                 BorderThickness="1"
                                 CornerRadius="4"
                                 Padding="12,8"
@@ -315,16 +263,16 @@
                                            Text="Loading..."
                                            FontFamily="Consolas"
                                            FontSize="10"
-                                           Foreground="#E8ECF1"
+                                           Foreground="{DynamicResource TextPrimary}"
                                            TextWrapping="Wrap"
                                            Margin="0,0,0,4"/>
                                 <Button Content="Copy to Clipboard"
                                         FontSize="10"
                                         Padding="8,4"
                                         HorizontalAlignment="Left"
-                                        Background="#3A4555"
-                                        Foreground="#E8ECF1"
-                                        BorderBrush="#4A5565"
+                                        Background="{DynamicResource BorderDefault}"
+                                        Foreground="{DynamicResource TextPrimary}"
+                                        BorderBrush="{DynamicResource BorderHover}"
                                         BorderThickness="1"
                                         Cursor="Hand"
                                         Click="CopyHardwareIdButton_Click"/>
@@ -334,18 +282,18 @@
                                    Text="Checking..."
                                    FontSize="12"
                                    FontWeight="SemiBold"
-                                   Foreground="#A0AEBB"
+                                   Foreground="{DynamicResource TextSecondary}"
                                    Margin="0,8,0,4"/>
                         <TextBlock x:Name="LicenseMessageTextBlock"
                                    Text=""
                                    FontSize="10"
-                                   Foreground="#A0AEBB"
+                                   Foreground="{DynamicResource TextSecondary}"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,0"/>
                     </StackPanel>
 
-                    <Border Background="#1E2E4D"
-                            BorderBrush="#3A4E7A"
+                    <Border Background="{DynamicResource AccentBlueSubtle}"
+                            BorderBrush="{DynamicResource LabModeBorder}"
                             BorderThickness="1"
                             Padding="16"
                             CornerRadius="6">
@@ -353,15 +301,15 @@
                             <TextBlock Text="[?] License Not Authorized?"
                                        FontSize="12"
                                        FontWeight="SemiBold"
-                                       Foreground="#7BA5F8"
+                                       Foreground="{DynamicResource InfoBlue}"
                                        Margin="0,0,0,8"/>
                             <TextBlock TextWrapping="Wrap"
                                        FontSize="11"
-                                       Foreground="#A8C0E8"
+                                       Foreground="{DynamicResource InfoBlue}"
                                        LineHeight="18">
                                 <Run Text="To request a license for this machine:"/>
                                 <LineBreak/><LineBreak/>
-                                <Run Text="1. First, log into seacuredb and go to Settings"/>
+                                <Run Text="1. First, log into api.seacuredb.com and go to Licensing"/>
                                 <LineBreak/>
                                 <Run Text="2. Then request for a license"/>
                                 <LineBreak/>
@@ -372,8 +320,8 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Background="#2A3444"
-                            BorderBrush="#3A4555"
+                    <Border Background="{DynamicResource TertiaryBg}"
+                            BorderBrush="{DynamicResource BorderDefault}"
                             BorderThickness="1"
                             Padding="12"
                             CornerRadius="6"
@@ -382,11 +330,11 @@
                             <TextBlock Text="[i] Centralized License Control"
                                        FontSize="11"
                                        FontWeight="SemiBold"
-                                       Foreground="#E8ECF1"
+                                       Foreground="{DynamicResource TextPrimary}"
                                        Margin="0,0,0,6"/>
-                            <TextBlock Text="All licenses are managed through Supabase by the administrator. Users cannot self-authorize to ensure security and compliance."
+                            <TextBlock Text="All licenses are managed through the Seacure API by the administrator. Users cannot self-authorize to ensure security and compliance."
                                        FontSize="10"
-                                       Foreground="#A0AEBB"
+                                       Foreground="{DynamicResource TextSecondary}"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>

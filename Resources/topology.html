@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Topology Canvas</title>
+    <style>
+        body {
+            background: var(--bg, #080c14);
+            color: var(--fg, #e2e8f0);
+        }
+        body.light {
+            --bg: #ffffff;
+            --fg: #0f172a;
+        }
+        body.light #cy {
+            background: #f8fafc;
+        }
+        body.light #statusbar {
+            background: #f1f5f9;
+            color: #475569;
+            border-top: 1px solid #cbd5e1;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            font-family: Segoe UI, Consolas, monospace;
+        }
+
+        #cy {
+            width: 100vw;
+            height: calc(100vh - 40px);
+            display: block;
+        }
+
+        #statusbar {
+            height: 40px;
+            background: #161b26;
+            border-top: 1px solid #2d3748;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-family: Consolas, monospace;
+            font-size: 11px;
+            color: #64748b;
+            box-sizing: border-box;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/webcola/3.4.0/cola.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape-cola/2.5.1/cytoscape-cola.min.js"></script>
+</head>
+<body>
+    <div id="cy"></div>
+    <div id="statusbar">Waiting for discovery...</div>
+    <script>
+        function logToHost(tag, data) {
+            try {
+                if (window.chrome && window.chrome.webview) {
+                    window.chrome.webview.postMessage(JSON.stringify({
+                        event: 'log',
+                        tag: tag,
+                        data: data || {}
+                    }));
+                }
+            } catch (e) { /* ignore bridge errors */ }
+        }
+
+        console.log('[TopoCanvas] script loaded at', Date.now());
+        logToHost('script-loaded', { ts: Date.now() });
+
+        (function () {
+            try {
+                var colaLayout = {
+                    name: 'cola',
+                    animate: true,
+                    animationDuration: 300,
+                    nodeSpacing: 60,
+                    edgeLengthVal: 120,
+                    fit: true,
+                    padding: 40,
+                    maxSimulationTime: 2000,
+                    randomize: false,
+                    avoidOverlap: true
+                };
+
+                var stylesheet = [
+                    {
+                        selector: 'node',
+                        style: {
+                            'label': 'data(label)',
+                            'text-valign': 'bottom',
+                            'text-halign': 'center',
+                            'font-size': '10px',
+                            'color': '#94a3b8',
+                            'text-wrap': 'wrap',
+                            'text-max-width': '80px',
+                            'text-margin-y': 4,
+                            'border-width': 2,
+                            'background-color': '#1f2937',
+                            'border-color': '#475569'
+                        }
+                    },
+                    {
+                        selector: 'node[type="Self"]',
+                        style: {
+                            'shape': 'ellipse',
+                            'width': 44,
+                            'height': 44,
+                            'background-color': '#7f1d1d',
+                            'border-color': '#ef4444'
+                        }
+                    },
+                    {
+                        selector: 'node[type="Gateway"]',
+                        style: {
+                            'shape': 'diamond',
+                            'width': 48,
+                            'height': 48,
+                            'background-color': '#1e40af',
+                            'border-color': '#3b82f6'
+                        }
+                    },
+                    {
+                        selector: 'node[type="Host"]',
+                        style: {
+                            'shape': 'ellipse',
+                            'width': 36,
+                            'height': 36,
+                            'background-color': '#15803d',
+                            'border-color': '#22c55e'
+                        }
+                    },
+                    {
+                        selector: 'node[type="RemoteHost"]',
+                        style: {
+                            'shape': 'ellipse',
+                            'width': 36,
+                            'height': 36,
+                            'background-color': '#155e75',
+                            'border-color': '#06b6d4'
+                        }
+                    },
+                    {
+                        selector: 'node[type="SubnetCloud"]',
+                        style: {
+                            'shape': 'roundrectangle',
+                            'width': 80,
+                            'height': 44,
+                            'background-color': '#1e2a3a',
+                            'border-color': '#475569',
+                            'border-style': 'dashed',
+                            'label': 'data(label)'
+                        }
+                    },
+                    {
+                        selector: 'node[type="SubnetCloud"][expanded="true"]',
+                        style: {
+                            'border-color': '#2563eb',
+                            'border-style': 'solid'
+                        }
+                    },
+                    {
+                        selector: 'node[type="SubnetCloud"][scanStatus="scanning"]',
+                        style: {
+                            'border-color': '#a78bfa',
+                            'border-style': 'solid'
+                        }
+                    },
+                    {
+                        selector: 'node[type="SubnetCloud"][scanStatus="done"]',
+                        style: {
+                            'border-color': '#34d399',
+                            'border-style': 'solid'
+                        }
+                    },
+                    {
+                        selector: 'node[type="SubnetCloud"][scanStatus="failed"]',
+                        style: {
+                            'border-color': '#f87171',
+                            'border-style': 'solid'
+                        }
+                    },
+                    {
+                        selector: 'node[?stale]',
+                        style: {
+                            'opacity': 0.4,
+                            'border-style': 'dashed',
+                            'border-color': '#64748b'
+                        }
+                    },
+                    {
+                        selector: 'node[type="UnknownHop"]',
+                        style: {
+                            'shape': 'ellipse',
+                            'width': 28,
+                            'height': 28,
+                            'background-color': '#1a1a2e',
+                            'border-color': '#4b5563'
+                        }
+                    },
+                    {
+                        selector: 'node[status="reachable"]',
+                        style: { 'border-color': '#34d399' }
+                    },
+                    {
+                        selector: 'node[status="partial"]',
+                        style: { 'border-color': '#f59e0b' }
+                    },
+                    {
+                        selector: 'node[status="unreachable"]',
+                        style: { 'border-color': '#f87171' }
+                    },
+                    {
+                        selector: 'node[status="running"]',
+                        style: { 'border-color': '#a78bfa' }
+                    },
+                    {
+                        selector: 'edge',
+                        style: {
+                            'width': 1,
+                            'line-color': '#2d3748',
+                            'target-arrow-color': '#2d3748',
+                            'target-arrow-shape': 'triangle',
+                            'curve-style': 'bezier',
+                            'opacity': 0.6
+                        }
+                    },
+                    {
+                        selector: 'edge[type="Flow"]',
+                        style: {
+                            'width': 'mapData(bytes, 0, 1000000, 1, 6)',
+                            'line-color': '#1e3a5f',
+                            'target-arrow-color': '#1e3a5f'
+                        }
+                    },
+                    {
+                        selector: 'edge[type="ArpSeen"]',
+                        style: {
+                            'line-color': '#14532d',
+                            'target-arrow-color': '#14532d',
+                            'line-style': 'dashed'
+                        }
+                    },
+                    {
+                        selector: 'edge[type="TraceroutePath"]',
+                        style: {
+                            'line-color': '#451a03',
+                            'target-arrow-color': '#451a03',
+                            'width': 2
+                        }
+                    },
+                    {
+                        selector: 'edge[type="SnmpNeighbor"]',
+                        style: {
+                            'line-color': '#2e1a3a',
+                            'target-arrow-color': '#2e1a3a',
+                            'line-style': 'dotted',
+                            'width': 2
+                        }
+                    },
+                    {
+                        selector: 'node:selected',
+                        style: {
+                            'border-color': '#ffffff',
+                            'overlay-color': '#ffffff',
+                            'overlay-opacity': 0.08
+                        }
+                    },
+                    {
+                        selector: 'edge:selected',
+                        style: {
+                            'line-color': '#ffffff',
+                            'target-arrow-color': '#ffffff',
+                            'opacity': 1
+                        }
+                    }
+                ];
+
+                var cy = cytoscape({
+                    container: document.getElementById('cy'),
+                    elements: [],
+                    style: stylesheet,
+                    wheelSensitivity: 0.2,
+                    boxSelectionEnabled: false,
+                    autounselectify: false
+                });
+
+                window.cy = cy;
+                logToHost('cy-ready', { cyType: typeof cy, hasLayout: !!cy.layout });
+
+                function postToHost(obj) {
+                    try {
+                        if (window.chrome && window.chrome.webview) {
+                            window.chrome.webview.postMessage(JSON.stringify(obj));
+                        }
+                    } catch (err) {
+                        // ignore host bridge errors
+                    }
+                }
+
+                function runLayout(fitView) {
+                    try {
+                        var opts = Object.assign({}, colaLayout, { fit: !!fitView });
+                        cy.layout(opts).run();
+                    } catch (err) {
+                        // fallback to cose layout if cola missing
+                        try {
+                            cy.layout({ name: 'cose', animate: true, fit: !!fitView, padding: 40 }).run();
+                        } catch (_) { }
+                    }
+                }
+
+                function normalizeElements(raw) {
+                    if (!raw) return { nodes: [], edges: [] };
+                    if (Array.isArray(raw)) {
+                        return { nodes: raw.filter(function (e) { return e && e.data && !('source' in e.data); }),
+                                 edges: raw.filter(function (e) { return e && e.data && ('source' in e.data); }) };
+                    }
+                    var nodes = [];
+                    var edges = [];
+                    if (Array.isArray(raw.nodes)) {
+                        raw.nodes.forEach(function (n) {
+                            nodes.push(n.data ? n : { data: n });
+                        });
+                    }
+                    if (Array.isArray(raw.edges)) {
+                        raw.edges.forEach(function (e) {
+                            edges.push(e.data ? e : { data: e });
+                        });
+                    }
+                    return { nodes: nodes, edges: edges };
+                }
+
+                function updateStatusbarCounts() {
+                    var bar = document.getElementById('statusbar');
+                    if (!bar) return;
+                    var n = cy.nodes().length;
+                    var e = cy.edges().length;
+                    bar.textContent = n + ' nodes  ' + e + ' edges';
+                }
+
+                function handleInit(payload) {
+                    try {
+                        cy.elements().remove();
+                        var parts = normalizeElements(payload);
+                        if (parts.nodes.length) cy.add(parts.nodes);
+                        if (parts.edges.length) cy.add(parts.edges);
+                        logToHost('init-added', { nodes: cy.nodes().length, edges: cy.edges().length });
+                        runLayout(true);
+                        logToHost('init-layout-done', { viewport: { w: cy.width(), h: cy.height() } });
+                        updateStatusbarCounts();
+                    } catch (e) {
+                        logToHost('error', { where: 'handleInit', msg: e.message, stack: e.stack });
+                    }
+                }
+
+                function handleUpsert(payload) {
+                    try {
+                        var parts = normalizeElements(payload);
+                        var added = false;
+
+                        function upsertOne(el) {
+                            if (!el || !el.data || !el.data.id) return;
+                            var existing = cy.getElementById(el.data.id);
+                            var existed = existing && existing.length > 0;
+                            logToHost('upsert-el', {
+                                id: el.data.id,
+                                type: el.data.type,
+                                stale: el.data.stale,
+                                staleType: typeof el.data.stale,
+                                existed: existed
+                            });
+                            if (existed) {
+                                existing.data(el.data);
+                            } else {
+                                cy.add(el);
+                                added = true;
+                            }
+                            var postNode = cy.getElementById(el.data.id);
+                            if (postNode && postNode.length > 0) {
+                                logToHost('upsert-postdata', {
+                                    id: el.data.id,
+                                    staleOnNode: postNode.data('stale'),
+                                    borderStyle: postNode.style('border-style')
+                                });
+                            }
+                        }
+
+                        parts.nodes.forEach(upsertOne);
+                        parts.edges.forEach(upsertOne);
+
+                        logToHost('upsert-added', { addedAny: added, total: cy.nodes().length });
+                        if (added) runLayout(false);
+                        updateStatusbarCounts();
+                    } catch (e) {
+                        logToHost('error', { where: 'handleUpsert', msg: e.message, stack: e.stack });
+                    }
+                }
+
+                function handleMessage(raw) {
+                    try {
+                        if (raw == null) return;
+                        var msg = raw;
+                        if (typeof msg === 'string') {
+                            try { msg = JSON.parse(msg); } catch (err) { return; }
+                        }
+                        if (!msg || !msg.type) return;
+
+                        var count = 0;
+                        if (msg.elements) {
+                            if (Array.isArray(msg.elements)) count = msg.elements.length;
+                            else if (Array.isArray(msg.elements.nodes) || Array.isArray(msg.elements.edges)) {
+                                count = (msg.elements.nodes ? msg.elements.nodes.length : 0)
+                                      + (msg.elements.edges ? msg.elements.edges.length : 0);
+                            }
+                        }
+                        logToHost('msg-in', { type: msg.type, count: count });
+
+                        switch (msg.type) {
+                            case 'init':
+                                handleInit(msg.elements);
+                                break;
+                            case 'upsert':
+                                handleUpsert(msg.elements);
+                                break;
+                            case 'clear':
+                                cy.elements().remove();
+                                updateStatusbarCounts();
+                                break;
+                            case 'status':
+                                var bar = document.getElementById('statusbar');
+                                if (bar) bar.textContent = msg.text || '';
+                                break;
+                            case 'theme':
+                                document.body.className = msg.value === 'Light'
+                                    ? 'light' : '';
+                                if (window.cy) {
+                                    try {
+                                        window.cy.style()
+                                            .selector('core')
+                                            .style('background-color',
+                                                msg.value === 'Light' ? '#f8fafc' : '#080c14')
+                                            .update();
+                                    } catch (_) { }
+                                }
+                                break;
+                            case 'select':
+                                if (msg.id) {
+                                    cy.elements().unselect();
+                                    var target = cy.getElementById(msg.id);
+                                    if (target && target.length > 0) {
+                                        target.select();
+                                        cy.animate({ center: { eles: target }, duration: 200 });
+                                    }
+                                }
+                                break;
+                        }
+                    } catch (e) {
+                        logToHost('error', { where: 'handleMessage', msg: e.message, stack: e.stack });
+                    }
+                }
+
+                if (window.chrome && window.chrome.webview && window.chrome.webview.addEventListener) {
+                    window.chrome.webview.addEventListener('message', function (event) {
+                        handleMessage(event.data);
+                    });
+                }
+
+                cy.on('tap', 'node', function (evt) {
+                    var node = evt.target;
+                    postToHost({
+                        event: 'nodeClick',
+                        id: node.id(),
+                        type: node.data('type'),
+                        ip: node.data('ip') || '',
+                        subnet: node.data('subnet') || node.data('network') || '',
+                        expanded: node.data('expanded') || false
+                    });
+                });
+
+                cy.on('tap', 'edge', function (evt) {
+                    var edge = evt.target;
+                    postToHost({
+                        event: 'edgeClick',
+                        id: edge.id(),
+                        source: edge.data('source'),
+                        target: edge.data('target'),
+                        protocol: edge.data('protocol') || '',
+                        bytes: edge.data('bytes') || 0
+                    });
+                });
+
+                cy.on('cxttap', 'node', function (evt) {
+                    var node = evt.target;
+                    postToHost({
+                        event: 'nodeRightClick',
+                        id: node.id(),
+                        type: node.data('type'),
+                        ip: node.data('ip') || '',
+                        subnet: node.data('subnet') || node.data('network') || ''
+                    });
+                });
+
+                postToHost({ event: 'ready' });
+                logToHost('script-init-complete', {
+                    cyExists: typeof cy !== 'undefined',
+                    listenerRegistered: true
+                });
+            } catch (e) {
+                logToHost('error', { where: 'iife', msg: e.message, stack: e.stack });
+            }
+        })();
+    </script>
+</body>
+</html>

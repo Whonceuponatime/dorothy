@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -26,7 +27,6 @@ using Dorothy.Controllers;
 using Dorothy.Models;
 using Dorothy.Network;
 using Dorothy.Network.Headers;
-using Dorothy.Services.Reachability;
 using Microsoft.Win32;
 using NLog;
 using SharpPcap;
@@ -41,11 +41,12 @@ namespace Dorothy.Views
         private readonly NetworkStorm _networkStorm;
         private readonly AttackLogger _attackLogger;
         private readonly TraceRoute _traceRoute;
-        private Services.SnmpWalkService? _snmpWalkService;
-        private CancellationTokenSource? _snmpWalkCancellationTokenSource;
+        private Services.ReachabilityProbeService? _niProbeService;
+        private CancellationTokenSource? _niCts;
+        private Services.DiscoveryOrchestrator? _discoveryOrchestrator;
+        private CancellationTokenSource? _discoveryCts;
+        private TopologyNode? _selectedTopologyNode;
 
-        private bool _reachabilityTestPassed = false;
-        private bool _snmpWalkNotVulnerable = false;
         private bool _isAdvancedMode;
         private string _validationToken;
         private const string VALIDATION_TOKEN_FILE = "validation.token";
@@ -101,7 +102,6 @@ namespace Dorothy.Views
         private Services.UpdateCheckService? _updateCheckService;
         private System.Windows.Threading.DispatcherTimer? _updateCheckTimer;
 
-        private Services.FirewallDiscoveryEngine? _firewallDiscoveryEngine;
 
         public MainWindow()
         {
@@ -161,9 +161,21 @@ namespace Dorothy.Views
             _syncCheckTimer.Tick += SyncCheckTimer_Tick;
             _syncCheckTimer.Start();
 
-            _firewallDiscoveryEngine = new Services.FirewallDiscoveryEngine();
-
-            _snmpWalkService = new Services.SnmpWalkService(_attackLogger);
+            NiTopologyCanvas.NodeClicked += OnTopologyNodeClicked;
+            NiTopologyCanvas.SubnetExpandRequested += OnSubnetExpandRequested;
+            NiTopologyCanvas.DeepProbeRequested += OnDeepProbeRequested;
+            NiTopologyCanvas.TracerouteRequested += OnTracerouteRequested;
+            NiTopologyCanvas.SnmpWalkRequested += OnSnmpWalkRequested;
+            NiTopologyCanvas.SetAsAttackTargetRequested += OnSetAsAttackTargetRequested;
+            Loaded += async (_, _) =>
+            {
+                try
+                {
+                    await NiTopologyCanvas.InitializeAsync();
+                    NiTopologyCanvas.SetTheme(_isDarkTheme ? "Dark" : "Light");
+                }
+                catch (Exception ex) { _logger.Debug(ex, "Topology canvas init failed"); }
+            };
 
             _uiScalingService = Services.UIScalingService.Instance;
 
@@ -268,6 +280,8 @@ namespace Dorothy.Views
                     }
                 };
                 _updateCheckTimer.Start();
+
+                ApplyNiTabLogPanelVisibility();
             }
             catch (Exception ex)
             {
@@ -646,33 +660,33 @@ namespace Dorothy.Views
             {
                 case Dorothy.Services.FloodRunStatus.Idle:
                 case Dorothy.Services.FloodRunStatus.Stopped:
-                    ApplyBadge("Ready",        "#1A3A2A", "#4ADE80");
+                    ApplyBadge("Ready",        "SuccessBgSubtle", "SuccessGreen");
                     break;
 
                 case Dorothy.Services.FloodRunStatus.Calibrating:
-                    ApplyBadge("Calibrating…", "#3A3520", "#FBBF24");
+                    ApplyBadge("Calibrating…", "FieldWarningBg",  "WarningAmber");
                     break;
 
                 case Dorothy.Services.FloodRunStatus.Running:
-                    ApplyBadge("Running",      "#3A2020", "#F87171");
+                    ApplyBadge("Running",      "FieldErrorBg",    "ErrorRed");
                     break;
 
                 case Dorothy.Services.FloodRunStatus.UnderTarget:
-                    ApplyBadge("Under Target", "#3A3520", "#FBBF24");
+                    ApplyBadge("Under Target", "FieldWarningBg",  "WarningAmber");
                     break;
 
                 case Dorothy.Services.FloodRunStatus.Error:
-                    ApplyBadge("Error",        "#3A2020", "#F87171");
+                    ApplyBadge("Error",        "FieldErrorBg",    "ErrorRed");
                     break;
             }
         }
 
-        private void ApplyBadge(string text, string bgHex, string fgHex, string? dotHex = null)
+        private void ApplyBadge(string text, string bgKey, string fgKey, string? dotKey = null)
         {
-            StatusBadge.Background     = new SolidColorBrush((Color)ColorConverter.ConvertFromString(bgHex));
-            StatusBadgeText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(fgHex));
-            StatusDot.Fill             = new SolidColorBrush((Color)ColorConverter.ConvertFromString(dotHex ?? fgHex));
-            StatusBadgeText.Text       = text;
+            StatusBadge.SetResourceReference(Border.BackgroundProperty, bgKey);
+            StatusBadgeText.SetResourceReference(TextBlock.ForegroundProperty, fgKey);
+            StatusDot.SetResourceReference(Ellipse.FillProperty, dotKey ?? fgKey);
+            StatusBadgeText.Text = text;
         }
 
         private void NetworkStorm_PacketSent(object? sender, Models.PacketEventArgs e)
@@ -1092,17 +1106,15 @@ namespace Dorothy.Views
         {
             if (ProtocolCardsPanel == null || AttackTypeComboBox == null) return;
             int selected = AttackTypeComboBox.SelectedIndex;
-            var accent = (SolidColorBrush)FindResource("AccentBlue");
-            var selectedBg = new SolidColorBrush(Color.FromRgb(0x2E, 0x3F, 0x5C));
             foreach (var child in ProtocolCardsPanel.Children)
             {
                 if (child is Border b && b.Tag is string tag && int.TryParse(tag, out int idx))
                 {
                     if (idx == selected)
                     {
-                        b.BorderBrush = accent;
+                        b.SetResourceReference(Border.BorderBrushProperty, "AccentBlue");
                         b.BorderThickness = new Thickness(2);
-                        b.Background = selectedBg;
+                        b.SetResourceReference(Border.BackgroundProperty, "AccentBlueSubtle");
                     }
                     else
                     {
@@ -1124,6 +1136,22 @@ namespace Dorothy.Views
                 Owner = this
             };
             aboutWindow.ShowDialog();
+        }
+
+        private bool _isDarkTheme = true;
+
+        private void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            _isDarkTheme = !_isDarkTheme;
+            App.SetTheme(_isDarkTheme ? "Dark" : "Light");
+            ThemeToggleIcon.Text = _isDarkTheme ? "\u2600" : "\uD83C\uDF19";
+
+            NiTopologyCanvas?.SetTheme(_isDarkTheme ? "Dark" : "Light");
+
+            foreach (Window w in Application.Current.Windows)
+            {
+                w.InvalidateVisual();
+            }
         }
 
         private async Task CheckForUpdatesAsync()
@@ -1284,6 +1312,16 @@ namespace Dorothy.Views
 
                 try
                 {
+                    _discoveryCts?.Cancel();
+                    _discoveryOrchestrator?.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn(ex, "Error disposing discovery orchestrator");
+                }
+
+                try
+                {
                     _logger.Info("Disposing network resources...");
                     _networkStorm?.Dispose();
                 }
@@ -1375,15 +1413,14 @@ namespace Dorothy.Views
 
                 var unsyncedLogs = await _databaseService.GetUnsyncedLogsAsync();
                 var unsyncedAssets = await _databaseService.GetUnsyncedAssetsAsync();
-                var unsyncedTests = await _databaseService.GetUnsyncedReachabilityTestsAsync();
 
-                if (unsyncedLogs.Count == 0 && unsyncedAssets.Count == 0 && unsyncedTests.Count == 0)
+                if (unsyncedLogs.Count == 0 && unsyncedAssets.Count == 0)
                 {
-                    _toastService.ShowInfo("No pending logs, assets, or tests to sync.");
+                    _toastService.ShowInfo("No pending logs or assets to sync.");
                     return;
                 }
 
-                var syncWindow = new SyncWindow(unsyncedLogs, unsyncedAssets, unsyncedTests)
+                var syncWindow = new SyncWindow(unsyncedLogs, unsyncedAssets)
                 {
                     Owner = this
                 };
@@ -1402,8 +1439,7 @@ namespace Dorothy.Views
                     {
                         int syncedLogsCount = 0;
                         int syncedAssetsCount = 0;
-                        int syncedTestsCount = 0;
-                        bool hasDeletions = syncWindow.DeletedLogIds.Count > 0 || syncWindow.DeletedAssetIds.Count > 0 || syncWindow.DeletedTestIds.Count > 0 || syncWindow.DeletedSnmpWalkIds.Count > 0;
+                        bool hasDeletions = syncWindow.DeletedLogIds.Count > 0 || syncWindow.DeletedAssetIds.Count > 0;
 
                     if (syncWindow.DeletedLogIds.Count > 0)
                     {
@@ -1415,18 +1451,6 @@ namespace Dorothy.Views
                     {
                         await _databaseService.DeleteAssetsAsync(syncWindow.DeletedAssetIds);
                         _attackLogger.LogInfo($"Deleted {syncWindow.DeletedAssetIds.Count} asset(s).");
-                    }
-
-                    if (syncWindow.DeletedTestIds.Count > 0)
-                    {
-                        await _databaseService.DeleteReachabilityTestsAsync(syncWindow.DeletedTestIds);
-                        _attackLogger.LogInfo($"Deleted {syncWindow.DeletedTestIds.Count} reachability test(s).");
-                    }
-
-                    if (syncWindow.DeletedSnmpWalkIds.Count > 0)
-                    {
-                        await _databaseService.DeleteReachabilityTestsAsync(syncWindow.DeletedSnmpWalkIds);
-                        _attackLogger.LogInfo($"Deleted {syncWindow.DeletedSnmpWalkIds.Count} SNMP walk(s).");
                     }
 
                     if (syncWindow.ShouldSync)
@@ -1465,32 +1489,13 @@ namespace Dorothy.Views
                             }
                         }
 
-                        var allTestIds = syncWindow.SelectedTestIds.Concat(syncWindow.SelectedSnmpWalkIds).ToList();
-                        if (allTestIds.Count > 0)
-                        {
-                            SyncProgressText.Text = $"Syncing {allTestIds.Count} reachability test(s) and SNMP walk(s)...";
-                            var result = await _supabaseSyncService.SyncReachabilityTestsAsync(syncWindow.ProjectName, allTestIds);
-
-                            if (result.Success)
-                            {
-                                syncedTestsCount = result.SyncedCount;
-                                _attackLogger.LogSuccess(result.Message);
-                            }
-                            else
-                            {
-                                _attackLogger.LogWarning(result.Message);
-                                _toastService.ShowWarning($"Reachability test sync failed: {result.Message}");
-                            }
-                        }
-
-                        if (syncedLogsCount > 0 || syncedAssetsCount > 0 || syncedTestsCount > 0)
+                        if (syncedLogsCount > 0 || syncedAssetsCount > 0)
                         {
                             var parts = new List<string>();
                             if (syncedLogsCount > 0) parts.Add($"{syncedLogsCount} log(s)");
                             if (syncedAssetsCount > 0) parts.Add($"{syncedAssetsCount} asset(s)");
-                            if (syncedTestsCount > 0) parts.Add($"{syncedTestsCount} test(s)");
 
-                            var message = $"Sync complete ✅ {string.Join(", ", parts)} synced successfully.";
+                            var message = $"Sync complete {string.Join(", ", parts)} synced successfully.";
                             _toastService.ShowSuccess(message);
                         }
                         else
@@ -1501,7 +1506,7 @@ namespace Dorothy.Views
                     else if (hasDeletions)
                     {
 
-                        var deletedCount = syncWindow.DeletedLogIds.Count + syncWindow.DeletedAssetIds.Count + syncWindow.DeletedTestIds.Count;
+                        var deletedCount = syncWindow.DeletedLogIds.Count + syncWindow.DeletedAssetIds.Count;
                         _toastService.ShowInfo($"Deleted {deletedCount} item(s).");
                     }
 
@@ -1562,8 +1567,7 @@ namespace Dorothy.Views
 
                 var pendingLogsCount = await _supabaseSyncService.GetPendingSyncCountAsync();
                 var pendingAssetsCount = await _supabaseSyncService.GetPendingAssetsCountAsync();
-                var pendingTestsCount = await _supabaseSyncService.GetPendingReachabilityTestsCountAsync();
-                var totalPending = pendingLogsCount + pendingAssetsCount + pendingTestsCount;
+                var totalPending = pendingLogsCount + pendingAssetsCount;
 
                 Dispatcher.Invoke(() =>
                 {
@@ -1575,7 +1579,6 @@ namespace Dorothy.Views
                         var tooltipParts = new List<string>();
                         if (pendingLogsCount > 0) tooltipParts.Add($"{pendingLogsCount} log(s)");
                         if (pendingAssetsCount > 0) tooltipParts.Add($"{pendingAssetsCount} asset(s)");
-                        if (pendingTestsCount > 0) tooltipParts.Add($"{pendingTestsCount} test(s)");
                         CloudSyncButton.ToolTip = $"{string.Join(", ", tooltipParts)} pending sync - Click to sync";
                     }
                     else
@@ -1766,14 +1769,14 @@ namespace Dorothy.Views
                     return;
                 }
 
-                var routeType = RouteType.Unknown;
-                if (IPAddress.TryParse(targetIp, out var targetIpAddr) &&
-                    IPAddress.TryParse(sourceIpText, out var sourceIpAddr))
+                var routeStatus = Dorothy.Models.RouteStatus.Unknown;
+                if (IPAddress.TryParse(targetIp, out _) &&
+                    IPAddress.TryParse(sourceIpText, out _))
                 {
-                    routeType = TargetExpansionService.DetermineRoute(sourceIpAddr, targetIpAddr);
+                    routeStatus = Dorothy.Services.TargetIpExpander.DetermineRoute(targetIp, sourceIpText).status;
                 }
 
-                if (routeType == RouteType.NoRoute)
+                if (routeStatus == Dorothy.Models.RouteStatus.NoRoute)
                 {
                     _attackLogger.LogError(
                         $"No route to {targetIp} from {sourceIpText} — raw packet send will fail. " +
@@ -1785,7 +1788,7 @@ namespace Dorothy.Views
                     return;
                 }
 
-                if (routeType == RouteType.Unknown)
+                if (routeStatus == Dorothy.Models.RouteStatus.Unknown)
                 {
                     var proceed = MessageBox.Show(
                         $"Cannot determine route to {targetIp} from {sourceIpText}.\n\n" +
@@ -2558,13 +2561,11 @@ namespace Dorothy.Views
         private void UpdateTcpSynModeSelection()
         {
             if (BasicModeCard == null || EvasionModeCard == null) return;
-            var accent = (SolidColorBrush)FindResource("AccentBlue");
-            var selectedBg = new SolidColorBrush(Color.FromRgb(0x2E, 0x3F, 0x5C));
             Border selected = _tcpSynMode == "Evasion" ? EvasionModeCard : BasicModeCard;
             Border unselected = _tcpSynMode == "Evasion" ? BasicModeCard : EvasionModeCard;
-            selected.BorderBrush = accent;
+            selected.SetResourceReference(Border.BorderBrushProperty, "AccentBlue");
             selected.BorderThickness = new Thickness(2);
-            selected.Background = selectedBg;
+            selected.SetResourceReference(Border.BackgroundProperty, "AccentBlueSubtle");
             unselected.ClearValue(Border.BorderBrushProperty);
             unselected.ClearValue(Border.BorderThicknessProperty);
             unselected.ClearValue(Border.BackgroundProperty);
@@ -2882,6 +2883,7 @@ namespace Dorothy.Views
                     }
 
                     _networkStorm.SetSourceInfo(ipAddress, macBytes, subnetMask);
+                    _discoveryOrchestrator?.UpdateSourceIp(ipAddress);
 
                     IPAddress? gatewayIp = null;
                     if (selectedNic != null)
@@ -3357,21 +3359,21 @@ namespace Dorothy.Views
                     return;
                 }
 
-                var route = TargetExpansionService.DetermineRoute(sourceIp, targetIp);
+                var route = Dorothy.Services.TargetIpExpander.DetermineRoute(targetIp.ToString(), sourceIp.ToString()).status;
 
                 (hint.Text, hint.Foreground) = route switch
                 {
-                    RouteType.OnLink =>
+                    Dorothy.Models.RouteStatus.Local =>
                         ("On-link target — Dest./Next-hop MAC refers to the destination host MAC address.",
                          new SolidColorBrush(Color.FromRgb(5, 150, 105))),
 
-                    RouteType.ViaGateway =>
-                        ("⚠ Routed target — Dest./Next-hop MAC must be the next-hop gateway MAC. " +
+                    Dorothy.Models.RouteStatus.ViaGateway =>
+                        ("Routed target — Dest./Next-hop MAC must be the next-hop gateway MAC. " +
                          "The remote host MAC is not visible across routed hops and cannot be used as L2 destination.",
                          new SolidColorBrush(Color.FromRgb(217, 119, 6))),
 
-                    RouteType.NoRoute =>
-                        ("⛔ No route detected to this target from the selected source IP. " +
+                    Dorothy.Models.RouteStatus.NoRoute =>
+                        ("No route detected to this target from the selected source IP. " +
                          "Raw packet send will likely fail — check NIC selection and routing.",
                          new SolidColorBrush(Color.FromRgb(185, 28, 28))),
 
@@ -4475,12 +4477,39 @@ namespace Dorothy.Views
                 UpdateProfileSummary();
 
                 UpdateMbpsValidation();
+
+                ApplyNiTabLogPanelVisibility();
             }
             catch (Exception ex)
             {
                 _attackLogger.LogError($"Error syncing settings between tabs: {ex}");
                 _isHandlingTabChange = false;
             }
+        }
+
+        private void ApplyNiTabLogPanelVisibility()
+        {
+            bool isNiTab = MainTabControl?.SelectedItem == FirewallNetworksTab;
+
+            if (LogColumnDefinition != null)
+            {
+                LogColumnDefinition.MinWidth = isNiTab ? 0 : 400;
+                LogColumnDefinition.Width = isNiTab
+                    ? new GridLength(0)
+                    : new GridLength(1, GridUnitType.Star);
+            }
+
+            if (SecurityLogPanel != null)
+            {
+                SecurityLogPanel.Visibility = isNiTab
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
+            }
+
+            _logger.Info($"ApplyNiTabLogPanelVisibility: isNiTab={isNiTab}, " +
+                         $"LogColumnDefinition.Width={LogColumnDefinition?.Width}, " +
+                         $"LogColumnDefinition.MinWidth={LogColumnDefinition?.MinWidth}, " +
+                         $"SecurityLogPanel.Visibility={SecurityLogPanel?.Visibility}");
         }
 
         private void PasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
@@ -5217,6 +5246,7 @@ namespace Dorothy.Views
                             AdvSourceMacTextBox.Text = macAddress;
 
                             _networkStorm.SetSourceInfo(ipAddress, macBytes, subnetMask);
+                            _discoveryOrchestrator?.UpdateSourceIp(ipAddress);
 
                             var gatewayIp = _mainController.GetGatewayForInterface(nic);
                             if (gatewayIp == null)
@@ -5279,94 +5309,14 @@ namespace Dorothy.Views
             }
         }
 
-        #region Firewall Reachability Discovery
-
         private void ReachabilityPathAnalysisButton_Click(object sender, RoutedEventArgs e)
         {
-            ReachabilityWizardWindow? wizard = null;
-            try
-            {
-
-                wizard = new ReachabilityWizardWindow();
-                wizard.Owner = this;
-                wizard.ShowDialog();
-
-                _reachabilityTestPassed = true;
-                UpdateSecurityAssessmentStatus();
-            }
-            catch (NullReferenceException nre)
-            {
-                _logger.Error(nre, "Null reference error opening reachability wizard");
-                string errorMsg = $"Null reference error opening wizard.\n\nMessage: {nre.Message}";
-                if (nre.StackTrace != null)
-                {
-                    errorMsg += $"\n\nStack trace:\n{nre.StackTrace}";
-                }
-                if (nre.TargetSite != null)
-                {
-                    errorMsg += $"\n\nTarget site: {nre.TargetSite}";
-                }
-                MessageBox.Show(errorMsg, "Null Reference Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            catch (System.Windows.Markup.XamlParseException xamlEx)
-            {
-                _logger.Error(xamlEx, "XAML parse error opening reachability wizard");
-                string errorMsg = $"XAML parse error: {xamlEx.Message}";
-                if (xamlEx.InnerException != null)
-                {
-                    errorMsg += $"\n\nInner: {xamlEx.InnerException.Message}";
-                }
-                MessageBox.Show(errorMsg, "XAML Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Error opening reachability wizard");
-                string errorMsg = $"Error opening wizard: {ex.Message}\n\nType: {ex.GetType().Name}";
-                if (ex.InnerException != null)
-                {
-                    errorMsg += $"\n\nInner exception: {ex.InnerException.Message}";
-                }
-                if (ex.StackTrace != null)
-                {
-                    errorMsg += $"\n\nStack trace:\n{ex.StackTrace}";
-                }
-                if (ex.TargetSite != null)
-                {
-                    errorMsg += $"\n\nTarget site: {ex.TargetSite}";
-                }
-                MessageBox.Show(errorMsg, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                try
-                {
-                    wizard?.Close();
-                }
-                catch { }
-            }
+            _toastService.ShowInfo("Reachability workbench is moving to the new Network Intelligence tab in an upcoming build.");
         }
-
-        private BoundedTcpScanWindow? _boundedTcpScanWindow;
 
         private void BoundedTcpScanButton_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                if (_boundedTcpScanWindow != null && _boundedTcpScanWindow.IsLoaded)
-                {
-                    _boundedTcpScanWindow.Activate();
-                    return;
-                }
-                _boundedTcpScanWindow = new BoundedTcpScanWindow { Owner = this };
-                _boundedTcpScanWindow.Closed += (_, _) => _boundedTcpScanWindow = null;
-                _boundedTcpScanWindow.Show();
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Error opening Bounded TCP Scan window");
-                MessageBox.Show($"Error opening scan window: {ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            _toastService.ShowInfo("Bounded TCP Connect Scan is moving to the new Network Intelligence tab in an upcoming build.");
         }
 
         private void NumericTextBox_PreviewTextInput(object sender, TextCompositionEventArgs e)
@@ -5377,161 +5327,780 @@ namespace Dorothy.Views
             }
         }
 
-        private async void StartSnmpWalkButton_Click(object sender, RoutedEventArgs e)
+        private async void NiStartDiscoveryButton_Click(object sender, RoutedEventArgs e)
+        {
+            var sourceIp = MainTabControl.SelectedItem == AdvancedTab
+                ? AdvSourceIpTextBox.Text.Trim()
+                : SourceIpTextBox.Text.Trim();
+            var nicName = GetSelectedNicName();
+            var community = string.IsNullOrWhiteSpace(NiSnmpCommunity.Text) ? "public" : NiSnmpCommunity.Text.Trim();
+
+            if (string.IsNullOrEmpty(sourceIp))
+            {
+                NiStatusText.Text = "Set source IP on Basic Settings first.";
+                return;
+            }
+
+            NiStartDiscoveryButton.IsEnabled = false;
+            NiStopDiscoveryButton.IsEnabled = true;
+            NiExportButton.IsEnabled = false;
+            NiDetailPanel.Visibility = Visibility.Collapsed;
+            _selectedTopologyNode = null;
+            NiStatusText.Text = "Starting discovery...";
+            NiCurrentScanLabel.Text = "";
+            NiProgressBar.Visibility = Visibility.Visible;
+            NiProgressBar.IsIndeterminate = true;
+
+            _discoveryCts = new CancellationTokenSource();
+            _niProbeService ??= new Services.ReachabilityProbeService(_databaseService);
+            if (_discoveryOrchestrator == null)
+            {
+                _logger.Info("Creating orchestrator and wiring events");
+                _discoveryOrchestrator = new Services.DiscoveryOrchestrator(_niProbeService);
+                WireOrchestratorEvents(_discoveryOrchestrator);
+            }
+            else
+            {
+                _logger.Info("Reusing existing orchestrator — preserving topology across rescan");
+            }
+
+            try
+            {
+                await _discoveryOrchestrator.StartDiscoveryAsync(sourceIp, nicName, community, _discoveryCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                NiStatusText.Text = "Discovery stopped.";
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Discovery failed");
+                NiStatusText.Text = $"Discovery error: {ex.Message}";
+            }
+            finally
+            {
+                NiStartDiscoveryButton.IsEnabled = true;
+                NiStopDiscoveryButton.IsEnabled = false;
+                NiExportButton.IsEnabled = _discoveryOrchestrator?.Graph.Nodes.Count > 0;
+                NiProgressBar.IsIndeterminate = false;
+                NiProgressBar.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void NiStopDiscoveryButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                if (_snmpWalkService == null)
-                {
-                    MessageBox.Show("SNMP Walk service is not initialized.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
+                _discoveryCts?.Cancel();
+                _discoveryOrchestrator?.CancelPhase1();
+                _discoveryOrchestrator?.StopPassiveCapture();
+                NiStatusText.Text = "Discovery stopped.";
+                NiStartDiscoveryButton.IsEnabled = true;
+                NiStopDiscoveryButton.IsEnabled = false;
+                NiExportButton.IsEnabled = _discoveryOrchestrator?.Graph.Nodes.Count > 0;
+                NiProgressBar.IsIndeterminate = false;
+                NiProgressBar.Visibility = Visibility.Collapsed;
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Stop discovery failed");
+            }
+        }
 
-                if (string.IsNullOrWhiteSpace(SnmpWalkTargetIpTextBox.Text))
-                {
-                    MessageBox.Show("Please enter a target IP address.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
+        private void WireOrchestratorEvents(Services.DiscoveryOrchestrator o)
+        {
+            _logger.Info("WireOrchestratorEvents: subscribing to orchestrator events");
 
-                if (!IPAddress.TryParse(SnmpWalkTargetIpTextBox.Text.Trim(), out _))
-                {
-                    MessageBox.Show("Invalid IP address format.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                if (!int.TryParse(SnmpWalkPortTextBox.Text.Trim(), out int port) || port < 1 || port > 65535)
-                {
-                    MessageBox.Show("Invalid port number. Must be between 1 and 65535.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                var targetIp = SnmpWalkTargetIpTextBox.Text.Trim();
-
-                StartSnmpWalkButton.IsEnabled = false;
-                StopSnmpWalkButton.IsEnabled = true;
-
-                _snmpWalkCancellationTokenSource = new CancellationTokenSource();
-                var token = _snmpWalkCancellationTokenSource.Token;
-
-                var progress = new Progress<(string message, int percent)>(update =>
-                {
-                    Dispatcher.Invoke(() =>
-                    {
-                        SnmpWalkProgressBar.Value = update.percent;
-                        _attackLogger.LogInfo(update.message);
-                    });
-                });
-
-                _ = Task.Run(async () =>
+            o.NodeChanged += (sender, args) =>
+            {
+                Dispatcher.InvokeAsync(() =>
                 {
                     try
                     {
-                        var result = await _snmpWalkService.WalkAsync(targetIp, port, progress, token);
-
-                        Dispatcher.Invoke(async () =>
-                        {
-                            StartSnmpWalkButton.IsEnabled = true;
-                            StopSnmpWalkButton.IsEnabled = false;
-                            SnmpWalkProgressBar.Visibility = Visibility.Collapsed;
-                            SnmpWalkProgressBar.Value = 0;
-
-                            _snmpWalkNotVulnerable = !result.Success;
-                            UpdateSecurityAssessmentStatus();
-
-                            try
-                            {
-                                await _databaseService.SaveSnmpWalkResultAsync(result, null);
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.Error(ex, "Failed to save SNMP walk result");
-
-                            }
-
-                            var resultsWindow = new SnmpWalkResultsWindow(result)
-                            {
-                                Owner = this
-                            };
-                            resultsWindow.ShowDialog();
-                        });
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        Dispatcher.Invoke(() =>
-                        {
-                            _attackLogger.LogWarning("[SNMP Walk] Operation canceled by user");
-                            StartSnmpWalkButton.IsEnabled = true;
-                            StopSnmpWalkButton.IsEnabled = false;
-                            SnmpWalkProgressBar.Visibility = Visibility.Collapsed;
-                            SnmpWalkProgressBar.Value = 0;
-                        });
+                        var node = args.Node;
+                        var json = System.Text.Json.JsonSerializer.Serialize(
+                            new[] { node.ToCytoscapeData() });
+                        NiTopologyCanvas.UpsertElements(json);
+                        UpdateNiNodeCount();
                     }
                     catch (Exception ex)
                     {
-                        Dispatcher.Invoke(() =>
-                        {
-                            _attackLogger.LogError($"[SNMP Walk] Error: {ex.Message}");
-                            MessageBox.Show($"Error during SNMP walk: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                            StartSnmpWalkButton.IsEnabled = true;
-                            StopSnmpWalkButton.IsEnabled = false;
-                            SnmpWalkProgressBar.Visibility = Visibility.Collapsed;
-                            SnmpWalkProgressBar.Value = 0;
-                        });
+                        _logger.Error(ex, "Failed to forward NodeChanged to canvas");
                     }
-                }, token);
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Error starting SNMP walk");
-                MessageBox.Show($"Error starting SNMP walk: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                StartSnmpWalkButton.IsEnabled = true;
-                StopSnmpWalkButton.IsEnabled = false;
-            }
-        }
+                });
+            };
 
-        private void StopSnmpWalkButton_Click(object sender, RoutedEventArgs e)
-        {
-            try
+            o.EdgeChanged += (sender, args) =>
             {
-                _snmpWalkCancellationTokenSource?.Cancel();
-                _attackLogger.LogInfo("[SNMP Walk] Stop requested by user");
-
-                _snmpWalkNotVulnerable = false;
-                UpdateSecurityAssessmentStatus();
-            }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Error stopping SNMP walk");
-                MessageBox.Show($"Error stopping SNMP walk: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private void UpdateSecurityAssessmentStatus()
-        {
-            try
-            {
-                if (SecurityAssessmentStatusBorder == null || SecurityAssessmentStatusTextBlock == null)
-                    return;
-
-                if (_reachabilityTestPassed && _snmpWalkNotVulnerable)
+                Dispatcher.InvokeAsync(() =>
                 {
-                    SecurityAssessmentStatusBorder.Visibility = Visibility.Visible;
-                    SecurityAssessmentStatusTextBlock.Text = "✓ Pass - The network is secure";
-                    SecurityAssessmentStatusTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(
-                        System.Windows.Media.Color.FromRgb(5, 150, 105));
+                    try
+                    {
+                        var edge = args.Edge;
+                        var json = System.Text.Json.JsonSerializer.Serialize(
+                            new[] { edge.ToCytoscapeData() });
+                        NiTopologyCanvas.UpsertElements(json);
+                        UpdateNiNodeCount();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error(ex, "Failed to forward EdgeChanged to canvas");
+                    }
+                });
+            };
+
+            o.StatusChanged += (sender, args) =>
+            {
+                var msg = args.Message;
+                Dispatcher.InvokeAsync(() =>
+                {
+                    NiStatusText.Text = msg ?? "";
+                    if (msg != null &&
+                        (msg.Contains("canning") || msg.Contains("uerying") || msg.Contains("weep")))
+                    {
+                        NiCurrentScanLabel.Text = msg;
+                    }
+                });
+            };
+
+            _logger.Info("WireOrchestratorEvents: subscription complete");
+        }
+
+        private void NiManualSubnetInput_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                NiAddSubnetButton_Click(sender, new RoutedEventArgs());
+                e.Handled = true;
+            }
+        }
+
+        private void NiAddSubnetButton_Click(object sender, RoutedEventArgs e)
+        {
+            var input = NiManualSubnetInput.Text?.Trim();
+            if (string.IsNullOrEmpty(input))
+            {
+                NiStatusText.Text = "Enter one or more CIDRs to add.";
+                return;
+            }
+
+            var cidrs = input
+                .Split(new[] { ',', '\n', '\r', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => !string.IsNullOrEmpty(s))
+                .ToList();
+
+            var validated = new List<string>();
+            foreach (var raw in cidrs)
+            {
+                var normalized = NormalizeCidr(raw);
+                if (normalized != null)
+                    validated.Add(normalized);
+                else
+                    NiStatusText.Text = $"Skipped invalid entry: {raw}";
+            }
+
+            if (validated.Count == 0)
+            {
+                NiStatusText.Text = "No valid CIDRs to add.";
+                return;
+            }
+
+            if (_discoveryOrchestrator == null)
+            {
+                _niProbeService ??= new Services.ReachabilityProbeService(_databaseService);
+                _logger.Info("Creating orchestrator and wiring events");
+                _discoveryOrchestrator = new Services.DiscoveryOrchestrator(_niProbeService);
+                WireOrchestratorEvents(_discoveryOrchestrator);
+            }
+
+            foreach (var cidr in validated)
+            {
+                _discoveryOrchestrator.AddManualSubnet(cidr);
+            }
+
+            NiManualSubnetInput.Clear();
+            NiStatusText.Text = $"Added {validated.Count} subnet(s). Right-click a cloud node to probe.";
+            NiExportButton.IsEnabled = _discoveryOrchestrator.Graph.Nodes.Count > 0;
+        }
+
+        private static string? NormalizeCidr(string input)
+        {
+            input = input.Trim();
+            if (!input.Contains('/'))
+            {
+                if (System.Net.IPAddress.TryParse(input, out _))
+                    return input + "/32";
+                return null;
+            }
+            var parts = input.Split('/');
+            if (parts.Length != 2) return null;
+            if (!System.Net.IPAddress.TryParse(parts[0], out _))
+                return null;
+            if (!int.TryParse(parts[1], out var prefix))
+                return null;
+            if (prefix < 0 || prefix > 32) return null;
+            return input;
+        }
+
+        private void OnTopologyNodeClicked(string nodeId, string nodeType)
+        {
+            if (_discoveryOrchestrator == null) return;
+            var node = _discoveryOrchestrator.Graph.GetNode(nodeId);
+            if (node == null) return;
+
+            _selectedTopologyNode = node;
+            NiDetailPanel.Visibility = Visibility.Visible;
+
+            var subnet = node.Attributes.TryGetValue("network", out var net) ? net
+                : node.Attributes.TryGetValue("subnet", out var sub) ? sub
+                : null;
+
+            NiDetailIp.Text = node.IpAddress ?? subnet ?? node.Id;
+            NiDetailStatus.Text = node.Type.ToString();
+
+            bool isStale = node.Attributes.TryGetValue("stale", out var staleAttr) && staleAttr == "true";
+
+            if (node.Type == NodeType.SubnetCloud)
+            {
+                NiDetailSummary.Text = "Unexplored subnet. Right-click → Expand subnet to probe.";
+            }
+            else if (node.LastSeenUnixMs.HasValue)
+            {
+                var ts = DateTimeOffset.FromUnixTimeMilliseconds(node.LastSeenUnixMs.Value).LocalDateTime;
+                NiDetailSummary.Text = $"Last seen: {ts:HH:mm:ss}";
+            }
+            else
+            {
+                NiDetailSummary.Text = string.Empty;
+            }
+
+            if (node.LastSeenUnixMs.HasValue)
+            {
+                var seenAt = DateTimeOffset.FromUnixTimeMilliseconds(node.LastSeenUnixMs.Value).LocalDateTime;
+                var ago = DateTime.Now - seenAt;
+                var agoText = ago.TotalSeconds < 60
+                    ? $"{(int)ago.TotalSeconds}s ago"
+                    : ago.TotalMinutes < 60
+                        ? $"{(int)ago.TotalMinutes}m ago"
+                        : $"{(int)ago.TotalHours}h ago";
+                NiDetailLastSeen.Text = isStale
+                    ? $"Last seen: {agoText} (stale)"
+                    : $"Last seen: {agoText}";
+            }
+            else
+            {
+                NiDetailLastSeen.Text = string.Empty;
+            }
+
+            NiDetailVendor.Text = string.IsNullOrWhiteSpace(node.Vendor)
+                ? (string.IsNullOrWhiteSpace(node.MacAddress) ? "—" : node.MacAddress!)
+                : $"{node.Vendor}  ({node.MacAddress ?? "no MAC"})";
+            NiDetailHostname.Text = node.Hostname ?? node.SysName ?? "—";
+
+            var os = node.Attributes.TryGetValue("osFamily", out var osF) ? osF : null;
+            var osVer = node.Attributes.TryGetValue("osVersion", out var osV) ? osV : null;
+            if (!string.IsNullOrWhiteSpace(os))
+            {
+                var conf = node.Attributes.TryGetValue("osConfidence", out var osC)
+                           && double.TryParse(osC, System.Globalization.NumberStyles.Any,
+                                              System.Globalization.CultureInfo.InvariantCulture, out var confVal)
+                    ? (int)(confVal * 100) : 0;
+                NiDetailDeviceType.Text = (string.IsNullOrWhiteSpace(osVer) ? os : $"{os} {osVer}")
+                    + (conf > 0 ? $"  ({conf}% confidence)" : "");
+            }
+            else
+            {
+                NiDetailDeviceType.Text = "Unknown — run Full probe";
+            }
+
+            NiDetailRoute.Text = subnet ?? "—";
+            NiDetailIcmp.Text = "Run Full probe for ICMP result.";
+            NiDetailTrace.ItemsSource = null;
+
+            if (node.OpenPortCount.HasValue && node.OpenPortCount > 0)
+            {
+                NiDetailTcp.ItemsSource = new[]
+                {
+                    new { Port = 0,
+                          Status = "open",
+                          Service = $"{node.OpenPortCount} open",
+                          Version = "Run Full probe for details" }
+                };
+            }
+            else
+            {
+                NiDetailTcp.ItemsSource = null;
+            }
+
+            if (!string.IsNullOrEmpty(node.SysName) ||
+                !string.IsNullOrEmpty(node.SysDescr))
+            {
+                var snmpRows = new List<(string Key, string Value)>();
+                if (!string.IsNullOrEmpty(node.SysName))
+                    snmpRows.Add(("sysName", node.SysName!));
+                if (!string.IsNullOrEmpty(node.SysDescr))
+                    snmpRows.Add(("sysDescr", node.SysDescr!));
+                NiDetailSnmp.ItemsSource = snmpRows
+                    .Select(r => new { Key = r.Key, Value = r.Value });
+                NiDetailSnmp.Visibility = Visibility.Visible;
+                NiSnmpSection.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                NiDetailSnmp.ItemsSource = null;
+                NiDetailSnmp.Visibility = Visibility.Collapsed;
+                NiSnmpSection.Visibility = Visibility.Collapsed;
+            }
+
+            VantagePointBorder.Visibility = Visibility.Collapsed;
+
+            bool isHost = node.Type is NodeType.Host or NodeType.RemoteHost;
+            bool hasIp = !string.IsNullOrWhiteSpace(node.IpAddress);
+            NiDetailProbeButton.Visibility = isHost && hasIp ? Visibility.Visible : Visibility.Collapsed;
+            NiDetailSetTargetButton.Visibility = hasIp ? Visibility.Visible : Visibility.Collapsed;
+            NiDetailProbeButton.IsEnabled = !isStale && isHost && hasIp;
+            NiDetailSetTargetButton.IsEnabled = !isStale && hasIp;
+        }
+
+        private async void OnSubnetExpandRequested(string subnetId)
+        {
+            if (_discoveryOrchestrator == null) return;
+
+            var subnetCidr = subnetId;
+            var node = _discoveryOrchestrator.Graph.GetNode(subnetId);
+            if (node != null && node.Attributes.TryGetValue("network", out var net) && !string.IsNullOrWhiteSpace(net))
+                subnetCidr = net;
+
+            NiStatusText.Text = $"Expanding {subnetCidr}...";
+            NiProgressBar.Visibility = Visibility.Visible;
+            NiProgressBar.IsIndeterminate = true;
+
+            try
+            {
+                await _discoveryOrchestrator.ExpandSubnetAsync(subnetCidr, _discoveryCts?.Token ?? default);
+                NiStatusText.Text = $"Expanded {subnetCidr}";
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Expand subnet failed");
+                NiStatusText.Text = $"Expand failed: {ex.Message}";
+            }
+            finally
+            {
+                NiProgressBar.IsIndeterminate = false;
+                NiProgressBar.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void OnDeepProbeRequested(string hostIp)
+        {
+            if (string.IsNullOrWhiteSpace(hostIp))
+            {
+                Dispatcher.InvokeAsync(() => NiStatusText.Text = "Cannot probe — no IP");
+                return;
+            }
+            Dispatcher.InvokeAsync(() => _ = RunDeepProbeAsync(hostIp));
+        }
+
+        private void OnTracerouteRequested(string hostIp)
+        {
+            if (string.IsNullOrWhiteSpace(hostIp))
+            {
+                Dispatcher.InvokeAsync(() => NiStatusText.Text = "Cannot traceroute — no IP");
+                return;
+            }
+            Dispatcher.InvokeAsync(() => _ = RunTracerouteAsync(hostIp));
+        }
+
+        private void OnSnmpWalkRequested(string hostIp)
+        {
+            if (string.IsNullOrWhiteSpace(hostIp))
+            {
+                Dispatcher.InvokeAsync(() => NiStatusText.Text = "Cannot SNMP walk — no IP");
+                return;
+            }
+            Dispatcher.InvokeAsync(() => _ = RunSnmpWalkAsync(hostIp));
+        }
+
+        private void OnSetAsAttackTargetRequested(string hostIp)
+        {
+            if (string.IsNullOrWhiteSpace(hostIp))
+            {
+                Dispatcher.InvokeAsync(() => NiStatusText.Text = "Cannot set target — no IP");
+                return;
+            }
+
+            Dispatcher.InvokeAsync(() =>
+            {
+                try
+                {
+                    MainTabControl.SelectedItem = BasicSettingsTab;
+
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        try
+                        {
+                            TargetIpTextBox.Text = hostIp;
+                            AdvTargetIpTextBox.Text = hostIp;
+                            TargetIpTextBox.Focus();
+                            _logger.Info($"OnSetAsAttackTargetRequested: TargetIpTextBox.Text={TargetIpTextBox.Text}");
+
+                            if (ResolveMacButton != null && ResolveMacButton.IsEnabled)
+                            {
+                                ResolveMacButton_Click(ResolveMacButton, new RoutedEventArgs());
+                            }
+                            NiStatusText.Text = $"Set {hostIp} as attack target";
+                            _attackLogger.LogInfo($"Attack target set from topology: {hostIp}");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.Error(ex, "Set attack target fill failed");
+                        }
+                    }), System.Windows.Threading.DispatcherPriority.ContextIdle);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error(ex, "Set attack target from topology failed");
+                    NiStatusText.Text = $"Set target error: {ex.Message}";
+                }
+            });
+        }
+
+        private async Task RunDeepProbeAsync(string ipAddress)
+        {
+            if (_discoveryOrchestrator == null)
+            {
+                NiStatusText.Text = "Start discovery first.";
+                return;
+            }
+
+            NiStatusText.Text = $"Probing {ipAddress}...";
+            NiDetailIcmp.Text = "Probing...";
+            NiDetailTcp.ItemsSource = null;
+            NiDetailTrace.ItemsSource = null;
+
+            var ports = new List<int> { 22, 80, 443, 3389, 8080, 8443 };
+
+            try
+            {
+                var result = await _discoveryOrchestrator.DeepProbeHostAsync(
+                    ipAddress, ports, _discoveryCts?.Token ?? default);
+
+                UpdateDetailPanelFromProbeResult(result);
+
+                if (_discoveryOrchestrator.Graph.GetNode(ipAddress) is { } node)
+                {
+                    if (result.TcpPorts != null)
+                    {
+                        node.OpenPortCount = result.TcpPorts.Values.Count(v => v == PortStatus.Open);
+                    }
+                    node.Attributes["lastProbeStatus"] = result.Status.ToString();
+                    node.Attributes["lastProbeUnixMs"] =
+                        DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+                    node.Attributes["stale"] = "false";
+                    _discoveryOrchestrator.Graph.UpsertNode(node);
+                }
+
+                NiStatusText.Text = $"Probe of {ipAddress} complete";
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Deep probe failed");
+                NiStatusText.Text = $"Probe failed: {ex.Message}";
+                NiDetailIcmp.Text = $"Error: {ex.Message}";
+            }
+        }
+
+        private void UpdateDetailPanelFromProbeResult(HostProbeResult result)
+        {
+            if (!string.IsNullOrEmpty(result.OsFamily) && result.OsFamily != "Unknown")
+            {
+                var conf = (int)(result.OsConfidence * 100);
+                NiDetailDeviceType.Text = (string.IsNullOrEmpty(result.OsVersion)
+                    ? result.OsFamily
+                    : $"{result.OsFamily} {result.OsVersion}")
+                    + $"  ({conf}% confidence)";
+            }
+            else
+            {
+                NiDetailDeviceType.Text = "Unknown";
+            }
+
+            var names = new List<string>();
+            if (!string.IsNullOrEmpty(result.Hostname))
+                names.Add(result.Hostname!);
+            if (!string.IsNullOrEmpty(result.NetBiosName)
+                && !string.Equals(result.NetBiosName, result.Hostname, StringComparison.OrdinalIgnoreCase))
+                names.Add($"NetBIOS: {result.NetBiosName}");
+            if (!string.IsNullOrEmpty(result.NetBiosWorkgroup))
+                names.Add($"Workgroup: {result.NetBiosWorkgroup}");
+            NiDetailHostname.Text = names.Count > 0 ? string.Join("  ·  ", names) : "—";
+
+            var icmpText = result.IcmpStatus switch
+            {
+                IcmpStatus.Reply => result.IcmpRttMs.HasValue
+                    ? $"✓ Reply in {result.IcmpRttMs}ms"
+                    : "✓ Reply received",
+                IcmpStatus.NoReply => "✗ No reply (timeout / filtered)",
+                IcmpStatus.Error => "⚠ Error",
+                _ => "Unknown"
+            };
+            NiDetailIcmp.Text = icmpText;
+
+            if (result.TcpPorts != null && result.TcpPorts.Count > 0)
+            {
+                var portRows = result.TcpPorts
+                    .Where(kv => kv.Value != PortStatus.Closed)
+                    .OrderBy(kv => kv.Key)
+                    .Select(kv =>
+                    {
+                        var banner = result.Banners?.FirstOrDefault(b => b.Port == kv.Key);
+                        return new
+                        {
+                            Port = kv.Key,
+                            Status = kv.Value.ToString(),
+                            Service = banner?.IdentifiedService ?? "",
+                            Version = banner?.IdentifiedVersion ?? ""
+                        };
+                    })
+                    .ToList();
+                NiDetailTcp.ItemsSource = portRows;
+            }
+            else
+            {
+                NiDetailTcp.ItemsSource = null;
+            }
+
+            if (result.TracerouteHops != null && result.TracerouteHops.Count > 0)
+            {
+                NiDetailTrace.ItemsSource = result.TracerouteHops;
+            }
+            else
+            {
+                NiDetailTrace.ItemsSource = null;
+            }
+
+            if (result.SnmpValues != null && result.SnmpValues.Count > 0)
+            {
+                NiDetailSnmp.ItemsSource = result.SnmpValues
+                    .Select(kv => new { Key = kv.Key, Value = kv.Value })
+                    .ToList();
+                NiDetailSnmp.Visibility = Visibility.Visible;
+                NiSnmpSection.Visibility = Visibility.Visible;
+            }
+        }
+
+        private async Task RunSnmpWalkAsync(string ipAddress)
+        {
+            NiStatusText.Text = $"SNMP walk: {ipAddress}...";
+            try
+            {
+                var walker = new Services.SnmpWalkService(_attackLogger);
+                var progress = new Progress<(string message, int percent)>(p =>
+                {
+                    NiStatusText.Text = p.message;
+                });
+                var walkResult = await walker.WalkAsync(ipAddress, 161, progress, _discoveryCts?.Token ?? default);
+                var window = new SnmpWalkResultsWindow(walkResult) { Owner = this };
+                window.Show();
+                NiStatusText.Text = walkResult.Success
+                    ? $"SNMP walk found community on {ipAddress}"
+                    : $"SNMP walk: no vulnerable community on {ipAddress}";
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "SNMP walk failed");
+                NiStatusText.Text = $"SNMP walk failed: {ex.Message}";
+            }
+        }
+
+        private void NiDetailProbeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_selectedTopologyNode?.IpAddress)) return;
+            OnDeepProbeRequested(_selectedTopologyNode.IpAddress!);
+        }
+
+        private void NiDetailSetTargetButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_selectedTopologyNode?.IpAddress)) return;
+            OnSetAsAttackTargetRequested(_selectedTopologyNode.IpAddress!);
+        }
+
+        private void UpdateNiNodeCount()
+        {
+            if (_discoveryOrchestrator == null) return;
+            var edges = _discoveryOrchestrator.Graph.Edges;
+            var nodeCount = _discoveryOrchestrator.Graph.Nodes.Count;
+            var edgeCount = edges.Count;
+            var flowCount = edges.Count(ed => ed.Type == EdgeType.Flow);
+            NiNodeCountText.Text = $"{nodeCount} nodes  {edgeCount} edges  {flowCount} flows";
+        }
+
+        private void NiClearTopologyButton_Click(object sender, RoutedEventArgs e)
+        {
+            var result = MessageBox.Show(
+                "Clear all discovered nodes and edges?",
+                "Confirm Clear",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes) return;
+
+            _discoveryOrchestrator?.ClearTopology();
+            NiTopologyCanvas.ClearGraph();
+            _selectedTopologyNode = null;
+            NiDetailPanel.Visibility = Visibility.Collapsed;
+            UpdateNiNodeCount();
+            NiStatusText.Text = "Topology cleared.";
+        }
+
+        private async Task RunTracerouteAsync(string ipAddress)
+        {
+            NiStatusText.Text = $"Tracing route to {ipAddress}...";
+            NiDetailTrace.ItemsSource = null;
+
+            try
+            {
+                var hops = new List<TracerouteHop>();
+                const int maxHops = 30;
+                const int timeoutMs = 3000;
+                var payload = new byte[32];
+
+                for (int ttl = 1; ttl <= maxHops; ttl++)
+                {
+                    using var ping = new Ping();
+                    var options = new PingOptions(ttl, true);
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    PingReply? reply = null;
+                    try
+                    {
+                        reply = await ping.SendPingAsync(ipAddress, timeoutMs, payload, options);
+                    }
+                    catch
+                    {
+                        hops.Add(new TracerouteHop { HopNumber = ttl, NoReply = true });
+                        continue;
+                    }
+                    sw.Stop();
+
+                    if (reply == null || (reply.Status != IPStatus.TtlExpired && reply.Status != IPStatus.Success))
+                    {
+                        hops.Add(new TracerouteHop { HopNumber = ttl, NoReply = true });
+                        continue;
+                    }
+
+                    hops.Add(new TracerouteHop
+                    {
+                        HopNumber = ttl,
+                        IpAddress = reply.Address?.ToString(),
+                        RttMs = reply.RoundtripTime,
+                        NoReply = false
+                    });
+
+                    NiDetailTrace.ItemsSource = null;
+                    NiDetailTrace.ItemsSource = new List<TracerouteHop>(hops);
+
+                    if (reply.Status == IPStatus.Success) break;
+                }
+
+                NiDetailTrace.ItemsSource = null;
+                NiDetailTrace.ItemsSource = hops;
+                NiStatusText.Text = $"Traceroute to {ipAddress} complete ({hops.Count} hops)";
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Traceroute failed");
+                NiStatusText.Text = $"Traceroute failed: {ex.Message}";
+            }
+        }
+
+        private async void NiHistoryButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var runs = (await _databaseService.GetReachabilityRunsAsync()).Take(100).ToList();
+                var window = new ReachabilityHistoryWindow(runs, _databaseService) { Owner = this };
+                if (window.ShowDialog() == true && window.SelectedRun != null)
+                {
+                    NiStatusText.Text = $"Loaded run from {window.SelectedRun.StartedAt:yyyy-MM-dd HH:mm}";
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "Failed to open reachability history");
+                NiStatusText.Text = $"History error: {ex.Message}";
+            }
+        }
+
+        private async void NiExportButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_discoveryOrchestrator?.Graph == null || _discoveryOrchestrator.Graph.Nodes.Count == 0)
+            {
+                MessageBox.Show(
+                    "No topology data to export. Run Start Discovery first.",
+                    "Empty Topology",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                var dlg = new SaveFileDialog
+                {
+                    Title = "Export diagnostic report",
+                    Filter = "Text files (*.txt)|*.txt|All files (*.*)|*.*",
+                    FileName = $"dorothy-diagnostic-{DateTime.Now:yyyyMMdd-HHmmss}.txt",
+                    DefaultExt = "txt"
+                };
+                if (dlg.ShowDialog() == true)
+                {
+                    var svc = new Services.DiagnosticExportService(
+                        _databaseService,
+                        _discoveryOrchestrator);
+
+                    var target = _selectedTopologyNode?.IpAddress
+                        ?? (string.IsNullOrWhiteSpace(NiSubnetOverride.Text) ? string.Empty : NiSubnetOverride.Text);
+
+                    var content = await svc.GenerateAsync(
+                        Array.Empty<HostProbeResult>(),
+                        SourceIpTextBox.Text,
+                        GetSelectedNicName() ?? string.Empty,
+                        target,
+                        _discoveryOrchestrator.Graph);
+
+                    await File.WriteAllTextAsync(dlg.FileName, content);
+                    _attackLogger.LogInfo($"Diagnostic export saved: {dlg.FileName}");
+                    NiStatusText.Text = $"Exported: {System.IO.Path.GetFileName(dlg.FileName)}";
                 }
                 else
                 {
-                    SecurityAssessmentStatusBorder.Visibility = Visibility.Collapsed;
+                    NiStatusText.Text = "Export cancelled";
                 }
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Error updating security assessment status");
+                _logger.Error(ex, "Topology export failed");
+                NiStatusText.Text = $"Export error: {ex.Message}";
             }
         }
 
-        #endregion
+        private string? GetSelectedNicName()
+        {
+            try
+            {
+                var combo = MainTabControl.SelectedItem == AdvancedTab
+                    ? AdvNetworkInterfaceComboBox
+                    : NetworkInterfaceComboBox;
+                var item = combo?.SelectedItem as dynamic;
+                return item?.Description?.ToString();
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
     }
 

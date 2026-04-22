@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -10,7 +11,6 @@ using System.Windows.Media;
 using Dorothy.Models.Database;
 using Dorothy.Services;
 using Microsoft.Win32;
-using Supabase;
 
 namespace Dorothy.Views
 {
@@ -37,16 +37,47 @@ namespace Dorothy.Views
             {
                 try
                 {
-                    var supabaseUrl = Services.SupabaseConfig.Url;
-                    SupabaseUrlTextBlock.Text = $"Supabase URL: {supabaseUrl}";
+                    SupabaseUrlTextBlock.Text = $"API endpoint: {SeacureConfig.ApiUrl}";
                 }
                 catch
                 {
-                    SupabaseUrlTextBlock.Text = "Supabase URL: Not configured";
+                    SupabaseUrlTextBlock.Text = "API endpoint: Not configured";
                 }
             }
 
             LoadLicenseInfo();
+            _ = CheckApiConnectionAsync();
+        }
+
+        private static readonly HttpClient _healthHttp = new()
+        {
+            Timeout = TimeSpan.FromSeconds(5)
+        };
+
+        private async Task CheckApiConnectionAsync()
+        {
+            if (ApiConnectionStatusTextBlock == null) return;
+
+            try
+            {
+                var url = $"{SeacureConfig.ApiUrl.TrimEnd('/')}/api/health";
+                using var resp = await _healthHttp.GetAsync(url).ConfigureAwait(true);
+                if (resp.IsSuccessStatusCode)
+                {
+                    ApiConnectionStatusTextBlock.Text = "Status: \u2713 Connected";
+                    ApiConnectionStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(0x4A, 0xDE, 0x80));
+                }
+                else
+                {
+                    ApiConnectionStatusTextBlock.Text = "Status: \u2717 Unreachable";
+                    ApiConnectionStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+                }
+            }
+            catch
+            {
+                ApiConnectionStatusTextBlock.Text = "Status: \u2717 Unreachable";
+                ApiConnectionStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(0xF8, 0x71, 0x71));
+            }
         }
 
         private void BrowseLogLocationButton_Click(object sender, RoutedEventArgs e)
@@ -239,8 +270,8 @@ namespace Dorothy.Views
                 if (LicenseMessageTextBlock != null)
                 {
                     LicenseMessageTextBlock.Text = validationResult.IsValid
-                        ? "Your license is managed by the administrator through Supabase."
-                        : $"To request a license:\n1. Log into seacuredb and go to Settings\n2. Request for a license\n3. Ask the admin to approve your request\n\nYour Hardware ID: {hardwareId}";
+                        ? "Your license is managed by the administrator through the Seacure API."
+                        : $"To request a license:\n1. Log into api.seacuredb.com and go to Licensing\n2. Request a license\n3. Ask the admin to approve your request\n\nYour Hardware ID: {hardwareId}";
                 }
             }
             catch (Exception ex)

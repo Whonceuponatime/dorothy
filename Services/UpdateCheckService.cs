@@ -14,7 +14,7 @@ namespace Dorothy.Services
     public class UpdateCheckService
     {
         private static readonly ILogger Logger = LogManager.GetCurrentClassLogger();
-        private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(5) };
+        private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
         private readonly string _currentVersion;
         private readonly AttackLogger? _attackLogger;
@@ -39,8 +39,6 @@ namespace Dorothy.Services
 
             try
             {
-                _attackLogger?.LogInfo($"🔍 Checking for updates... Current version: {_currentVersion}");
-
                 using var resp = await Http.GetAsync(endpoint).ConfigureAwait(false);
 
                 if (resp.StatusCode == HttpStatusCode.NotFound || !resp.IsSuccessStatusCode)

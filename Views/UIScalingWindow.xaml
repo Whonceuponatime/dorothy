@@ -6,8 +6,8 @@
         Width="400"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        Background="#1A2332"
-        Foreground="#E8ECF1">
+        Background="{DynamicResource PrimaryBg}"
+        Foreground="{DynamicResource TextPrimary}">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -67,19 +67,19 @@
 
             <TextBlock Text="Keyboard Shortcuts:"
                        FontSize="12"
-                       Foreground="#8899AA"
+                       Foreground="{DynamicResource TextMuted}"
                        Margin="0,30,0,10"/>
             <TextBlock Text="Ctrl + Plus: Zoom In"
                        FontSize="11"
-                       Foreground="#8899AA"
+                       Foreground="{DynamicResource TextMuted}"
                        Margin="0,0,0,5"/>
             <TextBlock Text="Ctrl + Minus: Zoom Out"
                        FontSize="11"
-                       Foreground="#8899AA"
+                       Foreground="{DynamicResource TextMuted}"
                        Margin="0,0,0,5"/>
             <TextBlock Text="Ctrl + 0: Reset Zoom"
                        FontSize="11"
-                       Foreground="#8899AA"/>
+                       Foreground="{DynamicResource TextMuted}"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2"

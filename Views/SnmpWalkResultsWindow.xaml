@@ -6,31 +6,31 @@
         Height="600" Width="800"
         MinHeight="400" MinWidth="600"
         WindowStartupLocation="CenterOwner"
-        Background="#1A2332">
+        Background="{DynamicResource PrimaryBg}">
     <Window.Resources>
 
         <Style x:Key="CardStyle" TargetType="Border">
             <Setter Property="Margin" Value="0,0,0,12"/>
             <Setter Property="Padding" Value="16"/>
             <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="BorderBrush" Value="#3A4555"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderDefault}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Background" Value="#232F3E"/>
+            <Setter Property="Background" Value="{DynamicResource SecondaryBg}"/>
         </Style>
 
         <Style x:Key="CardHeaderStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="16"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#E8ECF1"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
             <Setter Property="Margin" Value="0,0,0,12"/>
         </Style>
 
         <Style x:Key="DefaultButton" TargetType="Button">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="Background" Value="#3A4555"/>
-            <Setter Property="Foreground" Value="#E8ECF1"/>
-            <Setter Property="BorderBrush" Value="#4A5565"/>
+            <Setter Property="Background" Value="{DynamicResource BorderDefault}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderHover}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
@@ -47,26 +47,26 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4A5565"/>
+                    <Setter Property="Background" Value="{DynamicResource BorderHover}"/>
                 </Trigger>
                 <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#2A3444"/>
+                    <Setter Property="Background" Value="{DynamicResource TertiaryBg}"/>
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Background" Value="#232F3E"/>
-                    <Setter Property="Foreground" Value="#6A7A8A"/>
+                    <Setter Property="Background" Value="{DynamicResource SecondaryBg}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource DisabledFg}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource DefaultButton}">
-            <Setter Property="Background" Value="#5B8AF5"/>
+            <Setter Property="Background" Value="{DynamicResource AccentBlue}"/>
             <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#5B8AF5"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentBlue}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4A79E4"/>
+                    <Setter Property="Background" Value="{DynamicResource AccentBlueHover}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -84,11 +84,11 @@
                        Text="SNMP Walk Results"
                        FontSize="20"
                        FontWeight="Bold"
-                       Foreground="#E8ECF1"
+                       Foreground="{DynamicResource TextPrimary}"
                        Margin="0,0,0,8"/>
             <TextBlock x:Name="SummaryTextBlock"
                        FontSize="14"
-                       Foreground="#8899AA"
+                       Foreground="{DynamicResource TextMuted}"
                        TextWrapping="Wrap"/>
         </StackPanel>
 
@@ -97,29 +97,29 @@
 
                 <Border x:Name="SuccessCard"
                         Style="{StaticResource CardStyle}"
-                        Background="#3A3520"
-                        BorderBrush="#6B5B10"
+                        Background="{DynamicResource FieldWarningBg}"
+                        BorderBrush="{DynamicResource FieldWarningBorder}"
                         Visibility="Collapsed">
                     <StackPanel>
                         <TextBlock Text="⚠️ SNMP Vulnerability Found"
                                    FontSize="16"
                                    FontWeight="SemiBold"
-                                   Foreground="#FBBF24"
+                                   Foreground="{DynamicResource WarningAmber}"
                                    Margin="0,0,0,8"/>
                         <TextBlock x:Name="VulnerabilityDetailsTextBlock"
                                    FontSize="14"
-                                   Foreground="#FBBF24"
+                                   Foreground="{DynamicResource WarningAmber}"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,12"/>
                         <TextBlock Text="OIDs Retrieved:"
                                    FontSize="14"
                                    FontWeight="SemiBold"
-                                   Foreground="#FBBF24"
+                                   Foreground="{DynamicResource WarningAmber}"
                                    Margin="0,0,0,8"/>
                         <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
                             <TextBlock x:Name="OidsTextBlock"
                                        FontSize="12"
-                                       Foreground="#FBBF24"
+                                       Foreground="{DynamicResource WarningAmber}"
                                        TextWrapping="Wrap"
                                        FontFamily="Consolas"/>
                         </ScrollViewer>
@@ -128,18 +128,18 @@
 
                 <Border x:Name="SecureCard"
                         Style="{StaticResource CardStyle}"
-                        Background="#1A3A2A"
-                        BorderBrush="#2A5A3A"
+                        Background="{DynamicResource SuccessBgSubtle}"
+                        BorderBrush="{DynamicResource SuccessBorder}"
                         Visibility="Collapsed">
                     <StackPanel>
                         <TextBlock Text="✓ SNMP Secure"
                                    FontSize="16"
                                    FontWeight="SemiBold"
-                                   Foreground="#4ADE80"
+                                   Foreground="{DynamicResource SuccessGreen}"
                                    Margin="0,0,0,8"/>
                         <TextBlock x:Name="SecureDetailsTextBlock"
                                    FontSize="14"
-                                   Foreground="#4ADE80"
+                                   Foreground="{DynamicResource SuccessGreen}"
                                    TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
