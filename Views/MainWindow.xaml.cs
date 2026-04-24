@@ -103,9 +103,66 @@ namespace Dorothy.Views
         private System.Windows.Threading.DispatcherTimer? _updateCheckTimer;
 
 
+        /// <summary>
+        /// Stops any in-progress flood (Basic or Advanced) without racing the
+        /// UI's own Stop-button click handler. Called on license revocation so
+        /// that revoked clients immediately cease sending attack traffic.
+        /// Safe to call when no attack is running — it no-ops.
+        /// </summary>
+        public async Task StopAttackIfRunningAsync()
+        {
+            if (_mainController == null) return;
+
+            try
+            {
+                bool basicRunning = StartButton != null
+                    && StartButton.IsEnabled == false
+                    && StopButton != null
+                    && StopButton.IsEnabled == true;
+
+                bool advancedRunning = StartAdvancedAttackButton != null
+                    && StartAdvancedAttackButton.IsEnabled == false
+                    && StopAdvancedAttackButton != null
+                    && StopAdvancedAttackButton.IsEnabled == true;
+
+                if (!basicRunning && !advancedRunning) return;
+
+                _logger.Info("[LICENSE] Stopping in-progress attack due to license revocation");
+                bool isAdvancedMode = MainTabControl.SelectedItem == AdvancedTab && _isAdvancedMode;
+                await _mainController.StopAttackAsync(_totalPacketsSent, isAdvancedMode).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "[LICENSE] Error stopping attack on revocation");
+            }
+        }
+
         public MainWindow()
         {
             InitializeComponent();
+
+#if LITE_EDITION
+            // Lite edition: remove Network Intelligence + Advanced Settings tabs
+            // at runtime. Handlers for removed tabs remain compiled but are
+            // unreachable — the tabs' click targets are gone from the visual tree.
+            try
+            {
+                if (MainTabControl.Items.Contains(FirewallNetworksTab))
+                    MainTabControl.Items.Remove(FirewallNetworksTab);
+                if (MainTabControl.Items.Contains(AdvancedTab))
+                    MainTabControl.Items.Remove(AdvancedTab);
+
+                Title = "SEACURE(TOOL) Lite - Network Attack Simulator";
+                AppEditionBadgeText.Text = "LITE EDITION";
+                AppEditionBadge.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "Lite edition tab-removal failed");
+            }
+#else
+            AppEditionBadge.Visibility = Visibility.Collapsed;
+#endif
 
             _databaseService = new Services.DatabaseService();
             _supabaseSyncService = new Services.SupabaseSyncService(_databaseService);

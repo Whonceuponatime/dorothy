@@ -106,6 +106,21 @@
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource LabModeFg}"/>
                             </Border>
+                            <Border x:Name="AppEditionBadge"
+                                    Background="{DynamicResource LabModeBg}"
+                                    BorderBrush="{DynamicResource LabModeBorder}"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="7,1"
+                                    Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Visibility="Collapsed">
+                                <TextBlock x:Name="AppEditionBadgeText"
+                                           Text=""
+                                           FontSize="10"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource LabModeFg}"/>
+                            </Border>
                         </StackPanel>
                     </StackPanel>
 

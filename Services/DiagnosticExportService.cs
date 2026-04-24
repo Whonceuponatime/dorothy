@@ -78,6 +78,7 @@ namespace Dorothy.Services
                 sb.AppendLine();
             }
 
+#if !LITE_EDITION
             var graph = topologyGraph ?? _orchestrator?.Graph;
             sb.AppendLine("## Probed Hosts");
             if (graph != null)
@@ -133,6 +134,7 @@ namespace Dorothy.Services
                 sb.AppendLine("(topology graph unavailable)");
             }
             sb.AppendLine();
+#endif
 
             sb.AppendLine("## Recent Run History");
             try
@@ -224,6 +226,7 @@ namespace Dorothy.Services
             }
             sb.AppendLine();
 
+#if !LITE_EDITION
             // SECTION 7 — Topology snapshot
             sb.AppendLine("## Topology Snapshot");
 
@@ -330,6 +333,7 @@ namespace Dorothy.Services
                     sb.AppendLine();
                 }
             }
+#endif
 
             return sb.ToString();
         }

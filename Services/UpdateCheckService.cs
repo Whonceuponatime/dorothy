@@ -35,7 +35,12 @@ namespace Dorothy.Services
 
         public async Task<UpdateCheckResult> CheckForUpdatesAsync()
         {
-            var endpoint = $"{SeacureConfig.ApiUrl.TrimEnd('/')}/api/releases/latest";
+#if LITE_EDITION
+            const string edition = "lite";
+#else
+            const string edition = "full";
+#endif
+            var endpoint = $"{SeacureConfig.ApiUrl.TrimEnd('/')}/api/releases/latest?edition={edition}";
 
             try
             {

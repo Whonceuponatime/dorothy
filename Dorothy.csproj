@@ -7,9 +7,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
     <AssemblyName>Dorothy</AssemblyName>
-    <Version>2.5.0</Version>
-    <AssemblyVersion>2.5.0.0</AssemblyVersion>
-    <FileVersion>2.5.0.0</FileVersion>
+    <Version>2.5.1</Version>
+    <AssemblyVersion>2.5.1.0</AssemblyVersion>
+    <FileVersion>2.5.1.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Platforms>x64</Platforms>
@@ -25,6 +25,21 @@
 
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
+
+  <!-- Lite edition: same codebase, same 2.5.0 version, but NI / Advanced tabs
+       are removed at runtime and the installer does not bundle the 187 MB
+       WebView2 runtime. Invoke with: dotnet publish -c Release /p:LiteBuild=true -->
+  <PropertyGroup Condition="'$(LiteBuild)' == 'true'">
+    <DefineConstants>$(DefineConstants);LITE_EDITION</DefineConstants>
+    <Product>SEACURE(TOOL) Lite</Product>
+    <AssemblyInformationalVersion>2.5.1 Lite</AssemblyInformationalVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(LiteBuild)' != 'true'">
+    <Product>SEACURE(TOOL)</Product>
+    <AssemblyInformationalVersion>2.5.1</AssemblyInformationalVersion>
+  </PropertyGroup>
+
   <ItemGroup>
     <!-- Resources\**\*.* catches topology.html, oui.txt, logo.png, etc.
          .xaml is excluded because WPF SDK auto-includes them as Page items. -->
@@ -57,13 +72,21 @@
   </ItemGroup>
 
 
+  <!-- Distribution directory differs by edition: Full → dist/, Lite → dist-lite/.
+       build_all.bat uses explicit -o paths so these targets only fire on the
+       default Build / Publish path. -->
+  <PropertyGroup>
+    <DistDirName Condition="'$(LiteBuild)' == 'true'">dist-lite</DistDirName>
+    <DistDirName Condition="'$(LiteBuild)' != 'true'">dist</DistDirName>
+  </PropertyGroup>
+
   <Target Name="CreateDistributionAfterBuild" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <PropertyGroup>
-      <DistDir>$(ProjectDir)dist</DistDir>
+      <DistDir>$(ProjectDir)$(DistDirName)</DistDir>
       <PublishDir>$(OutputPath)publish</PublishDir>
     </PropertyGroup>
 
-    <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release --no-build -r win-x64 --self-contained true -p:PublishSingleFile=false" ContinueOnError="false" />
+    <Exec Command="dotnet publish &quot;$(MSBuildProjectFile)&quot; -c Release --no-build -r win-x64 --self-contained true -p:PublishSingleFile=false -p:LiteBuild=$(LiteBuild)" ContinueOnError="false" />
 
     <MakeDir Directories="$(DistDir)" />
 
@@ -76,7 +99,7 @@
 
   <Target Name="CreateDistributionAfterPublish" AfterTargets="Publish">
     <PropertyGroup>
-      <DistDir>$(ProjectDir)dist</DistDir>
+      <DistDir>$(ProjectDir)$(DistDirName)</DistDir>
     </PropertyGroup>
 
     <MakeDir Directories="$(DistDir)" />
