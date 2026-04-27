@@ -4,5 +4,6 @@ namespace Dorothy.Models
         int Port,
         string? RawBanner,
         string? IdentifiedService,
-        string? IdentifiedVersion);
+        string? IdentifiedVersion,
+        TlsInfo? Tls = null);
 }

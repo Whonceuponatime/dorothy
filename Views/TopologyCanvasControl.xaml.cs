@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Dorothy.Models;
 using Microsoft.Web.WebView2.Core;
 using NLog;
 
@@ -17,7 +18,11 @@ namespace Dorothy.Views
 
         public event Action<string, string>? NodeClicked;
         public event Action<string>? SubnetExpandRequested;
-        public event Action<string>? DeepProbeRequested;
+        public event Action<string, ProbeLevel>? ProbeRequested;
+        // Fired when 2+ probe-able nodes are selected and the user picks a tier.
+        public event Action<List<string>, ProbeLevel>? BulkProbeRequested;
+        // Fired after a Shift+drag box-select completes (debounced JS-side).
+        public event Action<int>? BoxSelectionCompleted;
         public event Action<string>? TracerouteRequested;
         public event Action<string>? SnmpWalkRequested;
         public event Action<string>? SetAsAttackTargetRequested;
@@ -26,6 +31,9 @@ namespace Dorothy.Views
         private string _pendingContextNodeType = string.Empty;
         private string _pendingContextIp = string.Empty;
         private string _pendingContextSubnet = string.Empty;
+        // Probe-able IPs from the cytoscape multi-selection at right-click time.
+        // When this has 2+ entries, the Simple/Advanced buttons fire bulk probes.
+        private List<string> _pendingContextSelectedIps = new();
         private bool _isInitialized;
         private string _pendingTheme = "Dark";
         private bool _hasReceivedInitialLayout;
@@ -197,6 +205,14 @@ namespace Dorothy.Views
             TryPostToWebView($"{{\"type\":\"select\",\"id\":\"{escaped}\"}}");
         }
 
+        // Re-center the topology in the viewport. Used by the NI tab's
+        // "↻ Center" button when nodes have been zoomed/panned out of frame.
+        public void Recenter()
+        {
+            if (!_isInitialized || WebView.CoreWebView2 == null) return;
+            TryPostToWebView("{\"type\":\"recenter\"}");
+        }
+
         public void SetTheme(string themeName)
         {
             _pendingTheme = themeName;
@@ -285,13 +301,60 @@ namespace Dorothy.Views
                             _pendingContextIp = TryGetString(root, "ip");
                             _pendingContextSubnet = TryGetString(root, "subnet");
 
+                            _pendingContextSelectedIps = new List<string>();
+                            int reportedJsCount = -1;
+                            if (root.TryGetProperty("selectedIps", out var selEl)
+                                && selEl.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var item in selEl.EnumerateArray())
+                                {
+                                    if (item.ValueKind != JsonValueKind.String) continue;
+                                    var ip = item.GetString();
+                                    if (!string.IsNullOrWhiteSpace(ip))
+                                        _pendingContextSelectedIps.Add(ip!);
+                                }
+                            }
+                            if (root.TryGetProperty("selectedIpsCount", out var cEl)
+                                && cEl.ValueKind == JsonValueKind.Number)
+                            {
+                                reportedJsCount = cEl.GetInt32();
+                            }
+                            Logger.Info(
+                                $"[BULK PROBE] nodeRightClick parsed {_pendingContextSelectedIps.Count} " +
+                                $"selectedIps from JS" +
+                                (reportedJsCount >= 0 ? $" (JS reported count={reportedJsCount})" : ""));
+                            if (reportedJsCount >= 0
+                                && reportedJsCount != _pendingContextSelectedIps.Count)
+                            {
+                                Logger.Warn(
+                                    $"[BULK PROBE] MISMATCH: JS sent {reportedJsCount} IPs but " +
+                                    $"C# parsed {_pendingContextSelectedIps.Count}");
+                            }
+
                             Dispatcher.InvokeAsync(() =>
                             {
                                 bool isSubnet = string.Equals(_pendingContextNodeType, "SubnetCloud", StringComparison.OrdinalIgnoreCase);
                                 CtxExpandSubnet.Visibility = isSubnet ? Visibility.Visible : Visibility.Collapsed;
 
                                 bool hasIp = !string.IsNullOrWhiteSpace(_pendingContextIp);
-                                CtxDeepProbe.IsEnabled = hasIp;
+                                int selCount = _pendingContextSelectedIps.Count;
+
+                                // 2+ selected → buttons enter bulk mode and show the count.
+                                if (selCount > 1)
+                                {
+                                    CtxSimpleProbe.Content   = $"Simple probe selected ({selCount})";
+                                    CtxAdvancedProbe.Content = $"Advanced probe selected ({selCount})";
+                                    CtxSimpleProbe.IsEnabled   = true;
+                                    CtxAdvancedProbe.IsEnabled = true;
+                                }
+                                else
+                                {
+                                    CtxSimpleProbe.Content   = "Simple probe (~15s)";
+                                    CtxAdvancedProbe.Content = "Advanced probe (~3min)";
+                                    CtxSimpleProbe.IsEnabled   = hasIp;
+                                    CtxAdvancedProbe.IsEnabled = hasIp;
+                                }
+
                                 CtxTraceroute.IsEnabled = hasIp;
                                 CtxSnmp.IsEnabled = hasIp;
                                 CtxSetAsTarget.IsEnabled = hasIp;
@@ -302,6 +365,17 @@ namespace Dorothy.Views
                         }
                     case "edgeClick":
                         break;
+                    case "boxSelectComplete":
+                        {
+                            int count = 0;
+                            if (root.TryGetProperty("count", out var cEl)
+                                && cEl.ValueKind == JsonValueKind.Number)
+                            {
+                                count = cEl.GetInt32();
+                            }
+                            BoxSelectionCompleted?.Invoke(count);
+                            break;
+                        }
                     case "ready":
                         break;
                     case "log":
@@ -343,11 +417,27 @@ namespace Dorothy.Views
                 SubnetExpandRequested?.Invoke(_pendingContextSubnet);
         }
 
-        private void CtxDeepProbe_Click(object sender, RoutedEventArgs e)
+        private void CtxSimpleProbe_Click(object sender, RoutedEventArgs e)
         {
             NodeContextMenu.IsOpen = false;
+            DispatchProbeFromContext(ProbeLevel.Simple);
+        }
+
+        private void CtxAdvancedProbe_Click(object sender, RoutedEventArgs e)
+        {
+            NodeContextMenu.IsOpen = false;
+            DispatchProbeFromContext(ProbeLevel.Advanced);
+        }
+
+        private void DispatchProbeFromContext(ProbeLevel level)
+        {
+            if (_pendingContextSelectedIps.Count > 1)
+            {
+                BulkProbeRequested?.Invoke(_pendingContextSelectedIps, level);
+                return;
+            }
             if (!string.IsNullOrEmpty(_pendingContextIp))
-                DeepProbeRequested?.Invoke(_pendingContextIp);
+                ProbeRequested?.Invoke(_pendingContextIp, level);
         }
 
         private void CtxTraceroute_Click(object sender, RoutedEventArgs e)

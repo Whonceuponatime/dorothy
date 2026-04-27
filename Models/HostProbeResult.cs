@@ -72,6 +72,15 @@ namespace Dorothy.Models
         public double OsConfidence { get; set; }
         public List<BannerInfo>? Banners { get; set; }
 
+        // 2.5.1 expansion: tiered probe pipeline (Simple / Advanced)
+        public ProbeLevel Level { get; set; } = ProbeLevel.Simple;
+        public List<UdpScanResult>? UdpResults { get; set; }
+        public SmbInfo? SmbInfo { get; set; }
+        // Per-port HTTP path findings, keyed by HTTP/HTTPS port number.
+        public Dictionary<int, List<HttpPathFinding>>? HttpPaths { get; set; }
+        // Per-port TLS certificate / handshake info, populated only by Advanced.
+        public Dictionary<int, TlsInfo?>? TlsInfo { get; set; }
+
         public string? Summary
         {
             get => _summary;

@@ -872,21 +872,23 @@
                                             Background="{DynamicResource BorderDefault}"
                                             Margin="0,4,8,4"/>
 
-                                    <TextBlock Text="Subnet:"
+                                    <TextBlock Text="NIC:"
+                                               VerticalAlignment="Center"
                                                FontSize="11"
                                                Foreground="{DynamicResource TextMuted}"
-                                               VerticalAlignment="Center"
-                                               Margin="0,0,6,0"/>
-                                    <TextBox x:Name="NiSubnetOverride"
-                                             Width="140"
-                                             FontFamily="Consolas"
-                                             Tag="auto-detect"
-                                             ToolTip="Override local subnet CIDR e.g. 192.168.1.0/24"
-                                             Background="{DynamicResource InputBg}"
-                                             Foreground="{DynamicResource TextPrimary}"
-                                             BorderBrush="{DynamicResource BorderDefault}"
-                                             Padding="6,4"
-                                             Margin="0,0,8,0"/>
+                                               Margin="0,0,4,0"/>
+                                    <ComboBox x:Name="NiNicSelector"
+                                              Width="240"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,8,0"
+                                              DisplayMemberPath="Description"
+                                              SelectionChanged="NiNicSelector_SelectionChanged"
+                                              ToolTip="Network interface used for discovery and probes"/>
+
+                                    <Border Width="1"
+                                            Height="20"
+                                            Background="{DynamicResource BorderDefault}"
+                                            Margin="0,4,8,4"/>
 
                                     <TextBlock Text="SNMP community:"
                                                FontSize="11"
@@ -935,6 +937,33 @@
                                             Background="{DynamicResource BorderDefault}"
                                             Margin="0,4,8,4"/>
 
+                                    <TextBlock Text="Traceroute to:"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextSecondary}"
+                                               FontSize="11"
+                                               Margin="0,0,4,0"/>
+                                    <TextBox x:Name="NiTracerouteTargetInput"
+                                             Width="140"
+                                             VerticalAlignment="Center"
+                                             FontFamily="Consolas"
+                                             Background="{DynamicResource InputBg}"
+                                             Foreground="{DynamicResource TextPrimary}"
+                                             BorderBrush="{DynamicResource BorderDefault}"
+                                             Padding="6,4"
+                                             ToolTip="IP address or hostname to traceroute (e.g. 8.8.8.8)"
+                                             Margin="0,0,4,0"/>
+                                    <Button x:Name="NiTracerouteRunButton"
+                                            Content="Run"
+                                            MinWidth="60"
+                                            Margin="0,0,8,0"
+                                            ToolTip="Render hops as nodes on the canvas, connected by amber TraceroutePath edges."
+                                            Click="NiTracerouteRunButton_Click"/>
+
+                                    <Border Width="1"
+                                            Height="20"
+                                            Background="{DynamicResource BorderDefault}"
+                                            Margin="0,4,8,4"/>
+
                                     <Button x:Name="NiHistoryButton"
                                             Content="History"
                                             MinWidth="80"
@@ -952,6 +981,22 @@
                                             Background="{DynamicResource BorderDefault}"
                                             Margin="0,4,8,4"/>
 
+                                    <TextBlock Text="Tip: Click to select one node. Shift+click to add multiple. Shift+drag to box-select."
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               FontSize="11"
+                                               FontStyle="Italic"
+                                               Margin="0,0,8,0"
+                                               TextWrapping="Wrap"
+                                               MaxWidth="320"/>
+
+                                    <Button x:Name="NiRecenterButton"
+                                            Content="↻ Center"
+                                            MinWidth="80"
+                                            Margin="0,0,8,0"
+                                            ToolTip="Re-center the topology in the viewport"
+                                            Click="NiRecenterButton_Click"/>
+
                                     <Button x:Name="NiClearTopologyButton"
                                             Content="Clear topology"
                                             MinWidth="110"
@@ -968,6 +1013,86 @@
 
                                 <views:TopologyCanvasControl x:Name="NiTopologyCanvas"
                                                              Grid.Column="0"/>
+
+                                <!-- Bulk probe progress overlay. Hosted in a Popup (its own
+                                     top-level Win32 window) so it isn't hidden by WebView2's
+                                     native HWND airspace. Anchored to NiTopologyCanvas's
+                                     top-left via RelativePoint placement; HorizontalOffset is
+                                     computed at runtime from the canvas's ActualWidth so the
+                                     popup pins to the top-right corner regardless of window
+                                     size. VerticalOffset stays a constant 20 (top edge inset). -->
+                                <Popup x:Name="NiBulkProbeOverlay"
+                                       IsOpen="False"
+                                       Placement="RelativePoint"
+                                       PlacementTarget="{Binding ElementName=NiTopologyCanvas}"
+                                       AllowsTransparency="True"
+                                       StaysOpen="True"
+                                       HorizontalOffset="20"
+                                       VerticalOffset="20">
+                                    <Border Background="{DynamicResource SecondaryBg}"
+                                            BorderBrush="{DynamicResource AccentBlue}"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="16,8"
+                                            MaxWidth="500">
+                                        <StackPanel>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <Ellipse x:Name="NiBulkSpinner"
+                                                         Grid.Column="0"
+                                                         Width="16" Height="16"
+                                                         Stroke="{DynamicResource AccentBlue}"
+                                                         StrokeThickness="2.5"
+                                                         StrokeDashArray="3,2"
+                                                         Margin="0,0,12,0"
+                                                         VerticalAlignment="Center"
+                                                         RenderTransformOrigin="0.5,0.5">
+                                                    <Ellipse.RenderTransform>
+                                                        <RotateTransform x:Name="NiBulkSpinnerRotate" Angle="0"/>
+                                                    </Ellipse.RenderTransform>
+                                                </Ellipse>
+
+                                                <TextBlock x:Name="NiBulkOverlayText"
+                                                           Grid.Column="1"
+                                                           Text="Bulk probe running..."
+                                                           FontSize="13"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimary}"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"/>
+
+                                                <Button x:Name="NiBulkCancelButton"
+                                                        Grid.Column="2"
+                                                        Content="Cancel"
+                                                        Margin="12,0,0,0"
+                                                        Padding="8,2"
+                                                        FontSize="11"
+                                                        Click="NiBulkCancelButton_Click"/>
+                                            </Grid>
+
+                                            <ProgressBar x:Name="NiBulkProgressBar"
+                                                         Height="4"
+                                                         Margin="0,8,0,0"
+                                                         Minimum="0"
+                                                         Maximum="100"
+                                                         Value="0"
+                                                         Foreground="{DynamicResource AccentBlue}"
+                                                         Background="{DynamicResource TertiaryBg}"/>
+
+                                            <TextBlock x:Name="NiBulkDetailText"
+                                                       Margin="0,4,0,0"
+                                                       FontSize="10"
+                                                       Foreground="{DynamicResource TextSecondary}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Text=""/>
+                                        </StackPanel>
+                                    </Border>
+                                </Popup>
 
                                 <Border Grid.Column="1"
                                         Background="{DynamicResource PrimaryBg}"
@@ -993,9 +1118,16 @@
                                                        FontSize="11"
                                                        Foreground="{DynamicResource TextMuted}"
                                                        TextWrapping="Wrap"
-                                                       Margin="0,0,0,12"/>
+                                                       Margin="0,0,0,4"/>
+                                            <TextBlock x:Name="NiDetailProbedAt"
+                                                       FontSize="11"
+                                                       Foreground="{DynamicResource AccentBlue}"
+                                                       FontStyle="Italic"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,0,0,12"
+                                                       Visibility="Collapsed"/>
 
-                                            <StackPanel>
+                                            <StackPanel x:Name="NiDetailVendorSection">
                                                 <TextBlock Text="VENDOR / HOST"
                                                            FontSize="10"
                                                            Foreground="{DynamicResource TextMuted}"
@@ -1012,7 +1144,7 @@
                                                            TextWrapping="Wrap"/>
                                             </StackPanel>
 
-                                            <StackPanel>
+                                            <StackPanel x:Name="NiDetailDeviceTypeSection">
                                                 <TextBlock Text="DEVICE TYPE"
                                                            FontSize="10"
                                                            Foreground="{DynamicResource TextMuted}"
@@ -1024,7 +1156,7 @@
                                                            TextWrapping="Wrap"/>
                                             </StackPanel>
 
-                                            <StackPanel>
+                                            <StackPanel x:Name="NiDetailRouteSection">
                                                 <TextBlock Text="ROUTE"
                                                            FontSize="10"
                                                            Foreground="{DynamicResource TextMuted}"
@@ -1036,7 +1168,7 @@
                                                            TextWrapping="Wrap"/>
                                             </StackPanel>
 
-                                            <StackPanel>
+                                            <StackPanel x:Name="NiDetailIcmpSection">
                                                 <TextBlock Text="ICMP"
                                                            FontSize="10"
                                                            Foreground="{DynamicResource TextMuted}"
@@ -1046,7 +1178,7 @@
                                                            TextWrapping="Wrap"/>
                                             </StackPanel>
 
-                                            <StackPanel>
+                                            <StackPanel x:Name="NiDetailPathSection">
                                                 <TextBlock Text="PATH"
                                                            FontSize="10"
                                                            Foreground="{DynamicResource TextMuted}"
@@ -1065,7 +1197,7 @@
                                                 </ItemsControl>
                                             </StackPanel>
 
-                                            <StackPanel>
+                                            <StackPanel x:Name="NiDetailTcpSection">
                                                 <TextBlock Text="TCP PORTS"
                                                            FontSize="10"
                                                            Foreground="{DynamicResource TextMuted}"
@@ -1148,6 +1280,152 @@
                                                 </ItemsControl>
                                             </StackPanel>
 
+                                            <StackPanel x:Name="NiDetailUdpSection" Visibility="Collapsed">
+                                                <TextBlock Text="UDP PORTS"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           Margin="0,12,0,4"/>
+                                                <ItemsControl x:Name="NiDetailUdp">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,1">
+                                                                <TextBlock Text="{Binding Port}"
+                                                                           FontFamily="Consolas"
+                                                                           FontSize="11"
+                                                                           MinWidth="50"
+                                                                           Foreground="{DynamicResource TextPrimary}"/>
+                                                                <TextBlock Text="{Binding Status}"
+                                                                           FontSize="11"
+                                                                           MinWidth="120"
+                                                                           Margin="8,0">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Open">
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessGreen}"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Closed">
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource DisabledFg}"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="OpenOrFiltered">
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource WarningAmber}"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <TextBlock Text="{Binding Service}"
+                                                                           FontSize="11"
+                                                                           MinWidth="100"
+                                                                           Margin="8,0,0,0"
+                                                                           Foreground="{DynamicResource TextPrimary}"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+
+                                            <StackPanel x:Name="NiDetailTlsSection" Visibility="Collapsed">
+                                                <TextBlock Text="TLS CERTIFICATE"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           Margin="0,12,0,4"/>
+                                                <ItemsControl x:Name="NiDetailTls">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border BorderBrush="{DynamicResource BorderDefault}"
+                                                                    BorderThickness="0,0,0,1"
+                                                                    Padding="0,3"
+                                                                    Margin="0,1">
+                                                                <StackPanel>
+                                                                    <TextBlock FontSize="11"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="{DynamicResource TextPrimary}"
+                                                                               Text="{Binding Header}"/>
+                                                                    <TextBlock FontSize="10"
+                                                                               FontFamily="Consolas"
+                                                                               Foreground="{DynamicResource TextSecondary}"
+                                                                               Text="{Binding Subject}"
+                                                                               TextWrapping="Wrap"/>
+                                                                    <TextBlock FontSize="10"
+                                                                               Foreground="{DynamicResource TextMuted}"
+                                                                               Text="{Binding Issuer}"
+                                                                               TextWrapping="Wrap"/>
+                                                                    <TextBlock FontSize="10"
+                                                                               Foreground="{DynamicResource TextMuted}"
+                                                                               Text="{Binding Validity}"/>
+                                                                    <TextBlock FontSize="10"
+                                                                               Foreground="{DynamicResource TextMuted}"
+                                                                               Text="{Binding Sans}"
+                                                                               TextWrapping="Wrap"/>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+
+                                            <StackPanel x:Name="NiDetailHttpSection" Visibility="Collapsed">
+                                                <TextBlock Text="HTTP PATHS"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           Margin="0,12,0,4"/>
+                                                <ItemsControl x:Name="NiDetailHttp">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,1">
+                                                                <TextBlock Text="{Binding Status}"
+                                                                           FontFamily="Consolas"
+                                                                           FontSize="11"
+                                                                           MinWidth="40"
+                                                                           Foreground="{DynamicResource TextPrimary}"/>
+                                                                <TextBlock Text="{Binding PortPath}"
+                                                                           FontFamily="Consolas"
+                                                                           FontSize="11"
+                                                                           MinWidth="160"
+                                                                           Margin="8,0,0,0"
+                                                                           Foreground="{DynamicResource SuccessGreen}"/>
+                                                                <TextBlock Text="{Binding Title}"
+                                                                           FontSize="11"
+                                                                           Margin="8,0,0,0"
+                                                                           Foreground="{DynamicResource TextSecondary}"
+                                                                           TextWrapping="Wrap"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+
+                                            <StackPanel x:Name="NiDetailSmbSection" Visibility="Collapsed">
+                                                <TextBlock Text="SMB INFO"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           Margin="0,12,0,4"/>
+                                                <ItemsControl x:Name="NiDetailSmb">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,1">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="120"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Grid.Column="0"
+                                                                           Text="{Binding Key}"
+                                                                           FontSize="10"
+                                                                           Foreground="{DynamicResource TextMuted}"/>
+                                                                <TextBlock Grid.Column="1"
+                                                                           Text="{Binding Value}"
+                                                                           FontFamily="Consolas"
+                                                                           FontSize="10"
+                                                                           Foreground="{DynamicResource TextSecondary}"
+                                                                           TextWrapping="Wrap"/>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+
                                             <Border x:Name="VantagePointBorder"
                                                     Background="{DynamicResource AccentBlueSubtle}"
                                                     BorderBrush="{DynamicResource LabModeBorder}"
@@ -1162,14 +1440,81 @@
                                                            TextWrapping="Wrap"/>
                                             </Border>
 
-                                            <Button x:Name="NiDetailProbeButton"
-                                                    Content="Full probe"
-                                                    Margin="0,12,0,0"
-                                                    Visibility="Collapsed"
-                                                    Click="NiDetailProbeButton_Click"/>
+                                            <!-- Probe progress: spinner + indeterminate bar, only visible during a probe run -->
+                                            <StackPanel x:Name="NiProbeProgressPanel"
+                                                        Visibility="Collapsed"
+                                                        Margin="0,12,0,4">
+                                                <TextBlock x:Name="NiProbeTargetText"
+                                                           Text="Probing..."
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource AccentBlue}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Ellipse x:Name="NiProbeSpinner"
+                                                             Grid.Column="0"
+                                                             Width="14" Height="14"
+                                                             Stroke="{DynamicResource AccentBlue}"
+                                                             StrokeThickness="2"
+                                                             StrokeDashArray="2,2"
+                                                             Margin="0,0,8,0"
+                                                             VerticalAlignment="Center"
+                                                             RenderTransformOrigin="0.5,0.5">
+                                                        <Ellipse.RenderTransform>
+                                                            <RotateTransform x:Name="NiProbeSpinnerRotate" Angle="0"/>
+                                                        </Ellipse.RenderTransform>
+                                                    </Ellipse>
+                                                    <TextBlock x:Name="NiProbeStageText"
+                                                               Grid.Column="1"
+                                                               Text="Probing..."
+                                                               Foreground="{DynamicResource TextSecondary}"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               FontSize="12"/>
+                                                </Grid>
+                                                <ProgressBar x:Name="NiProbeProgressBar"
+                                                             IsIndeterminate="True"
+                                                             Height="3"
+                                                             Margin="0,6,0,0"
+                                                             Foreground="{DynamicResource AccentBlue}"
+                                                             Background="{DynamicResource TertiaryBg}"/>
+                                            </StackPanel>
+
+                                            <!-- Simple + Advanced probe buttons: paired, secondary weight, same height as Set as attack target below -->
+                                            <Grid x:Name="NiDetailProbeButtonRow"
+                                                  Margin="0,8,0,4"
+                                                  Visibility="Collapsed">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="6"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Button x:Name="NiSimpleProbeButton"
+                                                        Grid.Column="0"
+                                                        Content="Simple probe"
+                                                        Style="{StaticResource DefaultButton}"
+                                                        Height="36"
+                                                        FontSize="13"
+                                                        Click="NiSimpleProbeButton_Click"/>
+                                                <Button x:Name="NiAdvancedProbeButton"
+                                                        Grid.Column="2"
+                                                        Content="Advanced probe"
+                                                        Style="{StaticResource DefaultButton}"
+                                                        Height="36"
+                                                        FontSize="13"
+                                                        Click="NiAdvancedProbeButton_Click"/>
+                                            </Grid>
                                             <Button x:Name="NiDetailSetTargetButton"
                                                     Content="Set as attack target"
-                                                    Margin="0,6,0,0"
+                                                    Style="{StaticResource PrimaryButton}"
+                                                    Height="36"
+                                                    FontSize="13"
+                                                    Margin="0,4,0,0"
                                                     Visibility="Collapsed"
                                                     Click="NiDetailSetTargetButton_Click"/>
                                         </StackPanel>
@@ -1202,6 +1547,12 @@
                                                    Foreground="{DynamicResource TextMuted}"
                                                    VerticalAlignment="Center"
                                                    Margin="8,0,0,0"/>
+                                        <TextBlock x:Name="NiBulkProbeStatusText"
+                                                   Visibility="Collapsed"
+                                                   FontSize="11"
+                                                   Foreground="{DynamicResource AccentBlue}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="16,0,0,0"/>
                                     </StackPanel>
 
                                     <TextBlock x:Name="NiNodeCountText"

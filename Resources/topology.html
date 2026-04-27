@@ -34,6 +34,8 @@
             width: 100vw;
             height: calc(100vh - 40px);
             display: block;
+            padding: 20px;
+            box-sizing: border-box;
         }
 
         #statusbar {
@@ -77,14 +79,33 @@
                 var colaLayout = {
                     name: 'cola',
                     animate: true,
-                    animationDuration: 300,
-                    nodeSpacing: 60,
-                    edgeLengthVal: 120,
+                    animationDuration: 600,
+                    randomize: true,
                     fit: true,
-                    padding: 40,
-                    maxSimulationTime: 2000,
-                    randomize: false,
-                    avoidOverlap: true
+                    padding: 60,
+                    nodeSpacing: function(node) {
+                        var t = node.data('type');
+                        // Compound nodes: zero (cola handles children spacing).
+                        if (t === 'SubnetCloud') return 0;
+                        // Hop chain: tight so consecutive hops sit close.
+                        if (t === 'UnknownHop') return 30;
+                        // Hosts: 60 so they spread inside the subnet box.
+                        return 60;
+                    },
+                    edgeLength: function(edge) {
+                        // ArpSeen edges LONG so hosts don't starburst around
+                        // Self. TraceroutePath SHORT so the hop chain reads
+                        // as a tight sequence. Structural edges medium.
+                        var t = edge.data('type');
+                        if (t === 'ArpSeen') return 180;
+                        if (t === 'TraceroutePath') return 50;
+                        return 120;
+                    },
+                    maxSimulationTime: 3000,
+                    avoidOverlap: true,
+                    handleDisconnected: true,
+                    infinite: false,
+                    flow: { axis: 'y', minSeparation: 50 }
                 };
 
                 var stylesheet = [
@@ -97,7 +118,9 @@
                             'font-size': '10px',
                             'color': '#94a3b8',
                             'text-wrap': 'wrap',
-                            'text-max-width': '80px',
+                            // Wide enough that "DESKTOP-HER186U\n192.168.41.186"
+                            // renders as two lines without re-wrapping inside.
+                            'text-max-width': '120px',
                             'text-margin-y': 4,
                             'border-width': 2,
                             'background-color': '#1f2937',
@@ -110,18 +133,20 @@
                             'shape': 'ellipse',
                             'width': 44,
                             'height': 44,
-                            'background-color': '#7f1d1d',
-                            'border-color': '#ef4444'
+                            'background-color': '#ef4444',
+                            'border-color': '#fca5a5',
+                            'border-width': 2.5
                         }
                     },
                     {
                         selector: 'node[type="Gateway"]',
                         style: {
                             'shape': 'diamond',
-                            'width': 48,
-                            'height': 48,
-                            'background-color': '#1e40af',
-                            'border-color': '#3b82f6'
+                            'width': 40,
+                            'height': 40,
+                            'background-color': '#3b82f6',
+                            'border-color': '#93c5fd',
+                            'border-width': 2.5
                         }
                     },
                     {
@@ -130,8 +155,26 @@
                             'shape': 'ellipse',
                             'width': 36,
                             'height': 36,
-                            'background-color': '#15803d',
-                            'border-color': '#22c55e'
+                            'background-color': '#22c55e',
+                            'border-color': '#86efac',
+                            'border-width': 2
+                        }
+                    },
+                    {
+                        // Readable labels for the densely-connected leaves
+                        selector: 'node[type="Host"], node[type="Gateway"], node[type="RemoteHost"]',
+                        style: {
+                            'label': 'data(label)',
+                            'text-valign': 'bottom',
+                            'text-halign': 'center',
+                            'text-margin-y': 6,
+                            'font-size': 10,
+                            'color': '#e2e8f0',
+                            'text-outline-color': '#0f172a',
+                            'text-outline-width': 2,
+                            'text-background-color': '#0f172a',
+                            'text-background-opacity': 0.75,
+                            'text-background-padding': 3
                         }
                     },
                     {
@@ -147,13 +190,46 @@
                     {
                         selector: 'node[type="SubnetCloud"]',
                         style: {
-                            'shape': 'roundrectangle',
-                            'width': 80,
-                            'height': 44,
-                            'background-color': '#1e2a3a',
+                            'shape': 'round-rectangle',
+                            'background-opacity': 0,
                             'border-color': '#475569',
+                            'border-width': 1,
                             'border-style': 'dashed',
-                            'label': 'data(label)'
+                            'border-opacity': 0.5,
+                            'padding': 40,
+                            'label': 'data(label)',
+                            'text-valign': 'top',
+                            'text-halign': 'center',
+                            'text-margin-y': -12,
+                            'font-size': 11,
+                            'color': '#64748b',
+                            'font-weight': 'normal',
+                            'text-wrap': 'wrap',
+                            'text-max-width': 200,
+                            'text-background-color': '#0f172a',
+                            'text-background-opacity': 0.85,
+                            'text-background-padding': 4
+                        }
+                    },
+                    {
+                        // Local NIC subnet — emerald "you are here" (border only)
+                        selector: 'node[type="SubnetCloud"][isLocal="true"]',
+                        style: {
+                            'border-color': '#10b981',
+                            'border-opacity': 0.7,
+                            'color': '#34d399',
+                            'background-opacity': 0
+                        }
+                    },
+                    {
+                        // Internet compound — amber dotted, ties to TraceroutePath edges
+                        selector: 'node[type="SubnetCloud"][isInternet="true"]',
+                        style: {
+                            'border-color': '#f59e0b',
+                            'border-opacity': 0.5,
+                            'border-style': 'dotted',
+                            'color': '#fbbf24',
+                            'background-opacity': 0
                         }
                     },
                     {
@@ -196,10 +272,19 @@
                         selector: 'node[type="UnknownHop"]',
                         style: {
                             'shape': 'ellipse',
-                            'width': 28,
-                            'height': 28,
-                            'background-color': '#1a1a2e',
-                            'border-color': '#4b5563'
+                            'width': 30,
+                            'height': 30,
+                            'background-color': '#475569',
+                            'border-color': '#94a3b8',
+                            'border-width': 1,
+                            'label': 'data(label)',
+                            'font-size': 9,
+                            'color': '#cbd5e1',
+                            'text-outline-color': '#0f172a',
+                            'text-outline-width': 2,
+                            'text-background-color': '#0f172a',
+                            'text-background-opacity': 0.6,
+                            'text-background-padding': 2
                         }
                     },
                     {
@@ -240,17 +325,37 @@
                     {
                         selector: 'edge[type="ArpSeen"]',
                         style: {
-                            'line-color': '#14532d',
-                            'target-arrow-color': '#14532d',
-                            'line-style': 'dashed'
+                            'line-color': '#64748b',
+                            'line-style': 'dashed',
+                            'line-dash-pattern': [4, 4],
+                            'width': 1.2,
+                            'opacity': 0.55,
+                            'curve-style': 'bezier',
+                            'target-arrow-shape': 'none'
+                        }
+                    },
+                    {
+                        selector: 'edge[type="RouteHint"], edge[type="Structural"]',
+                        style: {
+                            'line-color': '#94a3b8',
+                            'line-style': 'solid',
+                            'width': 1.5,
+                            'opacity': 0.7,
+                            'curve-style': 'bezier',
+                            'target-arrow-shape': 'triangle',
+                            'target-arrow-color': '#94a3b8'
                         }
                     },
                     {
                         selector: 'edge[type="TraceroutePath"]',
                         style: {
-                            'line-color': '#451a03',
-                            'target-arrow-color': '#451a03',
-                            'width': 2
+                            'line-color': '#f59e0b',
+                            'target-arrow-color': '#f59e0b',
+                            'line-style': 'solid',
+                            'width': 2,
+                            'curve-style': 'bezier',
+                            'target-arrow-shape': 'triangle',
+                            'opacity': 0.8
                         }
                     },
                     {
@@ -262,12 +367,33 @@
                             'width': 2
                         }
                     },
+                    // Probed-host badge — placed BEFORE :selected so the amber
+                    // selection ring overrides cyan when both apply (cytoscape
+                    // uses last-rule-wins for matching selectors).
+                    {
+                        selector: 'node[lastProbedAt][type="Host"], node[lastProbedAt][type="Self"], node[lastProbedAt][type="Gateway"], node[lastProbedAt][type="RemoteHost"]',
+                        style: {
+                            'border-width': 3,
+                            'border-color': '#06b6d4',
+                            'border-opacity': 0.85
+                        }
+                    },
+                    {
+                        selector: 'node[lastProbeLevel="Advanced"][type="Host"], node[lastProbeLevel="Advanced"][type="Self"], node[lastProbeLevel="Advanced"][type="Gateway"], node[lastProbeLevel="Advanced"][type="RemoteHost"]',
+                        style: {
+                            'border-color': '#22d3ee',
+                            'border-width': 3.5
+                        }
+                    },
                     {
                         selector: 'node:selected',
                         style: {
-                            'border-color': '#ffffff',
-                            'overlay-color': '#ffffff',
-                            'overlay-opacity': 0.08
+                            'border-width': 4,
+                            'border-color': '#fbbf24',
+                            'border-opacity': 0.9,
+                            'overlay-color': '#fbbf24',
+                            'overlay-opacity': 0.15,
+                            'overlay-padding': 4
                         }
                     },
                     {
@@ -285,7 +411,14 @@
                     elements: [],
                     style: stylesheet,
                     wheelSensitivity: 0.2,
-                    boxSelectionEnabled: false,
+                    // Use cytoscape's native modifier behavior:
+                    //   Shift+click → toggle node in/out of selection (additive)
+                    //   Shift+drag  → box-select rectangle
+                    // The tap handler below clears selection on plain click
+                    // and treats Ctrl/Cmd as a dead modifier.
+                    selectionType: 'additive',
+                    boxSelectionEnabled: true,
+                    autoungrabify: false,
                     autounselectify: false
                 });
 
@@ -302,17 +435,80 @@
                     }
                 }
 
+                // Centering helpers ─ keep the topology centered no matter when
+                // the canvas finishes sizing or new nodes arrive.
+
+                var FIT_PADDING = 50;
+
+                // Defer initial fit until the WebView2-hosted #cy container
+                // actually has non-zero dimensions. Cytoscape's fit() against
+                // a zero-size viewport produces a zoom level of NaN/0 and the
+                // graph appears in the corner instead of centered.
+                function ensureSizedThenFit() {
+                    var container = document.getElementById('cy');
+                    if (!container) return;
+                    var w = container.clientWidth;
+                    var h = container.clientHeight;
+                    if (w < 100 || h < 100) {
+                        requestAnimationFrame(ensureSizedThenFit);
+                        return;
+                    }
+                    try { cy.resize(); } catch (_) { }
+                    try { cy.fit(undefined, FIT_PADDING); } catch (_) { }
+                    logToHost('initial-fit-done', { w: w, h: h });
+                }
+                // Kick off as soon as cy exists; will retry until the host paints.
+                requestAnimationFrame(ensureSizedThenFit);
+
+                function safeFit() {
+                    try { cy.resize(); } catch (_) { }
+                    try { cy.fit(undefined, FIT_PADDING); } catch (_) { }
+                }
+
                 function runLayout(fitView) {
+                    // After cola's simulation settles, run a deterministic
+                    // fit() against the FINAL node positions — cola's own
+                    // fit:true uses positions sampled mid-animation which
+                    // isn't always centered.
                     try {
-                        var opts = Object.assign({}, colaLayout, { fit: !!fitView });
+                        var opts = Object.assign({}, colaLayout, {
+                            fit: !!fitView,
+                            stop: function () { safeFit(); }
+                        });
                         cy.layout(opts).run();
                     } catch (err) {
-                        // fallback to cose layout if cola missing
                         try {
-                            cy.layout({ name: 'cose', animate: true, fit: !!fitView, padding: 40 }).run();
+                            cy.layout({
+                                name: 'cose',
+                                animate: true,
+                                fit: !!fitView,
+                                padding: 40,
+                                stop: function () { safeFit(); }
+                            }).run();
                         } catch (_) { }
                     }
                 }
+
+                // Debounced re-fit on burst node additions (typical during
+                // subnet expansion: 20 hosts may arrive in <100 ms).
+                var fitDebounceTimer = null;
+                cy.on('add', function () {
+                    if (fitDebounceTimer) clearTimeout(fitDebounceTimer);
+                    fitDebounceTimer = setTimeout(function () {
+                        safeFit();
+                        fitDebounceTimer = null;
+                    }, 300);
+                });
+
+                // Re-fit on window/canvas resize (user dragging window edge).
+                var resizeDebounceTimer = null;
+                window.addEventListener('resize', function () {
+                    if (resizeDebounceTimer) clearTimeout(resizeDebounceTimer);
+                    resizeDebounceTimer = setTimeout(function () {
+                        safeFit();
+                        resizeDebounceTimer = null;
+                    }, 200);
+                });
 
                 function normalizeElements(raw) {
                     if (!raw) return { nodes: [], edges: [] };
@@ -458,6 +654,9 @@
                                     }
                                 }
                                 break;
+                            case 'recenter':
+                                safeFit();
+                                break;
                         }
                     } catch (e) {
                         logToHost('error', { where: 'handleMessage', msg: e.message, stack: e.stack });
@@ -470,8 +669,47 @@
                     });
                 }
 
+                // Selection semantics — defer to cytoscape 3.x native modifier
+                // handling rather than fight it (the framework hardcodes Shift
+                // as the additive modifier in its internal tap-state machine,
+                // which fires before user `tap` listeners):
+                //   plain click  → clear all, select only the clicked node
+                //   Shift+click  → cytoscape native: toggle this node in/out
+                //                  of selection. Handler does NOT touch
+                //                  selection, only emits a nodeClick post so
+                //                  the detail panel updates with last clicked.
+                //   Shift+drag   → cytoscape native box-select rectangle.
+                //   Ctrl/Cmd     → DEAD: handler returns early, no mutation,
+                //                  no IPC, no detail-panel update.
                 cy.on('tap', 'node', function (evt) {
+                    var ne = evt.originalEvent;
                     var node = evt.target;
+
+                    // Ctrl/Cmd is dead — eat the tap entirely.
+                    if (ne && (ne.ctrlKey || ne.metaKey)) {
+                        return;
+                    }
+
+                    if (ne && ne.shiftKey) {
+                        // Cytoscape's native additive-select already toggled
+                        // this node. Don't touch selection — just emit the
+                        // click event so the detail panel reflects the most
+                        // recently tapped node in the multi-selection.
+                        postToHost({
+                            event: 'nodeClick',
+                            id: node.id(),
+                            type: node.data('type'),
+                            ip: node.data('ip') || '',
+                            subnet: node.data('subnet') || node.data('network') || '',
+                            expanded: node.data('expanded') || false
+                        });
+                        return;
+                    }
+
+                    // Plain click: clear all, select only this.
+                    cy.elements().unselect();
+                    node.select();
+
                     postToHost({
                         event: 'nodeClick',
                         id: node.id(),
@@ -480,6 +718,39 @@
                         subnet: node.data('subnet') || node.data('network') || '',
                         expanded: node.data('expanded') || false
                     });
+                });
+
+                // Background tap:
+                //   plain    → deselect all
+                //   Shift    → defer (user may be building a multi-selection
+                //              and missed a node — don't reset their work)
+                //   Ctrl/Cmd → dead, do nothing
+                cy.on('tap', function (evt) {
+                    var ne = evt.originalEvent;
+                    if (ne && (ne.ctrlKey || ne.metaKey)) return;
+                    if (ne && ne.shiftKey) return;
+                    if (evt.target === cy) {
+                        cy.elements().unselect();
+                    }
+                });
+
+                // Box-select summary: cytoscape fires boxselect once per node
+                // added by a Shift+drag rectangle. Coalesce a burst of fires
+                // into one IPC message so the WPF status chip can show
+                // "Selected N nodes" without spamming.
+                var boxSelectCount = 0;
+                var boxSelectTimer = null;
+                cy.on('boxselect', 'node', function () {
+                    boxSelectCount++;
+                    if (boxSelectTimer) clearTimeout(boxSelectTimer);
+                    boxSelectTimer = setTimeout(function () {
+                        postToHost({
+                            event: 'boxSelectComplete',
+                            count: boxSelectCount
+                        });
+                        boxSelectCount = 0;
+                        boxSelectTimer = null;
+                    }, 150);
                 });
 
                 cy.on('tap', 'edge', function (evt) {
@@ -496,12 +767,44 @@
 
                 cy.on('cxttap', 'node', function (evt) {
                     var node = evt.target;
+
+                    // Build the bulk-IP list from the current selection.
+                    // Only forward node types that ProbeHostAsync can actually
+                    // hit — exclude SubnetCloud and label-only LLDP nodes.
+                    var probeable = function (t) {
+                        return t === 'Host' || t === 'Self' ||
+                               t === 'Gateway' || t === 'UnknownHop' ||
+                               t === 'RemoteHost';
+                    };
+
+                    // Explicit forEach + push into a plain JS array — don't rely
+                    // on Cytoscape Collection.map() serializing cleanly across
+                    // the WebView2 bridge.
+                    var sel = cy.$('node:selected');
+                    var selectedIps = [];
+                    sel.forEach(function (n) {
+                        var ip = n.data('ip') || '';
+                        if (ip && probeable(n.data('type'))) {
+                            selectedIps.push(ip);
+                        }
+                    });
+                    logToHost('cxttap-selection', {
+                        rightClickedId: node.id(),
+                        cySelectedCount: sel.length,
+                        probeableSelectedCount: selectedIps.length,
+                        sample: selectedIps.slice(0, 5)
+                    });
+
                     postToHost({
                         event: 'nodeRightClick',
                         id: node.id(),
                         type: node.data('type'),
                         ip: node.data('ip') || '',
-                        subnet: node.data('subnet') || node.data('network') || ''
+                        subnet: node.data('subnet') || node.data('network') || '',
+                        selectedIps: selectedIps,
+                        // Belt-and-suspenders: report JS-side length so the C#
+                        // parser can detect any deserialization drop-off.
+                        selectedIpsCount: selectedIps.length
                     });
                 });
 

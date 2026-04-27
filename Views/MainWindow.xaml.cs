@@ -41,10 +41,14 @@ namespace Dorothy.Views
         private readonly NetworkStorm _networkStorm;
         private readonly AttackLogger _attackLogger;
         private readonly TraceRoute _traceRoute;
-        private Services.ReachabilityProbeService? _niProbeService;
+        // _niProbeService removed — DiscoveryOrchestrator now constructs
+        // ReachabilityProbeService per-call to avoid bulk-probe contention.
         private CancellationTokenSource? _niCts;
         private Services.DiscoveryOrchestrator? _discoveryOrchestrator;
         private CancellationTokenSource? _discoveryCts;
+        // Dedicated CTS for in-flight bulk probes — separate from _discoveryCts
+        // so the user can cancel a bulk run without affecting discovery.
+        private CancellationTokenSource? _bulkProbeCts;
         private TopologyNode? _selectedTopologyNode;
 
         private bool _isAdvancedMode;
@@ -220,7 +224,9 @@ namespace Dorothy.Views
 
             NiTopologyCanvas.NodeClicked += OnTopologyNodeClicked;
             NiTopologyCanvas.SubnetExpandRequested += OnSubnetExpandRequested;
-            NiTopologyCanvas.DeepProbeRequested += OnDeepProbeRequested;
+            NiTopologyCanvas.ProbeRequested += OnProbeRequested;
+            NiTopologyCanvas.BulkProbeRequested += OnBulkProbeRequested;
+            NiTopologyCanvas.BoxSelectionCompleted += OnBoxSelectionCompleted;
             NiTopologyCanvas.TracerouteRequested += OnTracerouteRequested;
             NiTopologyCanvas.SnmpWalkRequested += OnSnmpWalkRequested;
             NiTopologyCanvas.SetAsAttackTargetRequested += OnSetAsAttackTargetRequested;
@@ -2500,6 +2506,13 @@ namespace Dorothy.Views
                 NetworkInterfaceComboBox.SelectedIndex = 0;
                 AdvNetworkInterfaceComboBox.SelectedIndex = 0;
 
+                if (NiNicSelector != null)
+                {
+                    NiNicSelector.ItemsSource = interfaces;
+                    NiNicSelector.DisplayMemberPath = "Description";
+                    if (interfaces.Count > 0) NiNicSelector.SelectedIndex = 0;
+                }
+
                 UpdateMbpsValidation();
 
                 if (interfaces.Any())
@@ -2870,6 +2883,24 @@ namespace Dorothy.Views
             }
         }
 
+        private void NiNicSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            // Route the NI tab's NIC change through the same shared sync handler
+            // that already keeps Basic ↔ Advanced selectors in lockstep.
+            NetworkInterfaceComboBox_SelectionChanged(sender, e);
+
+            // Mid-discovery NIC change: warn the user that the next discovery
+            // run will use the new interface; the current one is unaffected.
+            if (_discoveryOrchestrator?.IsPhase1Running == true)
+            {
+                MessageBox.Show(
+                    "NIC changed. Click Start Discovery to re-run discovery on the new interface.",
+                    "NIC changed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+        }
+
         private void NetworkInterfaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
 
@@ -2911,33 +2942,19 @@ namespace Dorothy.Views
                     AdvSourceIpTextBox.Text = ipAddress;
                     AdvSourceMacTextBox.Text = macAddress;
 
-                    ComboBox targetComboBox;
-                    if (comboBox == NetworkInterfaceComboBox)
+                    int sourceIdx = comboBox.SelectedIndex;
+
+                    void SyncIndex(ComboBox? other, SelectionChangedEventHandler handler)
                     {
-                        targetComboBox = AdvNetworkInterfaceComboBox;
-                        targetComboBox.SelectionChanged -= NetworkInterfaceComboBox_SelectionChanged;
-                        try
-                        {
-                            targetComboBox.SelectedIndex = NetworkInterfaceComboBox.SelectedIndex;
-                        }
-                        finally
-                        {
-                            targetComboBox.SelectionChanged += NetworkInterfaceComboBox_SelectionChanged;
-                        }
+                        if (other == null || other == comboBox) return;
+                        other.SelectionChanged -= handler;
+                        try { other.SelectedIndex = sourceIdx; }
+                        finally { other.SelectionChanged += handler; }
                     }
-                    else
-                    {
-                        targetComboBox = NetworkInterfaceComboBox;
-                        targetComboBox.SelectionChanged -= NetworkInterfaceComboBox_SelectionChanged;
-                        try
-                        {
-                            targetComboBox.SelectedIndex = AdvNetworkInterfaceComboBox.SelectedIndex;
-                        }
-                        finally
-                        {
-                            targetComboBox.SelectionChanged += NetworkInterfaceComboBox_SelectionChanged;
-                        }
-                    }
+
+                    SyncIndex(NetworkInterfaceComboBox,    NetworkInterfaceComboBox_SelectionChanged);
+                    SyncIndex(AdvNetworkInterfaceComboBox, NetworkInterfaceComboBox_SelectionChanged);
+                    SyncIndex(NiNicSelector,               NiNicSelector_SelectionChanged);
 
                     _networkStorm.SetSourceInfo(ipAddress, macBytes, subnetMask);
                     _discoveryOrchestrator?.UpdateSourceIp(ipAddress);
@@ -5409,11 +5426,10 @@ namespace Dorothy.Views
             NiProgressBar.IsIndeterminate = true;
 
             _discoveryCts = new CancellationTokenSource();
-            _niProbeService ??= new Services.ReachabilityProbeService(_databaseService);
             if (_discoveryOrchestrator == null)
             {
                 _logger.Info("Creating orchestrator and wiring events");
-                _discoveryOrchestrator = new Services.DiscoveryOrchestrator(_niProbeService);
+                _discoveryOrchestrator = new Services.DiscoveryOrchestrator(_databaseService);
                 WireOrchestratorEvents(_discoveryOrchestrator);
             }
             else
@@ -5520,6 +5536,27 @@ namespace Dorothy.Views
                 });
             };
 
+            o.ProbeStageChanged += (_, stage) => UpdateProbeStage(stage);
+
+            o.BulkProbeProgress += (_, e) =>
+            {
+                // Primary feedback: prominent overlay above the canvas.
+                UpdateBulkProbeOverlay(
+                    e.Succeeded, e.Failed, e.InProgress, e.Total, e.CurrentIp);
+
+                // Backup: small chip in the status bar for users with the overlay
+                // dismissed or scrolled out of view.
+                Dispatcher.InvokeAsync(() =>
+                {
+                    NiBulkProbeStatusText.Visibility = Visibility.Visible;
+                    var label = $"Bulk {e.Level} probe: {e.Succeeded}/{e.Total} done";
+                    if (e.Failed > 0) label += $", {e.Failed} failed";
+                    if (e.InProgress > 0) label += $", {e.InProgress} running";
+                    if (e.CurrentIp != null) label += $" (now: {e.CurrentIp})";
+                    NiBulkProbeStatusText.Text = label;
+                });
+            };
+
             _logger.Info("WireOrchestratorEvents: subscription complete");
         }
 
@@ -5565,9 +5602,8 @@ namespace Dorothy.Views
 
             if (_discoveryOrchestrator == null)
             {
-                _niProbeService ??= new Services.ReachabilityProbeService(_databaseService);
                 _logger.Info("Creating orchestrator and wiring events");
-                _discoveryOrchestrator = new Services.DiscoveryOrchestrator(_niProbeService);
+                _discoveryOrchestrator = new Services.DiscoveryOrchestrator(_databaseService);
                 WireOrchestratorEvents(_discoveryOrchestrator);
             }
 
@@ -5650,11 +5686,25 @@ namespace Dorothy.Views
                 NiDetailLastSeen.Text = string.Empty;
             }
 
-            NiDetailVendor.Text = string.IsNullOrWhiteSpace(node.Vendor)
-                ? (string.IsNullOrWhiteSpace(node.MacAddress) ? "—" : node.MacAddress!)
-                : $"{node.Vendor}  ({node.MacAddress ?? "no MAC"})";
-            NiDetailHostname.Text = node.Hostname ?? node.SysName ?? "—";
+            // VENDOR / HOST — collapse if both Vendor and MAC are empty
+            bool hasVendorOrMac = !string.IsNullOrWhiteSpace(node.Vendor)
+                                  || !string.IsNullOrWhiteSpace(node.MacAddress)
+                                  || !string.IsNullOrWhiteSpace(node.Hostname)
+                                  || !string.IsNullOrWhiteSpace(node.SysName);
+            if (hasVendorOrMac)
+            {
+                NiDetailVendor.Text = string.IsNullOrWhiteSpace(node.Vendor)
+                    ? (string.IsNullOrWhiteSpace(node.MacAddress) ? "" : node.MacAddress!)
+                    : $"{node.Vendor}  ({node.MacAddress ?? "no MAC"})";
+                NiDetailHostname.Text = node.Hostname ?? node.SysName ?? "";
+                NiDetailVendorSection.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                NiDetailVendorSection.Visibility = Visibility.Collapsed;
+            }
 
+            // DEVICE TYPE — collapse for nodes without any OS/probe data
             var os = node.Attributes.TryGetValue("osFamily", out var osF) ? osF : null;
             var osVer = node.Attributes.TryGetValue("osVersion", out var osV) ? osV : null;
             if (!string.IsNullOrWhiteSpace(os))
@@ -5665,16 +5715,42 @@ namespace Dorothy.Views
                     ? (int)(confVal * 100) : 0;
                 NiDetailDeviceType.Text = (string.IsNullOrWhiteSpace(osVer) ? os : $"{os} {osVer}")
                     + (conf > 0 ? $"  ({conf}% confidence)" : "");
+                NiDetailDeviceTypeSection.Visibility = Visibility.Visible;
             }
             else
             {
-                NiDetailDeviceType.Text = "Unknown — run Full probe";
+                NiDetailDeviceTypeSection.Visibility = Visibility.Collapsed;
             }
 
-            NiDetailRoute.Text = subnet ?? "—";
-            NiDetailIcmp.Text = "Run Full probe for ICMP result.";
-            NiDetailTrace.ItemsSource = null;
+            // ROUTE — collapse if no subnet info
+            if (!string.IsNullOrWhiteSpace(subnet))
+            {
+                NiDetailRoute.Text = subnet;
+                NiDetailRouteSection.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                NiDetailRouteSection.Visibility = Visibility.Collapsed;
+            }
 
+            // ICMP — only show after a probe has populated lastProbeStatus
+            // (keeps the placeholder hint out of the panel for ARP-only hosts)
+            if (node.Attributes.ContainsKey("lastProbeUnixMs"))
+            {
+                NiDetailIcmp.Text = "Run Full probe for fresh ICMP result.";
+                NiDetailIcmpSection.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                NiDetailIcmpSection.Visibility = Visibility.Collapsed;
+            }
+
+            // PATH — only after traceroute has produced hops; click-handler
+            // path always starts empty so the section stays collapsed
+            NiDetailTrace.ItemsSource = null;
+            NiDetailPathSection.Visibility = Visibility.Collapsed;
+
+            // TCP PORTS — show only when we have observed open ports
             if (node.OpenPortCount.HasValue && node.OpenPortCount > 0)
             {
                 NiDetailTcp.ItemsSource = new[]
@@ -5684,14 +5760,16 @@ namespace Dorothy.Views
                           Service = $"{node.OpenPortCount} open",
                           Version = "Run Full probe for details" }
                 };
+                NiDetailTcpSection.Visibility = Visibility.Visible;
             }
             else
             {
                 NiDetailTcp.ItemsSource = null;
+                NiDetailTcpSection.Visibility = Visibility.Collapsed;
             }
 
-            if (!string.IsNullOrEmpty(node.SysName) ||
-                !string.IsNullOrEmpty(node.SysDescr))
+            // SNMP — collapse when no sysName / sysDescr
+            if (!string.IsNullOrEmpty(node.SysName) || !string.IsNullOrEmpty(node.SysDescr))
             {
                 var snmpRows = new List<(string Key, string Value)>();
                 if (!string.IsNullOrEmpty(node.SysName))
@@ -5710,14 +5788,54 @@ namespace Dorothy.Views
                 NiSnmpSection.Visibility = Visibility.Collapsed;
             }
 
+            // Tier-only sections collapse on click — they only ever populate
+            // from a fresh probe result (no graph-attribute snapshot for these).
+            NiDetailUdp.ItemsSource = null;
+            NiDetailUdpSection.Visibility = Visibility.Collapsed;
+            NiDetailTls.ItemsSource = null;
+            NiDetailTlsSection.Visibility = Visibility.Collapsed;
+            NiDetailHttp.ItemsSource = null;
+            NiDetailHttpSection.Visibility = Visibility.Collapsed;
+            NiDetailSmb.ItemsSource = null;
+            NiDetailSmbSection.Visibility = Visibility.Collapsed;
+
             VantagePointBorder.Visibility = Visibility.Collapsed;
 
             bool isHost = node.Type is NodeType.Host or NodeType.RemoteHost;
             bool hasIp = !string.IsNullOrWhiteSpace(node.IpAddress);
-            NiDetailProbeButton.Visibility = isHost && hasIp ? Visibility.Visible : Visibility.Collapsed;
+            NiDetailProbeButtonRow.Visibility = isHost && hasIp ? Visibility.Visible : Visibility.Collapsed;
             NiDetailSetTargetButton.Visibility = hasIp ? Visibility.Visible : Visibility.Collapsed;
-            NiDetailProbeButton.IsEnabled = !isStale && isHost && hasIp;
+            NiSimpleProbeButton.IsEnabled = !isStale && isHost && hasIp;
+            NiAdvancedProbeButton.IsEnabled = !isStale && isHost && hasIp;
             NiDetailSetTargetButton.IsEnabled = !isStale && hasIp;
+
+            // If this node was probed earlier in the session, layer the cached
+            // result over the basic-only sections and stamp a "Probed X ago" hint
+            // so the user knows they're looking at real probe data, not just ARP.
+            HostProbeResult? cached = null;
+            if (hasIp) cached = _discoveryOrchestrator?.GetCachedProbeResult(node.IpAddress!);
+            if (cached != null)
+            {
+                UpdateDetailPanelFromProbeResult(cached);
+                var when = cached.CompletedAt ?? cached.StartedAt;
+                NiDetailProbedAt.Text = $"{cached.Level} probe — {FormatRelativeTime(when)}";
+                NiDetailProbedAt.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                NiDetailProbedAt.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private static string FormatRelativeTime(DateTime when)
+        {
+            if (when == default) return "just now";
+            var ago = DateTime.Now - when;
+            if (ago.TotalSeconds < 5)  return "just now";
+            if (ago.TotalSeconds < 60) return $"{(int)ago.TotalSeconds}s ago";
+            if (ago.TotalMinutes < 60) return $"{(int)ago.TotalMinutes}m ago";
+            if (ago.TotalHours   < 24) return $"{(int)ago.TotalHours}h ago";
+            return when.ToString("yyyy-MM-dd HH:mm");
         }
 
         private async void OnSubnetExpandRequested(string subnetId)
@@ -5750,14 +5868,238 @@ namespace Dorothy.Views
             }
         }
 
-        private void OnDeepProbeRequested(string hostIp)
+        private void OnProbeRequested(string hostIp, ProbeLevel level)
         {
             if (string.IsNullOrWhiteSpace(hostIp))
             {
                 Dispatcher.InvokeAsync(() => NiStatusText.Text = "Cannot probe — no IP");
                 return;
             }
-            Dispatcher.InvokeAsync(() => _ = RunDeepProbeAsync(hostIp));
+            Dispatcher.InvokeAsync(() => _ = RunProbeAsync(hostIp, level));
+        }
+
+        private void OnBulkProbeRequested(List<string> ips, ProbeLevel level)
+        {
+            if (ips == null || ips.Count == 0)
+            {
+                Dispatcher.InvokeAsync(() => NiStatusText.Text = "Cannot bulk probe — no targets selected");
+                return;
+            }
+            Dispatcher.InvokeAsync(() => _ = RunBulkProbeAsync(ips, level));
+        }
+
+        // Shift+drag box-select on the canvas → JS coalesces a 150ms burst
+        // and fires a single boxSelectComplete with the per-burst count.
+        // Surface a transient hint in the existing bulk-probe status chip.
+        private CancellationTokenSource? _boxSelectHintCts;
+        private void OnBoxSelectionCompleted(int count)
+        {
+            if (count <= 0) return;
+            Dispatcher.InvokeAsync(async () =>
+            {
+                _boxSelectHintCts?.Cancel();
+                _boxSelectHintCts?.Dispose();
+                _boxSelectHintCts = new CancellationTokenSource();
+                var token = _boxSelectHintCts.Token;
+
+                NiBulkProbeStatusText.Visibility = Visibility.Visible;
+                NiBulkProbeStatusText.Text = $"Selected {count} node(s) — right-click for bulk probe";
+                NiBulkProbeStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentBlue");
+
+                try
+                {
+                    await Task.Delay(3000, token);
+                    if (!token.IsCancellationRequested)
+                    {
+                        NiBulkProbeStatusText.Visibility = Visibility.Collapsed;
+                    }
+                }
+                catch (TaskCanceledException) { /* superseded by another selection */ }
+            });
+        }
+
+        private async Task RunBulkProbeAsync(List<string> ips, ProbeLevel level)
+        {
+            if (_discoveryOrchestrator == null)
+            {
+                NiStatusText.Text = "Start discovery first.";
+                return;
+            }
+
+            _bulkProbeCts?.Dispose();
+            _bulkProbeCts = new CancellationTokenSource();
+
+            // Status-bar chip stays as a backup; the prominent overlay above
+            // the canvas is now the primary feedback.
+            NiBulkProbeStatusText.Visibility = Visibility.Visible;
+            NiBulkProbeStatusText.Text = $"Bulk {level} probe: 0/{ips.Count} starting…";
+            NiStatusText.Text = $"Bulk {level} probe of {ips.Count} hosts started";
+            StartBulkProbeOverlay(ips.Count, level);
+
+            _logger.Info($"[BULK PROBE] RunBulkProbeAsync received {ips.Count} IPs from canvas: " +
+                $"{string.Join(", ", ips.Take(5))}" +
+                (ips.Count > 5 ? $" …+{ips.Count - 5} more" : ""));
+
+            int succeeded = 0;
+            int failed = 0;
+            bool cancelled = false;
+            try
+            {
+                // _bulkProbeCts — user can hit Cancel on the overlay.
+                // Per-host time budgets are still enforced inside ProbeHostAsync.
+                (succeeded, failed) = await _discoveryOrchestrator
+                    .BulkProbeAsync(ips, level, _bulkProbeCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                cancelled = true;
+                _logger.Info("[BULK PROBE] Run cancelled by user");
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "[BULK PROBE] Run failed");
+                NiBulkProbeStatusText.Text = $"Bulk probe failed: {ex.Message}";
+                NiStatusText.Text = $"Bulk probe failed: {ex.Message}";
+                StopBulkProbeOverlay(succeeded, failed, ips.Count, cancelled: false, errored: true, errorMessage: ex.Message);
+                return;
+            }
+            finally
+            {
+                _bulkProbeCts?.Dispose();
+                _bulkProbeCts = null;
+            }
+
+            var summary = cancelled
+                ? $"Bulk {level} probe cancelled: {succeeded}/{ips.Count} done before cancel"
+                : failed == 0
+                    ? $"Bulk {level} probe complete: {succeeded}/{ips.Count} succeeded"
+                    : $"Bulk {level} probe: {succeeded}/{ips.Count} succeeded, {failed} failed (see log)";
+            NiBulkProbeStatusText.Text = summary;
+            NiStatusText.Text = summary;
+            NiBulkProbeStatusText.Foreground = (failed > 0 || cancelled)
+                ? (System.Windows.Media.Brush)FindResource("WarningAmber")
+                : (System.Windows.Media.Brush)FindResource("AccentBlue");
+
+            StopBulkProbeOverlay(succeeded, failed, ips.Count, cancelled, errored: false, errorMessage: null);
+
+            await Task.Delay(3000);
+            NiBulkProbeStatusText.Visibility = Visibility.Collapsed;
+            NiBulkProbeStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentBlue");
+        }
+
+        // ─── Bulk-probe overlay lifecycle ───
+        // The overlay sits at the top of the canvas with spinner + progress bar
+        // + per-IP detail line. It's hard to miss while a bulk run is in flight.
+
+        // Approximate width of the popup content (Border MaxWidth=500 + a 20px
+        // right-edge gutter so the popup's right border doesn't touch the
+        // canvas's right edge). HorizontalOffset = canvas.ActualWidth - this
+        // value pins the popup at the top-right.
+        private const double BulkOverlayRightInset = 520;
+
+        private void RepositionBulkOverlayToTopRight()
+        {
+            if (NiTopologyCanvas == null) return;
+            var canvasWidth = NiTopologyCanvas.ActualWidth;
+            // Fallback to 20 if the canvas hasn't measured yet (popup still
+            // visible at top-left, gets corrected on the first SizeChanged).
+            var x = canvasWidth >= BulkOverlayRightInset
+                ? canvasWidth - BulkOverlayRightInset
+                : 20;
+            NiBulkProbeOverlay.HorizontalOffset = x;
+            NiBulkProbeOverlay.VerticalOffset = 20;
+        }
+
+        private void BulkOverlay_RepositionOnResize(object sender, SizeChangedEventArgs e)
+        {
+            if (NiBulkProbeOverlay.IsOpen)
+            {
+                RepositionBulkOverlayToTopRight();
+            }
+        }
+
+        private void StartBulkProbeOverlay(int total, ProbeLevel level)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                NiBulkProbeOverlay.IsOpen = true;
+                RepositionBulkOverlayToTopRight();
+                NiTopologyCanvas.SizeChanged -= BulkOverlay_RepositionOnResize;
+                NiTopologyCanvas.SizeChanged += BulkOverlay_RepositionOnResize;
+
+                NiBulkOverlayText.Text = $"Running {level} probe on {total} hosts…";
+                NiBulkProgressBar.Value = 0;
+                NiBulkDetailText.Text = "";
+                NiBulkCancelButton.IsEnabled = true;
+
+                var anim = new System.Windows.Media.Animation.DoubleAnimation(
+                    0, 360, new Duration(TimeSpan.FromSeconds(1.2)))
+                {
+                    RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+                };
+                NiBulkSpinnerRotate.BeginAnimation(
+                    System.Windows.Media.RotateTransform.AngleProperty, anim);
+            });
+        }
+
+        private void UpdateBulkProbeOverlay(
+            int succeeded, int failed, int inProgress, int total, string? currentIp)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                if (!NiBulkProbeOverlay.IsOpen) return;
+
+                var done = succeeded + failed;
+                NiBulkProgressBar.Value = total == 0 ? 0 : (done * 100.0 / total);
+
+                var text = $"Bulk probe: {succeeded}/{total} succeeded";
+                if (failed > 0) text += $", {failed} failed";
+                if (inProgress > 0) text += $", {inProgress} running";
+                NiBulkOverlayText.Text = text;
+
+                NiBulkDetailText.Text = currentIp != null
+                    ? $"Now probing: {currentIp}"
+                    : "";
+            });
+        }
+
+        private void StopBulkProbeOverlay(
+            int succeeded, int failed, int total, bool cancelled, bool errored, string? errorMessage)
+        {
+            Dispatcher.InvokeAsync(async () =>
+            {
+                NiBulkSpinnerRotate.BeginAnimation(
+                    System.Windows.Media.RotateTransform.AngleProperty, null);
+                NiBulkCancelButton.IsEnabled = false;
+                NiBulkProgressBar.Value = 100;
+
+                if (errored)
+                {
+                    NiBulkOverlayText.Text = $"Bulk probe failed: {errorMessage}";
+                }
+                else if (cancelled)
+                {
+                    NiBulkOverlayText.Text = $"Bulk probe cancelled — {succeeded}/{total} done before cancel";
+                }
+                else
+                {
+                    NiBulkOverlayText.Text = failed == 0
+                        ? $"Bulk probe complete: {succeeded}/{total} succeeded"
+                        : $"Bulk probe done: {succeeded}/{total} succeeded, {failed} failed";
+                }
+                NiBulkDetailText.Text = "";
+
+                await Task.Delay(3000);
+                NiBulkProbeOverlay.IsOpen = false;
+                NiTopologyCanvas.SizeChanged -= BulkOverlay_RepositionOnResize;
+            });
+        }
+
+        private void NiBulkCancelButton_Click(object sender, RoutedEventArgs e)
+        {
+            try { _bulkProbeCts?.Cancel(); } catch { /* already cancelled / disposed */ }
+            NiBulkOverlayText.Text = "Cancelling bulk probe…";
+            NiBulkCancelButton.IsEnabled = false;
         }
 
         private void OnTracerouteRequested(string hostIp)
@@ -5824,7 +6166,7 @@ namespace Dorothy.Views
             });
         }
 
-        private async Task RunDeepProbeAsync(string ipAddress)
+        private async Task RunProbeAsync(string ipAddress, ProbeLevel level)
         {
             if (_discoveryOrchestrator == null)
             {
@@ -5832,19 +6174,32 @@ namespace Dorothy.Views
                 return;
             }
 
-            NiStatusText.Text = $"Probing {ipAddress}...";
+            // Disable both probe buttons for the duration of the run.
+            NiSimpleProbeButton.IsEnabled = false;
+            NiAdvancedProbeButton.IsEnabled = false;
+
+            NiProbeTargetText.Text = $"Probing {ipAddress}";
+            StartProbeProgressAnimation();
+            UpdateProbeStage(level == ProbeLevel.Advanced
+                ? $"Starting advanced probe on {ipAddress}..."
+                : $"Starting simple probe on {ipAddress}...");
+
+            NiStatusText.Text = level == ProbeLevel.Advanced
+                ? $"Advanced probe running on {ipAddress}... (up to 5 min)"
+                : $"Simple probe running on {ipAddress}... (up to 30s)";
             NiDetailIcmp.Text = "Probing...";
+            NiDetailIcmpSection.Visibility = Visibility.Visible;
             NiDetailTcp.ItemsSource = null;
             NiDetailTrace.ItemsSource = null;
 
-            var ports = new List<int> { 22, 80, 443, 3389, 8080, 8443 };
-
             try
             {
-                var result = await _discoveryOrchestrator.DeepProbeHostAsync(
-                    ipAddress, ports, _discoveryCts?.Token ?? default);
+                var result = await _discoveryOrchestrator.ProbeHostAsync(
+                    ipAddress, level, _discoveryCts?.Token ?? default);
 
                 UpdateDetailPanelFromProbeResult(result);
+                NiDetailProbedAt.Text = $"{result.Level} probe — just now";
+                NiDetailProbedAt.Visibility = Visibility.Visible;
 
                 if (_discoveryOrchestrator.Graph.GetNode(ipAddress) is { } node)
                 {
@@ -5859,18 +6214,59 @@ namespace Dorothy.Views
                     _discoveryOrchestrator.Graph.UpsertNode(node);
                 }
 
-                NiStatusText.Text = $"Probe of {ipAddress} complete";
+                UpdateProbeStage($"Probe of {ipAddress} complete");
+                NiStatusText.Text = $"{level} probe of {ipAddress} complete";
+                // Brief pause so the user sees the "complete" state.
+                await Task.Delay(1500);
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "Deep probe failed");
+                _logger.Error(ex, $"{level} probe failed");
+                UpdateProbeStage($"Probe failed: {ex.Message}");
                 NiStatusText.Text = $"Probe failed: {ex.Message}";
                 NiDetailIcmp.Text = $"Error: {ex.Message}";
+                await Task.Delay(3000);
             }
+            finally
+            {
+                StopProbeProgressAnimation();
+                bool stillSelected = !string.IsNullOrWhiteSpace(_selectedTopologyNode?.IpAddress);
+                NiSimpleProbeButton.IsEnabled = stillSelected;
+                NiAdvancedProbeButton.IsEnabled = stillSelected;
+            }
+        }
+
+        private void StartProbeProgressAnimation()
+        {
+            NiProbeProgressPanel.Visibility = Visibility.Visible;
+
+            var rotateAnim = new System.Windows.Media.Animation.DoubleAnimation(
+                0, 360, new Duration(TimeSpan.FromSeconds(1.2)))
+            {
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever
+            };
+            NiProbeSpinnerRotate.BeginAnimation(
+                System.Windows.Media.RotateTransform.AngleProperty, rotateAnim);
+        }
+
+        private void StopProbeProgressAnimation()
+        {
+            NiProbeSpinnerRotate.BeginAnimation(
+                System.Windows.Media.RotateTransform.AngleProperty, null);
+            NiProbeProgressPanel.Visibility = Visibility.Collapsed;
+        }
+
+        private void UpdateProbeStage(string stage)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                NiProbeStageText.Text = stage;
+            });
         }
 
         private void UpdateDetailPanelFromProbeResult(HostProbeResult result)
         {
+            // DEVICE TYPE — show only when fingerprinting produced a non-Unknown OS
             if (!string.IsNullOrEmpty(result.OsFamily) && result.OsFamily != "Unknown")
             {
                 var conf = (int)(result.OsConfidence * 100);
@@ -5878,12 +6274,14 @@ namespace Dorothy.Views
                     ? result.OsFamily
                     : $"{result.OsFamily} {result.OsVersion}")
                     + $"  ({conf}% confidence)";
+                NiDetailDeviceTypeSection.Visibility = Visibility.Visible;
             }
             else
             {
-                NiDetailDeviceType.Text = "Unknown";
+                NiDetailDeviceTypeSection.Visibility = Visibility.Collapsed;
             }
 
+            // VENDOR / HOST — combined hostname + NetBIOS line
             var names = new List<string>();
             if (!string.IsNullOrEmpty(result.Hostname))
                 names.Add(result.Hostname!);
@@ -5892,8 +6290,13 @@ namespace Dorothy.Views
                 names.Add($"NetBIOS: {result.NetBiosName}");
             if (!string.IsNullOrEmpty(result.NetBiosWorkgroup))
                 names.Add($"Workgroup: {result.NetBiosWorkgroup}");
-            NiDetailHostname.Text = names.Count > 0 ? string.Join("  ·  ", names) : "—";
+            if (names.Count > 0)
+            {
+                NiDetailHostname.Text = string.Join("  ·  ", names);
+                NiDetailVendorSection.Visibility = Visibility.Visible;
+            }
 
+            // ICMP — always populated when probe completes
             var icmpText = result.IcmpStatus switch
             {
                 IcmpStatus.Reply => result.IcmpRttMs.HasValue
@@ -5904,8 +6307,11 @@ namespace Dorothy.Views
                 _ => "Unknown"
             };
             NiDetailIcmp.Text = icmpText;
+            NiDetailIcmpSection.Visibility = Visibility.Visible;
 
-            if (result.TcpPorts != null && result.TcpPorts.Count > 0)
+            // TCP PORTS — only show when at least one port was non-Closed
+            if (result.TcpPorts != null && result.TcpPorts.Count > 0
+                && result.TcpPorts.Any(kv => kv.Value != PortStatus.Closed))
             {
                 var portRows = result.TcpPorts
                     .Where(kv => kv.Value != PortStatus.Closed)
@@ -5923,19 +6329,24 @@ namespace Dorothy.Views
                     })
                     .ToList();
                 NiDetailTcp.ItemsSource = portRows;
+                NiDetailTcpSection.Visibility = Visibility.Visible;
             }
             else
             {
                 NiDetailTcp.ItemsSource = null;
+                NiDetailTcpSection.Visibility = Visibility.Collapsed;
             }
 
+            // PATH — only show when traceroute produced hops
             if (result.TracerouteHops != null && result.TracerouteHops.Count > 0)
             {
                 NiDetailTrace.ItemsSource = result.TracerouteHops;
+                NiDetailPathSection.Visibility = Visibility.Visible;
             }
             else
             {
                 NiDetailTrace.ItemsSource = null;
+                NiDetailPathSection.Visibility = Visibility.Collapsed;
             }
 
             if (result.SnmpValues != null && result.SnmpValues.Count > 0)
@@ -5946,6 +6357,137 @@ namespace Dorothy.Views
                 NiDetailSnmp.Visibility = Visibility.Visible;
                 NiSnmpSection.Visibility = Visibility.Visible;
             }
+
+            // UDP PORTS — only show ports that responded (Open) or were silent
+            // but reachable (OpenOrFiltered). Closed/Unreachable get folded away.
+            if (result.UdpResults != null
+                && result.UdpResults.Any(u => u.Status != UdpStatus.Closed))
+            {
+                NiDetailUdp.ItemsSource = result.UdpResults
+                    .Where(u => u.Status != UdpStatus.Closed)
+                    .OrderBy(u => u.Port)
+                    .Select(u => new
+                    {
+                        Port = u.Port,
+                        Status = u.Status.ToString(),
+                        Service = u.IdentifiedService ?? ""
+                    })
+                    .ToList();
+                NiDetailUdpSection.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                NiDetailUdp.ItemsSource = null;
+                NiDetailUdpSection.Visibility = Visibility.Collapsed;
+            }
+
+            // TLS CERTIFICATE — prefer the dictionary populated by Advanced
+            // probe; fall back to whatever the banner carried for older results.
+            var tlsRows = new List<object>();
+            if (result.TlsInfo != null)
+            {
+                foreach (var kv in result.TlsInfo.OrderBy(kv => kv.Key))
+                {
+                    if (kv.Value == null) continue;
+                    tlsRows.Add(BuildTlsRow(kv.Key, kv.Value));
+                }
+            }
+            if (tlsRows.Count == 0 && result.Banners != null)
+            {
+                foreach (var b in result.Banners.Where(b => b.Tls != null).OrderBy(b => b.Port))
+                {
+                    tlsRows.Add(BuildTlsRow(b.Port, b.Tls!));
+                }
+            }
+            if (tlsRows.Count > 0)
+            {
+                NiDetailTls.ItemsSource = tlsRows;
+                NiDetailTlsSection.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                NiDetailTls.ItemsSource = null;
+                NiDetailTlsSection.Visibility = Visibility.Collapsed;
+            }
+
+            // HTTP PATHS — flatten all per-port findings into one list
+            if (result.HttpPaths != null && result.HttpPaths.Count > 0)
+            {
+                var httpRows = new List<object>();
+                foreach (var (port, list) in result.HttpPaths.OrderBy(kv => kv.Key))
+                {
+                    foreach (var f in list.OrderBy(f => f.StatusCode))
+                    {
+                        httpRows.Add(new
+                        {
+                            Status = f.StatusCode.ToString(),
+                            PortPath = $":{port}{f.Path}",
+                            Title = f.Title ?? ""
+                        });
+                    }
+                }
+                if (httpRows.Count > 0)
+                {
+                    NiDetailHttp.ItemsSource = httpRows;
+                    NiDetailHttpSection.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    NiDetailHttp.ItemsSource = null;
+                    NiDetailHttpSection.Visibility = Visibility.Collapsed;
+                }
+            }
+            else
+            {
+                NiDetailHttp.ItemsSource = null;
+                NiDetailHttpSection.Visibility = Visibility.Collapsed;
+            }
+
+            // SMB INFO — only show if NEGOTIATE returned anything
+            if (result.SmbInfo != null)
+            {
+                var smb = result.SmbInfo;
+                var rows = new List<object>();
+                if (!string.IsNullOrWhiteSpace(smb.SmbVersion))
+                    rows.Add(new { Key = "Version", Value = smb.SmbVersion! });
+                rows.Add(new { Key = "Signing required", Value = smb.SigningRequired ? "Yes" : "No" });
+                rows.Add(new { Key = "Signing enabled",  Value = smb.SigningEnabled  ? "Yes" : "No" });
+                if (!string.IsNullOrWhiteSpace(smb.NativeOs))
+                    rows.Add(new { Key = "Native OS", Value = smb.NativeOs! });
+                if (!string.IsNullOrWhiteSpace(smb.NativeLanManager))
+                    rows.Add(new { Key = "LAN Manager", Value = smb.NativeLanManager! });
+                if (!string.IsNullOrWhiteSpace(smb.NetBiosComputerName))
+                    rows.Add(new { Key = "NetBIOS name", Value = smb.NetBiosComputerName! });
+                if (!string.IsNullOrWhiteSpace(smb.NetBiosDomain))
+                    rows.Add(new { Key = "NetBIOS domain", Value = smb.NetBiosDomain! });
+                if (!string.IsNullOrWhiteSpace(smb.DnsComputerName))
+                    rows.Add(new { Key = "DNS name", Value = smb.DnsComputerName! });
+                if (!string.IsNullOrWhiteSpace(smb.DnsDomain))
+                    rows.Add(new { Key = "DNS domain", Value = smb.DnsDomain! });
+                NiDetailSmb.ItemsSource = rows;
+                NiDetailSmbSection.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                NiDetailSmb.ItemsSource = null;
+                NiDetailSmbSection.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private static object BuildTlsRow(int port, TlsInfo t)
+        {
+            var sansLine = (t.SubjectAlternativeNames != null && t.SubjectAlternativeNames.Length > 0)
+                ? "SANs: " + string.Join(", ", t.SubjectAlternativeNames)
+                : string.Empty;
+            return new
+            {
+                Header = $":{port}  {t.TlsVersion ?? "?"}  " +
+                         (t.SelfSigned ? "(self-signed)" : ""),
+                Subject  = $"CN: {t.SubjectCN ?? "?"}",
+                Issuer   = $"Issuer: {t.IssuerCN ?? "?"}",
+                Validity = $"Valid: {t.NotBefore:yyyy-MM-dd} → {t.NotAfter:yyyy-MM-dd}",
+                Sans     = sansLine
+            };
         }
 
         private async Task RunSnmpWalkAsync(string ipAddress)
@@ -5972,10 +6514,16 @@ namespace Dorothy.Views
             }
         }
 
-        private void NiDetailProbeButton_Click(object sender, RoutedEventArgs e)
+        private void NiSimpleProbeButton_Click(object sender, RoutedEventArgs e)
         {
             if (string.IsNullOrWhiteSpace(_selectedTopologyNode?.IpAddress)) return;
-            OnDeepProbeRequested(_selectedTopologyNode.IpAddress!);
+            OnProbeRequested(_selectedTopologyNode.IpAddress!, ProbeLevel.Simple);
+        }
+
+        private void NiAdvancedProbeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrWhiteSpace(_selectedTopologyNode?.IpAddress)) return;
+            OnProbeRequested(_selectedTopologyNode.IpAddress!, ProbeLevel.Advanced);
         }
 
         private void NiDetailSetTargetButton_Click(object sender, RoutedEventArgs e)
@@ -5992,6 +6540,86 @@ namespace Dorothy.Views
             var edgeCount = edges.Count;
             var flowCount = edges.Count(ed => ed.Type == EdgeType.Flow);
             NiNodeCountText.Text = $"{nodeCount} nodes  {edgeCount} edges  {flowCount} flows";
+        }
+
+        private async void NiTracerouteRunButton_Click(object sender, RoutedEventArgs e)
+        {
+            var target = NiTracerouteTargetInput.Text?.Trim();
+            if (string.IsNullOrEmpty(target))
+            {
+                MessageBox.Show("Enter an IP or hostname.",
+                    "Traceroute", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (_discoveryOrchestrator == null)
+            {
+                MessageBox.Show(
+                    "Run Start Discovery first to initialize the topology graph.",
+                    "Traceroute", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            NiTracerouteRunButton.IsEnabled = false;
+            try
+            {
+                // Resolve hostname to IPv4 if needed.
+                string targetIp = target;
+                if (!System.Net.IPAddress.TryParse(target, out _))
+                {
+                    try
+                    {
+                        var entry = await System.Net.Dns.GetHostEntryAsync(target);
+                        var ipv4 = entry.AddressList
+                            .FirstOrDefault(a => a.AddressFamily ==
+                                System.Net.Sockets.AddressFamily.InterNetwork);
+                        if (ipv4 == null)
+                        {
+                            MessageBox.Show(
+                                $"No IPv4 address found for {target}.",
+                                "Traceroute", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            return;
+                        }
+                        targetIp = ipv4.ToString();
+                        _logger.Info($"[TRACEROUTE] Resolved {target} → {targetIp}");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show(
+                            $"Could not resolve {target}: {ex.Message}",
+                            "Traceroute", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+                }
+
+                await _discoveryOrchestrator
+                    .RunInteractiveTracerouteAsync(
+                        targetIp, target, _discoveryCts?.Token ?? CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _logger.Error(ex, "[TRACEROUTE] User-triggered run failed");
+                MessageBox.Show(
+                    $"Traceroute failed: {ex.Message}",
+                    "Traceroute", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            finally
+            {
+                NiTracerouteRunButton.IsEnabled = true;
+            }
+        }
+
+        private void NiRecenterButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                NiTopologyCanvas.Recenter();
+                NiStatusText.Text = "Topology re-centered.";
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "[NI] Recenter failed");
+            }
         }
 
         private void NiClearTopologyButton_Click(object sender, RoutedEventArgs e)
@@ -6016,6 +6644,7 @@ namespace Dorothy.Views
         {
             NiStatusText.Text = $"Tracing route to {ipAddress}...";
             NiDetailTrace.ItemsSource = null;
+            NiDetailPathSection.Visibility = Visibility.Visible;
 
             try
             {
@@ -6117,8 +6746,7 @@ namespace Dorothy.Views
                         _databaseService,
                         _discoveryOrchestrator);
 
-                    var target = _selectedTopologyNode?.IpAddress
-                        ?? (string.IsNullOrWhiteSpace(NiSubnetOverride.Text) ? string.Empty : NiSubnetOverride.Text);
+                    var target = _selectedTopologyNode?.IpAddress ?? string.Empty;
 
                     var content = await svc.GenerateAsync(
                         Array.Empty<HostProbeResult>(),
