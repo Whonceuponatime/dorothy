@@ -37,7 +37,32 @@ namespace Dorothy.Views
         private bool _isInitialized;
         private string _pendingTheme = "Dark";
         private bool _hasReceivedInitialLayout;
-        private string? _pendingElements;
+        // Buffers for payloads that arrive before WebView2 finishes
+        // navigating. The original implementation stored a single string
+        // and overwrote on each call — every burst of pre-init upserts
+        // collapsed to the LAST one, which then hit cytoscape with no
+        // companion nodes and threw "Can not create edge with nonexistant
+        // source". Now we queue every payload in arrival order and replay
+        // the entire queue from NavigationCompleted. Init payloads use a
+        // separate single slot — multiple inits supersede each other
+        // (the latest snapshot wins), but they always replay BEFORE any
+        // queued upserts so the upserts have nodes to attach to.
+        private readonly object _pendingLock = new object();
+        private readonly List<string> _pendingElements = new List<string>();
+        private string? _pendingInit;
+
+        // Live-discovery batching: while a scan is in flight, the orchestrator
+        // raises ScanStarted → MainWindow calls BeginBatch on the canvas.
+        // Every UpsertElements arriving during the scan is buffered instead of
+        // pushed to cytoscape. ScanCompleted → EndBatch → all buffered payloads
+        // merge into one envelope, push to cytoscape in a single round-trip.
+        // Why: cytoscape-cola re-runs layout on each cy.add() call; with 90+
+        // hosts streaming in over a stealth-mode scan, the canvas seizured and
+        // collapsed nodes to a single point. Batching defers the layout pass
+        // to a single one-shot run after all elements are present.
+        private bool _batching;
+        private readonly List<string> _batchedUpserts = new List<string>();
+        private readonly object _batchLock = new object();
 
         public TopologyCanvasControl()
         {
@@ -113,8 +138,19 @@ namespace Dorothy.Views
 
         public void InitGraph(string cytoscapeJson)
         {
-            if (!_isInitialized || WebView.CoreWebView2 == null) return;
             if (string.IsNullOrWhiteSpace(cytoscapeJson)) cytoscapeJson = "{\"nodes\":[],\"edges\":[]}";
+
+            if (!_isInitialized || WebView.CoreWebView2 == null)
+            {
+                // Buffer the init payload — single slot is intentional, the
+                // most recent snapshot supersedes any prior pending init.
+                // Replays in NavigationCompleted before any queued upserts.
+                lock (_pendingLock) { _pendingInit = cytoscapeJson; }
+                Logger.Info("TopoCanvas: not initialized yet, queueing InitGraph payload");
+                return;
+            }
+
+            _hasReceivedInitialLayout = true;
             var msg = $"{{\"type\":\"init\",\"elements\":{cytoscapeJson}}}";
             TryPostToWebView(msg);
         }
@@ -130,9 +166,24 @@ namespace Dorothy.Views
 
             if (!_isInitialized)
             {
-                Logger.Info("TopoCanvas: not initialized yet, queueing payload");
-                _pendingElements = cytoscapeElementsJson;
+                // Append — every payload survives until NavigationCompleted
+                // replays the queue in order. The previous single-slot
+                // overwrite dropped all but the last, which is the bug
+                // described in d3 of the topology-disconnect recon.
+                lock (_pendingLock) { _pendingElements.Add(cytoscapeElementsJson); }
+                Logger.Info($"TopoCanvas: not initialized yet, queued payload ({_pendingElements.Count} pending)");
                 return;
+            }
+
+            // Batching during a scan: append + return. EndBatch will merge
+            // all buffered payloads and push them to cytoscape as one envelope.
+            lock (_batchLock)
+            {
+                if (_batching)
+                {
+                    _batchedUpserts.Add(cytoscapeElementsJson);
+                    return;
+                }
             }
 
             // cytoscapeElementsJson may arrive in one of two shapes:
@@ -193,9 +244,92 @@ namespace Dorothy.Views
         public void ClearGraph()
         {
             _hasReceivedInitialLayout = false;
-            _pendingElements = null;
+            lock (_pendingLock)
+            {
+                _pendingElements.Clear();
+                _pendingInit = null;
+            }
+            lock (_batchLock)
+            {
+                _batching = false;
+                _batchedUpserts.Clear();
+            }
             if (!_isInitialized || WebView.CoreWebView2 == null) return;
             TryPostToWebView("{\"type\":\"clear\"}");
+        }
+
+        /// <summary>
+        /// Open a batch window. While open, every UpsertElements call buffers
+        /// instead of pushing to cytoscape. EndBatch merges + flushes once.
+        /// Idempotent — calling Begin twice without End is a no-op on the
+        /// second call (the existing batch keeps accumulating).
+        /// </summary>
+        public void BeginBatch()
+        {
+            lock (_batchLock)
+            {
+                if (_batching) return;
+                _batching = true;
+                _batchedUpserts.Clear();
+            }
+            Logger.Info("[TOPOLOGY] BeginBatch — live upserts will be buffered until EndBatch");
+        }
+
+        /// <summary>
+        /// Close the batch window and flush all buffered payloads to cytoscape
+        /// as one envelope. Cytoscape's handleUpsert performs the cy.add calls
+        /// in one tick and runs cola layout exactly once for the full graph,
+        /// instead of re-running it after every per-host arrival.
+        /// </summary>
+        public void EndBatch()
+        {
+            List<string> toFlush;
+            lock (_batchLock)
+            {
+                if (!_batching) return;
+                _batching = false;
+                toFlush = new List<string>(_batchedUpserts);
+                _batchedUpserts.Clear();
+            }
+
+            Logger.Info($"[TOPOLOGY] EndBatch — flushing {toFlush.Count} payloads to canvas");
+            if (toFlush.Count == 0) return;
+
+            string merged;
+            try { merged = MergeBatchedPayloads(toFlush); }
+            catch (Exception ex)
+            {
+                Logger.Warn(ex, "[TOPOLOGY] EndBatch merge failed; pushing payloads individually");
+                foreach (var p in toFlush) UpsertElements(p);
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(merged)) UpsertElements(merged);
+        }
+
+        private static string MergeBatchedPayloads(List<string> payloads)
+        {
+            // Each payload is a JSON array of element data dicts (or wrapped
+            // {data:{…}} dicts). Concatenate all elements into one big array
+            // so a single handleUpsert call processes them; cola then re-runs
+            // layout exactly once.
+            var sb = new System.Text.StringBuilder();
+            sb.Append('[');
+            bool first = true;
+            foreach (var p in payloads)
+            {
+                if (string.IsNullOrWhiteSpace(p)) continue;
+                using var doc = JsonDocument.Parse(p);
+                if (doc.RootElement.ValueKind != JsonValueKind.Array) continue;
+                foreach (var el in doc.RootElement.EnumerateArray())
+                {
+                    if (!first) sb.Append(',');
+                    sb.Append(el.GetRawText());
+                    first = false;
+                }
+            }
+            sb.Append(']');
+            return sb.ToString();
         }
 
         public void SelectNode(string id)
@@ -253,20 +387,39 @@ namespace Dorothy.Views
         {
             _isInitialized = e.IsSuccess;
 
+            string? queuedInit;
+            List<string> queuedUpserts;
+            lock (_pendingLock)
+            {
+                queuedInit = _pendingInit;
+                queuedUpserts = new List<string>(_pendingElements);
+                _pendingInit = null;
+                _pendingElements.Clear();
+            }
+
             Logger.Info(
                 $"TopoCanvas NavigationCompleted, isSuccess={e.IsSuccess}, " +
-                $"pendingElements={_pendingElements != null}");
+                $"pendingInit={queuedInit != null}, pendingUpserts={queuedUpserts.Count}");
 
             if (!_isInitialized) return;
 
             var themeMsg = $"{{\"type\":\"theme\",\"value\":\"{_pendingTheme}\"}}";
             WebView.CoreWebView2?.PostWebMessageAsString(themeMsg);
 
-            if (_pendingElements != null)
+            // Init payload first — must arrive before any upserts so the
+            // upserts have nodes to attach edges to. Single slot was already
+            // last-write-wins so the most recent snapshot is correct.
+            if (queuedInit != null)
             {
-                var queued = _pendingElements;
-                _pendingElements = null;
-                UpsertElements(queued);
+                InitGraph(queuedInit);
+            }
+
+            // Replay every queued upsert in arrival order. The orchestrator
+            // emits NodeChanged before EdgeChanged for any single discovery
+            // event; preserving order means edges still find their endpoints.
+            foreach (var pending in queuedUpserts)
+            {
+                UpsertElements(pending);
             }
         }
 
@@ -342,15 +495,19 @@ namespace Dorothy.Views
                                 // 2+ selected → buttons enter bulk mode and show the count.
                                 if (selCount > 1)
                                 {
-                                    CtxSimpleProbe.Content   = $"Simple probe selected ({selCount})";
-                                    CtxAdvancedProbe.Content = $"Advanced probe selected ({selCount})";
+                                    CtxSurveyProbe.Content   = $"Reachability test selected ({selCount})";
+                                    CtxSimpleProbe.Content   = $"Banner grab selected ({selCount})";
+                                    CtxAdvancedProbe.Content = $"Deep scan selected ({selCount})";
+                                    CtxSurveyProbe.IsEnabled   = true;
                                     CtxSimpleProbe.IsEnabled   = true;
                                     CtxAdvancedProbe.IsEnabled = true;
                                 }
                                 else
                                 {
-                                    CtxSimpleProbe.Content   = "Simple probe (~15s)";
-                                    CtxAdvancedProbe.Content = "Advanced probe (~3min)";
+                                    CtxSurveyProbe.Content   = "Reachability test (safe)";
+                                    CtxSimpleProbe.Content   = "Banner grab (~15s)";
+                                    CtxAdvancedProbe.Content = "Deep scan (~3min)";
+                                    CtxSurveyProbe.IsEnabled   = hasIp;
                                     CtxSimpleProbe.IsEnabled   = hasIp;
                                     CtxAdvancedProbe.IsEnabled = hasIp;
                                 }
@@ -415,6 +572,12 @@ namespace Dorothy.Views
             NodeContextMenu.IsOpen = false;
             if (!string.IsNullOrEmpty(_pendingContextSubnet))
                 SubnetExpandRequested?.Invoke(_pendingContextSubnet);
+        }
+
+        private void CtxSurveyProbe_Click(object sender, RoutedEventArgs e)
+        {
+            NodeContextMenu.IsOpen = false;
+            DispatchProbeFromContext(ProbeLevel.Survey);
         }
 
         private void CtxSimpleProbe_Click(object sender, RoutedEventArgs e)

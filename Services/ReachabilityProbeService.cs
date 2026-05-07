@@ -47,6 +47,13 @@ namespace Dorothy.Services
 
         public bool IsRunning => Volatile.Read(ref _isRunning) == 1;
 
+        /// <summary>
+        /// When true, ICMP ping uses 1 attempt instead of 3. Set by the
+        /// orchestrator before calling StartRunAsync when the user has the
+        /// NI stealth toggle on.
+        /// </summary>
+        public bool StealthMode { get; set; }
+
         public ReachabilityProbeService(DatabaseService database)
         {
             _database = database ?? throw new ArgumentNullException(nameof(database));
@@ -330,7 +337,8 @@ namespace Dorothy.Services
             bool anyError = false;
 
             using var ping = new Ping();
-            for (int i = 0; i < IcmpPingAttempts; i++)
+            int attempts = StealthMode ? 1 : IcmpPingAttempts;
+            for (int i = 0; i < attempts; i++)
             {
                 if (token.IsCancellationRequested) break;
                 try

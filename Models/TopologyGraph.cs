@@ -66,6 +66,32 @@ namespace Dorothy.Models
             lock (_lock) { return _nodes.TryGetValue(id, out var node) ? node : null; }
         }
 
+        /// <summary>
+        /// Remove a node and cascade-delete every edge where it is the source
+        /// or target. Used when a NIC change orphans the previous Self node:
+        /// without the cascade, edges keyed on the old IP linger in the graph
+        /// and re-trigger the "nonexistant source" cytoscape error on the
+        /// next snapshot push.
+        /// </summary>
+        public bool RemoveNode(string nodeId)
+        {
+            if (string.IsNullOrWhiteSpace(nodeId)) return false;
+            lock (_lock)
+            {
+                if (!_nodes.Remove(nodeId)) return false;
+
+                var edgesToRemove = _edges.Values
+                    .Where(e => e.Source == nodeId || e.Target == nodeId)
+                    .Select(e => e.Id)
+                    .ToList();
+                foreach (var edgeId in edgesToRemove)
+                {
+                    _edges.Remove(edgeId);
+                }
+                return true;
+            }
+        }
+
         public IReadOnlyList<TopologyNode> Nodes
         {
             get { lock (_lock) { return _nodes.Values.ToList(); } }

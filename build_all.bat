@@ -4,8 +4,8 @@ setlocal enabledelayedexpansion
 REM ===========================================================
 REM  SEACURE(TOOL) — builds BOTH Full and Lite installers
 REM  Outputs (in installer\):
-REM    SEACURE(TOOL)_Setup_2.5.1.exe       (~240 MB, full)
-REM    SEACURE(TOOL)_Lite_Setup_2.5.1.exe  (~55 MB, lite)
+REM    SEACURE(TOOL)_Setup_2.5.3.exe       (~240 MB, full)
+REM    SEACURE(TOOL)_Lite_Setup_2.5.3.exe  (~55 MB, lite)
 REM ===========================================================
 
 set PROJECT_DIR=%~dp0
@@ -38,7 +38,7 @@ if errorlevel 1 (
 
 echo.
 echo === [3/4] Compiling FULL installer ===
-if exist "installer\SEACURE(TOOL)_Setup_2.5.1.exe" del "installer\SEACURE(TOOL)_Setup_2.5.1.exe"
+if exist "installer\SEACURE(TOOL)_Setup_2.5.3.exe" del "installer\SEACURE(TOOL)_Setup_2.5.3.exe"
 %ISCC% installer.iss
 if errorlevel 1 (
     echo [ERROR] Full installer compile failed.
@@ -47,7 +47,7 @@ if errorlevel 1 (
 
 echo.
 echo === [4/4] Compiling LITE installer ===
-if exist "installer\SEACURE(TOOL)_Lite_Setup_2.5.1.exe" del "installer\SEACURE(TOOL)_Lite_Setup_2.5.1.exe"
+if exist "installer\SEACURE(TOOL)_Lite_Setup_2.5.3.exe" del "installer\SEACURE(TOOL)_Lite_Setup_2.5.3.exe"
 %ISCC% installer_lite.iss
 if errorlevel 1 (
     echo [ERROR] Lite installer compile failed.
@@ -58,7 +58,7 @@ echo.
 echo === Done ===
 dir /b installer\SEACURE*.exe
 echo.
-for %%F in ("installer\SEACURE(TOOL)_Setup_2.5.1.exe" "installer\SEACURE(TOOL)_Lite_Setup_2.5.1.exe") do (
+for %%F in ("installer\SEACURE(TOOL)_Setup_2.5.3.exe" "installer\SEACURE(TOOL)_Lite_Setup_2.5.3.exe") do (
     if exist %%F (
         for %%A in (%%F) do echo   %%~nxA = %%~zA bytes
     )

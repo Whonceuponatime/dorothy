@@ -89,23 +89,33 @@
                         if (t === 'SubnetCloud') return 0;
                         // Hop chain: tight so consecutive hops sit close.
                         if (t === 'UnknownHop') return 30;
-                        // Hosts: 60 so they spread inside the subnet box.
-                        return 60;
+                        // Hosts: 100 so they spread inside the subnet box.
+                        // Bumped from 60 after a 93-host cabled LAN scan
+                        // packed too tightly to read individual labels.
+                        return 100;
                     },
                     edgeLength: function(edge) {
                         // ArpSeen edges LONG so hosts don't starburst around
                         // Self. TraceroutePath SHORT so the hop chain reads
                         // as a tight sequence. Structural edges medium.
+                        // ArpSeen bumped 180 → 280 alongside the nodeSpacing
+                        // change so the extra room actually gets used.
                         var t = edge.data('type');
-                        if (t === 'ArpSeen') return 180;
+                        if (t === 'ArpSeen') return 280;
                         if (t === 'TraceroutePath') return 50;
                         return 120;
                     },
-                    maxSimulationTime: 3000,
+                    // Bumped from 3000 to 5000 — bigger graphs (90+ hosts)
+                    // need more iterations to settle from the random
+                    // start. Convergence threshold lets cola exit early
+                    // when forces are small instead of always grinding
+                    // the full simulation budget.
+                    maxSimulationTime: 5000,
+                    convergenceThreshold: 0.001,
                     avoidOverlap: true,
                     handleDisconnected: true,
                     infinite: false,
-                    flow: { axis: 'y', minSeparation: 50 }
+                    flow: { axis: 'y', minSeparation: 80 }
                 };
 
                 var stylesheet = [

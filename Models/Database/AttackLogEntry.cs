@@ -1,95 +1,36 @@
 using System;
-using System.Runtime.Serialization;
-using System.Text.Json.Serialization;
-using Supabase.Postgrest.Attributes;
-using Supabase.Postgrest.Models;
 
 namespace Dorothy.Models.Database
 {
-    [Table("attack_logs")]
-    public class AttackLogEntry : BaseModel, ICloneable
+    public class AttackLogEntry : ICloneable
     {
-        [PrimaryKey("id")]
         public long Id { get; set; }
-
-        [Column("project_name")]
-        public string? ProjectName { get; set; }
-
-        [Column("attack_type")]
+        public int EngagementId { get; set; }
         public string AttackType { get; set; } = string.Empty;
-
-        [Column("protocol")]
         public string Protocol { get; set; } = string.Empty;
-
-        [Column("source_ip")]
         public string SourceIp { get; set; } = string.Empty;
-
-        [Column("source_mac")]
         public string? SourceMac { get; set; }
-
-        [Column("target_ip")]
         public string TargetIp { get; set; } = string.Empty;
-
-        [Column("target_mac")]
         public string? TargetMac { get; set; }
-
-        [Column("target_port")]
         public int TargetPort { get; set; }
-
-        [Column("target_rate_mbps")]
         public double TargetRateMbps { get; set; }
-
-        [Column("packets_sent")]
         public long PacketsSent { get; set; }
-
-        [Column("duration_seconds")]
         public int DurationSeconds { get; set; }
-
-        [Column("start_time")]
         public DateTime StartTime { get; set; }
-
-        [Column("stop_time")]
         public DateTime StopTime { get; set; }
-
-        [Column("synced")]
-        public bool Synced { get; set; }
-
-        [Column("created_at")]
         public DateTime CreatedAt { get; set; }
-
-        [Column("hardware_id")]
         public string? HardwareId { get; set; }
-
-        [Column("machine_name")]
         public string? MachineName { get; set; }
-
-        [Column("username")]
         public string? Username { get; set; }
-
-        [Column("user_id")]
         public Guid? UserId { get; set; }
-
-        [JsonIgnore]
-        [IgnoreDataMember]
         public string? Note { get; set; }
-
-        [JsonIgnore]
-        [IgnoreDataMember]
         public string LogContent { get; set; } = string.Empty;
-
-        [JsonIgnore]
-        [IgnoreDataMember]
-        public DateTime? SyncedAt { get; set; }
-
-        [JsonIgnore]
-        [IgnoreDataMember]
-        public bool IsSynced { get; set; }
 
         public object Clone()
         {
             return new AttackLogEntry
             {
-                ProjectName = ProjectName,
+                EngagementId = EngagementId,
                 AttackType = AttackType,
                 Protocol = Protocol,
                 SourceIp = SourceIp,
@@ -102,18 +43,14 @@ namespace Dorothy.Models.Database
                 DurationSeconds = DurationSeconds,
                 StartTime = StartTime,
                 StopTime = StopTime,
-                Synced = Synced,
                 CreatedAt = CreatedAt,
                 HardwareId = HardwareId,
                 MachineName = MachineName,
                 Username = Username,
                 UserId = UserId,
                 Note = Note,
-                LogContent = LogContent,
-                IsSynced = IsSynced,
-                SyncedAt = SyncedAt
+                LogContent = LogContent
             };
         }
     }
 }
-

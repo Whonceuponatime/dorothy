@@ -96,15 +96,30 @@ namespace Dorothy.Services.Probes
                 try { cipherSuite = ssl.NegotiatedCipherSuite.ToString(); }
                 catch { /* OS may not expose */ }
 
+                var nowUtc = DateTime.UtcNow;
+                var notAfter  = capturedCert?.NotAfter  ?? DateTime.MinValue;
+                var notBefore = capturedCert?.NotBefore ?? DateTime.MinValue;
+                // X509Certificate2.NotAfter is local time — normalize to UTC
+                // for the flag comparison so a cert that expires at 23:00 UTC
+                // doesn't read as "valid" to a user whose system clock is
+                // ahead of UTC. Display field stays as-is to preserve format.
+                var notAfterUtc = notAfter.Kind == DateTimeKind.Utc
+                    ? notAfter
+                    : notAfter.ToUniversalTime();
+
                 return new TlsInfo(
                     SubjectCN: subjectCn,
                     IssuerCN: issuerCn,
-                    NotBefore: capturedCert?.NotBefore ?? DateTime.MinValue,
-                    NotAfter:  capturedCert?.NotAfter  ?? DateTime.MinValue,
+                    NotBefore: notBefore,
+                    NotAfter:  notAfter,
                     SubjectAlternativeNames: sans,
                     TlsVersion: tlsVersion,
                     CipherSuite: cipherSuite,
-                    SelfSigned: selfSigned);
+                    SelfSigned: selfSigned,
+                    Expired: notAfterUtc < nowUtc,
+                    ExpiresWithin30Days:
+                        notAfterUtc >= nowUtc &&
+                        notAfterUtc < nowUtc.AddDays(30));
             }
             catch (Exception ex)
             {

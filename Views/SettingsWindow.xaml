@@ -340,6 +340,42 @@
                     </Border>
                 </StackPanel>
             </Border>
+
+            <!-- 2.6.0 offline-persistence rework: surveyors accumulate scans
+                 across launches. Once an engagement has been submitted (or if
+                 the surveyor wants a clean slate before the next assessment),
+                 this wipes ALL scan/topology rows. Engagements metadata is
+                 preserved. -->
+            <Border Background="{DynamicResource SecondaryBg}"
+                    BorderBrush="{DynamicResource BorderDefault}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="16"
+                    Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="Local Data"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimary}"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Text="Permanently deletes all scan data from this device, including unsubmitted assessments. Submitted engagements remain on SEACUREDB. This cannot be undone."
+                               FontSize="11"
+                               Foreground="{DynamicResource TextSecondary}"
+                               TextWrapping="Wrap"
+                               Margin="0,0,0,12"/>
+                    <Button x:Name="ClearLocalDataButton"
+                            Content="Clear all local scan data"
+                            FontSize="12"
+                            Padding="12,6"
+                            HorizontalAlignment="Left"
+                            Background="{DynamicResource FieldErrorBg}"
+                            Foreground="{DynamicResource ErrorRed}"
+                            BorderBrush="{DynamicResource FieldErrorBorder}"
+                            BorderThickness="1"
+                            Cursor="Hand"
+                            Click="ClearLocalDataButton_Click"/>
+                </StackPanel>
+            </Border>
             </StackPanel>
         </ScrollViewer>
 

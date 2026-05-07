@@ -7,9 +7,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationIcon>Resources\icon.ico</ApplicationIcon>
     <AssemblyName>Dorothy</AssemblyName>
-    <Version>2.5.1</Version>
-    <AssemblyVersion>2.5.1.0</AssemblyVersion>
-    <FileVersion>2.5.1.0</FileVersion>
+    <Version>2.5.3</Version>
+    <AssemblyVersion>2.5.3.0</AssemblyVersion>
+    <FileVersion>2.5.3.0</FileVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <Platforms>x64</Platforms>
@@ -32,12 +32,12 @@
   <PropertyGroup Condition="'$(LiteBuild)' == 'true'">
     <DefineConstants>$(DefineConstants);LITE_EDITION</DefineConstants>
     <Product>SEACURE(TOOL) Lite</Product>
-    <AssemblyInformationalVersion>2.5.1 Lite</AssemblyInformationalVersion>
+    <AssemblyInformationalVersion>2.5.3 Lite</AssemblyInformationalVersion>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(LiteBuild)' != 'true'">
     <Product>SEACURE(TOOL)</Product>
-    <AssemblyInformationalVersion>2.5.1</AssemblyInformationalVersion>
+    <AssemblyInformationalVersion>2.5.3</AssemblyInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -54,7 +54,6 @@
     <PackageReference Include="ClosedXML" Version="0.102.2" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2792.45" />
-    <PackageReference Include="Supabase" Version="1.1.1" />
 
     <PackageReference Include="System.IO.Packaging" Version="8.0.1" />
     <PackageReference Include="System.Management" Version="8.0.0" />

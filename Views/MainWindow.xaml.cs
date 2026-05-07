@@ -49,6 +49,12 @@ namespace Dorothy.Views
         // Dedicated CTS for in-flight bulk probes — separate from _discoveryCts
         // so the user can cancel a bulk run without affecting discovery.
         private CancellationTokenSource? _bulkProbeCts;
+        // Background internet-connectivity pinger. Lazy-started on first NI
+        // discovery; powers the toolbar chip and offline-skip guards.
+        private Services.ConnectivityMonitorService? _connectivityMonitor;
+        // NI tab settings (default ProbeLevel etc) persisted across runs.
+        private readonly Services.NiSettingsService _niSettings = new();
+        private bool _niProbeLevelComboInitialized;
         private TopologyNode? _selectedTopologyNode;
 
         private bool _isAdvancedMode;
@@ -92,15 +98,12 @@ namespace Dorothy.Views
         private int _themeIndex = 0;
 
         private readonly Services.DatabaseService _databaseService;
-        private readonly Services.SupabaseSyncService _supabaseSyncService;
+        private readonly Services.EngagementSubmitService _engagementSubmitService;
         private readonly Services.ToastNotificationService _toastService;
-        private System.Windows.Threading.DispatcherTimer? _syncCheckTimer;
 
         private readonly string _hardwareId;
         private readonly string _machineName;
         private readonly string _username;
-
-        private bool _hasShownAttackLogSyncNotification = false;
         private Services.UIScalingService? _uiScalingService;
         private double _baseFontSize = 12;
         private Services.UpdateCheckService? _updateCheckService;
@@ -169,7 +172,6 @@ namespace Dorothy.Views
 #endif
 
             _databaseService = new Services.DatabaseService();
-            _supabaseSyncService = new Services.SupabaseSyncService(_databaseService);
             _toastService = new Services.ToastNotificationService(this);
 
             var licenseService = new Services.LicenseService();
@@ -217,15 +219,49 @@ namespace Dorothy.Views
             _statsTimer.Interval = TimeSpan.FromMilliseconds(250);
             _statsTimer.Tick += StatsTimer_Tick;
 
-            _syncCheckTimer = new System.Windows.Threading.DispatcherTimer();
-            _syncCheckTimer.Interval = TimeSpan.FromSeconds(30);
-            _syncCheckTimer.Tick += SyncCheckTimer_Tick;
-            _syncCheckTimer.Start();
+            // Engagement submit service uses LicenseApiClient for auth + transport.
+            _engagementSubmitService = new Services.EngagementSubmitService(
+                _databaseService,
+                _hardwareId);
+
+            // Submit button is DB-driven: enabled when any row has EngagementId
+            // IS NULL anywhere across Assets/Ports/AttackLogs/topology tables.
+            // EngagementContext.ActivityChanged signals "re-query the DB."
+            Services.EngagementContext.ActivityChanged += OnEngagementActivityChanged;
+            Loaded += async (_, _) => await OnMainWindowLoadedAsync();
 
             NiTopologyCanvas.NodeClicked += OnTopologyNodeClicked;
             NiTopologyCanvas.SubnetExpandRequested += OnSubnetExpandRequested;
             NiTopologyCanvas.ProbeRequested += OnProbeRequested;
             NiTopologyCanvas.BulkProbeRequested += OnBulkProbeRequested;
+
+            // Initialize the NI probe-level toggle from persisted setting.
+            // Selecting a ComboBoxItem fires SelectionChanged once; the
+            // _niProbeLevelComboInitialized flag suppresses persistence on
+            // that initial sync (we'd be writing back the same value we
+            // just loaded).
+            try
+            {
+                int idx = _niSettings.DefaultProbeLevel switch
+                {
+                    ProbeLevel.Survey   => 0,
+                    ProbeLevel.Simple   => 1,
+                    ProbeLevel.Advanced => 2,
+                    _ => 0
+                };
+                NiProbeLevelCombo.SelectedIndex = idx;
+                _niProbeLevelComboInitialized = true;
+
+                // Stealth mode: load persisted state into the toolbar checkbox.
+                // The orchestrator gets its initial value from the same source
+                // when the orchestrator is constructed below in OnMainWindowLoadedAsync.
+                if (NiStealthModeCheckBox != null)
+                    NiStealthModeCheckBox.IsChecked = _niSettings.StealthMode;
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "[NI] ProbeLevel combo init failed");
+            }
             NiTopologyCanvas.BoxSelectionCompleted += OnBoxSelectionCompleted;
             NiTopologyCanvas.TracerouteRequested += OnTracerouteRequested;
             NiTopologyCanvas.SnmpWalkRequested += OnSnmpWalkRequested;
@@ -310,8 +346,6 @@ namespace Dorothy.Views
                         SaveDisclaimerPreference();
                     }
                 }
-
-                _ = Task.Run(async () => await UpdateSyncStatus());
 
                 _updateCheckService = new Services.UpdateCheckService(_attackLogger);
 
@@ -999,7 +1033,6 @@ namespace Dorothy.Views
 
                 SaveSettings();
                 ApplyUISettings();
-                _ = UpdateSyncStatus();
             }
         }
 
@@ -1045,8 +1078,6 @@ namespace Dorothy.Views
 
                     _logFileLocation = AppDomain.CurrentDomain.BaseDirectory;
                 }
-
-                _supabaseSyncService.Initialize(Services.SupabaseConfig.Url, Services.SupabaseConfig.AnonKey);
 
                 ApplyUISettings();
             }
@@ -1331,7 +1362,6 @@ namespace Dorothy.Views
                 _logger.Info("Application closing - starting cleanup...");
 
                 _statsTimer?.Stop();
-                _syncCheckTimer?.Stop();
                 _updateCheckTimer?.Stop();
 
                 _targetIpDebounceTokenSource?.Cancel();
@@ -1459,202 +1489,120 @@ namespace Dorothy.Views
             }
         }
 
-        private async void CloudSyncButton_Click(object sender, RoutedEventArgs e)
+        // Marker captured at MainWindow construction; used as the engagement's
+        // "started_at" if the user submits without supplying one. With offline
+        // persistence, the actual span of work may pre-date this launch — but
+        // we don't have a better timestamp than "when this submission begins."
+        private readonly DateTime _sessionStartedAt = DateTime.UtcNow;
+
+        private async Task OnMainWindowLoadedAsync()
         {
-            await OpenSyncDialogAsync();
+            // Reload prior offline scans into the in-memory graph so the canvas
+            // renders without waiting for a fresh discovery sweep.
+            try
+            {
+                if (_discoveryOrchestrator == null)
+                {
+                    _discoveryOrchestrator = new Services.DiscoveryOrchestrator(
+                        _databaseService, _connectivityMonitor);
+                    WireOrchestratorEvents(_discoveryOrchestrator);
+                }
+                await _discoveryOrchestrator.LoadPersistedTopologyAsync();
+
+                // Push the entire restored snapshot to the canvas in ONE
+                // envelope so cytoscape adds nodes + edges from a single
+                // ordered batch. The previous per-row event path collapsed
+                // through the canvas's pre-init buffer and dropped all but
+                // the last payload, leaving orphan-source edges on launch.
+                try
+                {
+                    var snapshot = _discoveryOrchestrator.GetCytoscapeSnapshot();
+                    if (!string.IsNullOrEmpty(snapshot)) NiTopologyCanvas.InitGraph(snapshot);
+                }
+                catch (Exception ex) { _logger.Warn(ex, "Topology snapshot push failed (non-fatal)"); }
+            }
+            catch (Exception ex) { _logger.Warn(ex, "Topology preload failed (non-fatal)"); }
+
+            await UpdateSubmitButtonStateAsync();
         }
 
-        private async Task OpenSyncDialogAsync()
+        private async void SubmitAssessmentButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                if (!_supabaseSyncService.IsConfigured)
+                var hasActivity = await _databaseService.HasUnsubmittedActivityAsync();
+                if (!hasActivity)
                 {
-                    _toastService.ShowWarning("Supabase is not configured. Please configure it in Settings first.");
+                    _toastService.ShowWarning("Nothing to submit — run a scan, probe, or attack first.");
                     return;
                 }
 
-                var unsyncedLogs = await _databaseService.GetUnsyncedLogsAsync();
-                var unsyncedAssets = await _databaseService.GetUnsyncedAssetsAsync();
+                var assetCount = await _databaseService.CountUnsubmittedAssetsAsync();
+                var attackCount = await _databaseService.CountUnsubmittedAttackLogsAsync();
 
-                if (unsyncedLogs.Count == 0 && unsyncedAssets.Count == 0)
-                {
-                    _toastService.ShowInfo("No pending logs or assets to sync.");
-                    return;
-                }
-
-                var syncWindow = new SyncWindow(unsyncedLogs, unsyncedAssets)
+                var dlg = new EngagementSubmitWindow(
+                    assetCount,
+                    attackCount,
+                    _engagementSubmitService,
+                    _discoveryOrchestrator,
+                    _databaseService,
+                    _sessionStartedAt)
                 {
                     Owner = this
                 };
 
-                if (syncWindow.ShowDialog() == true)
+                var result = dlg.ShowDialog();
+
+                if (result == true)
                 {
-                    CloudSyncButton.IsEnabled = false;
-                    var originalTooltip = CloudSyncButton.ToolTip;
-
-                    SyncLoadingOverlay.Visibility = Visibility.Visible;
-                    SyncProgressText.Text = "Preparing sync...";
-
-                    _supabaseSyncService.ProgressChanged += OnSyncProgressChanged;
-
-                    try
+                    _toastService.ShowSuccess("Engagement submitted. Continue scanning for the next assessment.");
+                    if (dlg.ClearedLocalData)
                     {
-                        int syncedLogsCount = 0;
-                        int syncedAssetsCount = 0;
-                        bool hasDeletions = syncWindow.DeletedLogIds.Count > 0 || syncWindow.DeletedAssetIds.Count > 0;
-
-                    if (syncWindow.DeletedLogIds.Count > 0)
-                    {
-                        await _databaseService.DeleteLogsAsync(syncWindow.DeletedLogIds);
-                        _attackLogger.LogInfo($"Deleted {syncWindow.DeletedLogIds.Count} log(s).");
+                        // User chose hard-delete: clear the canvas to mirror the DB.
+                        _discoveryOrchestrator?.ClearGraphInMemory();
                     }
-
-                    if (syncWindow.DeletedAssetIds.Count > 0)
-                    {
-                        await _databaseService.DeleteAssetsAsync(syncWindow.DeletedAssetIds);
-                        _attackLogger.LogInfo($"Deleted {syncWindow.DeletedAssetIds.Count} asset(s).");
-                    }
-
-                    if (syncWindow.ShouldSync)
-                    {
-
-                        if (syncWindow.SelectedLogIds.Count > 0)
-                        {
-                            var result = await _supabaseSyncService.SyncAsync(syncWindow.ProjectName, syncWindow.SelectedLogIds);
-
-                            if (result.Success)
-                            {
-                                syncedLogsCount = result.SyncedCount;
-                                _attackLogger.LogSuccess(result.Message);
-                            }
-                            else
-                            {
-                                _attackLogger.LogWarning(result.Message);
-                                _toastService.ShowWarning($"Log sync failed: {result.Message}");
-                            }
-                        }
-
-                        if (syncWindow.SelectedAssetIds.Count > 0)
-                        {
-
-                            var result = await _supabaseSyncService.SyncAssetsAsync(syncWindow.ProjectName, syncWindow.SelectedAssetIds, syncWindow.EnhanceData);
-
-                            if (result.Success)
-                            {
-                                syncedAssetsCount = result.SyncedCount;
-                                _attackLogger.LogSuccess(result.Message);
-                            }
-                            else
-                            {
-                                _attackLogger.LogWarning(result.Message);
-                                _toastService.ShowWarning($"Asset sync failed: {result.Message}");
-                            }
-                        }
-
-                        if (syncedLogsCount > 0 || syncedAssetsCount > 0)
-                        {
-                            var parts = new List<string>();
-                            if (syncedLogsCount > 0) parts.Add($"{syncedLogsCount} log(s)");
-                            if (syncedAssetsCount > 0) parts.Add($"{syncedAssetsCount} asset(s)");
-
-                            var message = $"Sync complete {string.Join(", ", parts)} synced successfully.";
-                            _toastService.ShowSuccess(message);
-                        }
-                        else
-                        {
-                            _attackLogger.LogInfo("No items selected for sync.");
-                        }
-                    }
-                    else if (hasDeletions)
-                    {
-
-                        var deletedCount = syncWindow.DeletedLogIds.Count + syncWindow.DeletedAssetIds.Count;
-                        _toastService.ShowInfo($"Deleted {deletedCount} item(s).");
-                    }
-
-                        SyncLoadingOverlay.Visibility = Visibility.Collapsed;
-                        _supabaseSyncService.ProgressChanged -= OnSyncProgressChanged;
-
-                        CloudSyncButton.IsEnabled = true;
-                        CloudSyncButton.ToolTip = originalTooltip;
-
-                        _ = Task.Run(async () => await UpdateSyncStatus());
-                    }
-                    catch (Exception ex)
-                    {
-
-                        SyncLoadingOverlay.Visibility = Visibility.Collapsed;
-                        _supabaseSyncService.ProgressChanged -= OnSyncProgressChanged;
-                        CloudSyncButton.IsEnabled = true;
-                        CloudSyncButton.ToolTip = originalTooltip;
-
-                        _attackLogger.LogError($"Sync operation failed: {ex.Message}");
-                        _toastService.ShowError($"Sync failed: {ex.Message}");
-                    }
+                    await UpdateSubmitButtonStateAsync();
                 }
             }
             catch (Exception ex)
             {
-                _attackLogger.LogError($"Sync failed: {ex.Message}");
-                _toastService.ShowError($"Sync failed: {ex.Message}");
+                _logger.Error(ex, "Submit assessment flow failed");
+                _toastService.ShowError($"Submit failed: {ex.Message}");
             }
         }
 
-        private async void SyncCheckTimer_Tick(object? sender, EventArgs e)
-        {
-            await UpdateSyncStatus();
-        }
-
-        private void OnSyncProgressChanged(string message)
-        {
-            Dispatcher.Invoke(() =>
-            {
-                SyncProgressText.Text = message;
-            });
-        }
-
-        private async Task UpdateSyncStatus()
+        public async Task UpdateSubmitButtonStateAsync()
         {
             try
             {
-                if (!_supabaseSyncService.IsConfigured)
-                {
-                    Dispatcher.Invoke(() =>
-                    {
-                        CloudSyncNotificationBadge.Visibility = Visibility.Collapsed;
-                        CloudSyncButton.ToolTip = "Cloud Sync (Not Configured)";
-                    });
-                    return;
-                }
-
-                var pendingLogsCount = await _supabaseSyncService.GetPendingSyncCountAsync();
-                var pendingAssetsCount = await _supabaseSyncService.GetPendingAssetsCountAsync();
-                var totalPending = pendingLogsCount + pendingAssetsCount;
-
+                bool has = await _databaseService.HasUnsubmittedActivityAsync();
                 Dispatcher.Invoke(() =>
                 {
-                    if (totalPending > 0)
-                    {
-                        CloudSyncNotificationBadge.Visibility = Visibility.Visible;
-                        CloudSyncNotificationText.Text = totalPending > 99 ? "99+" : totalPending.ToString();
-
-                        var tooltipParts = new List<string>();
-                        if (pendingLogsCount > 0) tooltipParts.Add($"{pendingLogsCount} log(s)");
-                        if (pendingAssetsCount > 0) tooltipParts.Add($"{pendingAssetsCount} asset(s)");
-                        CloudSyncButton.ToolTip = $"{string.Join(", ", tooltipParts)} pending sync - Click to sync";
-                    }
-                    else
-                    {
-                        CloudSyncNotificationBadge.Visibility = Visibility.Collapsed;
-                        CloudSyncButton.ToolTip = "Cloud Sync (No pending items)";
-                    }
+                    if (SubmitAssessmentButton == null) return;
+                    SubmitAssessmentButton.IsEnabled = has;
+                    SubmitAssessmentButton.ToolTip = has
+                        ? "Submit unsubmitted scan data to SEACUREDB as a new engagement."
+                        : "No scan activity to submit yet. Run a scan, probe, or attack first.";
                 });
             }
-            catch (Exception ex)
-            {
-                _logger.Error(ex, "Failed to update sync status");
-            }
+            catch { /* dispatcher tear-down at shutdown */ }
+        }
+
+        private void OnEngagementActivityChanged(object? sender, EventArgs e)
+        {
+            // Fire-and-forget — the DB query is ~ms.
+            _ = UpdateSubmitButtonStateAsync();
+        }
+
+        /// <summary>
+        /// Settings → "Clear all local scan data" calls this so the in-memory
+        /// canvas mirrors the wiped DB. Without this the canvas would still
+        /// show prior topology even though the DB is empty.
+        /// </summary>
+        public void OnLocalDataCleared()
+        {
+            try { _discoveryOrchestrator?.ClearGraphInMemory(); }
+            catch (Exception ex) { _logger.Warn(ex, "ClearGraphInMemory threw"); }
         }
 
         private async void PingButton_Click(object sender, RoutedEventArgs e)
@@ -2424,20 +2372,8 @@ namespace Dorothy.Views
                 _currentRunningAttackType = null;
                 ResetStatistics();
 
-                _ = Task.Run(async () =>
-                {
-                    await Task.Delay(500);
-                    await UpdateSyncStatus();
-
-                    if (!_hasShownAttackLogSyncNotification && _supabaseSyncService.IsConfigured)
-                    {
-                        _hasShownAttackLogSyncNotification = true;
-                        Dispatcher.Invoke(() =>
-                        {
-                            _toastService.ShowInfo("✅ Attack log saved. Click Cloud Sync button to upload to Supabase.");
-                        });
-                    }
-                });
+                // 2.6.0: cloud sync replaced by engagement submit. Attack rows are
+                // tagged to the active engagement and uploaded together at submit time.
             }
             catch (Exception ex)
             {
@@ -2958,6 +2894,10 @@ namespace Dorothy.Views
 
                     _networkStorm.SetSourceInfo(ipAddress, macBytes, subnetMask);
                     _discoveryOrchestrator?.UpdateSourceIp(ipAddress);
+                    // UpdateSourceIp removed the old Self node + cascade
+                    // edges; clear the canvas and re-render from the
+                    // post-cleanup snapshot so the visual matches state.
+                    ResetTopologyCanvasFromSnapshot();
 
                     IPAddress? gatewayIp = null;
                     if (selectedNic != null)
@@ -5223,7 +5163,6 @@ namespace Dorothy.Views
                     networkScan,
                     _attackLogger,
                     _databaseService,
-                    _supabaseSyncService,
                     _hardwareId,
                     _machineName,
                     _username);
@@ -5321,6 +5260,10 @@ namespace Dorothy.Views
 
                             _networkStorm.SetSourceInfo(ipAddress, macBytes, subnetMask);
                             _discoveryOrchestrator?.UpdateSourceIp(ipAddress);
+                            // Same rationale as the other NIC-change site:
+                            // UpdateSourceIp dropped the old Self + edges;
+                            // reset the canvas to the cleaned snapshot.
+                            ResetTopologyCanvasFromSnapshot();
 
                             var gatewayIp = _mainController.GetGatewayForInterface(nic);
                             if (gatewayIp == null)
@@ -5426,10 +5369,15 @@ namespace Dorothy.Views
             NiProgressBar.IsIndeterminate = true;
 
             _discoveryCts = new CancellationTokenSource();
+
+            // Lazy-start the connectivity monitor on the first NI discovery.
+            EnsureConnectivityMonitorStarted();
+
             if (_discoveryOrchestrator == null)
             {
                 _logger.Info("Creating orchestrator and wiring events");
-                _discoveryOrchestrator = new Services.DiscoveryOrchestrator(_databaseService);
+                _discoveryOrchestrator = new Services.DiscoveryOrchestrator(
+                    _databaseService, _connectivityMonitor);
                 WireOrchestratorEvents(_discoveryOrchestrator);
             }
             else
@@ -5480,9 +5428,51 @@ namespace Dorothy.Views
             }
         }
 
+        // Wipe the topology canvas and replay the orchestrator's current
+        // snapshot in a single envelope. Called after any operation that
+        // mutates the in-memory graph by removing nodes (NIC change →
+        // UpdateSourceIp cascade), where the canvas would otherwise keep
+        // showing the pre-mutation state until the next live event.
+        private void ResetTopologyCanvasFromSnapshot()
+        {
+            if (_discoveryOrchestrator == null) return;
+            try
+            {
+                NiTopologyCanvas.ClearGraph();
+                var snapshot = _discoveryOrchestrator.GetCytoscapeSnapshot();
+                if (!string.IsNullOrEmpty(snapshot)) NiTopologyCanvas.InitGraph(snapshot);
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "ResetTopologyCanvasFromSnapshot failed (non-fatal)");
+            }
+        }
+
         private void WireOrchestratorEvents(Services.DiscoveryOrchestrator o)
         {
             _logger.Info("WireOrchestratorEvents: subscribing to orchestrator events");
+
+            // Seed stealth mode from persisted setting on every fresh
+            // orchestrator construction. Keeps the orchestrator and the
+            // toolbar checkbox aligned across NIC switches and submit cycles.
+            try { o.UpdateStealthMode(_niSettings.StealthMode); }
+            catch (Exception ex) { _logger.Warn(ex, "Initial stealth seed failed"); }
+
+            // Bracket every scan with canvas batching: BeginBatch on start,
+            // EndBatch on finish. Suppresses the per-arrival cola relayout
+            // that collapsed nodes to a single point on 89+ host scans.
+            o.ScanStarted += (s, e) =>
+                Dispatcher.InvokeAsync(() =>
+                {
+                    try { NiTopologyCanvas.BeginBatch(); }
+                    catch (Exception ex) { _logger.Warn(ex, "BeginBatch failed"); }
+                });
+            o.ScanCompleted += (s, e) =>
+                Dispatcher.InvokeAsync(() =>
+                {
+                    try { NiTopologyCanvas.EndBatch(); }
+                    catch (Exception ex) { _logger.Warn(ex, "EndBatch failed"); }
+                });
 
             o.NodeChanged += (sender, args) =>
             {
@@ -5602,8 +5592,10 @@ namespace Dorothy.Views
 
             if (_discoveryOrchestrator == null)
             {
+                EnsureConnectivityMonitorStarted();
                 _logger.Info("Creating orchestrator and wiring events");
-                _discoveryOrchestrator = new Services.DiscoveryOrchestrator(_databaseService);
+                _discoveryOrchestrator = new Services.DiscoveryOrchestrator(
+                    _databaseService, _connectivityMonitor);
                 WireOrchestratorEvents(_discoveryOrchestrator);
             }
 
@@ -5798,6 +5790,8 @@ namespace Dorothy.Views
             NiDetailHttpSection.Visibility = Visibility.Collapsed;
             NiDetailSmb.ItemsSource = null;
             NiDetailSmbSection.Visibility = Visibility.Collapsed;
+            NiDetailIndustrial.ItemsSource = null;
+            NiDetailIndustrialSection.Visibility = Visibility.Collapsed;
 
             VantagePointBorder.Visibility = Visibility.Collapsed;
 
@@ -5818,7 +5812,7 @@ namespace Dorothy.Views
             {
                 UpdateDetailPanelFromProbeResult(cached);
                 var when = cached.CompletedAt ?? cached.StartedAt;
-                NiDetailProbedAt.Text = $"{cached.Level} probe — {FormatRelativeTime(when)}";
+                NiDetailProbedAt.Text = $"{cached.Level.ToDisplayName()} — {FormatRelativeTime(when)}";
                 NiDetailProbedAt.Visibility = Visibility.Visible;
             }
             else
@@ -5837,6 +5831,36 @@ namespace Dorothy.Views
             if (ago.TotalHours   < 24) return $"{(int)ago.TotalHours}h ago";
             return when.ToString("yyyy-MM-dd HH:mm");
         }
+
+        // NI toolbar probe-level combo — persists user selection across runs.
+        // First firing during initial-sync is suppressed via _niProbeLevelComboInitialized.
+        private void NiProbeLevelCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_niProbeLevelComboInitialized) return;
+            if (NiProbeLevelCombo.SelectedItem is not ComboBoxItem item) return;
+            var tag = item.Tag as string;
+            ProbeLevel level = tag switch
+            {
+                "Survey"   => ProbeLevel.Survey,
+                "Simple"   => ProbeLevel.Simple,
+                "Advanced" => ProbeLevel.Advanced,
+                _ => ProbeLevel.Survey
+            };
+            _niSettings.DefaultProbeLevel = level;
+            _logger.Info($"[NI] DefaultProbeLevel set to {level}");
+        }
+
+        // Stealth mode toolbar checkbox. Persists to ni-settings.json and
+        // pushes the new value into the orchestrator so the next scan
+        // applies stealth concurrency / jitter / no-retry behaviour.
+        private void NiStealthModeCheckBox_Click(object sender, RoutedEventArgs e)
+        {
+            var enabled = NiStealthModeCheckBox.IsChecked == true;
+            _niSettings.StealthMode = enabled;
+            _discoveryOrchestrator?.UpdateStealthMode(enabled);
+            _logger.Info($"[NI-STEALTH] Stealth mode {(enabled ? "ENABLED" : "DISABLED")}");
+        }
+
 
         private async void OnSubnetExpandRequested(string subnetId)
         {
@@ -5875,7 +5899,11 @@ namespace Dorothy.Views
                 Dispatcher.InvokeAsync(() => NiStatusText.Text = "Cannot probe — no IP");
                 return;
             }
-            Dispatcher.InvokeAsync(() => _ = RunProbeAsync(hostIp, level));
+            Dispatcher.InvokeAsync(() =>
+            {
+                if (!ConfirmAggressiveOnIndustrial(hostIp, level)) return;
+                _ = RunProbeAsync(hostIp, level);
+            });
         }
 
         private void OnBulkProbeRequested(List<string> ips, ProbeLevel level)
@@ -5885,7 +5913,92 @@ namespace Dorothy.Views
                 Dispatcher.InvokeAsync(() => NiStatusText.Text = "Cannot bulk probe — no targets selected");
                 return;
             }
-            Dispatcher.InvokeAsync(() => _ = RunBulkProbeAsync(ips, level));
+            Dispatcher.InvokeAsync(() =>
+            {
+                var filtered = ConfirmAggressiveOnIndustrialBulk(ips, level);
+                if (filtered == null || filtered.Count == 0) return;
+                _ = RunBulkProbeAsync(filtered, level);
+            });
+        }
+
+        // ─── Aggressive-scan warning gate ───
+        // Survey is always allowed. Simple / Advanced on hosts that have
+        // industrial attributes set on their topology node (i.e. responded
+        // as industrial during a prior Survey) prompt the user before running.
+
+        private bool IsHostIndustrial(string ip)
+        {
+            if (string.IsNullOrWhiteSpace(ip) || _discoveryOrchestrator == null) return false;
+            var node = _discoveryOrchestrator.Graph.GetNode(ip);
+            if (node == null) return false;
+            return node.Attributes.ContainsKey("industrialVendor")
+                || node.Attributes.ContainsKey("industrialCategory")
+                || node.Attributes.ContainsKey("industrialProtocol");
+        }
+
+        private string IndustrialDescription(string ip)
+        {
+            if (_discoveryOrchestrator?.Graph.GetNode(ip) is not { } node) return ip;
+            var vendor   = node.Attributes.TryGetValue("industrialVendor",   out var v) ? v : null;
+            var category = node.Attributes.TryGetValue("industrialCategory", out var c) ? c : null;
+            var protocol = node.Attributes.TryGetValue("industrialProtocol", out var p) ? p : null;
+            var parts = new List<string>();
+            if (!string.IsNullOrEmpty(vendor))   parts.Add(vendor!);
+            if (!string.IsNullOrEmpty(category)) parts.Add(category!);
+            if (!string.IsNullOrEmpty(protocol)) parts.Add(protocol!);
+            return parts.Count > 0 ? string.Join(", ", parts) : "industrial device";
+        }
+
+        private bool ConfirmAggressiveOnIndustrial(string hostIp, ProbeLevel level)
+        {
+            if (level == ProbeLevel.Survey) return true;
+            if (!IsHostIndustrial(hostIp))  return true;
+
+            var desc = IndustrialDescription(hostIp);
+            var body = level == ProbeLevel.Advanced
+                ? "Deep scan sends test traffic to many ports including UDP, TLS, and HTTP services. " +
+                  "On industrial control systems this can cause instability. Continue with deep scan?"
+                : "Banner grab on this device probes ports it doesn't expect. " +
+                  "On industrial control systems this can cause instability. Continue with banner grab?";
+            var msg = $"This device responded as {desc}.\n\n{body}";
+            var result = MessageBox.Show(msg, "Industrial host warning",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            return result == MessageBoxResult.Yes;
+        }
+
+        // For bulk: dialog enumerates the industrial subset and offers "Skip
+        // industrial, scan rest". Returns the IP list to actually probe — or
+        // null when the user cancels entirely.
+        private List<string>? ConfirmAggressiveOnIndustrialBulk(List<string> ips, ProbeLevel level)
+        {
+            if (level == ProbeLevel.Survey) return ips;
+
+            var industrialIps = ips.Where(IsHostIndustrial).ToList();
+            if (industrialIps.Count == 0) return ips;
+
+            var itList = industrialIps.Take(8)
+                .Select(ip => $"  • {ip}  ({IndustrialDescription(ip)})");
+            var more = industrialIps.Count > 8 ? $"\n  …+{industrialIps.Count - 8} more" : "";
+            var hazard = level == ProbeLevel.Advanced
+                ? "Deep scan sends test traffic to many ports including UDP, TLS, and HTTP services. " +
+                  "On industrial control systems this can cause instability."
+                : "Banner grab probes ports these devices don't expect. " +
+                  "On industrial control systems this can cause instability.";
+            var msg = $"{industrialIps.Count} of {ips.Count} selected hosts responded as industrial devices.\n" +
+                      $"{hazard}\n\n" +
+                      string.Join("\n", itList) + more + "\n\n" +
+                      $"Continue with {level.ToDisplayName().ToLowerInvariant()} on all {ips.Count} hosts?\n\n" +
+                      $"Yes → scan all\n" +
+                      $"No → skip industrial, scan the {ips.Count - industrialIps.Count} remaining\n" +
+                      $"Cancel → cancel bulk run";
+            var result = MessageBox.Show(msg, "Industrial hosts in bulk selection",
+                MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+            return result switch
+            {
+                MessageBoxResult.Yes    => ips,
+                MessageBoxResult.No     => ips.Where(ip => !IsHostIndustrial(ip)).ToList(),
+                _                       => null
+            };
         }
 
         // Shift+drag box-select on the canvas → JS coalesces a 150ms burst
@@ -5903,7 +6016,7 @@ namespace Dorothy.Views
                 var token = _boxSelectHintCts.Token;
 
                 NiBulkProbeStatusText.Visibility = Visibility.Visible;
-                NiBulkProbeStatusText.Text = $"Selected {count} node(s) — right-click for bulk probe";
+                NiBulkProbeStatusText.Text = $"Selected {count} node(s) — right-click to scan";
                 NiBulkProbeStatusText.Foreground = (System.Windows.Media.Brush)FindResource("AccentBlue");
 
                 try
@@ -5924,6 +6037,36 @@ namespace Dorothy.Views
             {
                 NiStatusText.Text = "Start discovery first.";
                 return;
+            }
+
+            // Offline guard: if internet is down and the selection contains
+            // any public IPs, ask the user to confirm dropping them. Local-only
+            // bulk runs proceed unaffected.
+            if (_connectivityMonitor?.CurrentState == Services.ConnectivityState.LocalOnly)
+            {
+                var publicIps = ips.Where(Services.DiscoveryOrchestrator.IsPublicIp).ToList();
+                var localIps  = ips.Where(ip => !Services.DiscoveryOrchestrator.IsPublicIp(ip)).ToList();
+                if (publicIps.Count > 0)
+                {
+                    var msg = $"Internet is offline. {publicIps.Count} public-IP target(s) " +
+                              $"will be skipped. Continue with {localIps.Count} local target(s)?";
+                    var choice = MessageBox.Show(
+                        msg,
+                        "Connectivity warning",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+                    if (choice != MessageBoxResult.Yes)
+                    {
+                        NiStatusText.Text = "Bulk probe cancelled (offline).";
+                        return;
+                    }
+                    ips = localIps;
+                    if (ips.Count == 0)
+                    {
+                        NiStatusText.Text = "Bulk probe cancelled — no local targets in selection.";
+                        return;
+                    }
+                }
             }
 
             _bulkProbeCts?.Dispose();
@@ -5969,11 +6112,12 @@ namespace Dorothy.Views
                 _bulkProbeCts = null;
             }
 
+            var label = level.ToDisplayName().ToLowerInvariant();
             var summary = cancelled
-                ? $"Bulk {level} probe cancelled: {succeeded}/{ips.Count} done before cancel"
+                ? $"Bulk {label} cancelled: {succeeded}/{ips.Count} done before cancel"
                 : failed == 0
-                    ? $"Bulk {level} probe complete: {succeeded}/{ips.Count} succeeded"
-                    : $"Bulk {level} probe: {succeeded}/{ips.Count} succeeded, {failed} failed (see log)";
+                    ? $"Bulk {label} complete: {succeeded}/{ips.Count} succeeded"
+                    : $"Bulk {label}: {succeeded}/{ips.Count} succeeded, {failed} failed (see log)";
             NiBulkProbeStatusText.Text = summary;
             NiStatusText.Text = summary;
             NiBulkProbeStatusText.Foreground = (failed > 0 || cancelled)
@@ -6095,6 +6239,45 @@ namespace Dorothy.Views
             });
         }
 
+        // ─── Connectivity monitor lifecycle ───
+        private void EnsureConnectivityMonitorStarted()
+        {
+            if (_connectivityMonitor != null) return;
+            _connectivityMonitor = new Services.ConnectivityMonitorService();
+            _connectivityMonitor.StateChanged += OnConnectivityStateChanged;
+            _connectivityMonitor.Start();
+        }
+
+        private void OnConnectivityStateChanged(
+            object? sender, Services.ConnectivityState newState)
+        {
+            Dispatcher.InvokeAsync(() => UpdateConnectivityIndicator(newState));
+        }
+
+        private void UpdateConnectivityIndicator(Services.ConnectivityState state)
+        {
+            switch (state)
+            {
+                case Services.ConnectivityState.InternetReachable:
+                    NiConnectivityChip.Text = "🌐 Internet OK";
+                    NiConnectivityChip.Foreground =
+                        (System.Windows.Media.Brush)FindResource("SuccessGreen");
+                    break;
+                case Services.ConnectivityState.LocalOnly:
+                    NiConnectivityChip.Text = "🌐 Local only";
+                    NiConnectivityChip.Foreground =
+                        (System.Windows.Media.Brush)FindResource("WarningAmber");
+                    break;
+                case Services.ConnectivityState.Unknown:
+                default:
+                    NiConnectivityChip.Text = "🌐 Checking…";
+                    NiConnectivityChip.Foreground =
+                        (System.Windows.Media.Brush)FindResource("TextMuted");
+                    break;
+            }
+            NiConnectivityChip.Visibility = Visibility.Visible;
+        }
+
         private void NiBulkCancelButton_Click(object sender, RoutedEventArgs e)
         {
             try { _bulkProbeCts?.Cancel(); } catch { /* already cancelled / disposed */ }
@@ -6181,12 +6364,12 @@ namespace Dorothy.Views
             NiProbeTargetText.Text = $"Probing {ipAddress}";
             StartProbeProgressAnimation();
             UpdateProbeStage(level == ProbeLevel.Advanced
-                ? $"Starting advanced probe on {ipAddress}..."
-                : $"Starting simple probe on {ipAddress}...");
+                ? $"Starting deep scan on {ipAddress}..."
+                : $"Starting banner grab on {ipAddress}...");
 
             NiStatusText.Text = level == ProbeLevel.Advanced
-                ? $"Advanced probe running on {ipAddress}... (up to 5 min)"
-                : $"Simple probe running on {ipAddress}... (up to 30s)";
+                ? $"Deep scan running on {ipAddress}... (up to 5 min)"
+                : $"Banner grab running on {ipAddress}... (up to 30s)";
             NiDetailIcmp.Text = "Probing...";
             NiDetailIcmpSection.Visibility = Visibility.Visible;
             NiDetailTcp.ItemsSource = null;
@@ -6198,7 +6381,7 @@ namespace Dorothy.Views
                     ipAddress, level, _discoveryCts?.Token ?? default);
 
                 UpdateDetailPanelFromProbeResult(result);
-                NiDetailProbedAt.Text = $"{result.Level} probe — just now";
+                NiDetailProbedAt.Text = $"{result.Level.ToDisplayName()} — just now";
                 NiDetailProbedAt.Visibility = Visibility.Visible;
 
                 if (_discoveryOrchestrator.Graph.GetNode(ipAddress) is { } node)
@@ -6443,6 +6626,47 @@ namespace Dorothy.Views
                 NiDetailHttpSection.Visibility = Visibility.Collapsed;
             }
 
+            // INDUSTRIAL DEVICE — summary populated from result.IndustrialIdentity
+            // and the open industrial-port list. Round 1 simplified scope:
+            // identification only, no protocol-specific deep parsing.
+            if (result.IndustrialIdentity != null
+                || (result.IndustrialPortsOpen != null && result.IndustrialPortsOpen.Count > 0))
+            {
+                var ind = result.IndustrialIdentity;
+                var rows = new List<object>();
+                if (ind != null)
+                {
+                    if (!string.IsNullOrWhiteSpace(ind.Vendor))
+                        rows.Add(new { Key = "Vendor", Value = ind.Vendor! });
+                    if (ind.Category != IndustrialCategory.Unknown)
+                        rows.Add(new { Key = "Category", Value = ind.Category.ToString() });
+                    if (ind.VesselZoneHint != VesselZone.Unknown)
+                        rows.Add(new { Key = "Vessel zone", Value = ind.VesselZoneHint.ToString() });
+                }
+                if (result.IndustrialPortsOpen != null && result.IndustrialPortsOpen.Count > 0)
+                {
+                    foreach (var p in result.IndustrialPortsOpen)
+                    {
+                        rows.Add(new { Key = "Port " + p.Port, Value = p.ProtocolName });
+                    }
+                }
+                if (rows.Count > 0)
+                {
+                    NiDetailIndustrial.ItemsSource = rows;
+                    NiDetailIndustrialSection.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    NiDetailIndustrial.ItemsSource = null;
+                    NiDetailIndustrialSection.Visibility = Visibility.Collapsed;
+                }
+            }
+            else
+            {
+                NiDetailIndustrial.ItemsSource = null;
+                NiDetailIndustrialSection.Visibility = Visibility.Collapsed;
+            }
+
             // SMB INFO — only show if NEGOTIATE returned anything
             if (result.SmbInfo != null)
             {
@@ -6479,6 +6703,15 @@ namespace Dorothy.Views
             var sansLine = (t.SubjectAlternativeNames != null && t.SubjectAlternativeNames.Length > 0)
                 ? "SANs: " + string.Join(", ", t.SubjectAlternativeNames)
                 : string.Empty;
+            // Expiry warning marker — empty string when cert is healthy.
+            // Bound to a separate TextBlock in the DataTemplate styled
+            // with WarningAmber so the cert section visibly flags
+            // expired / nearly-expired certs.
+            string warning = t.Expired
+                ? "⚠ EXPIRED"
+                : t.ExpiresWithin30Days
+                    ? "⚠ <30 days"
+                    : string.Empty;
             return new
             {
                 Header = $":{port}  {t.TlsVersion ?? "?"}  " +
@@ -6486,7 +6719,8 @@ namespace Dorothy.Views
                 Subject  = $"CN: {t.SubjectCN ?? "?"}",
                 Issuer   = $"Issuer: {t.IssuerCN ?? "?"}",
                 Validity = $"Valid: {t.NotBefore:yyyy-MM-dd} → {t.NotAfter:yyyy-MM-dd}",
-                Sans     = sansLine
+                Sans     = sansLine,
+                Warning  = warning
             };
         }
 
@@ -6785,6 +7019,66 @@ namespace Dorothy.Views
             {
                 return null;
             }
+        }
+
+        // ─── License stale banner (tri-state license system) ───
+        // Shown when LicenseService transitions to Stale. Hidden on Active.
+        // Expired uses the existing License Validation overlay flow instead.
+
+        public void ShowStaleBanner(int validityDays, double ageDays)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                LicenseStaleBannerText.Text =
+                    $"License unchecked for {ageDays:F0} days " +
+                    $"(limit: {validityDays} days). " +
+                    $"Connect to internet to refresh.";
+                LicenseStaleBanner.Visibility = Visibility.Visible;
+                LicenseStaleBannerRefreshBtn.IsEnabled = true;
+            });
+        }
+
+        public void HideStaleBanner()
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                LicenseStaleBanner.Visibility = Visibility.Collapsed;
+            });
+        }
+
+        private async void LicenseStaleBannerRefresh_Click(object sender, RoutedEventArgs e)
+        {
+            LicenseStaleBannerRefreshBtn.IsEnabled = false;
+            LicenseStaleBannerText.Text = "Refreshing license…";
+            try
+            {
+                var svc = (System.Windows.Application.Current as App)?.LicenseService;
+                if (svc == null)
+                {
+                    _logger.Warn("[LICENSE] Refresh-now: LicenseService not accessible from App");
+                    return;
+                }
+                await svc.ValidateLicenseAsync();
+                // The LicenseStateChanged event handler in App.xaml.cs flips
+                // banner visibility based on the new state — no direct manipulation
+                // needed here.
+            }
+            catch (Exception ex)
+            {
+                _logger.Warn(ex, "[LICENSE] Manual refresh from banner failed");
+                LicenseStaleBannerText.Text = "Refresh failed — check connection and try again.";
+            }
+            finally
+            {
+                LicenseStaleBannerRefreshBtn.IsEnabled = true;
+            }
+        }
+
+        private void LicenseStaleBannerDismiss_Click(object sender, RoutedEventArgs e)
+        {
+            // User-dismissed. Banner reappears on the next LicenseStateChanged
+            // event that lands in the Stale branch.
+            LicenseStaleBanner.Visibility = Visibility.Collapsed;
         }
 
     }

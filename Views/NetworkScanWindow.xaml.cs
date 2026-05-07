@@ -21,7 +21,6 @@ namespace Dorothy.Views
         private readonly NetworkScan _networkScan;
         private readonly AttackLogger _attackLogger;
         private readonly DatabaseService? _databaseService;
-        private readonly SupabaseSyncService? _supabaseSyncService;
         private List<NetworkAsset> _assets = new List<NetworkAsset>();
         private CancellationTokenSource? _cancellationTokenSource;
         private readonly List<NetworkAsset> _foundAssets = new List<NetworkAsset>();
@@ -40,7 +39,6 @@ namespace Dorothy.Views
             NetworkScan networkScan,
             AttackLogger attackLogger,
             DatabaseService? databaseService = null,
-            SupabaseSyncService? supabaseSyncService = null,
             string? hardwareId = null,
             string? machineName = null,
             string? username = null)
@@ -49,7 +47,6 @@ namespace Dorothy.Views
             _networkScan = networkScan;
             _attackLogger = attackLogger;
             _databaseService = databaseService;
-            _supabaseSyncService = supabaseSyncService;
             _hardwareId = hardwareId ?? string.Empty;
             _machineName = machineName ?? Environment.MachineName;
             _username = username ?? Environment.UserName;
@@ -61,14 +58,11 @@ namespace Dorothy.Views
             if (SelectedPortsRadioButton != null)
                 SelectedPortsRadioButton.Checked += PortScanMode_Changed;
 
-            if (_databaseService == null || _supabaseSyncService == null)
-            {
+            // 2.6.0: per-row sync flow replaced by engagement submit. Hide
+            // the legacy Sync Assets button entirely; its callers have been
+            // gutted alongside the SyncWindow / SupabaseSyncService deletions.
+            if (SyncAssetsButton != null)
                 SyncAssetsButton.Visibility = Visibility.Collapsed;
-            }
-            else
-            {
-                _ = Task.Run(async () => await UpdateAssetsSyncStatus());
-            }
         }
 
         private void ScanMode_Changed(object sender, RoutedEventArgs e)
@@ -618,10 +612,7 @@ namespace Dorothy.Views
                         if (CloseButton != null)
                             CloseButton.IsEnabled = true;
 
-                        if (_supabaseSyncService != null)
-                        {
-                            _ = Task.Run(async () => await UpdateAssetsSyncStatus());
-                        }
+                        // 2.6.0: per-row sync flow removed.
                     }
                     catch (Exception ex)
                     {
@@ -897,7 +888,6 @@ namespace Dorothy.Views
                         PingTime = asset.RoundTripTime.HasValue ? (int)asset.RoundTripTime.Value : null,
                         ScanTime = DateTime.UtcNow,
                         CreatedAt = DateTime.UtcNow,
-                        Synced = false,
                         Ports = portsDisplay,
 
                         HardwareId = _hardwareId,
@@ -906,7 +896,11 @@ namespace Dorothy.Views
                         UserId = null
                     };
 
+                    // Unsubmitted-bucket insert. EngagementId stays null until
+                    // the user submits, at which point AssignEngagementIdToUnsubmittedAsync
+                    // flips it for every still-null row.
                     var assetId = await _databaseService.SaveAssetAsync(assetEntry);
+                    Services.EngagementContext.NotifyActivityChanged();
 
                     if (asset.OpenPorts != null && asset.OpenPorts.Count > 0)
                     {
@@ -922,7 +916,6 @@ namespace Dorothy.Views
                                 Banner = string.IsNullOrWhiteSpace(openPort.Banner) ? null : openPort.Banner.Trim(),
                                 ScanTime = DateTime.UtcNow,
                                 CreatedAt = DateTime.UtcNow,
-                                Synced = false,
 
                                 HardwareId = _hardwareId,
                                 MachineName = _machineName,
@@ -932,8 +925,7 @@ namespace Dorothy.Views
 
                             try
                             {
-
-                                await _databaseService.SavePortAsync(portEntry, markAssetUnsynced: true);
+                                await _databaseService.SavePortAsync(portEntry);
                             }
                             catch (Exception portEx)
                             {
@@ -952,106 +944,11 @@ namespace Dorothy.Views
             }
         }
 
-        private async Task UpdateAssetsSyncStatus()
-        {
-            if (_supabaseSyncService == null) return;
-
-            try
-            {
-                var pendingCount = await _supabaseSyncService.GetPendingAssetsCountAsync();
-
-                Dispatcher.Invoke(() =>
-                {
-                    if (pendingCount > 0)
-                    {
-                        AssetsSyncBadge.Visibility = Visibility.Visible;
-                        AssetsSyncBadgeText.Text = pendingCount > 99 ? "99+" : pendingCount.ToString();
-                        SyncAssetsButton.ToolTip = $"{pendingCount} asset(s) pending sync - Click to sync";
-                    }
-                    else
-                    {
-                        AssetsSyncBadge.Visibility = Visibility.Collapsed;
-                        SyncAssetsButton.ToolTip = "Sync assets to cloud";
-                    }
-                });
-            }
-            catch (Exception ex)
-            {
-
-            }
-        }
-
+        // Removed in 2.6.0: per-row sync flow replaced by engagement submit.
         private async void SyncAssetsButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_databaseService == null || _supabaseSyncService == null)
-            {
-                MessageBox.Show("Database services are not available.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            try
-            {
-                if (!_supabaseSyncService.IsConfigured)
-                {
-                    MessageBox.Show("Supabase is not configured. Please configure it in Settings first.", "Not Configured", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-
-                var unsyncedAssets = await _databaseService.GetUnsyncedAssetsAsync();
-                if (unsyncedAssets == null || unsyncedAssets.Count == 0)
-                {
-                    MessageBox.Show("No pending assets to sync.", "No Pending Assets", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                var syncWindow = new AssetSyncWindow(unsyncedAssets)
-                {
-                    Owner = this
-                };
-
-                if (syncWindow.ShowDialog() == true && syncWindow.ShouldSync)
-                {
-
-                    if (syncWindow.DeletedIds.Count > 0)
-                    {
-                        await _databaseService.DeleteAssetsAsync(syncWindow.DeletedIds);
-                        _attackLogger.LogInfo($"Deleted {syncWindow.DeletedIds.Count} asset(s).");
-                    }
-
-                    if (syncWindow.SelectedIds.Count > 0)
-                    {
-                        SyncAssetsButton.IsEnabled = false;
-                        var originalTooltip = SyncAssetsButton.ToolTip;
-
-                        var result = await _supabaseSyncService.SyncAssetsAsync(syncWindow.ProjectName, syncWindow.SelectedIds);
-
-                        if (result.Success)
-                        {
-                            _attackLogger.LogSuccess(result.Message);
-                            if (result.SyncedCount > 0)
-                            {
-                                MessageBox.Show($"Sync complete – {result.SyncedCount} asset(s) synced successfully.", "Sync Successful", MessageBoxButton.OK, MessageBoxImage.Information);
-                                _ = Task.Run(async () => await UpdateAssetsSyncStatus());
-                            }
-                        }
-                        else
-                        {
-                            _attackLogger.LogWarning(result.Message);
-                            MessageBox.Show(result.Message, "Sync Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
-                        }
-
-                        SyncAssetsButton.IsEnabled = true;
-                        SyncAssetsButton.ToolTip = originalTooltip;
-                    }
-
-                    _ = Task.Run(async () => await UpdateAssetsSyncStatus());
-                }
-            }
-            catch (Exception ex)
-            {
-                _attackLogger.LogError($"Asset sync failed: {ex.Message}");
-                MessageBox.Show($"Asset sync failed: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            await Task.CompletedTask;
+            _attackLogger.LogInfo("Asset upload now happens at engagement submit time (MainWindow toolbar).");
         }
 
         private void ExportExcelButton_Click(object sender, RoutedEventArgs e)

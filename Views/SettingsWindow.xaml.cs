@@ -218,6 +218,51 @@ namespace Dorothy.Views
             Close();
         }
 
+        private async void ClearLocalDataButton_Click(object sender, RoutedEventArgs e)
+        {
+            var result = MessageBox.Show(
+                "This will permanently delete all scan data on this device, " +
+                "including any unsubmitted assessments. Submitted engagements " +
+                "remain on SEACUREDB.\n\nThis cannot be undone.\n\nContinue?",
+                "Clear local scan data",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes) return;
+
+            try
+            {
+                ClearLocalDataButton.IsEnabled = false;
+                using (var db = new DatabaseService())
+                {
+                    var rows = await db.DeleteAllScanDataAsync();
+                    EngagementContext.NotifyActivityChanged();
+
+                    // Mirror DB state in the in-memory canvas if MainWindow is
+                    // the dialog Owner.
+                    if (Owner is MainWindow mw) mw.OnLocalDataCleared();
+
+                    MessageBox.Show(
+                        $"Cleared {rows} scan/topology row(s). Local data is " +
+                        $"empty; the canvas has been reset.",
+                        "Done",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"Failed to clear local data: {ex.Message}",
+                    "Error",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            finally
+            {
+                ClearLocalDataButton.IsEnabled = true;
+            }
+        }
+
         private void CopyHardwareIdButton_Click(object sender, RoutedEventArgs e)
         {
             try

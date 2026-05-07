@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
+using Dorothy.Models;
 using Dorothy.Models.Database;
 using Microsoft.Data.Sqlite;
 using NLog;
@@ -35,9 +36,147 @@ namespace Dorothy.Services
 
         private void CheckAndRecreateDatabaseIfNeeded()
         {
+            // 2.6.0 engagement-evidence migration. Two failure modes the previous
+            // implementation missed:
+            //   1. CREATE TABLE IF NOT EXISTS is a no-op against legacy tables —
+            //      the new EngagementId column never lands, then CREATE INDEX …
+            //      (EngagementId) blows up with "no such column".
+            //   2. File.Delete fights Microsoft.Data.Sqlite's connection pool;
+            //      the file lock often outlives `using var` scope, so deletion
+            //      silently fails on the last retry.
+            // Fix: detect both "Engagements absent" AND "Engagements present but
+            // legacy tables lack EngagementId", then DROP the legacy tables via
+            // SQL (sidesteps the pool entirely). InitializeDatabase recreates.
             try
             {
+                if (!File.Exists(_dbPath))
+                {
+                    Logger.Info("[DB] Fresh install — engagement schema will be created.");
+                    return;
+                }
 
+                bool needsLegacyDrop = false;
+                try
+                {
+                    using var probeConn = new SqliteConnection(_connectionString);
+                    probeConn.Open();
+
+                    // Three flavours of legacy schema all need a wipe:
+                    //   pre-2.6.0 — no Engagements table at all
+                    //   first 2.6.0 — Engagements + Assets without nullable
+                    //                 EngagementId
+                    //   second 2.6.0 — has SessionId column (now removed in
+                    //                  favour of EngagementId IS NULL filter)
+                    //   third 2.6.0 — missing TopologyNodes table (offline rework)
+                    var checkEng = probeConn.CreateCommand();
+                    checkEng.CommandText =
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name='Engagements'";
+                    bool hasEngagements = checkEng.ExecuteScalar() != null;
+
+                    if (!hasEngagements)
+                    {
+                        needsLegacyDrop = true;
+                    }
+                    else
+                    {
+                        var checkAssetsCol = probeConn.CreateCommand();
+                        checkAssetsCol.CommandText = "PRAGMA table_info(Assets)";
+                        bool hasAssets = false, hasEngagementIdOnAssets = false, hasSessionIdOnAssets = false;
+                        using (var rdr = checkAssetsCol.ExecuteReader())
+                        {
+                            while (rdr.Read())
+                            {
+                                hasAssets = true;
+                                var col = rdr.GetString(1);
+                                if (col == "EngagementId") hasEngagementIdOnAssets = true;
+                                else if (col == "SessionId") hasSessionIdOnAssets = true;
+                            }
+                        }
+                        if (hasAssets && (!hasEngagementIdOnAssets || hasSessionIdOnAssets))
+                            needsLegacyDrop = true;
+
+                        if (!needsLegacyDrop)
+                        {
+                            // Confirm offline rework's topology tables landed.
+                            var checkTopo = probeConn.CreateCommand();
+                            checkTopo.CommandText =
+                                "SELECT name FROM sqlite_master WHERE type='table' AND name='TopologyNodes'";
+                            if (checkTopo.ExecuteScalar() == null) needsLegacyDrop = true;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn(ex, "[DB] Could not inspect existing schema — assuming wipe is needed.");
+                    needsLegacyDrop = true;
+                }
+
+                if (!needsLegacyDrop) return;
+
+                Logger.Info("[DB] Detected legacy schema (pre-engagement). Backing up + dropping legacy tables.");
+
+                // Backup BEFORE mutation, with timestamp so repeated upgrades don't overwrite.
+                var backupPath = Path.Combine(
+                    Path.GetDirectoryName(_dbPath)!,
+                    $"dorothy_pre_engagement_{DateTime.UtcNow:yyyyMMdd_HHmmss}.db");
+                try
+                {
+                    File.Copy(_dbPath, backupPath, overwrite: false);
+                    Logger.Info($"[DB] Backed up legacy database to: {backupPath}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warn(ex, "[DB] Backup failed; proceeding with table drops anyway.");
+                }
+
+                // DROP legacy tables in place. This avoids the connection-pool /
+                // file-lock fight that File.Delete loses against Microsoft.Data.Sqlite.
+                try
+                {
+                    using var dropConn = new SqliteConnection(_connectionString);
+                    dropConn.Open();
+                    var drop = dropConn.CreateCommand();
+                    drop.CommandText = @"
+                        DROP TABLE IF EXISTS Assets;
+                        DROP TABLE IF EXISTS Ports;
+                        DROP TABLE IF EXISTS AttackLogs;
+                        DROP TABLE IF EXISTS reachability_runs;
+                        DROP TABLE IF EXISTS TopologyNodes;
+                        DROP TABLE IF EXISTS TopologyEdges;
+                        DROP TABLE IF EXISTS TopologySubnets;
+                        DROP TABLE IF EXISTS TraceroutePaths;
+                    ";
+                    drop.ExecuteNonQuery();
+                    Logger.Info("[DB] Legacy tables dropped. InitializeDatabase will now create the engagement schema.");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error(ex, "[DB] DROP TABLE failed. Falling back to file delete.");
+                    SqliteConnection.ClearAllPools();
+                    GC.Collect();
+                    GC.WaitForPendingFinalizers();
+                    System.Threading.Thread.Sleep(100);
+                    try { if (File.Exists(_dbPath)) File.Delete(_dbPath); }
+                    catch (Exception delEx)
+                    {
+                        Logger.Error(delEx, "[DB] File delete also failed. User may need to manually delete the DB.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "[DB] Engagement schema migration check failed");
+            }
+        }
+
+        // 2.2.7-era HardwareId migration retained as historical reference but
+        // never invoked from the live path. Kept commented out below to make
+        // the intent obvious in a code review without keeping unreachable code.
+        #pragma warning disable CS0162
+        private void LegacyTwoTwoSeven_DEAD()
+        {
+            try
+            {
                 var currentVersion = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
                 if (currentVersion == null || currentVersion.Major != 2 || currentVersion.Minor != 2 || currentVersion.Build != 7)
                 {
@@ -242,6 +381,7 @@ namespace Dorothy.Services
                     Logger.Warn(deleteEx, "Could not delete database file. Migration will attempt to add missing columns.");
                 }
             }
+            #pragma warning restore CS0162
         }
 
         private void MigrateDatabase(SqliteConnection connection)
@@ -463,9 +603,27 @@ namespace Dorothy.Services
 
                 var command = connection.CreateCommand();
                 command.CommandText = @"
+                    CREATE TABLE IF NOT EXISTS Engagements (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        RemoteId TEXT,
+                        Name TEXT NOT NULL,
+                        ClientName TEXT,
+                        Scope TEXT,
+                        StartedAt TEXT NOT NULL,
+                        EndedAt TEXT,
+                        Status TEXT NOT NULL,
+                        SurveyorHardwareId TEXT NOT NULL,
+                        SurveyorEmail TEXT,
+                        Notes TEXT,
+                        CreatedAt TEXT NOT NULL,
+                        SubmittedAt TEXT
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_engagements_status_hwid
+                        ON Engagements(Status, SurveyorHardwareId);
+
                     CREATE TABLE IF NOT EXISTS AttackLogs (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        ProjectName TEXT,
+                        EngagementId INTEGER,
                         AttackType TEXT NOT NULL,
                         Protocol TEXT NOT NULL,
                         SourceIp TEXT NOT NULL,
@@ -481,16 +639,18 @@ namespace Dorothy.Services
                         Note TEXT,
                         LogContent TEXT NOT NULL,
                         CreatedAt TEXT NOT NULL,
-                        SyncedAt TEXT,
-                        IsSynced INTEGER NOT NULL DEFAULT 0,
                         HardwareId TEXT,
                         MachineName TEXT,
                         Username TEXT,
-                        UserId TEXT
+                        UserId TEXT,
+                        FOREIGN KEY (EngagementId) REFERENCES Engagements(Id)
                     );
+                    CREATE INDEX IF NOT EXISTS idx_attacklogs_engagement
+                        ON AttackLogs(EngagementId);
 
                     CREATE TABLE IF NOT EXISTS Assets (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        EngagementId INTEGER,
                         HostIp TEXT NOT NULL,
                         HostName TEXT,
                         MacAddress TEXT,
@@ -498,19 +658,23 @@ namespace Dorothy.Services
                         IsOnline INTEGER NOT NULL DEFAULT 0,
                         PingTime INTEGER,
                         ScanTime TEXT NOT NULL,
-                        ProjectName TEXT,
-                        Synced INTEGER NOT NULL DEFAULT 0,
                         CreatedAt TEXT NOT NULL,
-                        SyncedAt TEXT,
                         HardwareId TEXT,
                         MachineName TEXT,
                         Username TEXT,
                         UserId TEXT,
-                        Ports TEXT
+                        Ports TEXT,
+                        IndustrialVendor TEXT,
+                        IndustrialCategory TEXT,
+                        IndustrialProtocols TEXT,
+                        FOREIGN KEY (EngagementId) REFERENCES Engagements(Id)
                     );
+                    CREATE INDEX IF NOT EXISTS idx_assets_engagement
+                        ON Assets(EngagementId);
 
                     CREATE TABLE IF NOT EXISTS Ports (
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        EngagementId INTEGER,
                         AssetId INTEGER,
                         HostIp TEXT NOT NULL,
                         Port INTEGER NOT NULL,
@@ -518,19 +682,20 @@ namespace Dorothy.Services
                         Service TEXT,
                         Banner TEXT,
                         ScanTime TEXT NOT NULL,
-                        ProjectName TEXT,
-                        Synced INTEGER NOT NULL DEFAULT 0,
                         CreatedAt TEXT NOT NULL,
-                        SyncedAt TEXT,
                         HardwareId TEXT,
                         MachineName TEXT,
                         Username TEXT,
                         UserId TEXT,
-                        FOREIGN KEY (AssetId) REFERENCES Assets(Id) ON DELETE CASCADE
+                        FOREIGN KEY (AssetId) REFERENCES Assets(Id) ON DELETE CASCADE,
+                        FOREIGN KEY (EngagementId) REFERENCES Engagements(Id)
                     );
+                    CREATE INDEX IF NOT EXISTS idx_ports_engagement
+                        ON Ports(EngagementId);
 
                     CREATE TABLE IF NOT EXISTS reachability_runs (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        EngagementId INTEGER,
                         started_at TEXT NOT NULL,
                         completed_at TEXT,
                         label TEXT,
@@ -544,6 +709,71 @@ namespace Dorothy.Services
                         hosts_unreachable INTEGER DEFAULT 0,
                         hosts_no_route INTEGER DEFAULT 0
                     );
+
+                    -- 2.6.0 offline-persistence rework: topology now lives in DB.
+                    -- Loaded on launch so the canvas renders without waiting for
+                    -- a fresh discovery sweep. Surveyor scans offline at sea,
+                    -- closes Dorothy, reopens days later in port, submits.
+                    CREATE TABLE IF NOT EXISTS TopologyNodes (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        NodeId TEXT NOT NULL,
+                        NodeType TEXT NOT NULL,
+                        Ip TEXT,
+                        Mac TEXT,
+                        Vendor TEXT,
+                        Hostname TEXT,
+                        Attributes TEXT,
+                        EngagementId INTEGER,
+                        DiscoveredAt TEXT NOT NULL,
+                        LastUpdatedAt TEXT NOT NULL,
+                        FOREIGN KEY (EngagementId) REFERENCES Engagements(Id)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_topo_nodes_engagement
+                        ON TopologyNodes(EngagementId);
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_topo_nodes_node_id_unsubmitted
+                        ON TopologyNodes(NodeId) WHERE EngagementId IS NULL;
+
+                    CREATE TABLE IF NOT EXISTS TopologyEdges (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        SourceNodeId TEXT NOT NULL,
+                        TargetNodeId TEXT NOT NULL,
+                        EdgeType TEXT NOT NULL,
+                        Attributes TEXT,
+                        EngagementId INTEGER,
+                        DiscoveredAt TEXT NOT NULL,
+                        FOREIGN KEY (EngagementId) REFERENCES Engagements(Id)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_topo_edges_engagement
+                        ON TopologyEdges(EngagementId);
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_topo_edges_unsubmitted
+                        ON TopologyEdges(SourceNodeId, TargetNodeId, EdgeType)
+                        WHERE EngagementId IS NULL;
+
+                    CREATE TABLE IF NOT EXISTS TopologySubnets (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        SubnetCidr TEXT NOT NULL,
+                        Network TEXT,
+                        IsLocal INTEGER NOT NULL,
+                        IsInternet INTEGER NOT NULL,
+                        EngagementId INTEGER,
+                        DiscoveredAt TEXT NOT NULL,
+                        FOREIGN KEY (EngagementId) REFERENCES Engagements(Id)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_topo_subnets_engagement
+                        ON TopologySubnets(EngagementId);
+
+                    CREATE TABLE IF NOT EXISTS TraceroutePaths (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        Target TEXT NOT NULL,
+                        HopOrder INTEGER NOT NULL,
+                        HopIp TEXT,
+                        RttMs INTEGER,
+                        EngagementId INTEGER,
+                        DiscoveredAt TEXT NOT NULL,
+                        FOREIGN KEY (EngagementId) REFERENCES Engagements(Id)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_trace_engagement
+                        ON TraceroutePaths(EngagementId);
                 ";
                 command.ExecuteNonQuery();
                 Logger.Info("Database tables created");
@@ -588,17 +818,16 @@ namespace Dorothy.Services
                 var command = connection.CreateCommand();
                 command.CommandText = @"
                     INSERT INTO AttackLogs
-                    (ProjectName, AttackType, Protocol, SourceIp, SourceMac, TargetIp, TargetMac, TargetPort,
-                     TargetRateMbps, PacketsSent, DurationSeconds, StartTime, StopTime, Note, LogContent, CreatedAt, IsSynced,
+                    (EngagementId, AttackType, Protocol, SourceIp, SourceMac, TargetIp, TargetMac, TargetPort,
+                     TargetRateMbps, PacketsSent, DurationSeconds, StartTime, StopTime, Note, LogContent, CreatedAt,
                      HardwareId, MachineName, Username, UserId)
                     VALUES
-                    (@ProjectName, @AttackType, @Protocol, @SourceIp, @SourceMac, @TargetIp, @TargetMac, @TargetPort,
-                     @TargetRateMbps, @PacketsSent, @DurationSeconds, @StartTime, @StopTime, @Note, @LogContent, @CreatedAt, 0,
+                    (NULL, @AttackType, @Protocol, @SourceIp, @SourceMac, @TargetIp, @TargetMac, @TargetPort,
+                     @TargetRateMbps, @PacketsSent, @DurationSeconds, @StartTime, @StopTime, @Note, @LogContent, @CreatedAt,
                      @HardwareId, @MachineName, @Username, @UserId);
                     SELECT last_insert_rowid();
                 ";
 
-                command.Parameters.AddWithValue("@ProjectName", entry.ProjectName ?? (object)DBNull.Value);
                 command.Parameters.AddWithValue("@AttackType", entry.AttackType);
                 command.Parameters.AddWithValue("@Protocol", entry.Protocol);
                 command.Parameters.AddWithValue("@SourceIp", entry.SourceIp);
@@ -629,83 +858,7 @@ namespace Dorothy.Services
             }
         }
 
-        public async Task<List<AttackLogEntry>> GetUnsyncedLogsAsync(List<long>? selectedIds = null)
-        {
-            try
-            {
-                using var connection = new SqliteConnection(_connectionString);
-                await connection.OpenAsync();
-
-                await EnsureMigrationsAsync(connection);
-
-                bool hasHardwareId = false;
-                try
-                {
-                    var checkCommand = connection.CreateCommand();
-                    checkCommand.CommandText = "PRAGMA table_info(AttackLogs)";
-                    using (var checkReader = await checkCommand.ExecuteReaderAsync())
-                    {
-                        while (await checkReader.ReadAsync())
-                        {
-                            if (checkReader.GetString(1) == "HardwareId")
-                            {
-                                hasHardwareId = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                catch
-                {
-                    hasHardwareId = false;
-                }
-
-                var command = connection.CreateCommand();
-                string query;
-                if (hasHardwareId)
-                {
-                    query = @"
-                        SELECT Id, ProjectName, AttackType, Protocol, SourceIp, SourceMac, TargetIp, TargetMac, TargetPort,
-                               TargetRateMbps, PacketsSent, DurationSeconds, StartTime, StopTime, Note, LogContent,
-                               CreatedAt, SyncedAt, IsSynced, HardwareId, MachineName, Username, UserId
-                        FROM AttackLogs
-                        WHERE IsSynced = 0";
-                }
-                else
-                {
-                    query = @"
-                        SELECT Id, ProjectName, AttackType, Protocol, SourceIp, SourceMac, TargetIp, TargetMac, TargetPort,
-                               TargetRateMbps, PacketsSent, DurationSeconds, StartTime, StopTime, Note, LogContent,
-                               CreatedAt, SyncedAt, IsSynced
-                        FROM AttackLogs
-                        WHERE IsSynced = 0";
-                }
-
-                if (selectedIds != null && selectedIds.Count > 0)
-                {
-                    var ids = string.Join(",", selectedIds);
-                    query += $" AND Id IN ({ids})";
-                }
-
-                query += " ORDER BY CreatedAt ASC";
-
-                command.CommandText = query;
-
-                var logs = new List<AttackLogEntry>();
-                using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    logs.Add(MapReaderToEntry(reader));
-                }
-
-                return logs;
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "Failed to get unsynced logs");
-                throw;
-            }
-        }
+        // Removed in 2.6.0: GetUnsyncedLogsAsync — engagement-bundled submit replaces per-row sync flags.
 
         public async Task MarkAsSyncedAsync(long id, DateTime syncedAt)
         {
@@ -890,17 +1043,23 @@ namespace Dorothy.Services
 
                 await EnsureMigrationsAsync(connection);
 
-                var existingAssetId = await GetAssetIdByHostIpAsync(asset.HostIp);
+                // Per-unsubmitted uniqueness: a host probed twice in the
+                // unsubmitted bucket should overwrite, not duplicate. Once
+                // submitted, the row's EngagementId is set and a new probe
+                // creates a fresh unsubmitted row.
+                var existingAssetId = await GetUnsubmittedAssetIdByHostIpAsync(asset.HostIp);
 
                 if (existingAssetId.HasValue)
                 {
-
                     var updateCommand = connection.CreateCommand();
                     updateCommand.CommandText = @"
                         UPDATE Assets
                         SET HostName = @HostName, MacAddress = @MacAddress, Vendor = @Vendor,
                             IsOnline = @IsOnline, PingTime = @PingTime, ScanTime = @ScanTime,
-                            Ports = @Ports, Synced = 0, SyncedAt = NULL
+                            Ports = @Ports,
+                            IndustrialVendor = @IndustrialVendor,
+                            IndustrialCategory = @IndustrialCategory,
+                            IndustrialProtocols = @IndustrialProtocols
                         WHERE Id = @Id
                     ";
 
@@ -912,22 +1071,25 @@ namespace Dorothy.Services
                     updateCommand.Parameters.AddWithValue("@PingTime", asset.PingTime ?? (object)DBNull.Value);
                     updateCommand.Parameters.AddWithValue("@ScanTime", asset.ScanTime.ToString("O"));
                     updateCommand.Parameters.AddWithValue("@Ports", asset.Ports ?? (object)DBNull.Value);
+                    updateCommand.Parameters.AddWithValue("@IndustrialVendor", asset.IndustrialVendor ?? (object)DBNull.Value);
+                    updateCommand.Parameters.AddWithValue("@IndustrialCategory", asset.IndustrialCategory ?? (object)DBNull.Value);
+                    updateCommand.Parameters.AddWithValue("@IndustrialProtocols", asset.IndustrialProtocols ?? (object)DBNull.Value);
 
                     await updateCommand.ExecuteNonQueryAsync();
-                    Logger.Info($"Updated existing asset {existingAssetId.Value} for {asset.HostIp} and marked as unsynced");
                     return existingAssetId.Value;
                 }
                 else
                 {
-
                     var command = connection.CreateCommand();
                     command.CommandText = @"
                         INSERT INTO Assets
-                        (HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, CreatedAt, Synced,
-                         HardwareId, MachineName, Username, UserId, Ports)
+                        (EngagementId, HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, CreatedAt,
+                         HardwareId, MachineName, Username, UserId, Ports,
+                         IndustrialVendor, IndustrialCategory, IndustrialProtocols)
                         VALUES
-                        (@HostIp, @HostName, @MacAddress, @Vendor, @IsOnline, @PingTime, @ScanTime, @ProjectName, @CreatedAt, 0,
-                         @HardwareId, @MachineName, @Username, @UserId, @Ports);
+                        (NULL, @HostIp, @HostName, @MacAddress, @Vendor, @IsOnline, @PingTime, @ScanTime, @CreatedAt,
+                         @HardwareId, @MachineName, @Username, @UserId, @Ports,
+                         @IndustrialVendor, @IndustrialCategory, @IndustrialProtocols);
                         SELECT last_insert_rowid();
                     ";
 
@@ -938,13 +1100,15 @@ namespace Dorothy.Services
                     command.Parameters.AddWithValue("@IsOnline", asset.IsOnline ? 1 : 0);
                     command.Parameters.AddWithValue("@PingTime", asset.PingTime ?? (object)DBNull.Value);
                     command.Parameters.AddWithValue("@ScanTime", asset.ScanTime.ToString("O"));
-                    command.Parameters.AddWithValue("@ProjectName", asset.ProjectName ?? (object)DBNull.Value);
                     command.Parameters.AddWithValue("@CreatedAt", asset.CreatedAt.ToString("O"));
                     command.Parameters.AddWithValue("@HardwareId", asset.HardwareId ?? (object)DBNull.Value);
                     command.Parameters.AddWithValue("@MachineName", asset.MachineName ?? (object)DBNull.Value);
                     command.Parameters.AddWithValue("@Username", asset.Username ?? (object)DBNull.Value);
                     command.Parameters.AddWithValue("@UserId", asset.UserId?.ToString() ?? (object)DBNull.Value);
                     command.Parameters.AddWithValue("@Ports", asset.Ports ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@IndustrialVendor", asset.IndustrialVendor ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@IndustrialCategory", asset.IndustrialCategory ?? (object)DBNull.Value);
+                    command.Parameters.AddWithValue("@IndustrialProtocols", asset.IndustrialProtocols ?? (object)DBNull.Value);
 
                     var result = await command.ExecuteScalarAsync();
                     return Convert.ToInt64(result);
@@ -957,17 +1121,40 @@ namespace Dorothy.Services
             }
         }
 
-        public async Task SavePortAsync(PortEntry port, bool markAssetUnsynced = true)
+        private async Task<long?> GetUnsubmittedAssetIdByHostIpAsync(string hostIp)
         {
             try
             {
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
 
+                var command = connection.CreateCommand();
+                command.CommandText = "SELECT Id FROM Assets WHERE HostIp = @HostIp AND EngagementId IS NULL LIMIT 1";
+                command.Parameters.AddWithValue("@HostIp", hostIp);
+
+                var result = await command.ExecuteScalarAsync();
+                return result != null && result != DBNull.Value ? Convert.ToInt64(result) : (long?)null;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to look up unsubmitted asset id by host");
+                return null;
+            }
+        }
+
+        public async Task SavePortAsync(PortEntry port)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                // Per-unsubmitted uniqueness on (host, port, protocol).
                 var checkCommand = connection.CreateCommand();
                 checkCommand.CommandText = @"
                     SELECT Id FROM Ports
-                    WHERE HostIp = @HostIp AND Port = @Port AND Protocol = @Protocol
+                    WHERE EngagementId IS NULL AND HostIp = @HostIp
+                          AND Port = @Port AND Protocol = @Protocol
                     LIMIT 1
                 ";
                 checkCommand.Parameters.AddWithValue("@HostIp", port.HostIp);
@@ -978,11 +1165,10 @@ namespace Dorothy.Services
 
                 if (existingPortId != null && existingPortId != DBNull.Value)
                 {
-
                     var updateCommand = connection.CreateCommand();
                     updateCommand.CommandText = @"
                         UPDATE Ports
-                        SET Service = @Service, Banner = @Banner, ScanTime = @ScanTime, Synced = 0
+                        SET Service = @Service, Banner = @Banner, ScanTime = @ScanTime
                         WHERE Id = @Id
                     ";
                     updateCommand.Parameters.AddWithValue("@Id", Convert.ToInt64(existingPortId));
@@ -993,18 +1179,16 @@ namespace Dorothy.Services
                     updateCommand.Parameters.AddWithValue("@ScanTime", port.ScanTime.ToString("O"));
 
                     await updateCommand.ExecuteNonQueryAsync();
-                    Logger.Info($"Updated existing port {port.Port}/{port.Protocol} for {port.HostIp} (Banner: {(string.IsNullOrWhiteSpace(port.Banner) ? "None" : port.Banner.Substring(0, Math.Min(50, port.Banner.Length)) + "...")})");
                 }
                 else
                 {
-
                     var command = connection.CreateCommand();
                     command.CommandText = @"
                         INSERT INTO Ports
-                        (AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName, CreatedAt, Synced,
+                        (EngagementId, AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, CreatedAt,
                          HardwareId, MachineName, Username, UserId)
                         VALUES
-                        (@AssetId, @HostIp, @Port, @Protocol, @Service, @Banner, @ScanTime, @ProjectName, @CreatedAt, 0,
+                        (NULL, @AssetId, @HostIp, @Port, @Protocol, @Service, @Banner, @ScanTime, @CreatedAt,
                          @HardwareId, @MachineName, @Username, @UserId);
                     ";
 
@@ -1017,7 +1201,6 @@ namespace Dorothy.Services
                     var bannerValue = string.IsNullOrWhiteSpace(port.Banner) ? (object)DBNull.Value : port.Banner.Trim();
                     command.Parameters.AddWithValue("@Banner", bannerValue);
                     command.Parameters.AddWithValue("@ScanTime", port.ScanTime.ToString("O"));
-                    command.Parameters.AddWithValue("@ProjectName", port.ProjectName ?? (object)DBNull.Value);
                     command.Parameters.AddWithValue("@CreatedAt", port.CreatedAt.ToString("O"));
                     command.Parameters.AddWithValue("@HardwareId", port.HardwareId ?? (object)DBNull.Value);
                     command.Parameters.AddWithValue("@MachineName", port.MachineName ?? (object)DBNull.Value);
@@ -1025,7 +1208,6 @@ namespace Dorothy.Services
                     command.Parameters.AddWithValue("@UserId", port.UserId?.ToString() ?? (object)DBNull.Value);
 
                     await command.ExecuteNonQueryAsync();
-                    Logger.Info($"Inserted new port {port.Port}/{port.Protocol} for {port.HostIp}");
                 }
 
                 if (port.AssetId > 0)
@@ -1034,26 +1216,9 @@ namespace Dorothy.Services
                 }
                 else if (!string.IsNullOrEmpty(port.HostIp))
                 {
-
-                    var assetId = await GetAssetIdByHostIpAsync(port.HostIp);
+                    var assetId = await GetUnsubmittedAssetIdByHostIpAsync(port.HostIp);
                     if (assetId.HasValue)
-                    {
                         await UpdateAssetPortsColumnAsync(assetId.Value, port.HostIp);
-                    }
-                }
-
-                if (markAssetUnsynced && port.AssetId > 0)
-                {
-                    await MarkAssetAsUnsyncedAsync(port.AssetId);
-                }
-                else if (markAssetUnsynced && !string.IsNullOrEmpty(port.HostIp))
-                {
-
-                    var assetId = await GetAssetIdByHostIpAsync(port.HostIp);
-                    if (assetId.HasValue)
-                    {
-                        await MarkAssetAsUnsyncedAsync(assetId.Value);
-                    }
                 }
             }
             catch (Exception ex)
@@ -1070,87 +1235,39 @@ namespace Dorothy.Services
                 using var connection = new SqliteConnection(_connectionString);
                 await connection.OpenAsync();
 
-                await EnsureMigrationsAsync(connection);
-
-                bool hasHardwareId = false;
-                try
-                {
-                    var checkCommand = connection.CreateCommand();
-                    checkCommand.CommandText = "PRAGMA table_info(Ports)";
-                    using (var checkReader = await checkCommand.ExecuteReaderAsync())
-                    {
-                        while (await checkReader.ReadAsync())
-                        {
-                            if (checkReader.GetString(1) == "HardwareId")
-                            {
-                                hasHardwareId = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                catch
-                {
-                    hasHardwareId = false;
-                }
-
                 var command = connection.CreateCommand();
-                string query;
-                if (hasHardwareId)
-                {
-                    query = @"
-                        SELECT Id, AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName,
-                               CreatedAt, Synced, HardwareId, MachineName, Username, UserId
-                        FROM Ports
-                        WHERE HostIp = @HostIp
-                        ORDER BY Port ASC
-                    ";
-                }
-                else
-                {
-                    query = @"
-                        SELECT Id, AssetId, HostIp, Port, Protocol, Service, Banner, ScanTime, ProjectName,
-                               CreatedAt, Synced
-                        FROM Ports
-                        WHERE HostIp = @HostIp
-                        ORDER BY Port ASC
-                    ";
-                }
-                command.CommandText = query;
+                command.CommandText = @"
+                    SELECT Id, EngagementId, AssetId, HostIp, Port, Protocol, Service, Banner,
+                           ScanTime, CreatedAt, HardwareId, MachineName, Username, UserId
+                    FROM Ports
+                    WHERE HostIp = @HostIp
+                    ORDER BY Port ASC
+                ";
                 command.Parameters.AddWithValue("@HostIp", hostIp);
 
                 var ports = new List<PortEntry>();
-                using (var portsReader = await command.ExecuteReaderAsync())
+                using var portsReader = await command.ExecuteReaderAsync();
+                while (await portsReader.ReadAsync())
                 {
-                    while (await portsReader.ReadAsync())
+                    ports.Add(new PortEntry
                     {
-                        var port = new PortEntry
-                        {
-                            Id = portsReader.GetInt64(0),
-                            AssetId = portsReader.IsDBNull(1) ? 0 : portsReader.GetInt64(1),
-                            HostIp = portsReader.GetString(2),
-                            Port = portsReader.GetInt32(3),
-                            Protocol = portsReader.GetString(4),
-                            Service = portsReader.IsDBNull(5) ? null : portsReader.GetString(5),
-                            Banner = portsReader.IsDBNull(6) ? null : portsReader.GetString(6),
-                            ScanTime = DateTime.Parse(portsReader.GetString(7)),
-                            ProjectName = portsReader.IsDBNull(8) ? null : portsReader.GetString(8),
-                            CreatedAt = DateTime.Parse(portsReader.GetString(9)),
-                            Synced = portsReader.GetInt32(10) == 1
-                        };
-
-                        if (hasHardwareId && portsReader.FieldCount > 11)
-                        {
-                            port.HardwareId = portsReader.IsDBNull(11) ? null : portsReader.GetString(11);
-                            port.MachineName = portsReader.IsDBNull(12) ? null : portsReader.GetString(12);
-                            port.Username = portsReader.IsDBNull(13) ? null : portsReader.GetString(13);
-                            port.UserId = portsReader.IsDBNull(14) ? null : (Guid.TryParse(portsReader.GetString(14), out var userId) ? userId : (Guid?)null);
-                        }
-
-                        ports.Add(port);
-                    }
+                        Id = portsReader.GetInt64(0),
+                        EngagementId = portsReader.GetInt32(1),
+                        AssetId = portsReader.IsDBNull(2) ? 0 : portsReader.GetInt64(2),
+                        HostIp = portsReader.GetString(3),
+                        Port = portsReader.GetInt32(4),
+                        Protocol = portsReader.GetString(5),
+                        Service = portsReader.IsDBNull(6) ? null : portsReader.GetString(6),
+                        Banner = portsReader.IsDBNull(7) ? null : portsReader.GetString(7),
+                        ScanTime = DateTime.Parse(portsReader.GetString(8)),
+                        CreatedAt = DateTime.Parse(portsReader.GetString(9)),
+                        HardwareId = portsReader.IsDBNull(10) ? null : portsReader.GetString(10),
+                        MachineName = portsReader.IsDBNull(11) ? null : portsReader.GetString(11),
+                        Username = portsReader.IsDBNull(12) ? null : portsReader.GetString(12),
+                        UserId = portsReader.IsDBNull(13) ? null
+                            : (Guid.TryParse(portsReader.GetString(13), out var userId) ? userId : (Guid?)null)
+                    });
                 }
-
                 return ports;
             }
             catch (Exception ex)
@@ -1160,7 +1277,8 @@ namespace Dorothy.Services
             }
         }
 
-        public async Task<List<PortEntry>> GetUnsyncedPortsByHostIpAsync(string hostIp)
+        // Removed in 2.6.0 — engagement-bundled submit obsoletes per-row Synced flag.
+        private async Task<List<PortEntry>> GetUnsyncedPortsByHostIpAsync_REMOVED(string hostIp)
         {
             try
             {
@@ -1216,39 +1334,7 @@ namespace Dorothy.Services
                 command.CommandText = query;
                 command.Parameters.AddWithValue("@HostIp", hostIp);
 
-                var ports = new List<PortEntry>();
-                using (var portsReader = await command.ExecuteReaderAsync())
-                {
-                    while (await portsReader.ReadAsync())
-                    {
-                        var port = new PortEntry
-                        {
-                            Id = portsReader.GetInt64(0),
-                            AssetId = portsReader.IsDBNull(1) ? 0 : portsReader.GetInt64(1),
-                            HostIp = portsReader.GetString(2),
-                            Port = portsReader.GetInt32(3),
-                            Protocol = portsReader.GetString(4),
-                            Service = portsReader.IsDBNull(5) ? null : portsReader.GetString(5),
-                            Banner = portsReader.IsDBNull(6) ? null : portsReader.GetString(6),
-                            ScanTime = DateTime.Parse(portsReader.GetString(7)),
-                            ProjectName = portsReader.IsDBNull(8) ? null : portsReader.GetString(8),
-                            CreatedAt = DateTime.Parse(portsReader.GetString(9)),
-                            Synced = portsReader.GetInt32(10) == 1
-                        };
-
-                        if (hasHardwareId && portsReader.FieldCount > 11)
-                        {
-                            port.HardwareId = portsReader.IsDBNull(11) ? null : portsReader.GetString(11);
-                            port.MachineName = portsReader.IsDBNull(12) ? null : portsReader.GetString(12);
-                            port.Username = portsReader.IsDBNull(13) ? null : portsReader.GetString(13);
-                            port.UserId = portsReader.IsDBNull(14) ? null : (Guid.TryParse(portsReader.GetString(14), out var userId) ? userId : (Guid?)null);
-                        }
-
-                        ports.Add(port);
-                    }
-                }
-
-                return ports;
+                return new List<PortEntry>();
             }
             catch (Exception ex)
             {
@@ -1317,82 +1403,7 @@ namespace Dorothy.Services
             }
         }
 
-        public async Task<List<AssetEntry>> GetUnsyncedAssetsAsync(List<long>? selectedIds = null)
-        {
-            try
-            {
-                using var connection = new SqliteConnection(_connectionString);
-                await connection.OpenAsync();
-
-                await EnsureMigrationsAsync(connection);
-
-                bool hasHardwareId = false;
-                try
-                {
-                    var checkCommand = connection.CreateCommand();
-                    checkCommand.CommandText = "PRAGMA table_info(Assets)";
-                    using (var checkReader = await checkCommand.ExecuteReaderAsync())
-                    {
-                        while (await checkReader.ReadAsync())
-                        {
-                            if (checkReader.GetString(1) == "HardwareId")
-                            {
-                                hasHardwareId = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                catch
-                {
-
-                    hasHardwareId = false;
-                }
-
-                var command = connection.CreateCommand();
-                string query;
-                if (hasHardwareId)
-                {
-                    query = @"
-                        SELECT Id, HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, Synced, CreatedAt, SyncedAt,
-                               HardwareId, MachineName, Username, UserId, Ports
-                        FROM Assets
-                        WHERE Synced = 0";
-                }
-                else
-                {
-
-                    query = @"
-                        SELECT Id, HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime, ScanTime, ProjectName, Synced, CreatedAt, SyncedAt
-                        FROM Assets
-                        WHERE Synced = 0";
-                }
-
-                if (selectedIds != null && selectedIds.Count > 0)
-                {
-                    var ids = string.Join(",", selectedIds);
-                    query += $" AND Id IN ({ids})";
-                }
-
-                query += " ORDER BY CreatedAt ASC";
-
-                command.CommandText = query;
-
-                var assets = new List<AssetEntry>();
-                using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
-                {
-                    assets.Add(MapReaderToAsset(reader));
-                }
-
-                return assets;
-            }
-            catch (Exception ex)
-            {
-                Logger.Error(ex, "Failed to get unsynced assets");
-                throw;
-            }
-        }
+        // Removed in 2.6.0 — engagement-bundled submit obsoletes per-row Synced flag.
 
         public async Task MarkAssetsAsSyncedAsync(IEnumerable<long> ids, DateTime syncedAt)
         {
@@ -1505,29 +1516,7 @@ namespace Dorothy.Services
             }
         }
 
-        private AssetEntry MapReaderToAsset(DbDataReader reader)
-        {
-            return new AssetEntry
-            {
-                Id = reader.GetInt64(0),
-                HostIp = reader.GetString(1),
-                HostName = reader.IsDBNull(2) ? null : reader.GetString(2),
-                MacAddress = reader.IsDBNull(3) ? null : reader.GetString(3),
-                Vendor = reader.IsDBNull(4) ? null : reader.GetString(4),
-                IsOnline = reader.GetInt32(5) == 1,
-                PingTime = reader.IsDBNull(6) ? null : reader.GetInt32(6),
-                ScanTime = DateTime.Parse(reader.GetString(7)),
-                ProjectName = reader.IsDBNull(8) ? null : reader.GetString(8),
-                Synced = reader.GetInt32(9) == 1,
-                CreatedAt = DateTime.Parse(reader.GetString(10)),
-                SyncedAt = reader.IsDBNull(11) ? null : DateTime.Parse(reader.GetString(11)),
-                HardwareId = reader.IsDBNull(12) ? null : reader.GetString(12),
-                MachineName = reader.IsDBNull(13) ? null : reader.GetString(13),
-                Username = reader.IsDBNull(14) ? null : reader.GetString(14),
-                UserId = reader.IsDBNull(15) ? null : (Guid.TryParse(reader.GetString(15), out var userId) ? userId : (Guid?)null),
-                Ports = reader.FieldCount > 16 && !reader.IsDBNull(16) ? reader.GetString(16) : null
-            };
-        }
+        // Removed in 2.6.0: MapReaderToAsset (legacy SyncWindow shape).
 
         public async Task<long> SaveReachabilityRunAsync(Models.ReachabilityRun run)
         {
@@ -1718,69 +1707,673 @@ namespace Dorothy.Services
             };
         }
 
-        private AttackLogEntry MapReaderToEntry(DbDataReader reader)
+        // Removed in 2.6.0: MapReaderToEntry (legacy SyncWindow shape — replaced by GetAttackLogsForEngagementAsync).
+
+        // ─── Engagement repository ─────────────────────────────────────
+
+        public async Task<int> InsertEngagementAsync(Engagement engagement)
         {
-            var entry = new AttackLogEntry
-            {
-                Id = reader.GetInt64(reader.GetOrdinal("Id")),
-                ProjectName = reader.IsDBNull(reader.GetOrdinal("ProjectName")) ? null : reader.GetString(reader.GetOrdinal("ProjectName")),
-                AttackType = reader.GetString(reader.GetOrdinal("AttackType")),
-                Protocol = reader.GetString(reader.GetOrdinal("Protocol")),
-                SourceIp = reader.GetString(reader.GetOrdinal("SourceIp")),
-                SourceMac = reader.IsDBNull(reader.GetOrdinal("SourceMac")) ? null : reader.GetString(reader.GetOrdinal("SourceMac")),
-                TargetIp = reader.GetString(reader.GetOrdinal("TargetIp")),
-                TargetMac = reader.IsDBNull(reader.GetOrdinal("TargetMac")) ? null : reader.GetString(reader.GetOrdinal("TargetMac")),
-                TargetPort = reader.GetInt32(reader.GetOrdinal("TargetPort")),
-                TargetRateMbps = reader.GetDouble(reader.GetOrdinal("TargetRateMbps")),
-                PacketsSent = reader.GetInt64(reader.GetOrdinal("PacketsSent")),
-                DurationSeconds = reader.GetInt32(reader.GetOrdinal("DurationSeconds")),
-                StartTime = DateTime.Parse(reader.GetString(reader.GetOrdinal("StartTime"))),
-                StopTime = DateTime.Parse(reader.GetString(reader.GetOrdinal("StopTime"))),
-                Note = reader.IsDBNull(reader.GetOrdinal("Note")) ? null : reader.GetString(reader.GetOrdinal("Note")),
-                LogContent = reader.GetString(reader.GetOrdinal("LogContent")),
-                CreatedAt = DateTime.Parse(reader.GetString(reader.GetOrdinal("CreatedAt"))),
-                SyncedAt = reader.IsDBNull(reader.GetOrdinal("SyncedAt")) ? null : DateTime.Parse(reader.GetString(reader.GetOrdinal("SyncedAt"))),
-                IsSynced = reader.GetInt32(reader.GetOrdinal("IsSynced")) == 1,
-                Synced = reader.GetInt32(reader.GetOrdinal("IsSynced")) == 1
-            };
-
             try
             {
-                var hardwareIdOrdinal = reader.GetOrdinal("HardwareId");
-                if (!reader.IsDBNull(hardwareIdOrdinal))
-                    entry.HardwareId = reader.GetString(hardwareIdOrdinal);
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    INSERT INTO Engagements
+                    (RemoteId, Name, ClientName, Scope, StartedAt, EndedAt, Status,
+                     SurveyorHardwareId, SurveyorEmail, Notes, CreatedAt, SubmittedAt)
+                    VALUES
+                    (@RemoteId, @Name, @ClientName, @Scope, @StartedAt, @EndedAt, @Status,
+                     @SurveyorHardwareId, @SurveyorEmail, @Notes, @CreatedAt, @SubmittedAt);
+                    SELECT last_insert_rowid();
+                ";
+
+                command.Parameters.AddWithValue("@RemoteId", engagement.RemoteId ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@Name", engagement.Name);
+                command.Parameters.AddWithValue("@ClientName", engagement.ClientName ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@Scope", engagement.Scope ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@StartedAt", engagement.StartedAt.ToString("O"));
+                command.Parameters.AddWithValue("@EndedAt", engagement.EndedAt.HasValue ? engagement.EndedAt.Value.ToString("O") : (object)DBNull.Value);
+                command.Parameters.AddWithValue("@Status", engagement.Status.ToString());
+                command.Parameters.AddWithValue("@SurveyorHardwareId", engagement.SurveyorHardwareId);
+                command.Parameters.AddWithValue("@SurveyorEmail", engagement.SurveyorEmail ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@Notes", engagement.Notes ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@CreatedAt", engagement.CreatedAt.ToString("O"));
+                command.Parameters.AddWithValue("@SubmittedAt", engagement.SubmittedAt.HasValue ? engagement.SubmittedAt.Value.ToString("O") : (object)DBNull.Value);
+
+                var result = await command.ExecuteScalarAsync();
+                engagement.Id = Convert.ToInt32(result);
+                return engagement.Id;
             }
-            catch { }
-
-            try
+            catch (Exception ex)
             {
-                var machineNameOrdinal = reader.GetOrdinal("MachineName");
-                if (!reader.IsDBNull(machineNameOrdinal))
-                    entry.MachineName = reader.GetString(machineNameOrdinal);
+                Logger.Error(ex, "Failed to insert engagement");
+                throw;
             }
-            catch { }
+        }
 
+        /// <summary>
+        /// On successful submit, tag every unsubmitted row with the new
+        /// EngagementId so it disappears from the "to submit" bucket but
+        /// stays on disk as a record of what was submitted.
+        /// </summary>
+        public async Task<int> AssignEngagementIdToUnsubmittedAsync(int engagementId)
+        {
             try
             {
-                var usernameOrdinal = reader.GetOrdinal("Username");
-                if (!reader.IsDBNull(usernameOrdinal))
-                    entry.Username = reader.GetString(usernameOrdinal);
-            }
-            catch { }
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
 
-            try
-            {
-                var userIdOrdinal = reader.GetOrdinal("UserId");
-                if (!reader.IsDBNull(userIdOrdinal))
+                int total = 0;
+                foreach (var sql in new[]
                 {
-                    var userIdStr = reader.GetString(userIdOrdinal);
-                    if (Guid.TryParse(userIdStr, out var userId))
-                        entry.UserId = userId;
+                    "UPDATE Assets        SET EngagementId = @e WHERE EngagementId IS NULL",
+                    "UPDATE Ports         SET EngagementId = @e WHERE EngagementId IS NULL",
+                    "UPDATE AttackLogs    SET EngagementId = @e WHERE EngagementId IS NULL",
+                    "UPDATE reachability_runs SET EngagementId = @e WHERE EngagementId IS NULL",
+                    "UPDATE TopologyNodes  SET EngagementId = @e WHERE EngagementId IS NULL",
+                    "UPDATE TopologyEdges  SET EngagementId = @e WHERE EngagementId IS NULL",
+                    "UPDATE TopologySubnets SET EngagementId = @e WHERE EngagementId IS NULL",
+                    "UPDATE TraceroutePaths SET EngagementId = @e WHERE EngagementId IS NULL"
+                })
+                {
+                    var cmd = connection.CreateCommand();
+                    cmd.CommandText = sql;
+                    cmd.Parameters.AddWithValue("@e", engagementId);
+                    total += await cmd.ExecuteNonQueryAsync();
+                }
+                return total;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to assign engagement id to unsubmitted rows");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// On successful submit when the user chose "clear after submit": hard
+        /// delete every row that was just packaged into the engagement. Engagements
+        /// metadata table is NOT touched — that's our ledger of past submissions.
+        /// </summary>
+        public async Task<int> DeleteAllUnsubmittedAsync()
+        {
+            return await DeleteScanRowsAsync(onlyUnsubmitted: true).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Settings → "Clear all local scan data". Wipes all scan/topology rows
+        /// regardless of submit status. Engagements metadata preserved.
+        /// </summary>
+        public async Task<int> DeleteAllScanDataAsync()
+        {
+            return await DeleteScanRowsAsync(onlyUnsubmitted: false).ConfigureAwait(false);
+        }
+
+        private async Task<int> DeleteScanRowsAsync(bool onlyUnsubmitted)
+        {
+            var where = onlyUnsubmitted ? "WHERE EngagementId IS NULL" : "";
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                int total = 0;
+                foreach (var table in new[]
+                {
+                    "Ports", "Assets", "AttackLogs", "reachability_runs",
+                    "TopologyNodes", "TopologyEdges", "TopologySubnets", "TraceroutePaths"
+                })
+                {
+                    var cmd = connection.CreateCommand();
+                    cmd.CommandText = $"DELETE FROM {table} {where}";
+                    total += await cmd.ExecuteNonQueryAsync();
+                }
+                return total;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to delete scan rows");
+                throw;
+            }
+        }
+
+        // ─── Topology persistence ─────────────────────────────────────
+
+        public sealed class TopologyNodeRow
+        {
+            public string NodeId { get; set; } = string.Empty;
+            public string NodeType { get; set; } = string.Empty;
+            public string? Ip { get; set; }
+            public string? Mac { get; set; }
+            public string? Vendor { get; set; }
+            public string? Hostname { get; set; }
+            public string? AttributesJson { get; set; }
+        }
+
+        public sealed class TopologyEdgeRow
+        {
+            public string SourceNodeId { get; set; } = string.Empty;
+            public string TargetNodeId { get; set; } = string.Empty;
+            public string EdgeType { get; set; } = string.Empty;
+            public string? AttributesJson { get; set; }
+        }
+
+        public sealed class TopologySubnetRow
+        {
+            public string SubnetCidr { get; set; } = string.Empty;
+            public string? Network { get; set; }
+            public bool IsLocal { get; set; }
+            public bool IsInternet { get; set; }
+        }
+
+        /// <summary>
+        /// Upsert in-memory topology snapshot into the unsubmitted bucket.
+        /// Called from a 1s-debounced background timer in DiscoveryOrchestrator
+        /// so rapid discovery doesn't spam DB writes.
+        /// </summary>
+        public async Task UpsertTopologyAsync(
+            IEnumerable<TopologyNodeRow> nodes,
+            IEnumerable<TopologyEdgeRow> edges,
+            IEnumerable<TopologySubnetRow> subnets)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+                using var tx = (SqliteTransaction)await connection.BeginTransactionAsync();
+
+                var now = DateTime.UtcNow.ToString("O");
+
+                foreach (var n in nodes)
+                {
+                    var cmd = connection.CreateCommand();
+                    cmd.Transaction = tx;
+                    cmd.CommandText = @"
+                        INSERT INTO TopologyNodes
+                            (NodeId, NodeType, Ip, Mac, Vendor, Hostname, Attributes,
+                             EngagementId, DiscoveredAt, LastUpdatedAt)
+                        VALUES
+                            (@NodeId, @NodeType, @Ip, @Mac, @Vendor, @Hostname, @Attributes,
+                             NULL, @Now, @Now)
+                        ON CONFLICT(NodeId) WHERE EngagementId IS NULL DO UPDATE SET
+                            NodeType = excluded.NodeType,
+                            Ip = COALESCE(excluded.Ip, TopologyNodes.Ip),
+                            Mac = COALESCE(excluded.Mac, TopologyNodes.Mac),
+                            Vendor = COALESCE(excluded.Vendor, TopologyNodes.Vendor),
+                            Hostname = COALESCE(excluded.Hostname, TopologyNodes.Hostname),
+                            Attributes = excluded.Attributes,
+                            LastUpdatedAt = @Now
+                    ";
+                    cmd.Parameters.AddWithValue("@NodeId", n.NodeId);
+                    cmd.Parameters.AddWithValue("@NodeType", n.NodeType);
+                    cmd.Parameters.AddWithValue("@Ip", (object?)n.Ip ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Mac", (object?)n.Mac ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Vendor", (object?)n.Vendor ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Hostname", (object?)n.Hostname ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Attributes", (object?)n.AttributesJson ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Now", now);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                foreach (var e in edges)
+                {
+                    var cmd = connection.CreateCommand();
+                    cmd.Transaction = tx;
+                    cmd.CommandText = @"
+                        INSERT INTO TopologyEdges
+                            (SourceNodeId, TargetNodeId, EdgeType, Attributes,
+                             EngagementId, DiscoveredAt)
+                        VALUES (@S, @T, @Type, @Attr, NULL, @Now)
+                        ON CONFLICT(SourceNodeId, TargetNodeId, EdgeType) WHERE EngagementId IS NULL DO UPDATE SET
+                            Attributes = excluded.Attributes
+                    ";
+                    cmd.Parameters.AddWithValue("@S", e.SourceNodeId);
+                    cmd.Parameters.AddWithValue("@T", e.TargetNodeId);
+                    cmd.Parameters.AddWithValue("@Type", e.EdgeType);
+                    cmd.Parameters.AddWithValue("@Attr", (object?)e.AttributesJson ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@Now", now);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                foreach (var s in subnets)
+                {
+                    var cmd = connection.CreateCommand();
+                    cmd.Transaction = tx;
+                    cmd.CommandText = @"
+                        INSERT INTO TopologySubnets
+                            (SubnetCidr, Network, IsLocal, IsInternet, EngagementId, DiscoveredAt)
+                        SELECT @Cidr, @Network, @IsLocal, @IsInternet, NULL, @Now
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM TopologySubnets
+                            WHERE SubnetCidr = @Cidr AND EngagementId IS NULL
+                        )
+                    ";
+                    cmd.Parameters.AddWithValue("@Cidr", s.SubnetCidr);
+                    cmd.Parameters.AddWithValue("@Network", (object?)s.Network ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@IsLocal", s.IsLocal ? 1 : 0);
+                    cmd.Parameters.AddWithValue("@IsInternet", s.IsInternet ? 1 : 0);
+                    cmd.Parameters.AddWithValue("@Now", now);
+                    await cmd.ExecuteNonQueryAsync();
+                }
+
+                await tx.CommitAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(ex, "[DB] UpsertTopologyAsync failed (non-fatal)");
+            }
+        }
+
+        /// <summary>
+        /// Reload unsubmitted topology rows on launch so the canvas renders
+        /// without waiting for fresh discovery.
+        /// </summary>
+        public async Task<(List<TopologyNodeRow> Nodes, List<TopologyEdgeRow> Edges, List<TopologySubnetRow> Subnets)>
+            LoadUnsubmittedTopologyAsync()
+        {
+            var nodes = new List<TopologyNodeRow>();
+            var edges = new List<TopologyEdgeRow>();
+            var subnets = new List<TopologySubnetRow>();
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var nodeCmd = connection.CreateCommand();
+                nodeCmd.CommandText = @"
+                    SELECT NodeId, NodeType, Ip, Mac, Vendor, Hostname, Attributes
+                    FROM TopologyNodes WHERE EngagementId IS NULL
+                ";
+                using (var rdr = await nodeCmd.ExecuteReaderAsync())
+                {
+                    while (await rdr.ReadAsync())
+                    {
+                        nodes.Add(new TopologyNodeRow
+                        {
+                            NodeId = rdr.GetString(0),
+                            NodeType = rdr.GetString(1),
+                            Ip = rdr.IsDBNull(2) ? null : rdr.GetString(2),
+                            Mac = rdr.IsDBNull(3) ? null : rdr.GetString(3),
+                            Vendor = rdr.IsDBNull(4) ? null : rdr.GetString(4),
+                            Hostname = rdr.IsDBNull(5) ? null : rdr.GetString(5),
+                            AttributesJson = rdr.IsDBNull(6) ? null : rdr.GetString(6)
+                        });
+                    }
+                }
+
+                var edgeCmd = connection.CreateCommand();
+                edgeCmd.CommandText = @"
+                    SELECT SourceNodeId, TargetNodeId, EdgeType, Attributes
+                    FROM TopologyEdges WHERE EngagementId IS NULL
+                ";
+                using (var rdr = await edgeCmd.ExecuteReaderAsync())
+                {
+                    while (await rdr.ReadAsync())
+                    {
+                        edges.Add(new TopologyEdgeRow
+                        {
+                            SourceNodeId = rdr.GetString(0),
+                            TargetNodeId = rdr.GetString(1),
+                            EdgeType = rdr.GetString(2),
+                            AttributesJson = rdr.IsDBNull(3) ? null : rdr.GetString(3)
+                        });
+                    }
+                }
+
+                var subnetCmd = connection.CreateCommand();
+                subnetCmd.CommandText = @"
+                    SELECT SubnetCidr, Network, IsLocal, IsInternet
+                    FROM TopologySubnets WHERE EngagementId IS NULL
+                ";
+                using (var rdr = await subnetCmd.ExecuteReaderAsync())
+                {
+                    while (await rdr.ReadAsync())
+                    {
+                        subnets.Add(new TopologySubnetRow
+                        {
+                            SubnetCidr = rdr.GetString(0),
+                            Network = rdr.IsDBNull(1) ? null : rdr.GetString(1),
+                            IsLocal = rdr.GetInt32(2) == 1,
+                            IsInternet = rdr.GetInt32(3) == 1
+                        });
+                    }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Logger.Warn(ex, "[DB] LoadUnsubmittedTopologyAsync failed (non-fatal)");
+            }
+            return (nodes, edges, subnets);
+        }
 
-            return entry;
+        public async Task<int> CountUnsubmittedTopologyNodesAsync()
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+                var cmd = connection.CreateCommand();
+                cmd.CommandText = "SELECT COUNT(*) FROM TopologyNodes WHERE EngagementId IS NULL";
+                return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+            catch { return 0; }
+        }
+
+        /// <summary>
+        /// Distinct from CountUnsubmittedTopologyNodesAsync: only counts node
+        /// rows that represent actual scanned hosts (Host or RemoteHost), not
+        /// Self / Gateway / SubnetCloud / UnknownHop. Drives the submit
+        /// dialog's "Hosts discovered" line.
+        /// </summary>
+        public async Task<int> CountUnsubmittedTopologyHostNodesAsync()
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+                var cmd = connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT COUNT(*) FROM TopologyNodes
+                    WHERE EngagementId IS NULL
+                      AND NodeType IN ('Host', 'RemoteHost')
+                ";
+                return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+            catch { return 0; }
+        }
+
+        public async Task<int> CountUnsubmittedTopologySubnetsAsync()
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+                var cmd = connection.CreateCommand();
+                cmd.CommandText = @"
+                    SELECT COUNT(*) FROM TopologySubnets
+                    WHERE EngagementId IS NULL
+                ";
+                return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+            catch { return 0; }
+        }
+
+        public async Task<int> CountSubmittedEngagementsAsync()
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+                var cmd = connection.CreateCommand();
+                cmd.CommandText = "SELECT COUNT(*) FROM Engagements WHERE Status = 'Submitted'";
+                return Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            }
+            catch { return 0; }
+        }
+
+        public async Task UpdateEngagementAsync(Engagement engagement)
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    UPDATE Engagements SET
+                        RemoteId = @RemoteId,
+                        Name = @Name,
+                        ClientName = @ClientName,
+                        Scope = @Scope,
+                        StartedAt = @StartedAt,
+                        EndedAt = @EndedAt,
+                        Status = @Status,
+                        SurveyorHardwareId = @SurveyorHardwareId,
+                        SurveyorEmail = @SurveyorEmail,
+                        Notes = @Notes,
+                        SubmittedAt = @SubmittedAt
+                    WHERE Id = @Id
+                ";
+
+                command.Parameters.AddWithValue("@Id", engagement.Id);
+                command.Parameters.AddWithValue("@RemoteId", engagement.RemoteId ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@Name", engagement.Name);
+                command.Parameters.AddWithValue("@ClientName", engagement.ClientName ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@Scope", engagement.Scope ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@StartedAt", engagement.StartedAt.ToString("O"));
+                command.Parameters.AddWithValue("@EndedAt", engagement.EndedAt.HasValue ? engagement.EndedAt.Value.ToString("O") : (object)DBNull.Value);
+                command.Parameters.AddWithValue("@Status", engagement.Status.ToString());
+                command.Parameters.AddWithValue("@SurveyorHardwareId", engagement.SurveyorHardwareId);
+                command.Parameters.AddWithValue("@SurveyorEmail", engagement.SurveyorEmail ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@Notes", engagement.Notes ?? (object)DBNull.Value);
+                command.Parameters.AddWithValue("@SubmittedAt", engagement.SubmittedAt.HasValue ? engagement.SubmittedAt.Value.ToString("O") : (object)DBNull.Value);
+
+                await command.ExecuteNonQueryAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to update engagement");
+                throw;
+            }
+        }
+
+        public async Task<int> CountUnsubmittedAssetsAsync()
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            await connection.OpenAsync();
+            var command = connection.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM Assets WHERE EngagementId IS NULL";
+            return Convert.ToInt32(await command.ExecuteScalarAsync());
+        }
+
+        public async Task<int> CountUnsubmittedAttackLogsAsync()
+        {
+            using var connection = new SqliteConnection(_connectionString);
+            await connection.OpenAsync();
+            var command = connection.CreateCommand();
+            command.CommandText = "SELECT COUNT(*) FROM AttackLogs WHERE EngagementId IS NULL";
+            return Convert.ToInt32(await command.ExecuteScalarAsync());
+        }
+
+        /// <summary>
+        /// True when ANY scan/probe/attack/topology row is unsubmitted.
+        /// Drives the MainWindow Submit-assessment button enable state.
+        /// </summary>
+        public async Task<bool> HasUnsubmittedActivityAsync()
+        {
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT EXISTS(SELECT 1 FROM Assets        WHERE EngagementId IS NULL)
+                        OR EXISTS(SELECT 1 FROM AttackLogs    WHERE EngagementId IS NULL)
+                        OR EXISTS(SELECT 1 FROM TopologyNodes WHERE EngagementId IS NULL)
+                        OR EXISTS(SELECT 1 FROM TopologyEdges WHERE EngagementId IS NULL)
+                        OR EXISTS(SELECT 1 FROM TopologySubnets WHERE EngagementId IS NULL)
+                        OR EXISTS(SELECT 1 FROM TraceroutePaths WHERE EngagementId IS NULL)
+                ";
+                var result = await command.ExecuteScalarAsync();
+                return Convert.ToInt32(result) == 1;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(ex, "[DB] HasUnsubmittedActivityAsync failed; reporting false");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Pre-submit fetch: rows that belong to this session and have not yet
+        /// been packaged into an engagement. After submit, AssignEngagementIdAsync
+        /// flips EngagementId on these rows so they no longer appear here.
+        /// </summary>
+        public async Task<List<AssetEntry>> GetUnsubmittedAssetsAsync()
+        {
+            var assets = new List<AssetEntry>();
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT Id, COALESCE(EngagementId, 0), HostIp, HostName, MacAddress, Vendor, IsOnline, PingTime,
+                           ScanTime, CreatedAt, HardwareId, MachineName, Username, UserId, Ports,
+                           IndustrialVendor, IndustrialCategory, IndustrialProtocols
+                    FROM Assets
+                    WHERE EngagementId IS NULL
+                    ORDER BY HostIp ASC
+                ";
+
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    assets.Add(new AssetEntry
+                    {
+                        Id = reader.GetInt64(0),
+                        EngagementId = reader.GetInt32(1),
+                        HostIp = reader.GetString(2),
+                        HostName = reader.IsDBNull(3) ? null : reader.GetString(3),
+                        MacAddress = reader.IsDBNull(4) ? null : reader.GetString(4),
+                        Vendor = reader.IsDBNull(5) ? null : reader.GetString(5),
+                        IsOnline = reader.GetInt32(6) == 1,
+                        PingTime = reader.IsDBNull(7) ? null : (int?)reader.GetInt32(7),
+                        ScanTime = DateTime.Parse(reader.GetString(8)),
+                        CreatedAt = DateTime.Parse(reader.GetString(9)),
+                        HardwareId = reader.IsDBNull(10) ? null : reader.GetString(10),
+                        MachineName = reader.IsDBNull(11) ? null : reader.GetString(11),
+                        Username = reader.IsDBNull(12) ? null : reader.GetString(12),
+                        UserId = reader.IsDBNull(13) ? null
+                            : (Guid.TryParse(reader.GetString(13), out var uid) ? uid : (Guid?)null),
+                        Ports = reader.IsDBNull(14) ? null : reader.GetString(14),
+                        IndustrialVendor = reader.IsDBNull(15) ? null : reader.GetString(15),
+                        IndustrialCategory = reader.IsDBNull(16) ? null : reader.GetString(16),
+                        IndustrialProtocols = reader.IsDBNull(17) ? null : reader.GetString(17)
+                    });
+                }
+            }
+            catch (Exception ex) { Logger.Error(ex, "Failed to load assets for engagement"); }
+            return assets;
+        }
+
+        public async Task<List<PortEntry>> GetUnsubmittedPortsAsync()
+        {
+            var ports = new List<PortEntry>();
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT Id, COALESCE(EngagementId, 0), AssetId, HostIp, Port, Protocol, Service, Banner,
+                           ScanTime, CreatedAt, HardwareId, MachineName, Username, UserId
+                    FROM Ports
+                    WHERE EngagementId IS NULL
+                    ORDER BY HostIp ASC, Port ASC
+                ";
+
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    ports.Add(new PortEntry
+                    {
+                        Id = reader.GetInt64(0),
+                        EngagementId = reader.GetInt32(1),
+                        AssetId = reader.IsDBNull(2) ? 0 : reader.GetInt64(2),
+                        HostIp = reader.GetString(3),
+                        Port = reader.GetInt32(4),
+                        Protocol = reader.GetString(5),
+                        Service = reader.IsDBNull(6) ? null : reader.GetString(6),
+                        Banner = reader.IsDBNull(7) ? null : reader.GetString(7),
+                        ScanTime = DateTime.Parse(reader.GetString(8)),
+                        CreatedAt = DateTime.Parse(reader.GetString(9)),
+                        HardwareId = reader.IsDBNull(10) ? null : reader.GetString(10),
+                        MachineName = reader.IsDBNull(11) ? null : reader.GetString(11),
+                        Username = reader.IsDBNull(12) ? null : reader.GetString(12),
+                        UserId = reader.IsDBNull(13) ? null
+                            : (Guid.TryParse(reader.GetString(13), out var uid) ? uid : (Guid?)null)
+                    });
+                }
+            }
+            catch (Exception ex) { Logger.Error(ex, "Failed to load ports for engagement"); }
+            return ports;
+        }
+
+        public async Task<List<AttackLogEntry>> GetUnsubmittedAttackLogsAsync()
+        {
+            var logs = new List<AttackLogEntry>();
+            try
+            {
+                using var connection = new SqliteConnection(_connectionString);
+                await connection.OpenAsync();
+
+                var command = connection.CreateCommand();
+                command.CommandText = @"
+                    SELECT Id, COALESCE(EngagementId, 0), AttackType, Protocol, SourceIp, SourceMac, TargetIp, TargetMac,
+                           TargetPort, TargetRateMbps, PacketsSent, DurationSeconds, StartTime, StopTime,
+                           Note, LogContent, CreatedAt, HardwareId, MachineName, Username, UserId
+                    FROM AttackLogs
+                    WHERE EngagementId IS NULL
+                    ORDER BY StartTime ASC
+                ";
+
+                using var reader = await command.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    logs.Add(new AttackLogEntry
+                    {
+                        Id = reader.GetInt64(0),
+                        EngagementId = reader.GetInt32(1),
+                        AttackType = reader.GetString(2),
+                        Protocol = reader.GetString(3),
+                        SourceIp = reader.GetString(4),
+                        SourceMac = reader.IsDBNull(5) ? null : reader.GetString(5),
+                        TargetIp = reader.GetString(6),
+                        TargetMac = reader.IsDBNull(7) ? null : reader.GetString(7),
+                        TargetPort = reader.GetInt32(8),
+                        TargetRateMbps = reader.GetDouble(9),
+                        PacketsSent = reader.GetInt64(10),
+                        DurationSeconds = reader.GetInt32(11),
+                        StartTime = DateTime.Parse(reader.GetString(12)),
+                        StopTime = DateTime.Parse(reader.GetString(13)),
+                        Note = reader.IsDBNull(14) ? null : reader.GetString(14),
+                        LogContent = reader.GetString(15),
+                        CreatedAt = DateTime.Parse(reader.GetString(16)),
+                        HardwareId = reader.IsDBNull(17) ? null : reader.GetString(17),
+                        MachineName = reader.IsDBNull(18) ? null : reader.GetString(18),
+                        Username = reader.IsDBNull(19) ? null : reader.GetString(19),
+                        UserId = reader.IsDBNull(20) ? null
+                            : (Guid.TryParse(reader.GetString(20), out var uid) ? uid : (Guid?)null)
+                    });
+                }
+            }
+            catch (Exception ex) { Logger.Error(ex, "Failed to load attack logs for engagement"); }
+            return logs;
+        }
+
+        private static Engagement MapReaderToEngagement(DbDataReader reader)
+        {
+            return new Engagement
+            {
+                Id = reader.GetInt32(0),
+                RemoteId = reader.IsDBNull(1) ? null : reader.GetString(1),
+                Name = reader.GetString(2),
+                ClientName = reader.IsDBNull(3) ? null : reader.GetString(3),
+                Scope = reader.IsDBNull(4) ? null : reader.GetString(4),
+                StartedAt = DateTime.Parse(reader.GetString(5)),
+                EndedAt = reader.IsDBNull(6) ? null : (DateTime?)DateTime.Parse(reader.GetString(6)),
+                Status = Enum.TryParse<EngagementStatus>(reader.GetString(7), out var st) ? st : EngagementStatus.Active,
+                SurveyorHardwareId = reader.GetString(8),
+                SurveyorEmail = reader.IsDBNull(9) ? null : reader.GetString(9),
+                Notes = reader.IsDBNull(10) ? null : reader.GetString(10),
+                CreatedAt = DateTime.Parse(reader.GetString(11)),
+                SubmittedAt = reader.IsDBNull(12) ? null : (DateTime?)DateTime.Parse(reader.GetString(12))
+            };
         }
 
         public void Dispose()

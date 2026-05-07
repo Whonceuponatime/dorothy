@@ -25,6 +25,11 @@ namespace Dorothy.Services
 
         private const int BatchSize = 50;
         private const int BatchSpacingMs = 10;
+        // Stealth: small batches with longer inter-batch gaps so ARP traffic
+        // looks ambient rather than a sweep. 2 packets per batch + 100ms gap
+        // ≈ 20 ARPs/sec, well below most IDS sweep-detection thresholds.
+        private const int StealthBatchSize = 2;
+        private const int StealthBatchSpacingMs = 100;
         private const int ListenTailMs = 2000;
         private const int MinAllowedPrefix = 16;
 
@@ -33,7 +38,8 @@ namespace Dorothy.Services
             string sourceIp,
             string? deviceDescriptionOrName,
             Action<ArpSweepResult>? onReplyReceived,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool stealthMode = false)
         {
             if (string.IsNullOrWhiteSpace(subnetCidr))
                 throw new ArgumentException("Subnet CIDR is required.", nameof(subnetCidr));
@@ -143,8 +149,30 @@ namespace Dorothy.Services
 
                 try
                 {
-                    int sentInBatch = 0;
+                    int batchSize = stealthMode ? StealthBatchSize : BatchSize;
+                    int batchSpacing = stealthMode ? StealthBatchSpacingMs : BatchSpacingMs;
+
+                    // Build IP list, optionally shuffle for stealth so the
+                    // packet trace doesn't show monotonic IP increments.
+                    var ipList = new List<uint>();
                     for (uint v = start; v <= end && v >= start; v++)
+                    {
+                        ipList.Add(v);
+                        if (v == uint.MaxValue) break;
+                    }
+                    if (stealthMode)
+                    {
+                        var rng = new Random();
+                        for (int i = ipList.Count - 1; i > 0; i--)
+                        {
+                            int j = rng.Next(i + 1);
+                            (ipList[i], ipList[j]) = (ipList[j], ipList[i]);
+                        }
+                        Logger.Info($"[NI-STEALTH] ARP sweep: stealth mode, batch={batchSize}, spacing={batchSpacing}ms, shuffled");
+                    }
+
+                    int sentInBatch = 0;
+                    foreach (var v in ipList)
                     {
                         if (cancellationToken.IsCancellationRequested) break;
 
@@ -165,14 +193,12 @@ namespace Dorothy.Services
                         catch (Exception ex) { Logger.Debug(ex, "ARP send failed"); }
 
                         sentInBatch++;
-                        if (sentInBatch >= BatchSize)
+                        if (sentInBatch >= batchSize)
                         {
                             sentInBatch = 0;
-                            try { await Task.Delay(BatchSpacingMs, cancellationToken).ConfigureAwait(false); }
+                            try { await Task.Delay(batchSpacing, cancellationToken).ConfigureAwait(false); }
                             catch (OperationCanceledException) { break; }
                         }
-
-                        if (v == uint.MaxValue) break;
                     }
 
                     try { await Task.Delay(ListenTailMs, cancellationToken).ConfigureAwait(false); }

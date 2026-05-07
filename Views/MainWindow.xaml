@@ -27,6 +27,7 @@
         <Grid Grid.Row="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" MinHeight="52"/>
+                <RowDefinition Height="Auto"/>     <!-- License stale banner — Auto = 0 when collapsed -->
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
@@ -261,43 +262,16 @@
                                 HorizontalAlignment="Right"
                                 ClipToBounds="False"
                                 Margin="0,0,16,0">
-                        <Button x:Name="CloudSyncButton"
-                                Width="36"
-                                Height="36"
-                                Padding="0"
-                                Background="Transparent"
-                                BorderThickness="0"
+                        <Button x:Name="SubmitAssessmentButton"
+                                Content="Submit assessment"
+                                Height="32"
+                                Padding="12,6"
+                                FontSize="12"
                                 Cursor="Hand"
-                                ClipToBounds="False"
-                                ToolTip="Cloud Sync"
-                                Click="CloudSyncButton_Click"
-                                Margin="0,0,8,0">
-                            <Grid ClipToBounds="False">
-                                <TextBlock Text="☁"
-                                           FontSize="16"
-                                           Foreground="{DynamicResource TextPrimary}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
-                                <Border x:Name="CloudSyncNotificationBadge"
-                                        Background="{DynamicResource ErrorRed}"
-                                        CornerRadius="9"
-                                        MinWidth="16"
-                                        Height="16"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Top"
-                                        Margin="0,0,0,0"
-                                        Padding="3,1"
-                                        Visibility="Collapsed">
-                                    <TextBlock x:Name="CloudSyncNotificationText"
-                                               Text="0"
-                                               Foreground="White"
-                                               FontSize="9"
-                                               FontWeight="Bold"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"/>
-                                </Border>
-                            </Grid>
-                        </Button>
+                                IsEnabled="False"
+                                ToolTip="No scan activity to submit yet. Run a probe or attack first."
+                                Click="SubmitAssessmentButton_Click"
+                                Margin="0,0,8,0"/>
                         <Button x:Name="SettingsButton"
                                 Width="36"
                                 Height="36"
@@ -389,7 +363,46 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Row="1" Margin="16,16,16,16" x:Name="MainContentGrid">
+            <!-- License stale banner: yellow strip below the header bar.
+                 Visible only when LicenseService transitions to Stale.
+                 Refresh button triggers an immediate re-validation;
+                 dismiss is user-only (banner reappears on next state change). -->
+            <Border x:Name="LicenseStaleBanner"
+                    Grid.Row="1"
+                    Visibility="Collapsed"
+                    Background="#FBBF24"
+                    BorderBrush="#F59E0B"
+                    BorderThickness="0,0,0,1"
+                    Padding="16,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="LicenseStaleBannerText"
+                               Grid.Column="0"
+                               Text="License unchecked"
+                               FontWeight="SemiBold"
+                               Foreground="#1F2937"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"/>
+                    <Button x:Name="LicenseStaleBannerRefreshBtn"
+                            Grid.Column="1"
+                            Content="Refresh now"
+                            Click="LicenseStaleBannerRefresh_Click"
+                            Margin="12,0,8,0"
+                            Padding="12,4"/>
+                    <Button x:Name="LicenseStaleBannerDismissBtn"
+                            Grid.Column="2"
+                            Content="✕"
+                            Click="LicenseStaleBannerDismiss_Click"
+                            Padding="6,2"
+                            ToolTip="Hide this banner. It will reappear on the next state change."/>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="2" Margin="16,16,16,16" x:Name="MainContentGrid">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
@@ -867,6 +880,40 @@
                                                Foreground="{DynamicResource AccentBlue}"
                                                Text=""/>
 
+                                    <TextBlock x:Name="NiConnectivityChip"
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,8,0"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Visibility="Collapsed"
+                                               ToolTip="Internet connectivity status. Updated every 30s."/>
+
+                                    <TextBlock Text="Probe:"
+                                               VerticalAlignment="Center"
+                                               FontSize="11"
+                                               Foreground="{DynamicResource TextMuted}"
+                                               Margin="0,0,4,0"/>
+                                    <ComboBox x:Name="NiProbeLevelCombo"
+                                              Width="110"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,8,0"
+                                              FontSize="11"
+                                              SelectionChanged="NiProbeLevelCombo_SelectionChanged"
+                                              ToolTip="Reconnaissance intensity for right-click scan + bulk scan.&#10;Reachability test: safe for production ICS networks (default).&#10;Banner grab: standard analyst pass — caution on industrial networks.&#10;Deep scan: pentest mode — explicit warnings on industrial hosts.">
+                                        <ComboBoxItem Content="Reachability test" Tag="Survey"/>
+                                        <ComboBoxItem Content="Banner grab" Tag="Simple"/>
+                                        <ComboBoxItem Content="Deep scan" Tag="Advanced"/>
+                                    </ComboBox>
+
+                                    <CheckBox x:Name="NiStealthModeCheckBox"
+                                              Content="Stealth mode"
+                                              VerticalAlignment="Center"
+                                              FontSize="11"
+                                              Foreground="{DynamicResource TextMuted}"
+                                              Margin="0,0,8,0"
+                                              ToolTip="Slower scan, lower firewall-trigger risk. Recommended for production environments.&#10;When ON: concurrency 2, 50-200ms jitter, shuffled host order, no retries."
+                                              Click="NiStealthModeCheckBox_Click"/>
+
                                     <Border Width="1"
                                             Height="20"
                                             Background="{DynamicResource BorderDefault}"
@@ -1156,6 +1203,38 @@
                                                            TextWrapping="Wrap"/>
                                             </StackPanel>
 
+                                            <!-- ICS recon (2.6 Round 1) — industrial-device summary
+                                                 + per-protocol detail. Order: Industrial first, then
+                                                 Modbus / OPC UA, then IT-side sections (ROUTE, ICMP, …). -->
+                                            <StackPanel x:Name="NiDetailIndustrialSection" Visibility="Collapsed">
+                                                <TextBlock Text="INDUSTRIAL DEVICE"
+                                                           FontSize="10"
+                                                           Foreground="{DynamicResource TextMuted}"
+                                                           Margin="0,12,0,4"/>
+                                                <ItemsControl x:Name="NiDetailIndustrial">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,1">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="100"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Grid.Column="0"
+                                                                           Text="{Binding Key}"
+                                                                           FontSize="10"
+                                                                           Foreground="{DynamicResource TextMuted}"/>
+                                                                <TextBlock Grid.Column="1"
+                                                                           Text="{Binding Value}"
+                                                                           FontFamily="Consolas"
+                                                                           FontSize="11"
+                                                                           Foreground="{DynamicResource TextPrimary}"
+                                                                           TextWrapping="Wrap"/>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+
                                             <StackPanel x:Name="NiDetailRouteSection">
                                                 <TextBlock Text="ROUTE"
                                                            FontSize="10"
@@ -1356,6 +1435,21 @@
                                                                                Foreground="{DynamicResource TextMuted}"
                                                                                Text="{Binding Validity}"/>
                                                                     <TextBlock FontSize="10"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="{DynamicResource WarningAmber}"
+                                                                               Text="{Binding Warning}">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding Warning}" Value="">
+                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                    <TextBlock FontSize="10"
                                                                                Foreground="{DynamicResource TextMuted}"
                                                                                Text="{Binding Sans}"
                                                                                TextWrapping="Wrap"/>
@@ -1485,7 +1579,7 @@
                                                              Background="{DynamicResource TertiaryBg}"/>
                                             </StackPanel>
 
-                                            <!-- Simple + Advanced probe buttons: paired, secondary weight, same height as Set as attack target below -->
+                                            <!-- Banner grab + Deep scan buttons: paired, secondary weight, same height as Set as attack target below -->
                                             <Grid x:Name="NiDetailProbeButtonRow"
                                                   Margin="0,8,0,4"
                                                   Visibility="Collapsed">
@@ -1496,14 +1590,14 @@
                                                 </Grid.ColumnDefinitions>
                                                 <Button x:Name="NiSimpleProbeButton"
                                                         Grid.Column="0"
-                                                        Content="Simple probe"
+                                                        Content="Banner grab"
                                                         Style="{StaticResource DefaultButton}"
                                                         Height="36"
                                                         FontSize="13"
                                                         Click="NiSimpleProbeButton_Click"/>
                                                 <Button x:Name="NiAdvancedProbeButton"
                                                         Grid.Column="2"
-                                                        Content="Advanced probe"
+                                                        Content="Deep scan"
                                                         Style="{StaticResource DefaultButton}"
                                                         Height="36"
                                                         FontSize="13"
@@ -2043,39 +2137,5 @@
                     Margin="0,20,20,0"
                     Panel.ZIndex="9999"/>
 
-        <Border x:Name="SyncLoadingOverlay"
-                Grid.Row="0"
-                Background="#B0000000"
-                Visibility="Collapsed"
-                Panel.ZIndex="10000">
-            <Border Background="{DynamicResource SecondaryBg}"
-                    BorderBrush="{DynamicResource BorderDefault}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="24"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    MinWidth="300">
-                <StackPanel>
-                    <TextBlock Text="Syncing to Cloud..."
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimary}"
-                               Margin="0,0,0,12"
-                               HorizontalAlignment="Center"/>
-                    <ProgressBar x:Name="SyncProgressBar"
-                                 IsIndeterminate="True"
-                                 Height="6"
-                                 Margin="0,0,0,12"/>
-                    <TextBlock x:Name="SyncProgressText"
-                               Text="Preparing sync..."
-                               FontSize="12"
-                               Foreground="{DynamicResource TextMuted}"
-                               TextWrapping="Wrap"
-                               HorizontalAlignment="Center"
-                               TextAlignment="Center"/>
-                </StackPanel>
-            </Border>
-        </Border>
     </Grid>
 </Window>

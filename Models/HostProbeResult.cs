@@ -72,8 +72,22 @@ namespace Dorothy.Models
         public double OsConfidence { get; set; }
         public List<BannerInfo>? Banners { get; set; }
 
-        // 2.5.1 expansion: tiered probe pipeline (Simple / Advanced)
-        public ProbeLevel Level { get; set; } = ProbeLevel.Simple;
+        // 2.5.1 expansion: tiered probe pipeline (Survey / Simple / Advanced)
+        public ProbeLevel Level { get; set; } = ProbeLevel.Survey;
+        // ICS recon (Round 1, simplified scope) — vendor identification
+        // via SNMP/OUI plus an industrial-port-open list. No deep
+        // protocol-specific interrogation per the Round 1 direction.
+        public IndustrialIdentity? IndustrialIdentity { get; set; }
+        public List<IndustrialPortInfo>? IndustrialPortsOpen { get; set; }
+        // Per-protocol presence flags retained for back-compat with Round 1
+        // signal sources (Survey port sweep populates them); both reduced
+        // to PortOpen + ProbedAt only — no FC 43 / Hello handshake data.
+        public ModbusInfo? ModbusInfo { get; set; }
+        public OpcUaInfo? OpcUaInfo { get; set; }
+        // Set when ProbeHostAsync short-circuited without contacting the
+        // host (e.g. public target while internet is offline). Detail panel
+        // surfaces this so the user sees why a probe was no-op'd.
+        public string? SkipReason { get; set; }
         public List<UdpScanResult>? UdpResults { get; set; }
         public SmbInfo? SmbInfo { get; set; }
         // Per-port HTTP path findings, keyed by HTTP/HTTPS port number.

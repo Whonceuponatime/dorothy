@@ -52,6 +52,10 @@ namespace Dorothy.Services
         // a time; the rest threw InvalidOperationException). DatabaseService
         // is held instead so each per-call probe can persist runs.
         private readonly DatabaseService _database;
+        // Optional — when injected, ProbeHostAsync and traceroute short-
+        // circuit on public targets while internet is unreachable so the
+        // user gets a fast skip instead of a 60-second timeout.
+        private readonly ConnectivityMonitorService? _connectivity;
 
         private CancellationTokenSource? _phase1Cts;
         private int _isPhase1Running;
@@ -67,6 +71,25 @@ namespace Dorothy.Services
         public event EventHandler<TopologyNodeChangedEventArgs>? NodeChanged;
         public event EventHandler<TopologyEdgeChangedEventArgs>? EdgeChanged;
         public event EventHandler<DiscoveryStatusEventArgs>? StatusChanged;
+        // Scan lifecycle. MainWindow brackets these to BeginBatch/EndBatch on
+        // the canvas so live discovery doesn't trigger a cola relayout per
+        // host arrival (which collapsed nodes to a single point on 89+ host
+        // scans). Fired around StartDiscoveryAsync / BulkProbeAsync /
+        // ExpandSubnetAsync — anything that emits a burst of NodeChanged.
+        public event EventHandler? ScanStarted;
+        public event EventHandler? ScanCompleted;
+
+        private void RaiseScanStarted()
+        {
+            try { ScanStarted?.Invoke(this, EventArgs.Empty); }
+            catch (Exception ex) { Logger.Debug(ex, "ScanStarted listener failed"); }
+        }
+
+        private void RaiseScanCompleted()
+        {
+            try { ScanCompleted?.Invoke(this, EventArgs.Empty); }
+            catch (Exception ex) { Logger.Debug(ex, "ScanCompleted listener failed"); }
+        }
         // Fired during ProbeHostAsync at each phase boundary so the UI
         // can surface human-readable progress (e.g. "Scanning 100 TCP ports…").
         public event EventHandler<string>? ProbeStageChanged;
@@ -95,12 +118,245 @@ namespace Dorothy.Services
             catch (Exception ex) { Logger.Debug(ex, "ProbeStageChanged listener failed"); }
         }
 
-        public DiscoveryOrchestrator(DatabaseService database)
+        // Stealth mode toggle. When true, every discovery path scales back:
+        //   concurrency cap of 2 (vs 4-6), 50-200ms random jitter between
+        //   probes, randomised host order, and no retries on missed
+        //   responses. Surveyors enable this on production ICS networks
+        //   to reduce firewall-trigger and IDS-alert footprint.
+        // Defaults to false so the existing fast behaviour is preserved on
+        // upgrade. NiSettings persists the toggle across launches; MainWindow
+        // pushes the persisted value into UpdateStealthMode at construction.
+        private volatile bool _stealthMode;
+        private static readonly Random _stealthRng = new Random();
+
+        public bool StealthMode => _stealthMode;
+
+        public void UpdateStealthMode(bool enabled)
+        {
+            _stealthMode = enabled;
+            Logger.Info($"[ORCH] Stealth mode set to {(enabled ? "ENABLED" : "DISABLED")}");
+        }
+
+        private async Task StealthJitterAsync(CancellationToken ct)
+        {
+            int delayMs;
+            lock (_stealthRng) { delayMs = _stealthRng.Next(50, 201); }
+            try { await Task.Delay(delayMs, ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) { /* shutting down */ }
+        }
+
+        private static List<T> ShuffleStealth<T>(IEnumerable<T> source)
+        {
+            var list = source.ToList();
+            lock (_stealthRng)
+            {
+                for (int i = list.Count - 1; i > 0; i--)
+                {
+                    int j = _stealthRng.Next(i + 1);
+                    (list[i], list[j]) = (list[j], list[i]);
+                }
+            }
+            return list;
+        }
+
+        // Debounced topology persist: rolling 1s timer flushes the in-memory
+        // graph to TopologyNodes/Edges/Subnets so a close+reopen reloads the
+        // surveyor's offline scan rather than starting from blank canvas.
+        private readonly object _persistTimerLock = new object();
+        private System.Threading.Timer? _persistTimer;
+        private const int PersistDebounceMs = 1000;
+
+        public DiscoveryOrchestrator(
+            DatabaseService database,
+            ConnectivityMonitorService? connectivity = null)
         {
             _database = database ?? throw new ArgumentNullException(nameof(database));
+            _connectivity = connectivity;
             _capture.ArpSeen += OnArpSeen;
             _capture.FlowSeen += OnFlowSeen;
         }
+
+        /// <summary>
+        /// Reload the unsubmitted slice of TopologyNodes/Edges/Subnets so the
+        /// canvas renders prior offline scans on app launch. Idempotent — calling
+        /// twice just re-upserts the same content.
+        /// </summary>
+        public async Task LoadPersistedTopologyAsync()
+        {
+            try
+            {
+                var (rowNodes, rowEdges, rowSubnets) =
+                    await _database.LoadUnsubmittedTopologyAsync().ConfigureAwait(false);
+
+                Logger.Info(
+                    $"[TOPOLOGY] Reloading from DB: {rowNodes.Count} nodes, " +
+                    $"{rowEdges.Count} edges, {rowSubnets.Count} subnets");
+
+                // Hydrate the in-memory graph WITHOUT firing per-row
+                // NodeChanged / EdgeChanged events. Each event used to
+                // dispatch one canvas UpsertElements call; before WebView2
+                // finished navigating, the canvas's single-slot pre-init
+                // buffer overwrote each call with the next, so all but the
+                // last (typically a TraceroutePath edge) were dropped — the
+                // surviving edge then hit cytoscape with no nodes and threw
+                // "Can not create edge with nonexistant source".
+                //
+                // The canvas now receives the whole snapshot in a single
+                // InitGraph call after this method returns (see the
+                // MainWindow caller + GetCytoscapeSnapshot below).
+                foreach (var rn in rowNodes)
+                {
+                    if (!Enum.TryParse<NodeType>(rn.NodeType, out var ntype))
+                        ntype = NodeType.Host;
+                    var node = new TopologyNode
+                    {
+                        Id = rn.NodeId,
+                        Type = ntype,
+                        IpAddress = rn.Ip,
+                        MacAddress = rn.Mac,
+                        Vendor = rn.Vendor,
+                        Hostname = rn.Hostname
+                    };
+                    if (!string.IsNullOrWhiteSpace(rn.AttributesJson))
+                    {
+                        try
+                        {
+                            using var doc = System.Text.Json.JsonDocument.Parse(rn.AttributesJson);
+                            foreach (var prop in doc.RootElement.EnumerateObject())
+                            {
+                                node.Attributes[prop.Name] = prop.Value.ToString() ?? string.Empty;
+                            }
+                        }
+                        catch { /* legacy / corrupt blob — skip the bag */ }
+                    }
+                    _graph.UpsertNode(node);
+                }
+
+                foreach (var re in rowEdges)
+                {
+                    if (!Enum.TryParse<EdgeType>(re.EdgeType, out var etype))
+                        etype = EdgeType.SnmpNeighbor;
+                    var edge = new TopologyEdge
+                    {
+                        Source = re.SourceNodeId,
+                        Target = re.TargetNodeId,
+                        Type = etype
+                    };
+                    edge.Id = TopologyEdge.BuildId(edge.Source, edge.Target, edge.Type);
+                    _graph.UpsertEdge(edge);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(ex, "[TOPOLOGY] LoadPersistedTopologyAsync failed (non-fatal)");
+            }
+        }
+
+        /// <summary>
+        /// Returns the current in-memory graph as one cytoscape envelope
+        /// (`{nodes:[...], edges:[...]}`). Callers push this once into
+        /// TopologyCanvasControl.InitGraph after restore so cytoscape
+        /// receives nodes and edges in a single ordered batch — no
+        /// pre-init queue overwrites and no orphan-source errors.
+        /// </summary>
+        public string GetCytoscapeSnapshot()
+        {
+            return _graph.ToCytoscapeJson();
+        }
+
+        // Schedule a debounced flush. Each call resets the timer so a burst of
+        // discovery only produces one DB write at the end.
+        private void SchedulePersistTopology()
+        {
+            lock (_persistTimerLock)
+            {
+                _persistTimer ??= new System.Threading.Timer(
+                    _ => _ = FlushTopologyAsync(),
+                    state: null,
+                    dueTime: System.Threading.Timeout.Infinite,
+                    period: System.Threading.Timeout.Infinite);
+                _persistTimer.Change(PersistDebounceMs, System.Threading.Timeout.Infinite);
+            }
+        }
+
+        private async Task FlushTopologyAsync()
+        {
+            try
+            {
+                var nodes = _graph.Nodes;
+                var edges = _graph.Edges;
+
+                var rowNodes = new List<DatabaseService.TopologyNodeRow>(nodes.Count);
+                foreach (var n in nodes)
+                {
+                    string? attrJson = null;
+                    if (n.Attributes.Count > 0)
+                    {
+                        try { attrJson = System.Text.Json.JsonSerializer.Serialize(n.Attributes); }
+                        catch { /* best-effort */ }
+                    }
+                    rowNodes.Add(new DatabaseService.TopologyNodeRow
+                    {
+                        NodeId = n.Id,
+                        NodeType = n.Type.ToString(),
+                        Ip = n.IpAddress,
+                        Mac = n.MacAddress,
+                        Vendor = n.Vendor,
+                        Hostname = n.Hostname,
+                        AttributesJson = attrJson
+                    });
+                }
+
+                var rowEdges = new List<DatabaseService.TopologyEdgeRow>(edges.Count);
+                foreach (var e in edges)
+                {
+                    string? attrJson = null;
+                    if (e.Attributes.Count > 0)
+                    {
+                        try { attrJson = System.Text.Json.JsonSerializer.Serialize(e.Attributes); }
+                        catch { }
+                    }
+                    rowEdges.Add(new DatabaseService.TopologyEdgeRow
+                    {
+                        SourceNodeId = e.Source,
+                        TargetNodeId = e.Target,
+                        EdgeType = e.Type.ToString(),
+                        AttributesJson = attrJson
+                    });
+                }
+
+                // Subnets are tracked as TopologyNodes with Type=SubnetCloud;
+                // also persist a flat row in TopologySubnets for fast queries.
+                var rowSubnets = new List<DatabaseService.TopologySubnetRow>();
+                foreach (var n in nodes)
+                {
+                    if (n.Type != NodeType.SubnetCloud) continue;
+                    if (!n.Attributes.TryGetValue("subnet", out var cidr)
+                        && !n.Attributes.TryGetValue("network", out cidr)) continue;
+                    bool isInternet = n.Attributes.TryGetValue("isInternet", out var ii) && ii == "true";
+                    rowSubnets.Add(new DatabaseService.TopologySubnetRow
+                    {
+                        SubnetCidr = cidr ?? string.Empty,
+                        Network = cidr,
+                        IsLocal = !isInternet,
+                        IsInternet = isInternet
+                    });
+                }
+
+                await _database.UpsertTopologyAsync(rowNodes, rowEdges, rowSubnets).ConfigureAwait(false);
+                EngagementContext.NotifyActivityChanged();
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn(ex, "[TOPOLOGY] FlushTopologyAsync failed (non-fatal)");
+            }
+        }
+
+        /// <summary>
+        /// Settings → "Clear all local scan data" wipes the in-memory graph too,
+        /// so the canvas reflects the on-disk state.
+        /// </summary>
+        public void ClearGraphInMemory() => _graph.Clear();
 
         public async Task StartDiscoveryAsync(
             string sourceIp,
@@ -118,6 +374,10 @@ namespace Dorothy.Services
             var token = _phase1Cts.Token;
             _currentScanId = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
+            // Open the canvas batch window before any node/edge events fire,
+            // so live discovery accumulates in the buffer instead of triggering
+            // a per-arrival cola relayout. Closed in the finally block below.
+            RaiseScanStarted();
             try
             {
                 RaiseStatus("Phase1", $"Discovery starting… (scanId={_currentScanId})");
@@ -181,6 +441,9 @@ namespace Dorothy.Services
             finally
             {
                 Interlocked.Exchange(ref _isPhase1Running, 0);
+                // Flush all buffered upserts to the canvas in one envelope.
+                // Cola runs once, layout settles, no per-arrival seizure.
+                RaiseScanCompleted();
             }
         }
 
@@ -192,8 +455,32 @@ namespace Dorothy.Services
         public void UpdateSourceIp(string newSourceIp)
         {
             if (string.IsNullOrWhiteSpace(newSourceIp)) return;
+
+            var oldSourceIp = _sourceIp;
             _sourceIp = newSourceIp;
-            Logger.Info($"Source IP updated to {newSourceIp} (topology preserved)");
+
+            if (!string.IsNullOrEmpty(oldSourceIp) && oldSourceIp != newSourceIp)
+            {
+                // Self.NodeId == sourceIp at the time SeedSelfAndGateway ran,
+                // so the old node's id IS the old IP. Removing it cascades
+                // to every edge keyed on it (ArpSeen, TraceroutePath, Flow);
+                // otherwise those edges would persist with a missing source
+                // and re-trigger the same "nonexistant source" error on the
+                // next snapshot push. Caller is responsible for re-rendering
+                // the canvas after this returns (see MainWindow nic handler).
+                _graph.RemoveNode(oldSourceIp);
+                Logger.Info(
+                    $"[TOPOLOGY] Source IP changed {oldSourceIp} -> {newSourceIp}: " +
+                    "removed old Self node and orphaned edges");
+            }
+            else
+            {
+                Logger.Info($"Source IP set to {newSourceIp}");
+            }
+
+            // SeedSelfAndGateway will re-seed Self at the new IP on the next
+            // StartPhase1Async — the gateway also changes with the NIC, so
+            // we don't pre-seed here.
         }
 
         public void CancelPhase1()
@@ -243,6 +530,7 @@ namespace Dorothy.Services
             }
 
             RaiseStatus("Phase2", $"Expanding subnet {subnetCidr}…");
+            RaiseScanStarted();
             try
             {
                 var replies = await _arpSweep.SweepAsync(
@@ -250,7 +538,8 @@ namespace Dorothy.Services
                     _sourceIp!,
                     _nicDescription,
                     reply => OnArpReply(reply, subnetCidr),
-                    token).ConfigureAwait(false);
+                    token,
+                    stealthMode: _stealthMode).ConfigureAwait(false);
                 RaiseStatus("Phase2", $"Subnet expansion found {replies.Count} hosts.");
 
                 if (subnetNode != null)
@@ -270,6 +559,10 @@ namespace Dorothy.Services
                 }
                 throw;
             }
+            finally
+            {
+                RaiseScanCompleted();
+            }
         }
 
         /// <summary>
@@ -283,6 +576,17 @@ namespace Dorothy.Services
             string displayName,
             CancellationToken ct)
         {
+            // Fast-skip public targets when we already know internet is down —
+            // every TTL hop would otherwise wait the full 2s timeout × 30 hops.
+            if (IsPublicIp(targetIp)
+                && _connectivity?.CurrentState == ConnectivityState.LocalOnly)
+            {
+                RaiseStatus("Traceroute",
+                    $"Cannot traceroute to {displayName} — internet is offline",
+                    isError: true);
+                return;
+            }
+
             RaiseStatus("Traceroute", $"Running traceroute to {displayName} ({targetIp})...");
 
             using var ping = new System.Net.NetworkInformation.Ping();
@@ -403,7 +707,36 @@ namespace Dorothy.Services
             if (string.IsNullOrWhiteSpace(_sourceIp))
                 throw new InvalidOperationException("StartDiscoveryAsync must run first.");
 
+            // Fast skip: target is on the public internet but our connectivity
+            // monitor knows the internet is down. Without this guard the probe
+            // would burn the full 30s/5min budget on TCP connect timeouts.
+            if (IsPublicIp(ip)
+                && _connectivity?.CurrentState == ConnectivityState.LocalOnly)
+            {
+                Logger.Warn($"[PROBE] Skipping {ip} — public IP and internet is offline");
+                RaiseStage($"[{ip}] Skipped — internet offline");
+                RaiseStatus("Phase3", $"Skipped {ip} — internet offline");
+                return new HostProbeResult
+                {
+                    IpAddress  = ip,
+                    Level      = level,
+                    StartedAt  = DateTime.Now,
+                    CompletedAt = DateTime.Now,
+                    SkipReason = "Internet offline"
+                };
+            }
+
             Logger.Info($"[PROBE] Starting {level} probe on {ip}");
+
+            // Survey is a fundamentally different shape from Simple/Advanced
+            // (no TCP port scan, vendor-blessed identification queries only,
+            // gated by SNMP sysObjectID hint or open-port confirmation).
+            // Branch off to a dedicated path so the Simple/Advanced flow stays
+            // simple to read.
+            if (level == ProbeLevel.Survey)
+            {
+                return await SurveyHostAsync(ip, token).ConfigureAwait(false);
+            }
 
             using var budgetCts = CancellationTokenSource.CreateLinkedTokenSource(token);
             budgetCts.CancelAfter(level == ProbeLevel.Advanced
@@ -440,7 +773,7 @@ namespace Dorothy.Services
             // label rather than splitting it. New instance per call —
             // its singleton-run CAS guard would otherwise serialize bulk probes.
             RaiseStage($"[{ip}] Pinging + scanning top-{ports.Count} TCP ports…");
-            var probe = new ReachabilityProbeService(_database);
+            var probe = new ReachabilityProbeService(_database) { StealthMode = _stealthMode };
             try
             {
                 await probe.StartRunAsync(
@@ -602,7 +935,12 @@ namespace Dorothy.Services
 
         // Bulk probe: run ProbeHostAsync over a list of IPs at fixed concurrency.
         // Per-host failures are swallowed so one bad target doesn't kill the run.
-        private const int BulkProbeConcurrency = 4;
+        // Survey uses a stricter concurrency + per-host launch gate to protect
+        // production ICS networks (low-bandwidth management VLANs are common).
+        private const int BulkProbeConcurrency       = 4;
+        private const int BulkSurveyConcurrency      = 2;
+        private const int BulkStealthConcurrency     = 2;
+        private const int BulkSurveyPerHostStaggerMs = 1000;
 
         public async Task<(int succeeded, int failed)> BulkProbeAsync(
             List<string> ips,
@@ -615,11 +953,30 @@ namespace Dorothy.Services
                 return (0, 0);
             }
 
-            Logger.Info($"[BULK PROBE] Starting {level} on {ips.Count} hosts (concurrency={BulkProbeConcurrency}): " +
+            int concurrency = _stealthMode
+                ? BulkStealthConcurrency
+                : (level == ProbeLevel.Survey ? BulkSurveyConcurrency : BulkProbeConcurrency);
+
+            // Stealth: shuffle host order so the firewall doesn't see a
+            // regular ascending IP sweep. Fast mode keeps the input order.
+            if (_stealthMode) ips = ShuffleStealth(ips);
+
+            if (_stealthMode)
+            {
+                Logger.Info($"[NI-STEALTH] Bulk {level} started in stealth mode: " +
+                    $"concurrency={concurrency}, jitter=50-200ms, order=shuffled, retries=1, hosts={ips.Count}");
+            }
+            else
+            {
+                Logger.Info($"[NI-SCAN] Bulk {level} started in fast mode: " +
+                    $"concurrency={concurrency}, hosts={ips.Count}");
+            }
+
+            Logger.Info($"[BULK PROBE] {level} on {ips.Count} hosts (concurrency={concurrency}): " +
                 string.Join(", ", ips.Take(5)) +
                 (ips.Count > 5 ? $" …+{ips.Count - 5} more" : ""));
 
-            using var gate = new SemaphoreSlim(BulkProbeConcurrency, BulkProbeConcurrency);
+            using var gate = new SemaphoreSlim(concurrency, concurrency);
             int succeeded = 0;
             int failed = 0;
             int inProgress = 0;
@@ -645,6 +1002,15 @@ namespace Dorothy.Services
             // Initial 0/N tick so the UI shows the panel immediately.
             RaiseBulk(null);
 
+            // Per-host stagger gate (Survey only): worst-case 1 new host per
+            // BulkSurveyPerHostStaggerMs even if the semaphore would let
+            // another in. Concurrency-2 + 1000ms gap = floor on probe-storm
+            // burst rate. Implemented as a shared minimum-launch-time
+            // SemaphoreSlim of capacity 1 + Task.Delay before release.
+            using var staggerGate = level == ProbeLevel.Survey
+                ? new SemaphoreSlim(1, 1)
+                : null;
+
             var tasks = ips.Select(async ip =>
             {
                 Logger.Debug($"[BULK PROBE] Task queued for {ip}");
@@ -658,11 +1024,31 @@ namespace Dorothy.Services
                     return;
                 }
 
+                if (staggerGate != null)
+                {
+                    try
+                    {
+                        await staggerGate.WaitAsync(ct).ConfigureAwait(false);
+                        // Hold the stagger gate for the configured interval AFTER
+                        // entering it — releases the gate so the next host can
+                        // start, but only after the gap window has elapsed.
+                        _ = Task.Delay(BulkSurveyPerHostStaggerMs, CancellationToken.None)
+                                .ContinueWith(_ => { try { staggerGate.Release(); } catch { } });
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        gate.Release();
+                        return;
+                    }
+                }
+
                 Logger.Debug($"[BULK PROBE] Task started for {ip}");
                 try
                 {
                     Interlocked.Increment(ref inProgress);
                     RaiseBulk(ip);
+
+                    if (_stealthMode) await StealthJitterAsync(ct).ConfigureAwait(false);
 
                     try
                     {
@@ -690,12 +1076,331 @@ namespace Dorothy.Services
                 }
             }).ToList();
 
-            try { await Task.WhenAll(tasks).ConfigureAwait(false); }
-            catch (OperationCanceledException) { /* user/timeout cancel — keep partial state */ }
+            // Open canvas batch window before any per-host node/edge events
+            // fire. Closed in finally after the run settles.
+            RaiseScanStarted();
+            try
+            {
+                try { await Task.WhenAll(tasks).ConfigureAwait(false); }
+                catch (OperationCanceledException) { /* user/timeout cancel — keep partial state */ }
 
-            Logger.Info($"[BULK PROBE] Complete: {succeeded} succeeded, {failed} failed (of {total} total)");
-            RaiseBulk(null);
-            return (succeeded, failed);
+                Logger.Info($"[BULK PROBE] Complete: {succeeded} succeeded, {failed} failed (of {total} total)");
+                RaiseBulk(null);
+                return (succeeded, failed);
+            }
+            finally { RaiseScanCompleted(); }
+        }
+
+        // ─── Survey-tier probe ───
+        // Survey is the safe-by-default tier for production ICS networks:
+        //   Stage 1: ARP/discovery already confirmed the host alive
+        //   Stage 2: SNMP GET on sysOIDs incl. sysObjectID, plus DNS/NetBIOS
+        //   Stage 3: protocol-specific identification ONLY when the SNMP
+        //            sysObjectID matches a known vendor (use HintedProtocols)
+        //            OR a TCP connect-and-immediately-close confirms the port
+        //            is listening on a known industrial port.
+        // Zero unsolicited TCP scans.
+        private const int SurveyProbeBudgetMs = 30_000;
+        private const int SurveyTcpQuickCheckMs = 750;
+
+        private async Task<HostProbeResult> SurveyHostAsync(string ip, CancellationToken token)
+        {
+            using var budgetCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            budgetCts.CancelAfter(SurveyProbeBudgetMs);
+            var ct = budgetCts.Token;
+
+            var result = new HostProbeResult
+            {
+                IpAddress = ip,
+                Level = ProbeLevel.Survey,
+                StartedAt = DateTime.Now
+            };
+
+            RaiseStage($"[{ip}] Reachability test: querying SNMP / DNS / NetBIOS…");
+            var enrichSvc = new Probes.HostEnrichmentService();
+            Probes.HostEnrichmentService.EnrichmentResult? enrichment = null;
+            try
+            {
+                enrichment = await enrichSvc.EnrichAsync(ip, _community ?? "public", ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) { Logger.Debug(ex, "[SURVEY] Enrichment failed"); }
+
+            if (enrichment != null)
+            {
+                result.Hostname = enrichment.ReverseDnsHostname;
+                result.NetBiosName = enrichment.NetBiosName;
+                result.NetBiosWorkgroup = enrichment.NetBiosWorkgroup;
+                if (!string.IsNullOrWhiteSpace(enrichment.SnmpSysDescr))
+                    result.SnmpValues["sysDescr"] = enrichment.SnmpSysDescr!;
+                if (!string.IsNullOrWhiteSpace(enrichment.SnmpSysName))
+                    result.SnmpValues["sysName"] = enrichment.SnmpSysName!;
+                if (!string.IsNullOrWhiteSpace(enrichment.SnmpSysContact))
+                    result.SnmpValues["sysContact"] = enrichment.SnmpSysContact!;
+                if (!string.IsNullOrWhiteSpace(enrichment.SnmpSysLocation))
+                    result.SnmpValues["sysLocation"] = enrichment.SnmpSysLocation!;
+                if (!string.IsNullOrWhiteSpace(enrichment.SnmpSysObjectId))
+                    result.SnmpValues["sysObjectID"] = enrichment.SnmpSysObjectId!;
+            }
+
+            var vendorEntry = Probes.IndustrialVendorDatabase.LookupBySysObjectID(
+                enrichment?.SnmpSysObjectId);
+
+            // Stage 3 — industrial port-open sweep. No protocol-specific
+            // payloads; just TCP connect-and-close (or 1-byte UDP probe for
+            // BACnet) to detect which industrial protocols the host listens
+            // on. ~12 ports × concurrency-6 with 750ms each ≈ 1.5s per host.
+            RaiseStage($"[{ip}] Reachability test: industrial port sweep…");
+            var openPorts = await SweepIndustrialPortsAsync(ip, ct).ConfigureAwait(false);
+            if (openPorts.Count > 0)
+                result.IndustrialPortsOpen = openPorts;
+
+            // Convenience back-compat slots (single-port presence flags).
+            // These are derived signals; the canonical list is IndustrialPortsOpen.
+            foreach (var p in openPorts)
+            {
+                if (p.Port == 502)
+                    result.ModbusInfo = new ModbusInfo { PortOpen = true, ProbedAt = DateTime.UtcNow };
+                else if (p.Port == 4840)
+                    result.OpcUaInfo = new OpcUaInfo  { PortOpen = true, ProbedAt = DateTime.UtcNow };
+            }
+
+            // Synthesize IndustrialIdentity from vendor lookup + port-open heuristic.
+            result.IndustrialIdentity = SynthesizeIndustrialIdentity(vendorEntry, openPorts);
+
+            EnrichTopologyNodeFromResult(ip, result);
+
+            if (result.CompletedAt == null) result.CompletedAt = DateTime.Now;
+            lock (_probeResultCacheLock) { _probeResultCache[ip] = result; }
+
+            Logger.Info($"[PROBE] Survey complete on {ip}");
+            RaiseStatus("Phase3", $"Reachability test of {ip} complete.");
+            return result;
+        }
+
+        // Quick connect-and-close check — does NOT speak the protocol on the
+        // port, just confirms a TCP listener exists. Lower-noise than a SYN
+        // scan because it's a complete (RST'd) TCP handshake.
+        private static async Task<bool> IsTcpPortOpenAsync(string ip, int port, CancellationToken ct)
+        {
+            try
+            {
+                using var tcp = new System.Net.Sockets.TcpClient();
+                using var quickCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                quickCts.CancelAfter(SurveyTcpQuickCheckMs);
+                await tcp.ConnectAsync(ip, port, quickCts.Token).ConfigureAwait(false);
+                return tcp.Connected;
+            }
+            catch { return false; }
+        }
+
+        // Industrial-protocol port → canonical name. The TCP block sweeps all
+        // entries via connect-and-close; BACnet (47808 UDP) is handled
+        // separately with a 1-byte send-and-listen probe.
+        private static readonly (int Port, string Name)[] IndustrialTcpPorts = new[]
+        {
+            (102,   "S7Comm"),
+            (502,   "Modbus TCP"),
+            (2222,  "CIP class 1"),
+            (2404,  "IEC 60870-5-104"),
+            (4840,  "OPC UA"),
+            (4001,  "MOXA NPort"),
+            (4002,  "MOXA NPort"),
+            (4003,  "MOXA NPort"),
+            (4004,  "MOXA NPort"),
+            (4005,  "MOXA NPort"),
+            (4006,  "MOXA NPort"),
+            (4007,  "MOXA NPort"),
+            (4008,  "MOXA NPort"),
+            (9600,  "OMRON FINS"),
+            (10110, "NMEA over TCP"),
+            (10111, "NMEA over TCP"),
+            (10112, "NMEA over TCP"),
+            (18245, "GE-SRTP"),
+            (20000, "DNP3"),
+            (44818, "EtherNet/IP")
+        };
+        private const int BacnetUdpPort = 47808;
+        private const int IndustrialSweepConcurrency = 6;
+        private const int IndustrialSweepStealthConcurrency = 2;
+
+        private async Task<List<IndustrialPortInfo>> SweepIndustrialPortsAsync(
+            string ip, CancellationToken ct)
+        {
+            var found = new List<IndustrialPortInfo>();
+            var foundLock = new object();
+
+            int concurrency = _stealthMode
+                ? IndustrialSweepStealthConcurrency
+                : IndustrialSweepConcurrency;
+
+            using var gate = new SemaphoreSlim(concurrency, concurrency);
+
+            // In stealth mode, randomise the port order so a defender's IDS
+            // doesn't see a regular ascending/standard sequence.
+            var orderedPorts = _stealthMode
+                ? ShuffleStealth(IndustrialTcpPorts)
+                : IndustrialTcpPorts.AsEnumerable();
+
+            var tasks = orderedPorts.Select(async pp =>
+            {
+                try { await gate.WaitAsync(ct).ConfigureAwait(false); }
+                catch (OperationCanceledException) { return; }
+                try
+                {
+                    if (_stealthMode) await StealthJitterAsync(ct).ConfigureAwait(false);
+                    if (await IsTcpPortOpenAsync(ip, pp.Port, ct).ConfigureAwait(false))
+                    {
+                        lock (foundLock) { found.Add(new IndustrialPortInfo(pp.Port, pp.Name)); }
+                    }
+                }
+                finally { gate.Release(); }
+            }).ToList();
+
+            // BACnet UDP — separate from the TCP gate.
+            tasks.Add(Task.Run(async () =>
+            {
+                try
+                {
+                    if (await IsBacnetUdpResponsiveAsync(ip, ct).ConfigureAwait(false))
+                    {
+                        lock (foundLock)
+                        {
+                            found.Add(new IndustrialPortInfo(BacnetUdpPort, "BACnet/IP"));
+                        }
+                    }
+                }
+                catch (Exception ex) { Logger.Debug(ex, $"[SURVEY] BACnet probe on {ip} failed"); }
+            }, ct));
+
+            try { await Task.WhenAll(tasks).ConfigureAwait(false); }
+            catch (OperationCanceledException) { /* fall through with partial */ }
+            catch (Exception ex) { Logger.Debug(ex, $"[SURVEY] Industrial sweep on {ip} faulted"); }
+
+            return found.OrderBy(p => p.Port).ToList();
+        }
+
+        // Minimal BACnet/IP detection — send a 1-byte UDP probe and listen
+        // 750ms for any response. Open BACnet endpoints often respond with
+        // a BVLC error indicating the malformed payload, which is the
+        // signal we want; quiet endpoints time out (mark as not-open).
+        private static async Task<bool> IsBacnetUdpResponsiveAsync(string ip, CancellationToken ct)
+        {
+            try
+            {
+                if (!System.Net.IPAddress.TryParse(ip, out var ipAddr)) return false;
+                using var udp = new System.Net.Sockets.UdpClient();
+                udp.Client.ReceiveTimeout = SurveyTcpQuickCheckMs;
+                udp.Client.SendTimeout = SurveyTcpQuickCheckMs;
+                var ep = new System.Net.IPEndPoint(ipAddr, BacnetUdpPort);
+                var probe = new byte[] { 0x00 };
+                try
+                {
+                    await udp.SendAsync(probe, probe.Length, ep).ConfigureAwait(false);
+                }
+                catch (System.Net.Sockets.SocketException sx)
+                    when (sx.SocketErrorCode == System.Net.Sockets.SocketError.ConnectionReset)
+                {
+                    // ICMP port-unreachable → port closed.
+                    return false;
+                }
+
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeoutCts.CancelAfter(SurveyTcpQuickCheckMs);
+                try
+                {
+                    var resp = await udp.ReceiveAsync(timeoutCts.Token).ConfigureAwait(false);
+                    return resp.Buffer != null && resp.Buffer.Length > 0;
+                }
+                catch (System.Net.Sockets.SocketException sx)
+                    when (sx.SocketErrorCode == System.Net.Sockets.SocketError.ConnectionReset)
+                {
+                    return false;
+                }
+                catch
+                {
+                    // Timeout / no response — can't confirm. Conservative: not open.
+                    return false;
+                }
+            }
+            catch { return false; }
+        }
+
+        private static IndustrialIdentity? SynthesizeIndustrialIdentity(
+            Probes.IndustrialVendorDatabase.VendorEntry? vendorEntry,
+            List<IndustrialPortInfo> openPorts)
+        {
+            // Highest-confidence signal first:
+            //   1. SNMP sysObjectID matched (vendorEntry != null) → use DB category
+            //   2. Industrial port(s) open with no vendor match → port heuristic
+            //   3. Neither → return null (host doesn't read as industrial)
+
+            if (vendorEntry != null)
+            {
+                // Strongest open-port observed becomes the IndustrialIdentity.Protocol.
+                // Multiple ports → list the first one; full list lives on
+                // result.IndustrialPortsOpen for the detail panel.
+                string protocol = openPorts.Count > 0
+                    ? openPorts[0].ProtocolName
+                    : "SNMP";
+                return new IndustrialIdentity(
+                    Vendor:          vendorEntry.Vendor,
+                    ProductFamily:   null,
+                    ProductName:     null,
+                    FirmwareVersion: null,
+                    SerialNumber:    null,
+                    Protocol:        protocol,
+                    Category:        vendorEntry.Category,
+                    VesselZoneHint:  vendorEntry.VesselZoneHint,
+                    ProbedAt:        DateTime.Now);
+            }
+
+            if (openPorts.Count > 0)
+            {
+                // No vendor known — apply the port-heuristic-based category.
+                var (vendorHint, categoryHint, protocol) = HeuristicFromPorts(openPorts);
+                return new IndustrialIdentity(
+                    Vendor:          vendorHint,
+                    ProductFamily:   null,
+                    ProductName:     null,
+                    FirmwareVersion: null,
+                    SerialNumber:    null,
+                    Protocol:        protocol,
+                    Category:        categoryHint,
+                    VesselZoneHint:  VesselZone.Unknown,
+                    ProbedAt:        DateTime.Now);
+            }
+
+            return null;
+        }
+
+        // Heuristic fallback when SNMP didn't match a vendor: infer
+        // vendor / category from the set of open industrial ports. Best-
+        // effort hint that the user can correct via further investigation.
+        private static (string? VendorHint, IndustrialCategory Category, string Protocol)
+            HeuristicFromPorts(List<IndustrialPortInfo> openPorts)
+        {
+            if (openPorts.Count > 1)
+                return (null, IndustrialCategory.Unknown, "Multiple industrial protocols");
+
+            var only = openPorts[0];
+            return only.Port switch
+            {
+                102   => ("likely Siemens",      IndustrialCategory.PLC,              "S7Comm"),
+                502   => (null,                  IndustrialCategory.PLC,              "Modbus TCP"),
+                4840  => (null,                  IndustrialCategory.PLC,              "OPC UA"),
+                44818 => ("likely Allen-Bradley", IndustrialCategory.PLC,              "EtherNet/IP"),
+                20000 => ("likely SCADA",        IndustrialCategory.RTU,              "DNP3"),
+                2404  => (null,                  IndustrialCategory.RTU,              "IEC 60870-5-104"),
+                2222  => (null,                  IndustrialCategory.PLC,              "CIP class 1"),
+                18245 => (null,                  IndustrialCategory.PLC,              "GE-SRTP"),
+                9600  => (null,                  IndustrialCategory.PLC,              "OMRON FINS"),
+                47808 => (null,                  IndustrialCategory.HMI,              "BACnet/IP"),
+                >= 4001 and <= 4008
+                      => (null,                  IndustrialCategory.IndustrialSwitch, "MOXA NPort"),
+                >= 10110 and <= 10112
+                      => (null,                  IndustrialCategory.NavigationDevice, "NMEA over TCP"),
+                _     => (null,                  IndustrialCategory.Unknown,          only.ProtocolName)
+            };
         }
 
         // Spec-defined helpers — used by both ProbeHostAsync and the detail panel.
@@ -744,6 +1449,21 @@ namespace Dorothy.Services
             // render "Probed Xm ago (Advanced)" without re-reading the cache.
             node.Attributes["lastProbedAt"]    = DateTime.UtcNow.ToString("o");
             node.Attributes["lastProbeLevel"]  = result.Level.ToString();
+
+            // Industrial-device classification: drives the aggressive-scan
+            // warning trigger and (later rounds) cytoscape style overlays.
+            // Only the four attribute keys are written; absence means "not
+            // industrial / not yet identified."
+            if (result.IndustrialIdentity != null)
+            {
+                var ind = result.IndustrialIdentity;
+                if (!string.IsNullOrWhiteSpace(ind.Vendor))
+                    node.Attributes["industrialVendor"] = ind.Vendor!;
+                node.Attributes["industrialCategory"] = ind.Category.ToString();
+                node.Attributes["industrialProtocol"] = ind.Protocol;
+                if (ind.VesselZoneHint != VesselZone.Unknown)
+                    node.Attributes["vesselZoneHint"] = ind.VesselZoneHint.ToString();
+            }
 
             UpsertAndRaiseNode(node);
         }
@@ -1269,7 +1989,8 @@ namespace Dorothy.Services
                         _sourceIp!,
                         _nicDescription,
                         reply => OnArpReply(reply, localSubnetCidr!),
-                        token).ConfigureAwait(false);
+                        token,
+                        stealthMode: _stealthMode).ConfigureAwait(false);
                     RaiseStatus("Phase1", $"ARP sweep found {replies.Count} hosts on {localSubnetCidr}.");
                 }
                 catch (OperationCanceledException) { }
@@ -1437,7 +2158,7 @@ namespace Dorothy.Services
             return null;
         }
 
-        private static bool IsPublicIp(string? ip)
+        public static bool IsPublicIp(string? ip)
         {
             if (string.IsNullOrEmpty(ip)) return false;
             try
@@ -1579,6 +2300,10 @@ namespace Dorothy.Services
                 NodeChanged?.Invoke(this, new TopologyNodeChangedEventArgs { Node = stored });
             }
             catch (Exception ex) { Logger.Debug(ex, "NodeChanged listener failed"); }
+
+            // Offline-first persistence: rolling 1s debounce so a burst of
+            // discovery hits the DB once, not once per host.
+            SchedulePersistTopology();
         }
 
         private void MarkStaleNodesAfterScan()
@@ -1644,6 +2369,7 @@ namespace Dorothy.Services
             var stored = _graph.UpsertEdge(edge);
             try { EdgeChanged?.Invoke(this, new TopologyEdgeChangedEventArgs { Edge = stored }); }
             catch (Exception ex) { Logger.Debug(ex, "EdgeChanged listener failed"); }
+            SchedulePersistTopology();
         }
 
         private void RaiseStatus(string phase, string message, bool isError = false)

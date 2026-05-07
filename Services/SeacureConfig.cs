@@ -4,7 +4,11 @@ using System.IO;
 
 namespace Dorothy.Services
 {
-
+    /// <summary>
+    /// Single source of truth for SEACUREDB endpoint configuration. As of the
+    /// no-JWT rework, surveyor identity is asserted via hardware id in the
+    /// request body, so email/password are gone — only the API URL remains.
+    /// </summary>
     internal static class SeacureConfig
     {
         private const string DefaultApiUrl = "https://api.seacuredb.com";
@@ -13,11 +17,6 @@ namespace Dorothy.Services
             new(LoadDotEnv, isThreadSafe: true);
 
         public static string ApiUrl => Get("SEACUREDB_API_URL") ?? DefaultApiUrl;
-        public static string? Email => Get("SEACUREDB_EMAIL");
-        public static string? Password => Get("SEACUREDB_PASSWORD");
-
-        public static bool IsConfigured =>
-            !string.IsNullOrWhiteSpace(Email) && !string.IsNullOrWhiteSpace(Password);
 
         private static string? Get(string key)
         {

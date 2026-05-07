@@ -328,8 +328,6 @@ namespace Dorothy.Models
                             StopTime = stopTime,
                             LogContent = _currentLogContent,
                             CreatedAt = DateTime.Now,
-                            IsSynced = false,
-                            Synced = false,
                             HardwareId = _hardwareId,
                             MachineName = _machineName,
                             Username = _username,
@@ -337,6 +335,7 @@ namespace Dorothy.Models
                         };
 
                         await _databaseService.SaveAttackLogAsync(logEntry);
+                        Dorothy.Services.EngagementContext.NotifyActivityChanged();
                     }
                     catch (Exception ex)
                     {

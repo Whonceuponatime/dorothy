@@ -29,7 +29,10 @@ namespace Dorothy.Services.Probes
             string? SnmpSysName,
             string? SnmpSysDescr,
             string? SnmpSysContact,
-            string? SnmpSysLocation);
+            string? SnmpSysLocation,
+            // sysObjectID (1.3.6.1.2.1.1.2.0) — drives Survey vendor-hint
+            // lookup via IndustrialVendorDatabase.LookupBySysObjectID.
+            string? SnmpSysObjectId);
 
         public async Task<EnrichmentResult> EnrichAsync(
             string ipAddress,
@@ -59,7 +62,8 @@ namespace Dorothy.Services.Probes
                 SnmpSysName: snmp.SysName,
                 SnmpSysDescr: snmp.SysDescr,
                 SnmpSysContact: snmp.SysContact,
-                SnmpSysLocation: snmp.SysLocation);
+                SnmpSysLocation: snmp.SysLocation,
+                SnmpSysObjectId: snmp.SysObjectId);
         }
 
         private static T SafeResult<T>(Task<T> task, T fallback)
@@ -184,11 +188,12 @@ namespace Dorothy.Services.Probes
             public string? SysContact { get; init; }
             public string? SysName { get; init; }
             public string? SysLocation { get; init; }
+            public string? SysObjectId { get; init; }
         }
 
         private static SnmpValues SnmpQuery(string ip, string community, CancellationToken ct)
         {
-            string? sysDescr = null, sysContact = null, sysName = null, sysLocation = null;
+            string? sysDescr = null, sysContact = null, sysName = null, sysLocation = null, sysObjectId = null;
             try
             {
                 if (!IPAddress.TryParse(ip, out var ipAddr)) return new SnmpValues();
@@ -197,10 +202,11 @@ namespace Dorothy.Services.Probes
 
                 var oids = new (string Oid, int Slot)[]
                 {
-                    ("1.3.6.1.2.1.1.1.0", 0),
-                    ("1.3.6.1.2.1.1.4.0", 1),
-                    ("1.3.6.1.2.1.1.5.0", 2),
-                    ("1.3.6.1.2.1.1.6.0", 3)
+                    ("1.3.6.1.2.1.1.1.0", 0),  // sysDescr
+                    ("1.3.6.1.2.1.1.4.0", 1),  // sysContact
+                    ("1.3.6.1.2.1.1.5.0", 2),  // sysName
+                    ("1.3.6.1.2.1.1.6.0", 3),  // sysLocation
+                    ("1.3.6.1.2.1.1.2.0", 4)   // sysObjectID — vendor enterprise OID
                 };
 
                 foreach (var (oid, slot) in oids)
@@ -225,6 +231,7 @@ namespace Dorothy.Services.Probes
                                 case 1: sysContact = value; break;
                                 case 2: sysName = value; break;
                                 case 3: sysLocation = value; break;
+                                case 4: sysObjectId = value; break;
                             }
                         }
                     }
@@ -240,7 +247,8 @@ namespace Dorothy.Services.Probes
                 SysDescr = sysDescr,
                 SysContact = sysContact,
                 SysName = sysName,
-                SysLocation = sysLocation
+                SysLocation = sysLocation,
+                SysObjectId = sysObjectId
             };
         }
     }
